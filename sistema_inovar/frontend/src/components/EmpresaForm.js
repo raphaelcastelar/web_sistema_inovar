@@ -1,14 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useParams } from 'react-router-dom';
 
-const EmpresaForm = () => {
+const EmpresaForm = ({ onSave }) => {
+  const { id } = useParams(); // Extrai o id da URL
   const [formData, setFormData] = useState({
     nome: '',
     cnpj: '',
     email: '',
     telefone: '',
-    flags: [] // Inclua o campo flags com valor padrão
+    flags: []
   });
+
+  useEffect(() => {
+    if (id) {
+      axios.get(`http://127.0.0.1:8000/api/empresas/${id}/`)
+        .then(response => {
+          setFormData(response.data); // Preenche o formulário com os dados da empresa
+        })
+        .catch(error => console.error('Erro ao carregar empresa:', error));
+    } else {
+      // Reseta o formulário para criação se não houver id
+      setFormData({ nome: '', cnpj: '', email: '', telefone: '', flags: [] });
+    }
+  }, [id]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -16,12 +31,17 @@ const EmpresaForm = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    axios.post('http://127.0.0.1:8000/api/empresas/', formData)
+    const url = id
+      ? `http://127.0.0.1:8000/api/empresas/${id}/`
+      : 'http://127.0.0.1:8000/api/empresas/';
+    const method = id ? 'put' : 'post';
+
+    axios({ method, url, data: formData })
       .then(response => {
-        console.log('Empresa criada:', response.data);
-        // Atualize a lista de empresas ou redirecione
+        console.log('Empresa salva:', response.data);
+        onSave(); // Atualiza a lista
       })
-      .catch(error => console.error('Erro ao criar empresa:', error));
+      .catch(error => console.error('Erro ao salvar empresa:', error));
   };
 
   return (
@@ -59,7 +79,7 @@ const EmpresaForm = () => {
         className="p-2 mb-2 w-full bg-gray-700 text-white rounded"
       />
       <button type="submit" className="p-2 bg-blue-600 text-white rounded">
-        Criar Empresa
+        {id ? 'Atualizar' : 'Criar'}
       </button>
     </form>
   );
