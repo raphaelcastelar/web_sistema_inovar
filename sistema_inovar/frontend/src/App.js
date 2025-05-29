@@ -7,20 +7,18 @@ import './App.css';
 
 function App() {
   const handleSave = () => {
-    window.location.href = '/'; // Redireciona para a lista após salvar
+    window.location.href = '/';
   };
 
   return (
     <Router>
-      <div className="min-h-screen bg-gray-900 text-white flex">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white flex">
         <Navbar />
-        <div className="flex-1 pl-48">
-          <div className="p-4">
-            <Routes>
-              <Route path="/" element={<EmpresaList />} />
-              <Route path="/cadastrar/:id?" element={<EmpresaForm onSave={handleSave} />} />
-            </Routes>
-          </div>
+        <div className="flex-1 pl-48 p-6">
+          <Routes>
+            <Route path="/" element={<EmpresaList />} />
+            <Route path="/cadastrar/:id?" element={<EmpresaForm onSave={handleSave} />} />
+          </Routes>
         </div>
       </div>
     </Router>

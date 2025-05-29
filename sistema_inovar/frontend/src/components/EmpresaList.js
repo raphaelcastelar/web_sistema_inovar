@@ -31,34 +31,46 @@ const EmpresaList = () => {
   );
 
   return (
-    <div className="p-4">
-      <div className="mb-4">
+    <div>
+      <div className="mb-6 flex items-center space-x-4">
         <input
           type="text"
           placeholder="Buscar empresas..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="p-2 mb-2 w-full bg-gray-700 text-white rounded"
+          className="p-3 w-full bg-gray-800 text-white rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
         />
-        <Link to="/cadastrar" className="p-2 bg-green-600 text-white rounded inline-block">
-          <PlusIcon className="h-6 w-6 inline-block" /> Criar Nova Empresa
+        <Link to="/cadastrar" className="p-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition-all duration-300 flex items-center space-x-2">
+          <PlusIcon className="h-6 w-6" />
+          <span>Criar Nova Empresa</span>
         </Link>
       </div>
-      <ul className="bg-gray-700 rounded">
-        {filteredEmpresas.map(empresa => (
-          <li key={empresa.id} className="p-2 hover:bg-gray-600 flex justify-between items-center">
-            <span>{empresa.nome} ({empresa.cnpj})</span>
-            <div>
-              <Link to={`/cadastrar/${empresa.id}`} className="text-blue-400 mr-2">
-                <PencilIcon className="h-5 w-5 inline-block" />
-              </Link>
-              <button onClick={() => handleDelete(empresa.id)} className="text-red-400">
-                <TrashIcon className="h-5 w-5 inline-block" />
-              </button>
+      <div className="grid gap-4">
+        {filteredEmpresas.length === 0 ? (
+          <p className="text-gray-400 text-center">Nenhuma empresa encontrada.</p>
+        ) : (
+          filteredEmpresas.map(empresa => (
+            <div
+              key={empresa.id}
+              className="p-4 bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 flex justify-between items-center"
+            >
+              <div>
+                <h3 className="text-lg font-semibold text-indigo-200">{empresa.nome}</h3>
+                <p className="text-gray-400">CNPJ: {empresa.cnpj}</p>
+                <p className="text-gray-400">Email: {empresa.email}</p>
+              </div>
+              <div className="flex space-x-3">
+                <Link to={`/cadastrar/${empresa.id}`} className="text-indigo-400 hover:text-indigo-300 transition-colors duration-200">
+                  <PencilIcon className="h-6 w-6" />
+                </Link>
+                <button onClick={() => handleDelete(empresa.id)} className="text-red-400 hover:text-red-300 transition-colors duration-200">
+                  <TrashIcon className="h-6 w-6" />
+                </button>
+              </div>
             </div>
-          </li>
-        ))}
-      </ul>
+          ))
+        )}
+      </div>
     </div>
   );
 };
