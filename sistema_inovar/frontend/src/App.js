@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Navbar from './components/navbar';
 import EmpresaList from './components/EmpresaList';
 import EmpresaForm from './components/EmpresaForm';
+import PastaManager from './components/PastaManager';
 import './App.css';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
           <Routes>
             <Route path="/" element={<EmpresaList />} />
             <Route path="/cadastrar/:id?" element={<EmpresaForm onSave={handleSave} />} />
+            <Route path="/empresas/:empresaId/pastas" element={<PastaManager />} />
           </Routes>
         </div>
       </div>

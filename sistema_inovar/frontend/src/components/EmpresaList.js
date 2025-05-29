@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { PencilIcon, TrashIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, PlusIcon, FolderIcon } from '@heroicons/react/24/outline';
 
 const EmpresaList = () => {
   const [empresas, setEmpresas] = useState([]);
@@ -66,6 +66,9 @@ const EmpresaList = () => {
                 <button onClick={() => handleDelete(empresa.id)} className="text-red-400 hover:text-red-300 transition-colors duration-200">
                   <TrashIcon className="h-6 w-6" />
                 </button>
+                <Link to={`/empresas/${empresa.id}/pastas`} className="text-green-400 hover:text-green-300 transition-colors duration-200">
+                  <FolderIcon className="h-6 w-6" />
+                </Link>
               </div>
             </div>
           ))
