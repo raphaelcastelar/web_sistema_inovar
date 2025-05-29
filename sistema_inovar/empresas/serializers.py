@@ -1,21 +1,27 @@
 from rest_framework import serializers
-from .models import Empresa, Pasta, Arquivo
-
-class ArquivoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Arquivo
-        fields = '__all__'
-
-class PastaSerializer(serializers.ModelSerializer):
-    arquivos = ArquivoSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Pasta
-        fields = '__all__'
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional
 
 class EmpresaSerializer(serializers.ModelSerializer):
-    pastas = PastaSerializer(many=True, read_only=True)
-
     class Meta:
         model = Empresa
+        fields = '__all__'
+
+class DocumentosConstitutivosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentosConstitutivos
+        fields = '__all__'
+
+class XMLSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = XML
+        fields = '__all__'
+
+class DepartamentoPessoalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DepartamentoPessoal
+        fields = '__all__'
+
+class SimplesNacionalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SimplesNacional
         fields = '__all__'

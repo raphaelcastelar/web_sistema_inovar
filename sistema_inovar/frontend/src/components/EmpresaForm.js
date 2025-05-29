@@ -8,9 +8,9 @@ const EmpresaForm = ({ onSave }) => {
     nome: '',
     cnpj: '',
     email: '',
-    telefone: '',
-    flags: []
   });
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null); // Para exibir mensagem de sucesso
 
   useEffect(() => {
     if (id) {
@@ -18,9 +18,10 @@ const EmpresaForm = ({ onSave }) => {
         .then(response => {
           setFormData(response.data);
         })
-        .catch(error => console.error('Erro ao carregar empresa:', error));
-    } else {
-      setFormData({ nome: '', cnpj: '', email: '', telefone: '', flags: [] });
+        .catch(error => {
+          console.error('Erro ao carregar empresa:', error);
+          setError('Erro ao carregar dados da empresa.');
+        });
     }
   }, [id]);
 
@@ -35,12 +36,24 @@ const EmpresaForm = ({ onSave }) => {
       : 'http://127.0.0.1:8000/api/empresas/';
     const method = id ? 'put' : 'post';
 
+    // Log dos dados que estão sendo enviados
+    console.log('Dados enviados:', formData);
+
     axios({ method, url, data: formData })
       .then(response => {
-        console.log('Empresa salva:', response.data);
-        onSave();
+        console.log('Resposta do servidor:', response);
+        setSuccess('Empresa salva com sucesso!');
+        setError(null);
+        onSave(); // Redireciona para a lista
       })
-      .catch(error => console.error('Erro ao salvar empresa:', error));
+      .catch(error => {
+        console.error('Erro ao salvar empresa:', error);
+        setError('Erro ao salvar empresa. Verifique os dados ou o servidor.');
+        if (error.response) {
+          console.log('Detalhes do erro:', error.response.data);
+          setError(JSON.stringify(error.response.data));
+        }
+      });
   };
 
   return (
@@ -48,6 +61,8 @@ const EmpresaForm = ({ onSave }) => {
       <h2 className="text-2xl font-bold text-indigo-200 mb-6">
         {id ? 'Editar Empresa' : 'Nova Empresa'}
       </h2>
+      {error && <p className="text-red-400 mb-4">{error}</p>}
+      {success && <p className="text-green-400 mb-4">{success}</p>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-gray-300 mb-1">Nome</label>
@@ -58,6 +73,7 @@ const EmpresaForm = ({ onSave }) => {
             onChange={handleChange}
             placeholder="Nome da empresa"
             className="w-full p-3 bg-gray-700 text-white rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
+            required
           />
         </div>
         <div>
@@ -69,6 +85,7 @@ const EmpresaForm = ({ onSave }) => {
             onChange={handleChange}
             placeholder="CNPJ"
             className="w-full p-3 bg-gray-700 text-white rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
+            required
           />
         </div>
         <div>
@@ -80,17 +97,7 @@ const EmpresaForm = ({ onSave }) => {
             onChange={handleChange}
             placeholder="Email"
             className="w-full p-3 bg-gray-700 text-white rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
-          />
-        </div>
-        <div>
-          <label className="block text-gray-300 mb-1">Telefone</label>
-          <input
-            type="text"
-            name="telefone"
-            value={formData.telefone}
-            onChange={handleChange}
-            placeholder="Telefone"
-            className="w-full p-3 bg-gray-700 text-white rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
+            required
           />
         </div>
         <button

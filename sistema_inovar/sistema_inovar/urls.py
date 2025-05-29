@@ -1,14 +1,16 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from empresas.views import EmpresaViewSet, PastaViewSet, ArquivoViewSet
+from empresas.views import EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet, DepartamentoPessoalViewSet, SimplesNacionalViewSet
 from django.conf import settings
 from django.conf.urls.static import static
 
 router = routers.DefaultRouter()
 router.register(r'empresas', EmpresaViewSet)
-router.register(r'pastas', PastaViewSet)
-router.register(r'arquivos', ArquivoViewSet)
+router.register(r'documentos-constitutivos', DocumentosConstitutivosViewSet)
+router.register(r'xml', XMLViewSet)
+router.register(r'departamento-pessoal', DepartamentoPessoalViewSet)
+router.register(r'simples-nacional', SimplesNacionalViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),

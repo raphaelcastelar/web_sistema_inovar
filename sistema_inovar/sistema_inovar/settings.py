@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -131,3 +132,28 @@ CORS_ALLOWED_ORIGINS = [
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'inovardata',  # Nome do banco de dados PostgreSQL
+        'USER': 'inovardata_user',  # Usuário do PostgreSQL
+        'PASSWORD': '3jRHojBDs96t1NF3f45aJLFz982geTV3',  # Senha do usuário
+        'HOST': 'dpg-d0sc4p3ipnbc738se4og-a.oregon-postgres.render.com',  # Ou o endereço do servidor PostgreSQL
+        'PORT': '5432',  # Porta padrão do PostgreSQL
+    }
+}
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}
