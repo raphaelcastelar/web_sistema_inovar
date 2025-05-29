@@ -1,27 +1,52 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { HomeIcon, UsersIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { Link } from 'react-router-dom';
-import LogoContabilidade from '../assets/logo_contabilidade.png'; // Importação direta
+import LogoContabilidade from '../assets/logo_contabilidade.png';
 
 const Navbar = () => {
+  const [selectedItem, setSelectedItem] = useState('/'); // Estado para o item selecionado, padrão é '/'
+
   return (
-    <div className="fixed left-0 top-0 h-full w-56 bg-gradient-to-b from-indigo-900 to-gray-800 shadow-xl flex flex-col items-center py-8 space-y-10">
-      {/* Imagem no lugar do título */}
+    <div className="fixed left-0 top-0 h-full w-56 bg-gradient-to-b from-indigo-900 to-gray-800 shadow-xl flex flex-col items-center py-8">
+      {/* Imagem no topo */}
       <img
         src={LogoContabilidade}
         alt="Logo Contabilidade"
         className="h-24 w-auto max-w-48 object-contain mb-10"
       />
-      {/* Botões */}
-      <Link to="/" className="text-indigo-300 hover:text-white hover:bg-indigo-700 p-3 rounded-full transition-all duration-300 transform hover:scale-110">
-        <HomeIcon className="h-9 w-9" />
-      </Link>
-      <Link to="/cadastrar" className="text-indigo-300 hover:text-white hover:bg-indigo-700 p-3 rounded-full transition-all duration-300 transform hover:scale-110">
-        <UsersIcon className="h-9 w-9" />
-      </Link>
-      <Link to="/documentos" className="text-indigo-300 hover:text-white hover:bg-indigo-700 p-3 rounded-full transition-all duration-300 transform hover:scale-110">
-        <DocumentTextIcon className="h-9 w-9" />
-      </Link>
+      {/* Itens da barra lateral */}
+      <div className="w-full flex flex-col space-y-2">
+        <Link
+          to="/"
+          onClick={() => setSelectedItem('/')}
+          className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
+            selectedItem === '/' ? 'bg-indigo-800 text-white' : ''
+          }`}
+        >
+          <HomeIcon className="h-7 w-7" />
+          <span className="text-base font-medium">Início</span>
+        </Link>
+        <Link
+          to="/cadastrar"
+          onClick={() => setSelectedItem('/cadastrar')}
+          className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
+            selectedItem === '/cadastrar' ? 'bg-indigo-800 text-white' : ''
+          }`}
+        >
+          <UsersIcon className="h-7 w-7" />
+          <span className="text-base font-medium">Cadastrar</span>
+        </Link>
+        <Link
+          to="/documentos"
+          onClick={() => setSelectedItem('/documentos')}
+          className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
+            selectedItem === '/documentos' ? 'bg-indigo-800 text-white' : ''
+          }`}
+        >
+          <DocumentTextIcon className="h-7 w-7" />
+          <span className="text-base font-medium">Documentos</span>
+        </Link>
+      </div>
     </div>
   );
 };
