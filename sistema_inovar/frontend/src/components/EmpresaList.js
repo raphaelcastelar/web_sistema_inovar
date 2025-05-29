@@ -63,7 +63,7 @@ const EmpresaList = () => {
                 <p className="text-gray-400">Email: {empresa.email}</p>
               </div>
               <div className="flex space-x-3">
-                <Link to={`/cadastrar/${empresa.id}`} className="text-indigo-400 hover:text-indigo-300 transition-colors duration-200">
+                <Link to={`/empresas/editar/${empresa.id}`} className="text-indigo-400 hover:text-indigo-300 transition-colors duration-200">
                   <PencilIcon className="h-6 w-6" />
                 </Link>
                 <button onClick={() => handleDelete(empresa.id)} className="text-red-400 hover:text-red-300 transition-colors duration-200">

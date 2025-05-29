@@ -4,24 +4,24 @@ from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
-        fields = '__all__'
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone']  # Adicionado 'telefone'
 
 class DocumentosConstitutivosSerializer(serializers.ModelSerializer):
     class Meta:
         model = DocumentosConstitutivos
-        fields = '__all__'
+        fields = ['id', 'nome_arquivo', 'nome_empresa', 'tipo_documento', 'caminho_arquivo']
 
 class XMLSerializer(serializers.ModelSerializer):
     class Meta:
         model = XML
-        fields = '__all__'
+        fields = ['id', 'nome_arquivo', 'cnpj_empresa', 'tipo_documento', 'caminho_arquivo', 'mes', 'ano']
 
 class DepartamentoPessoalSerializer(serializers.ModelSerializer):
     class Meta:
         model = DepartamentoPessoal
-        fields = '__all__'
+        fields = ['id', 'nome_arquivo', 'cnpj_empresa', 'tipo_documento', 'caminho_arquivo', 'mes', 'ano', 'entregue']
 
 class SimplesNacionalSerializer(serializers.ModelSerializer):
     class Meta:
         model = SimplesNacional
-        fields = '__all__'
+        fields = ['id', 'nome_arquivo', 'cnpj_empresa', 'tipo_documento', 'caminho_arquivo', 'mes', 'ano', 'entregue']

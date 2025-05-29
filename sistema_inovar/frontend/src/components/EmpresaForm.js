@@ -1,111 +1,150 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { useParams } from 'react-router-dom';
 
-const EmpresaForm = ({ onSave }) => {
-  const { id } = useParams();
-  const [formData, setFormData] = useState({
-    nome: '',
-    cnpj: '',
-    email: '',
-  });
+const EmpresaForm = () => {
+  const { empresaId } = useParams();
+  const navigate = useNavigate();
+  const [empresa, setEmpresa] = useState({ nome: '', cnpj: '', email: '', telefone: '' });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null); // Para exibir mensagem de sucesso
 
   useEffect(() => {
-    if (id) {
-      axios.get(`http://127.0.0.1:8000/api/empresas/${id}/`)
+    console.log('URL atual:', window.location.href);
+    console.log('empresaId capturado:', empresaId);
+    if (empresaId) {
+      setLoading(true);
+      axios.get(`http://127.0.0.1:8000/api/empresas/${empresaId}/`)
         .then(response => {
-          setFormData(response.data);
+          console.log('Dados recebidos da API:', response.data);
+          const empresaData = {
+            nome: response.data.nome || '',
+            cnpj: response.data.cnpj || '',
+            email: response.data.email || '',
+            telefone: response.data.telefone || '',
+          };
+          console.log('Estado empresa atualizado:', empresaData);
+          setEmpresa(empresaData);
         })
         .catch(error => {
           console.error('Erro ao carregar empresa:', error);
-          setError('Erro ao carregar dados da empresa.');
-        });
+          if (error.response) {
+            console.log('Detalhes do erro:', error.response.data);
+            setError(`Erro ao carregar a empresa: ${error.response.status}`);
+          } else if (error.request) {
+            setError('Erro de conexão com o servidor.');
+          } else {
+            setError('Erro inesperado.');
+          }
+        })
+        .finally(() => setLoading(false));
+    } else {
+      console.log('Nenhum empresaId fornecido, modo cadastro.');
     }
-  }, [id]);
+  }, [empresaId]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setEmpresa({ ...empresa, [name]: value });
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const url = id
-      ? `http://127.0.0.1:8000/api/empresas/${id}/`
-      : 'http://127.0.0.1:8000/api/empresas/';
-    const method = id ? 'put' : 'post';
+    setLoading(true);
+    const url = empresaId ? `http://127.0.0.1:8000/api/empresas/${empresaId}/` : `http://127.0.0.1:8000/api/empresas/`;
+    const method = empresaId ? 'put' : 'post';
 
-    // Log dos dados que estão sendo enviados
-    console.log('Dados enviados:', formData);
-
-    axios({ method, url, data: formData })
+    axios[method](url, empresa)
       .then(response => {
-        console.log('Resposta do servidor:', response);
-        setSuccess('Empresa salva com sucesso!');
-        setError(null);
-        onSave(); // Redireciona para a lista
+        console.log('Empresa salva:', response.data);
+        navigate('/empresas');
       })
       .catch(error => {
         console.error('Erro ao salvar empresa:', error);
-        setError('Erro ao salvar empresa. Verifique os dados ou o servidor.');
         if (error.response) {
-          console.log('Detalhes do erro:', error.response.data);
-          setError(JSON.stringify(error.response.data));
+          console.log('Detalhes:', error.response.data);
+          setError('Erro ao salvar empresa.');
+        } else {
+          setError('Erro de conexão com o servidor.');
         }
-      });
+      })
+      .finally(() => setLoading(false));
   };
 
+  const handleCancel = () => {
+    navigate('/empresas');
+  };
+
+  console.log('Estado atual de empresa:', empresa);
+
   return (
-    <div className="max-w-lg mx-auto p-6 bg-gray-800 rounded-xl shadow-lg">
-      <h2 className="text-2xl font-bold text-indigo-200 mb-6">
-        {id ? 'Editar Empresa' : 'Nova Empresa'}
+    <div className="p-6">
+      <h2 className="text-3xl font-bold text-indigo-200 mb-6">
+        {empresaId ? 'Editar Empresa' : 'Cadastrar Empresa'}
       </h2>
-      {error && <p className="text-red-400 mb-4">{error}</p>}
-      {success && <p className="text-green-400 mb-4">{success}</p>}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-gray-300 mb-1">Nome</label>
+      {error && <p className="text-red-500 mb-4">{error}</p>}
+      {loading && <p className="text-gray-300 mb-4">Carregando...</p>}
+      <form onSubmit={handleSubmit} className="bg-gray-800 p-6 rounded-lg shadow-lg">
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2">Nome</label>
           <input
             type="text"
             name="nome"
-            value={formData.nome}
+            value={empresa.nome}
             onChange={handleChange}
-            placeholder="Nome da empresa"
-            className="w-full p-3 bg-gray-700 text-white rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
+            className="w-full p-2 bg-gray-700 text-white rounded"
             required
           />
         </div>
-        <div>
-          <label className="block text-gray-300 mb-1">CNPJ</label>
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2">CNPJ</label>
           <input
             type="text"
             name="cnpj"
-            value={formData.cnpj}
+            value={empresa.cnpj}
             onChange={handleChange}
-            placeholder="CNPJ"
-            className="w-full p-3 bg-gray-700 text-white rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
+            className="w-full p-2 bg-gray-700 text-white rounded"
             required
           />
         </div>
-        <div>
-          <label className="block text-gray-300 mb-1">Email</label>
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2">Email</label>
           <input
             type="email"
             name="email"
-            value={formData.email}
+            value={empresa.email}
             onChange={handleChange}
-            placeholder="Email"
-            className="w-full p-3 bg-gray-700 text-white rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
+            className="w-full p-2 bg-gray-700 text-white rounded"
             required
           />
         </div>
-        <button
-          type="submit"
-          className="w-full p-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition-all duration-300 transform hover:scale-105"
-        >
-          {id ? 'Atualizar' : 'Criar'}
-        </button>
+        <div className="mb-4">
+          <label className="block text-gray-300 mb-2">Telefone</label>
+          <input
+            type="text"
+            name="telefone"
+            value={empresa.telefone || ''}
+            onChange={handleChange}
+            className="w-full p-2 bg-gray-700 text-white rounded"
+            placeholder="(XX) XXXXX-XXXX"
+          />
+        </div>
+        <div className="flex space-x-2">
+          <button
+            type="submit"
+            className="bg-indigo-500 text-white p-2 rounded hover:bg-indigo-600 disabled:bg-gray-500"
+            disabled={loading}
+          >
+            {loading ? 'Salvando...' : empresaId ? 'Atualizar' : 'Cadastrar'}
+          </button>
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="bg-gray-500 text-white p-2 rounded hover:bg-gray-600"
+          >
+            Cancelar
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -17,10 +17,10 @@ const Navbar = () => {
       {/* Itens da barra lateral */}
       <div className="w-full flex flex-col space-y-2">
         <Link
-          to="/"
-          onClick={() => setSelectedItem('/')}
+          to="/empresas"
+          onClick={() => setSelectedItem('/empresas')}
           className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
-            selectedItem === '/' ? 'bg-indigo-800 text-white' : ''
+            selectedItem === '/empresas' ? 'bg-indigo-800 text-white' : ''
           }`}
         >
           <HomeIcon className="h-7 w-7" />
