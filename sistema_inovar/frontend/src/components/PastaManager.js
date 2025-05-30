@@ -3,7 +3,27 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
-import { DocumentTextIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/react/24/outline';
+
+const fetchArquivos = async (empresaId, setArquivos) => {
+  const endpoints = {
+    documentos_constitutivos: 'documentos-constitutivos',
+    departamento_pessoal: 'departamento-pessoal',
+    xml: 'xml',
+    simples_nacional: 'simples-nacional',
+  };
+  const newArquivos = {};
+  for (const [tipo, endpoint] of Object.entries(endpoints)) {
+    try {
+      const response = await axios.get(`http://127.0.0.1:8000/api/${endpoint}/?cnpj_empresa=${empresaId}`);
+      newArquivos[tipo] = response.data;
+    } catch (error) {
+      console.error(`Erro ao carregar ${tipo}:`, error);
+      newArquivos[tipo] = [];
+    }
+  }
+  setArquivos(newArquivos);
+};
 
 const PastaManager = () => {
   const { empresaId } = useParams();
@@ -11,6 +31,7 @@ const PastaManager = () => {
   const [selectedPasta, setSelectedPasta] = useState(null);
   const [empresaNome, setEmpresaNome] = useState('');
   const [arquivos, setArquivos] = useState({});
+  const [selectedFiles, setSelectedFiles] = useState([]); // Estado para arquivos selecionados
 
   useEffect(() => {
     axios.get(`http://127.0.0.1:8000/api/empresas/${empresaId}/`)
@@ -22,28 +43,8 @@ const PastaManager = () => {
     const pastaTypes = ['documentos_constitutivos', 'departamento_pessoal', 'xml', 'simples_nacional', 'outros'];
     setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
 
-    fetchArquivos();
+    fetchArquivos(empresaId, setArquivos);
   }, [empresaId]);
-
-  const fetchArquivos = async () => {
-    const endpoints = {
-      documentos_constitutivos: 'documentos-constitutivos',
-      departamento_pessoal: 'departamento-pessoal',
-      xml: 'xml',
-      simples_nacional: 'simples-nacional',
-    };
-    const newArquivos = {};
-    for (const [tipo, endpoint] of Object.entries(endpoints)) {
-      try {
-        const response = await axios.get(`http://127.0.0.1:8000/api/${endpoint}/?cnpj_empresa=${empresaId}`);
-        newArquivos[tipo] = response.data;
-      } catch (error) {
-        console.error(`Erro ao carregar ${tipo}:`, error);
-        newArquivos[tipo] = [];
-      }
-    }
-    setArquivos(newArquivos);
-  };
 
   const onDrop = (acceptedFiles, pasta) => {
     acceptedFiles.forEach(file => {
@@ -53,18 +54,23 @@ const PastaManager = () => {
         return;
       }
 
+      if (!file) {
+        console.error('Nenhum arquivo fornecido:', file);
+        return;
+      }
+
       const formData = new FormData();
-      formData.append('caminho_arquivo', file); // Campo FileField no backend
+      formData.append('caminho_arquivo', file);
       formData.append('nome_arquivo', file.name);
       formData.append('cnpj_empresa', empresaId);
-      formData.append('nome_empresa', empresaNome || empresaId); // Usa empresaId como fallback
+      formData.append('nome_empresa', empresaNome || empresaId);
       formData.append('tipo_documento', tipo.replace('_', '-'));
       formData.append('mes', new Date().toLocaleString('default', { month: 'long' }));
       formData.append('ano', new Date().getFullYear().toString());
       formData.append('entregue', 'false');
 
-      console.log('Arquivo enviado:', file); // Log do arquivo
-      console.log('Dados enviados:', [...formData.entries()]); // Log completo do formData
+      console.log('Arquivo enviado:', file);
+      console.log('Dados enviados:', [...formData.entries()]);
 
       let url = '';
       switch (tipo) {
@@ -90,7 +96,8 @@ const PastaManager = () => {
       })
         .then(response => {
           console.log(`${tipo} salvo:`, response.data);
-          fetchArquivos();
+          fetchArquivos(empresaId, setArquivos);
+          setSelectedFiles([]); // Limpa seleção após upload
         })
         .catch(error => {
           console.error(`Erro ao salvar ${tipo}:`, error);
@@ -107,6 +114,32 @@ const PastaManager = () => {
     onDrop: (acceptedFiles) => onDrop(acceptedFiles, selectedPasta),
   });
 
+  const toggleFileSelection = (fileId) => {
+    setSelectedFiles(prev =>
+      prev.includes(fileId)
+        ? prev.filter(id => id !== fileId)
+        : [...prev, fileId]
+    );
+  };
+
+  const handleEmailClick = () => {
+    if (selectedFiles.length === 0) {
+      alert('Por favor, selecione pelo menos um arquivo.');
+      return;
+    }
+    console.log('Arquivos selecionados para envio por email:', selectedFiles);
+    // Funcionalidade futura aqui
+  };
+
+  const handleWhatsAppClick = () => {
+    if (selectedFiles.length === 0) {
+      alert('Por favor, selecione pelo menos um arquivo.');
+      return;
+    }
+    console.log('Arquivos selecionados para envio por WhatsApp:', selectedFiles);
+    // Funcionalidade futura aqui
+  };
+
   return (
     <div className="p-6">
       <h2 className="text-3xl font-bold text-indigo-200 mb-6">
@@ -121,8 +154,10 @@ const PastaManager = () => {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            <DocumentTextIcon className="h-8 w-8 text-indigo-400 mb-2" />
-            <p className="text-gray-300 capitalize">{pasta.tipo.replace('_', ' ')}</p>
+            <div className="flex items-center">
+              <DocumentTextIcon className="h-8 w-8 text-indigo-400 mr-2" />
+              <p className="text-gray-300 capitalize">{pasta.tipo.replace('_', ' ')}</p>
+            </div>
           </motion.div>
         ))}
       </div>
@@ -140,12 +175,36 @@ const PastaManager = () => {
             <p className="text-gray-400">Arraste e solte arquivos aqui ou clique para selecionar</p>
           </div>
           <div className="mt-6">
-            <h4 className="text-lg font-semibold text-indigo-300 mb-2">Arquivos</h4>
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-lg font-semibold text-indigo-300">Arquivos</h4>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleEmailClick}
+                  className="text-indigo-400 hover:text-indigo-300"
+                  title="Enviar por Email"
+                >
+                  <EnvelopeIcon className="h-6 w-6" />
+                </button>
+                <button
+                  onClick={handleWhatsAppClick}
+                  className="text-indigo-400 hover:text-indigo-300"
+                  title="Enviar por WhatsApp"
+                >
+                  <ChatBubbleBottomCenterTextIcon className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
             {arquivos[selectedPasta.tipo] && arquivos[selectedPasta.tipo].length > 0 ? (
               <ul className="space-y-2">
                 {arquivos[selectedPasta.tipo].map(file => (
-                  <li key={file.id} className="text-gray-300 flex justify-between items-center">
-                    <span>{file.nome_arquivo}</span>
+                  <li key={file.id} className="text-gray-300 flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedFiles.includes(file.id)}
+                      onChange={() => toggleFileSelection(file.id)}
+                      className="h-4 w-4 text-indigo-600 rounded"
+                    />
+                    <span className="flex-1">{file.nome_arquivo}</span>
                     <a
                       href={`http://127.0.0.1:8000${file.caminho_arquivo}`}
                       target="_blank"
