@@ -5,73 +5,9 @@ import { motion } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
 import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/react/24/outline';
 
-const fetchArquivos = async (empresaId, setArquivos) => {
-  const endpoints = {
-    documentos_constitutivos: 'documentos-constitutivos',
-    departamento_pessoal: 'departamento-pessoal',
-    xml: 'xml',
-    simples_nacional: 'simples-nacional',
-  };
-  const newArquivos = {};
-  for (const [tipo, endpoint] of Object.entries(endpoints)) {
-    try {
-      const response = await axios.get(`http://127.0.0.1:8000/api/${endpoint}/?cnpj_empresa=${empresaId}`);
-      newArquivos[tipo] = response.data;
-    } catch (error) {
-      console.error(`Erro ao carregar ${tipo}:`, error);
-      newArquivos[tipo] = [];
-    }
-  }
-  setArquivos(newArquivos);
-};
-
-const PastaManager = () => {
-  const { empresaId } = useParams();
-  const [pastas, setPastas] = useState([]);
-  const [selectedPasta, setSelectedPasta] = useState(null);
-  const [empresaNome, setEmpresaNome] = useState('');
-  const [arquivos, setArquivos] = useState({});
-  const [selectedFiles, setSelectedFiles] = useState([]); // Estado para arquivos selecionados
-
-  useEffect(() => {
-    axios.get(`http://127.0.0.1:8000/api/empresas/${empresaId}/`)
-      .then(response => {
-        setEmpresaNome(response.data.nome);
-      })
-      .catch(error => console.error('Erro ao carregar nome da empresa:', error));
-
+const fetchArquivos = (empresaId, setArquivos) => {
     const pastaTypes = ['documentos_constitutivos', 'departamento_pessoal', 'xml', 'simples_nacional', 'outros'];
-    setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
-
-    fetchArquivos(empresaId, setArquivos);
-  }, [empresaId]);
-
-  const onDrop = (acceptedFiles, pasta) => {
-    acceptedFiles.forEach(file => {
-      const tipo = typeof pasta === 'object' ? pasta.tipo : pasta;
-      if (!tipo) {
-        console.error('Tipo de pasta inválido:', pasta);
-        return;
-      }
-
-      if (!file) {
-        console.error('Nenhum arquivo fornecido:', file);
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append('caminho_arquivo', file);
-      formData.append('nome_arquivo', file.name);
-      formData.append('cnpj_empresa', empresaId);
-      formData.append('nome_empresa', empresaNome || empresaId);
-      formData.append('tipo_documento', tipo.replace('_', '-'));
-      formData.append('mes', new Date().toLocaleString('default', { month: 'long' }));
-      formData.append('ano', new Date().getFullYear().toString());
-      formData.append('entregue', 'false');
-
-      console.log('Arquivo enviado:', file);
-      console.log('Dados enviados:', [...formData.entries()]);
-
+    const promises = pastaTypes.map(tipo => {
       let url = '';
       switch (tipo) {
         case 'documentos_constitutivos':
@@ -86,35 +22,139 @@ const PastaManager = () => {
         case 'simples_nacional':
           url = 'http://127.0.0.1:8000/api/simples-nacional/';
           break;
+        case 'outros':
+          url = 'http://127.0.0.1:8000/api/outros/';
+          break;
         default:
-          console.warn(`Pasta ${tipo} não tem tabela associada.`);
-          return;
+          return Promise.resolve([]);
       }
-
-      axios.post(url, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-        .then(response => {
-          console.log(`${tipo} salvo:`, response.data);
-          fetchArquivos(empresaId, setArquivos);
-          setSelectedFiles([]); // Limpa seleção após upload
-        })
+      console.log(`Buscando arquivos em ${url} para empresa_id=${empresaId}`);
+      return axios.get(url, { params: { empresa_id: empresaId } })
+        .then(response => ({ tipo, data: response.data }))
         .catch(error => {
-          console.error(`Erro ao salvar ${tipo}:`, error);
-          if (error.response) {
-            console.log('Detalhes:', error.response.data);
-            console.log('Status:', error.response.status);
-            console.log('Headers:', error.response.headers);
-          }
+          console.error(`Erro ao buscar arquivos para ${tipo}:`, error);
+          return { tipo, data: [] };
         });
     });
+
+    Promise.all(promises).then(results => {
+      const arquivosData = {};
+      results.forEach(({ tipo, data }) => {
+        arquivosData[tipo] = data;
+      });
+      setArquivos(arquivosData);
+    });
   };
+
+const PastaManager = () => {
+  const { empresaId: empresaIdStr } = useParams();  // Renomeie para evitar confusão
+  const empresaId = parseInt(empresaIdStr, 10);
+  const [pastas, setPastas] = useState([]);
+  const [selectedPasta, setSelectedPasta] = useState(null);
+  const [empresaNome, setEmpresaNome] = useState('');
+  const [empresaCnpj, setEmpresaCnpj] = useState('');
+  const [arquivos, setArquivos] = useState({});
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    axios.get(`http://127.0.0.1:8000/api/empresas/${empresaId}/`)
+      .then(response => {
+        console.log('Dados da empresa carregados:', response.data);
+        setEmpresaNome(response.data.nome);
+        setEmpresaCnpj(response.data.cnpj);
+      })
+      .catch(error => {
+        console.error('Erro ao carregar dados da empresa:', error);
+        setError('Erro ao carregar dados da empresa.');
+      });
+
+    const pastaTypes = ['documentos_constitutivos', 'departamento_pessoal', 'xml', 'simples_nacional', 'outros'];
+    setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
+
+    fetchArquivos(empresaId, setArquivos);
+  }, [empresaId]);
+
+  const onDrop = (acceptedFiles, pasta) => {
+  if (!empresaNome || !empresaCnpj) {
+    alert('Aguarde o carregamento dos dados da empresa antes de fazer upload.');
+    return;
+  }
+
+  acceptedFiles.forEach(file => {
+    const tipo = typeof pasta === 'object' ? pasta.tipo : pasta;
+    if (!tipo) {
+      console.error('Tipo de pasta inválido:', pasta);
+      return;
+    }
+
+    if (!file) {
+      console.error('Nenhum arquivo fornecido:', file);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('caminho_arquivo', file);  // Envia o arquivo diretamente
+    formData.append('nome_arquivo', file.name);
+    formData.append('cnpj_empresa', empresaCnpj);
+    formData.append('nome_empresa', empresaNome);
+    formData.append('tipo_documento', tipo.replace('_', '-'));
+    formData.append('mes', new Date().toLocaleString('default', { month: 'long' }));
+    formData.append('ano', new Date().getFullYear().toString());
+    formData.append('entregue', 'false');
+
+    console.log('Dados enviados no upload:', [...formData.entries()]);
+
+    let url = '';
+    switch (tipo) {
+      case 'documentos_constitutivos':
+        url = 'http://127.0.0.1:8000/api/documentos-constitutivos/';
+        break;
+      case 'departamento_pessoal':
+        url = 'http://127.0.0.1:8000/api/departamento-pessoal/';
+        break;
+      case 'xml':
+        url = 'http://127.0.0.1:8000/api/xml/';
+        break;
+      case 'simples_nacional':
+        url = 'http://127.0.0.1:8000/api/simples-nacional/';
+        break;
+      case 'outros':
+        url = 'http://127.0.0.1:8000/api/outros/';
+        break;
+      default:
+        console.warn(`Pasta ${tipo} não tem tabela associada.`);
+        return;
+    }
+
+    axios.post(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+      .then(response => {
+        console.log(`${tipo} salvo:`, response.data);
+        fetchArquivos(empresaId, setArquivos);
+        setSelectedFiles([]);
+      })
+      .catch(error => {
+        console.error(`Erro ao salvar ${tipo}:`, error);
+        if (error.response) {
+          console.log('Detalhes do erro:', error.response.data);  // Exibe a mensagem do servidor
+        } else if (error.request) {
+          console.log('Nenhuma resposta recebida:', error.request);
+        } else {
+          console.log('Erro na requisição:', error.message);
+        }
+      });
+  });
+};
 
   const { getRootProps, getInputProps } = useDropzone({
     onDrop: (acceptedFiles) => onDrop(acceptedFiles, selectedPasta),
   });
 
   const toggleFileSelection = (fileId) => {
+    console.log('Selecionando fileId:', fileId);
     setSelectedFiles(prev =>
       prev.includes(fileId)
         ? prev.filter(id => id !== fileId)
@@ -122,13 +162,33 @@ const PastaManager = () => {
     );
   };
 
+  
   const handleEmailClick = () => {
     if (selectedFiles.length === 0) {
       alert('Por favor, selecione pelo menos um arquivo.');
       return;
     }
-    console.log('Arquivos selecionados para envio por email:', selectedFiles);
-    // Funcionalidade futura aqui
+    console.log('Enviando requisição com:', { empresa_id: empresaId, tipo_pasta: selectedPasta.tipo, file_ids: selectedFiles });
+    setLoading(true);
+    setError(null);
+    axios.post('http://127.0.0.1:8000/api/enviar-email/', {
+      empresa_id: empresaId,
+      tipo_pasta: selectedPasta.tipo,
+      file_ids: selectedFiles,
+    })
+      .then(response => {
+        alert(response.data.message);
+        setSelectedFiles([]); // Limpa a seleção após o envio
+      })
+      .catch(error => {
+        console.error('Erro ao enviar email:', error);
+        if (error.response) {
+          setError(error.response.data.error || 'Erro ao enviar email.');
+        } else {
+          setError('Erro de conexão com o servidor.');
+        }
+      })
+      .finally(() => setLoading(false));
   };
 
   const handleWhatsAppClick = () => {
@@ -137,7 +197,7 @@ const PastaManager = () => {
       return;
     }
     console.log('Arquivos selecionados para envio por WhatsApp:', selectedFiles);
-    // Funcionalidade futura aqui
+    // Funcionalidade futura para WhatsApp
   };
 
   return (
@@ -180,20 +240,23 @@ const PastaManager = () => {
               <div className="flex space-x-2">
                 <button
                   onClick={handleEmailClick}
-                  className="text-indigo-400 hover:text-indigo-300"
+                  className="text-indigo-400 hover:text-indigo-300 disabled:text-gray-500"
                   title="Enviar por Email"
+                  disabled={loading}
                 >
                   <EnvelopeIcon className="h-6 w-6" />
                 </button>
                 <button
                   onClick={handleWhatsAppClick}
-                  className="text-indigo-400 hover:text-indigo-300"
+                  className="text-indigo-400 hover:text-indigo-300 disabled:text-gray-500"
                   title="Enviar por WhatsApp"
+                  disabled={loading}
                 >
                   <ChatBubbleBottomCenterTextIcon className="h-6 w-6" />
                 </button>
               </div>
             </div>
+            {error && <p className="text-red-500 mb-2">{error}</p>}
             {arquivos[selectedPasta.tipo] && arquivos[selectedPasta.tipo].length > 0 ? (
               <ul className="space-y-2">
                 {arquivos[selectedPasta.tipo].map(file => (

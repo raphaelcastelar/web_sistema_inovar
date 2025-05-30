@@ -22,6 +22,7 @@ class DocumentosConstitutivos(models.Model):
 
     class Meta:
         unique_together = ('nome_arquivo', 'nome_empresa', 'tipo_documento')
+        db_table = 'empresas_documentosconstitutivos'
 
     def save(self, *args, **kwargs):
         logger.info(f"Salvando DocumentosConstitutivos: {self.nome_arquivo}")
@@ -82,3 +83,16 @@ class SimplesNacional(models.Model):
 
     def __str__(self):
         return f"{self.nome_arquivo} - {self.cnpj_empresa}"
+    
+
+class Outros(models.Model):
+    nome_arquivo = models.CharField(max_length=255)
+    nome_empresa = models.CharField(max_length=255)
+    tipo_documento = models.CharField(max_length=10)
+    caminho_arquivo = models.FileField()
+
+    class Meta:
+        db_table = 'outros'
+
+    def __str__(self):
+        return self.nome_arquivo

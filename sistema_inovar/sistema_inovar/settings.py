@@ -157,3 +157,7 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+from decouple import config
+EMAIL_REMETENTE = config('EMAIL_REMETENTE')
+EMAIL_SENHA_APP = config('EMAIL_SENHA_APP')
