@@ -27,7 +27,7 @@ const Navbar = () => {
           <span className="text-base font-medium">Início</span>
         </Link>
         <Link
-          to="/cadastrar"
+          to="/empresas/cadastrar"
           onClick={() => setSelectedItem('/cadastrar')}
           className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
             selectedItem === '/cadastrar' ? 'bg-indigo-800 text-white' : ''
