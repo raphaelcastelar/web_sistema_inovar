@@ -136,13 +136,24 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'inovardata',  # Nome do banco de dados PostgreSQL
-        'USER': 'inovardata_user',  # Usuário do PostgreSQL
-        'PASSWORD': '3jRHojBDs96t1NF3f45aJLFz982geTV3',  # Senha do usuário
-        'HOST': 'dpg-d0sc4p3ipnbc738se4og-a.oregon-postgres.render.com',  # Ou o endereço do servidor PostgreSQL
+        'NAME': 'postgres',  # Nome do banco de dados PostgreSQL
+        'USER': 'postgres',  # Usuário do PostgreSQL
+        'PASSWORD': '@hoanD1323',  # Senha do usuário
+        'HOST': '192.168.0.2',  # Ou o endereço do servidor PostgreSQL
         'PORT': '5432',  # Porta padrão do PostgreSQL
     }
 }
+
+#DATABASES = {
+ #   'default': {
+ #       'ENGINE': 'django.db.backends.postgresql',
+ #       'NAME': 'inovardata',  # Nome do banco de dados PostgreSQL
+ #       'USER': 'inovardata_user',  # Usuário do PostgreSQL
+ #       'PASSWORD': '3jRHojBDs96t1NF3f45aJLFz982geTV3',  # Senha do usuário
+ #       'HOST': 'dpg-d0sc4p3ipnbc738se4og-a.oregon-postgres.render.com',  # Ou o endereço do servidor PostgreSQL
+ #       'PORT': '5432',  # Porta padrão do PostgreSQL
+ #   }
+#}
 
 LOGGING = {
     'version': 1,
