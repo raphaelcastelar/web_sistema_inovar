@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-nyztzhaza2*5^7eq30-^c2juo3c*btz5v899x6pv@o76gac2a+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.196.162']
 
 
 # Application definition
@@ -79,8 +79,12 @@ WSGI_APPLICATION = 'sistema_inovar.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'sistemaweb2',
+        'USER': 'postgres',
+        'PASSWORD': '@hoanD1323',
+        'HOST': '192.168.196.162',
+        'PORT': '5432',
     }
 }
 
@@ -133,28 +137,6 @@ CORS_ALLOWED_ORIGINS = [
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-#DATABASES = {
-#    'default': {
-#        'ENGINE': 'django.db.backends.postgresql',
-#        'NAME': 'sistemaweb2',  # Nome do banco de dados PostgreSQL
-#        'USER': 'postgres',  # Usuário do PostgreSQL
-#        'PASSWORD': '@hoanD1323',  # Senha do usuário
-#        'HOST': '192.168.0.2',  # Ou o endereço do servidor PostgreSQL
-#        'PORT': '5432',  # Porta padrão do PostgreSQL
-#    }
-#}
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'inovardata',  # Nome do banco de dados PostgreSQL
-        'USER': 'inovardata_user',  # Usuário do PostgreSQL
-        'PASSWORD': '3jRHojBDs96t1NF3f45aJLFz982geTV3',  # Senha do usuário
-        'HOST': 'dpg-d0sc4p3ipnbc738se4og-a.oregon-postgres.render.com',  # Ou o endereço do servidor PostgreSQL
-        'PORT': '5432',  # Porta padrão do PostgreSQL
-    }
-}
-
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -169,6 +151,13 @@ LOGGING = {
     },
 }
 
-from decouple import config
-EMAIL_REMETENTE = config('EMAIL_REMETENTE')
-EMAIL_SENHA_APP = config('EMAIL_SENHA_APP')
+# Usar decouple com fallback
+try:
+    from decouple import config
+    print("Decouple importado com sucesso")
+    EMAIL_REMETENTE = config('EMAIL_REMETENTE', default='default_email@example.com')
+    EMAIL_SENHA_APP = config('EMAIL_SENHA_APP', default='default_senha')
+except ImportError as e:
+    print(f"Erro ao importar decouple: {e}")
+    EMAIL_REMETENTE = 'default_email@example.com'
+    EMAIL_SENHA_APP = 'default_senha'
