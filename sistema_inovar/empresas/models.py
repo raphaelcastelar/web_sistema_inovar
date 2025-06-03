@@ -87,7 +87,7 @@ class DocumentosConstitutivos(models.Model):
     id = models.AutoField(primary_key=True)
     nome_arquivo = models.CharField(max_length=255, null=False)
     nome_empresa = models.CharField(max_length=255, null=False) # Usado por get_company_folder_identifier
-    tipo_documento = models.CharField(max_length=50, null=False)
+    tipo_documento = models.CharField(max_length=40, null=False)
     caminho_arquivo = models.FileField(upload_to=documentos_constitutivos_upload_path, null=False, max_length=500) # ATUALIZADO
 
     class Meta:
@@ -105,9 +105,9 @@ class XML(models.Model):
     id = models.AutoField(primary_key=True)
     nome_arquivo = models.CharField(max_length=255, null=False)
     cnpj_empresa = models.CharField(max_length=18, null=False) # Usado por get_company_folder_identifier
-    tipo_documento = models.CharField(max_length=50, null=False)
+    tipo_documento = models.CharField(max_length=40, null=False)
     caminho_arquivo = models.FileField(upload_to=xml_upload_path, null=False, max_length=500) # ATUALIZADO
-    mes = models.CharField(max_length=10, null=False) # Alterado para max_length=2 para "01", "12"
+    mes = models.CharField(max_length=2, null=False) # Alterado para max_length=2 para "01", "12"
     ano = models.CharField(max_length=4, null=False)
 
     def save(self, *args, **kwargs):
@@ -121,9 +121,9 @@ class DepartamentoPessoal(models.Model):
     id = models.AutoField(primary_key=True)
     nome_arquivo = models.CharField(max_length=255, null=False)
     cnpj_empresa = models.CharField(max_length=18, null=False) # Usado por get_company_folder_identifier
-    tipo_documento = models.CharField(max_length=50, null=False)
+    tipo_documento = models.CharField(max_length=40, null=False)
     caminho_arquivo = models.FileField(upload_to=departamento_pessoal_upload_path, null=False, max_length=500) # ATUALIZADO
-    mes = models.CharField(max_length=10, null=False) # Alterado para max_length=2
+    mes = models.CharField(max_length=2, null=False) # Alterado para max_length=2
     ano = models.CharField(max_length=4, null=False)
     entregue = models.BooleanField(default=False)
 
@@ -138,9 +138,9 @@ class SimplesNacional(models.Model):
     id = models.AutoField(primary_key=True)
     nome_arquivo = models.CharField(max_length=255, null=False)
     cnpj_empresa = models.CharField(max_length=18, null=False) # Usado por get_company_folder_identifier
-    tipo_documento = models.CharField(max_length=50, null=False)
+    tipo_documento = models.CharField(max_length=40, null=False)
     caminho_arquivo = models.FileField(upload_to=simples_nacional_upload_path, null=False, max_length=500) # ATUALIZADO
-    mes = models.CharField(max_length=10, null=False) # Alterado para max_length=2
+    mes = models.CharField(max_length=2, null=False) # Alterado para max_length=2
     ano = models.CharField(max_length=4, null=False)
     entregue = models.BooleanField(default=False)
 
