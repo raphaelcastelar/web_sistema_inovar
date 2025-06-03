@@ -14,7 +14,7 @@ const EmpresaForm = () => {
     console.log('empresaId capturado:', empresaId);
     if (empresaId) {
       setLoading(true);
-      axios.get(`http://127.0.0.1:8000/api/empresas/${empresaId}/`)
+      axios.get(`http://192.168.196.162:8000/api/empresas/${empresaId}/`)
         .then(response => {
           console.log('Dados recebidos da API:', response.data);
           const empresaData = {
@@ -51,7 +51,7 @@ const EmpresaForm = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     setLoading(true);
-    const url = empresaId ? `http://127.0.0.1:8000/api/empresas/${empresaId}/` : `http://127.0.0.1:8000/api/empresas/`;
+    const url = empresaId ? `http://192.168.196.162:8000/api/empresas/${empresaId}/` : `http://127.0.0.1:8000/api/empresas/`;
     const method = empresaId ? 'put' : 'post';
 
     axios[method](url, empresa)
