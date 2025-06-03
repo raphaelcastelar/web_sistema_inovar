@@ -127,8 +127,9 @@ const PastaManager = () => {
       if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(tipo)) {
         const uploadMonth = new Date().toLocaleString('pt-BR', { month: 'long' });
         const uploadYear = new Date().getFullYear().toString();
-        formData.append('mes', uploadMonth);
-        formData.append('ano', uploadYear);
+        const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0'); // Ex: "01", "06", "12"
+        formData.append('mes', currentMonth);
+        formData.append('ano', new Date().getFullYear().toString());
 
         // Se o upload for para a pasta XML e os filtros estiverem no mês/ano atual,
         // os arquivos novos aparecerão. Se não, o usuário precisará ajustar o filtro.
