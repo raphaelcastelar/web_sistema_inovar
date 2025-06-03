@@ -8,14 +8,14 @@ const EmpresaList = () => {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    axios.get('http://127.0.0.1:8000/api/empresas/')
+    axios.get('http://192.168.196.162:8000/api/empresas/')
       .then(response => setEmpresas(response.data))
       .catch(error => console.error('Erro ao carregar empresas:', error));
   }, []);
 
   const handleDelete = (id) => {
     if (window.confirm('Tem certeza que deseja excluir esta empresa?')) {
-      axios.delete(`http://127.0.0.1:8000/api/empresas/${id}/`)
+      axios.delete(`http://192.168.196.162:8000/api/empresas/${id}/`)
         .then(() => {
           setEmpresas(empresas.filter(empresa => empresa.id !== id));
           console.log('Empresa excluída');

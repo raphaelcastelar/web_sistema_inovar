@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
 import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/react/24/outline';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = 'http://192.168.196.162:8000/api';
 
 const fetchArquivos = (empresaId, setArquivos, setLoadingState) => { // Renomeado setLoading para setLoadingState
     setLoadingState(true);
@@ -224,7 +224,7 @@ const PastaManager = () => {
             />
             <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
             <a
-              href={`http://127.0.0.1:8000${file.caminho_arquivo}`}
+              href={`http://192.168.196.162:8000${file.caminho_arquivo}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors"
@@ -358,7 +358,7 @@ const PastaManager = () => {
                         <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
                         {(file.mes && file.ano) && (<span className="text-xs text-gray-500 capitalize">{file.mes}/{file.ano}</span>)}
                         {file.hasOwnProperty('entregue') && (<span className={`text-xs px-2 py-0.5 rounded-full ${file.entregue ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
-                        <a href={`http://127.0.0.1:8000${file.caminho_arquivo}`} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors">Ver</a>
+                        <a href={`http://192.168.196.162${file.caminho_arquivo}`} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors">Ver</a>
                       </li>
                     ))}
                   </ul>
