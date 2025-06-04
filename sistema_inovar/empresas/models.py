@@ -4,6 +4,7 @@ import re # Para sanitizar nomes de pastas/arquivos
 import unidecode # Para remover acentos de nomes de pastas/arquivos (pip install unidecode)
 from django.db import models
 import logging
+from utils import gerar_nome_pasta_empresa_padronizado
 
 logger = logging.getLogger(__name__)
 
@@ -19,29 +20,20 @@ class Empresa(models.Model):
         return self.nome
 
 # --- Função auxiliar para gerar nome da pasta da empresa ---
-def get_company_folder_identifier(instance_obj):
+def get_document_company_folder_name_for_upload(document_instance):
     """
-    Gera um nome de pasta seguro para a empresa.
-    Tenta usar o CNPJ se disponível no objeto da instância, caso contrário, o nome da empresa.
-    Isso assume que 'instance_obj' é uma instância de um dos seus modelos de documento
-    e tem um atributo 'cnpj_empresa' ou 'nome_empresa'.
-    Para uma solução mais robusta, o ideal seria ter um ForeignKey para o modelo Empresa
-    em todos os modelos de documento e usar um identificador único da Empresa (como o CNPJ).
+    Obtém o nome da empresa da instância do documento e o formata para nome de pasta.
     """
-    empresa_identificadora = None
-    if hasattr(instance_obj, 'cnpj_empresa') and instance_obj.cnpj_empresa:
-        # Remove caracteres não alfanuméricos do CNPJ para usar como nome de pasta
-        empresa_identificadora = re.sub(r'[^a-zA-Z0-9]', '', str(instance_obj.cnpj_empresa))
-    elif hasattr(instance_obj, 'nome_empresa') and instance_obj.nome_empresa:
-        # Usa o nome da empresa, removendo acentos e substituindo espaços e caracteres especiais
-        nome_limpo = unidecode.unidecode(str(instance_obj.nome_empresa))
-        empresa_identificadora = re.sub(r'\s+', '_', nome_limpo) # Substitui espaços por underscore
-        empresa_identificadora = re.sub(r'[^\w-]', '', empresa_identificadora) # Remove outros caracteres não seguros
-    
-    if not empresa_identificadora: # Fallback
-        logger.warning(f"Não foi possível gerar identificador de pasta para a instância: {instance_obj}")
-        return "EMPRESA_DESCONHECIDA"
-    return empresa_identificadora
+    if hasattr(document_instance, 'nome_empresa') and document_instance.nome_empresa:
+        # USA A FUNÇÃO CENTRALIZADA
+        return gerar_nome_pasta_empresa_padronizado(document_instance.nome_empresa)
+    else:
+        logger.error(f"Instância de documento (tipo: {type(document_instance).__name__}, "
+                     f"pk: {document_instance.pk if document_instance.pk else 'UNSAVED'}) "
+                     f"não possui 'nome_empresa'. Usando fallback MUITO genérico.")
+        # Este fallback é problemático pois não será consistente se 'nome_empresa' faltar.
+        # Garanta que 'nome_empresa' seja sempre populado no documento.
+        return "EMPRESA_NOME_NAO_FORNECIDO_NO_DOCUMENTO"
 
 # --- Função auxiliar para sanitizar nome do arquivo ---
 def sanitize_filename(filename):
@@ -54,17 +46,17 @@ def sanitize_filename(filename):
 
 # --- Funções upload_to específicas ---
 def documentos_constitutivos_upload_path(instance, filename):
-    company_folder = get_company_folder_identifier(instance)
+    company_folder = get_document_company_folder_name_for_upload(instance)
     clean_filename = sanitize_filename(filename)
     return os.path.join(company_folder, 'DOCUMENTOS CONSTITUTIVOS', clean_filename)
 
 def outros_upload_path(instance, filename):
-    company_folder = get_company_folder_identifier(instance)
+    company_folder = get_document_company_folder_name_for_upload(instance)
     clean_filename = sanitize_filename(filename)
     return os.path.join(company_folder, 'OUTROS', clean_filename)
 
 def timed_folder_upload_path(instance, filename, base_folder_name):
-    company_folder = get_company_folder_identifier(instance)
+    company_folder = get_document_company_folder_name_for_upload(instance)
     year = str(instance.ano)
     # instance.mes deve ser o número do mês com dois dígitos (ex: "01", "12")
     month_for_folder = str(instance.mes).zfill(2) 
