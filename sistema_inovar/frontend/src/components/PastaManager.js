@@ -309,7 +309,6 @@ const PastaManager = () => {
     // Resetar filtros de XML é feito pelo useEffect [selectedPasta, arquivos.xml]
   };
 
-
   return (
     <div className="p-4 sm:p-6 bg-gray-900 min-h-screen text-gray-100">
       <div className="max-w-6xl mx-auto">

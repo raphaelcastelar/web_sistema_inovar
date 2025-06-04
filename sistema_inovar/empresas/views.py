@@ -220,3 +220,81 @@ def enviar_email(request):
     except Exception as e:
         logger.error(f"Erro ao enviar email: {str(e)}")
         return Response({'error': f'Erro ao enviar email: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+@api_view(['POST'])
+def enviar_doc_constitutivo_whatsapp_api(request):
+    empresa_id = request.data.get('empresa_id')
+    file_ids = request.data.get('file_ids')
+    recipient_whatsapp_number = request.data.get('whatsapp_number')
+
+    if not all([empresa_id, file_ids, recipient_whatsapp_number]):
+        return Response(
+            {"error": "Parâmetros faltando: empresa_id, file_ids e whatsapp_number são obrigatórios."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        empresa = Empresa.objects.get(id=empresa_id)
+    except Empresa.DoesNotExist:
+        return Response({"error": "Empresa não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+    if not recipient_whatsapp_number.isdigit() or not (10 <= len(recipient_whatsapp_number) <= 15):
+        return Response({"error": "Número de WhatsApp inválido."}, status=status.HTTP_400_BAD_REQUEST)
+
+    documentos_qs = DocumentosConstitutivos.objects.filter(id__in=file_ids, nome_empresa=empresa.nome)
+
+    if not documentos_qs.exists():
+        return Response(
+            {"error": "Nenhum documento constitutivo válido encontrado."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    files_sent_count = 0
+    successful_sends = []
+    failed_sends = []
+    company_name_for_template = empresa.nome
+
+    for doc in documentos_qs:
+        if not doc.caminho_arquivo or not hasattr(doc.caminho_arquivo, 'path'):
+            logger.warning(f"Documento ID {doc.id} ({doc.nome_arquivo}) sem caminho de arquivo.")
+            failed_sends.append({"filename": doc.nome_arquivo, "reason": "Caminho inválido."})
+            continue
+        
+        file_path_on_server = doc.caminho_arquivo.path
+        original_filename = doc.nome_arquivo
+        logger.info(f"Processando WhatsApp para: {original_filename} -> {recipient_whatsapp_number}")
+
+        media_id, _ = upload_media_to_whatsapp(file_path_on_server, original_filename)
+
+        if not media_id:
+            logger.error(f"Falha no upload da mídia para {original_filename}.")
+            failed_sends.append({"filename": original_filename, "reason": "Falha no upload da mídia."})
+            continue
+
+        message_id, error_sending = send_whatsapp_document_template_message(
+            recipient_number=recipient_whatsapp_number,
+            document_media_id=media_id,
+            document_filename=original_filename,
+            company_name_for_template=company_name_for_template
+        )
+
+        if message_id:
+            files_sent_count += 1
+            successful_sends.append({"filename": original_filename, "message_id": message_id})
+            logger.info(f"Template para {original_filename} enviado. ID: {message_id}")
+        else:
+            logger.error(f"Falha ao enviar template para {original_filename}: {error_sending}")
+            failed_sends.append({"filename": original_filename, "reason": f"Falha no template: {error_sending}"})
+
+    if files_sent_count > 0:
+        return Response({
+            "message": f"{files_sent_count} de {documentos_qs.count()} doc(s) processados.",
+            "successful_sends": successful_sends,
+            "failed_sends": failed_sends
+        }, status=status.HTTP_200_OK)
+    else:
+        return Response({
+            "error": "Nenhum documento enviado com sucesso.",
+            "failed_sends": failed_sends
+        }, status=status.HTTP_400_BAD_REQUEST)
