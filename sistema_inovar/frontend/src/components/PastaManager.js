@@ -193,9 +193,74 @@ const PastaManager = () => {
       .finally(() => setLoading(false));
   };
 
-  const handleWhatsAppClick = () => alert('Funcionalidade de envio por WhatsApp ainda não implementada.');
+  const handleWhatsAppClick = () => {
+    if (selectedFiles.length === 0) {
+        alert('Por favor, selecione pelo menos um arquivo.');
+        return;
+    }
 
-  // Função para renderizar arquivos XML filtrados
+    // Inicialmente, implementando apenas para Documentos Constitutivos
+    if (!selectedPasta || selectedPasta.tipo !== 'documentos_constitutivos') {
+        alert('A funcionalidade de envio por WhatsApp está implementada apenas para "Documentos Constitutivos" por enquanto.');
+        return;
+    }
+
+    // Solicitar o número de WhatsApp do destinatário
+    // Idealmente, use um modal/dialog mais elegante para isso.
+    const recipientNumber = prompt(`Digite o número do WhatsApp para enviar os documentos da empresa ${empresaNome} (formato: apenas números, ex: 5522999999999):`);
+
+    if (!recipientNumber) {
+        alert("Envio cancelado: Número do WhatsApp não fornecido.");
+        return;
+    }
+
+    // Validação básica do número (apenas para feedback ao usuário, o backend também validará)
+    if (!/^\d{10,15}$/.test(recipientNumber)) {
+        alert("Número do WhatsApp parece inválido. Forneça apenas números, incluindo código do país e DDD (ex: 5522999999999).");
+        return;
+    }
+
+    setLoading(true); // Assumindo que você tem um estado 'loading'
+    setError(null);   // Assumindo que você tem um estado 'error'
+
+    axios.post(`${API_BASE_URL}/enviar-doc-constitutivo-whatsapp/`, { // Endpoint correto
+        empresa_id: empresaId,      // ID da empresa atual
+        file_ids: selectedFiles,    // IDs dos DocumentosConstitutivos selecionados
+        whatsapp_number: recipientNumber // Número fornecido pelo usuário
+    })
+    .then(response => {
+        // console.log("Resposta do envio por WhatsApp:", response.data);
+        let message = `Relatório do Envio por WhatsApp para ${empresaNome}:\n`;
+        if (response.data.successful_sends && response.data.successful_sends.length > 0) {
+            message += `\nSucessos (${response.data.successful_sends.length}):\n`;
+            response.data.successful_sends.forEach(send => {
+                message += `- ${send.filename} (ID: ${send.message_id})\n`;
+            });
+        }
+        if (response.data.failed_sends && response.data.failed_sends.length > 0) {
+            message += `\nFalhas (${response.data.failed_sends.length}):\n`;
+            response.data.failed_sends.forEach(fail => {
+                message += `- ${fail.filename}: ${fail.reason}\n`;
+            });
+        }
+        if (!response.data.successful_sends?.length && !response.data.failed_sends?.length) {
+             message = response.data.message || "Nenhuma operação realizada.";
+        }
+        
+        alert(message); // Exibe um resumo
+        setSelectedFiles([]); // Limpa a seleção após o envio
+    })
+    .catch(error => {
+        console.error('Erro detalhado ao enviar por WhatsApp:', error.response ? error.response.data : error.message);
+        const errorMsg = error.response?.data?.error || error.response?.data?.detail || 'Erro desconhecido ao tentar enviar por WhatsApp.';
+        setError(errorMsg);
+        alert(`Erro ao enviar por WhatsApp: ${errorMsg}`);
+    })
+    .finally(() => {
+        setLoading(false);
+    });
+  };
+
   const renderFilteredXmlFiles = () => {
     if (!selectedXmlYear || !selectedXmlMonth) {
       return <p className="text-gray-500 mt-4">Selecione o ano e o mês para visualizar os arquivos XML.</p>;

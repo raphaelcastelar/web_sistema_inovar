@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros
 from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer
 import logging
+from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 
 logger = logging.getLogger(__name__)
 
