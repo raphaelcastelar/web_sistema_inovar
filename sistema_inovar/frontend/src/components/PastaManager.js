@@ -373,7 +373,12 @@ const PastaManager = () => {
                     <button onClick={handleEmailClick} className="flex items-center text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" title="Enviar por Email" disabled={loading || uploading}>
                       <EnvelopeIcon className="h-5 w-5 mr-1" /> Email
                     </button>
-                    <button onClick={handleWhatsAppClick} className="flex items-center text-sm bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" title="Enviar por WhatsApp (Em breve)" disabled={loading || uploading || true}>
+                    <button onClick={handleWhatsAppClick} className="flex items-center text-sm bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" title="Enviar por WhatsApp (Em breve)" 
+                    disabled={
+                      loading || 
+                      uploading || 
+                      selectedFiles.length === 0 ||
+                      !selectedPasta}>
                       <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-1" /> WhatsApp
                     </button>
                   </div>
