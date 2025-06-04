@@ -205,20 +205,6 @@ const PastaManager = () => {
         return;
     }
 
-    // Solicitar o número de WhatsApp do destinatário
-    // Idealmente, use um modal/dialog mais elegante para isso.
-    const recipientNumber = prompt(`Digite o número do WhatsApp para enviar os documentos da empresa ${empresaNome} (formato: apenas números, ex: 5522999999999):`);
-
-    if (!recipientNumber) {
-        alert("Envio cancelado: Número do WhatsApp não fornecido.");
-        return;
-    }
-
-    // Validação básica do número (apenas para feedback ao usuário, o backend também validará)
-    if (!/^\d{10,15}$/.test(recipientNumber)) {
-        alert("Número do WhatsApp parece inválido. Forneça apenas números, incluindo código do país e DDD (ex: 5522999999999).");
-        return;
-    }
 
     setLoading(true); // Assumindo que você tem um estado 'loading'
     setError(null);   // Assumindo que você tem um estado 'error'
@@ -226,7 +212,6 @@ const PastaManager = () => {
     axios.post(`${API_BASE_URL}/enviar-doc-constitutivo-whatsapp/`, { // Endpoint correto
         empresa_id: empresaId,      // ID da empresa atual
         file_ids: selectedFiles,    // IDs dos DocumentosConstitutivos selecionados
-        whatsapp_number: recipientNumber // Número fornecido pelo usuário
     })
     .then(response => {
         // console.log("Resposta do envio por WhatsApp:", response.data);

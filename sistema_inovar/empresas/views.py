@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros
 from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer
 import logging
+import re
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 
 logger = logging.getLogger(__name__)
@@ -228,7 +229,7 @@ def enviar_doc_constitutivo_whatsapp_api(request):
     file_ids = request.data.get('file_ids')
     recipient_whatsapp_number = request.data.get('whatsapp_number')
 
-    if not all([empresa_id, file_ids, recipient_whatsapp_number]):
+    if not all([empresa_id, file_ids]):
         return Response(
             {"error": "Parâmetros faltando: empresa_id, file_ids e whatsapp_number são obrigatórios."},
             status=status.HTTP_400_BAD_REQUEST
@@ -239,8 +240,29 @@ def enviar_doc_constitutivo_whatsapp_api(request):
     except Empresa.DoesNotExist:
         return Response({"error": "Empresa não encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
-    if not recipient_whatsapp_number.isdigit() or not (10 <= len(recipient_whatsapp_number) <= 15):
-        return Response({"error": "Número de WhatsApp inválido."}, status=status.HTTP_400_BAD_REQUEST)
+    raw_phone_number = empresa.telefone
+    if not raw_phone_number:
+        logger.warning(f"Empresa {empresa.nome} (ID: {empresa_id}) não possui telefone cadastrado.")
+        return Response({"error": "Telefone não cadastrado para esta empresa."}, status=status.HTTP_400_BAD_REQUEST)
+    recipient_whatsapp_number = re.sub(r'\D', '', raw_phone_number)
+
+    if not (recipient_whatsapp_number.startswith('55') and 12 <= len(recipient_whatsapp_number) <= 13) and \
+       not (10 <= len(recipient_whatsapp_number) <= 11 and not recipient_whatsapp_number.startswith('55')): # Para números locais sem DDI, assumindo que pode ser necessário adicionar 55
+        logger.warning(f"Número de telefone da empresa '{empresa.nome}' (ID: {empresa_id}) "
+                       f"após limpeza ('{recipient_whatsapp_number}') não parece ser um número de WhatsApp válido "
+                       f"(original: '{raw_phone_number}').")
+
+        if not (len(recipient_whatsapp_number) >= 10 and len(recipient_whatsapp_number) <= 13 and recipient_whatsapp_number.isdigit()):
+             return Response({"error": f"O número de telefone '{raw_phone_number}' cadastrado para a empresa não é válido para WhatsApp. Deve conter apenas números e ter entre 10 a 13 dígitos (com DDI)."}, status=status.HTTP_400_BAD_REQUEST)
+        # Se não começar com 55, você pode querer prefixar automaticamente, ou exigir que o usuário cadastre com DDI.
+        # Por exemplo, se você sabe que todos os números são do Brasil:
+        if not recipient_whatsapp_number.startswith('55') and len(recipient_whatsapp_number) in [10,11]: # DDD + Numero (8 ou 9 digitos)
+            recipient_whatsapp_number = '55' + recipient_whatsapp_number
+        elif not recipient_whatsapp_number.startswith('55'): # Outros casos
+            return Response({"error": f"O DDI (ex: 55 para Brasil) parece estar faltando no número de telefone '{raw_phone_number}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+    logger.info(f"Número de WhatsApp a ser utilizado para {empresa.nome}: {recipient_whatsapp_number}")
+
 
     documentos_qs = DocumentosConstitutivos.objects.filter(id__in=file_ids, nome_empresa=empresa.nome)
 
