@@ -47,10 +47,6 @@ const PastaManager = () => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Estados para o filtro de XML
-  const [selectedXmlYear, setSelectedXmlYear] = useState('');
-  const [selectedXmlMonth, setSelectedXmlMonth] = useState('');
-  const [availableXmlYears, setAvailableXmlYears] = useState([]);
 
   useEffect(() => {
     setLoading(true);
@@ -71,38 +67,6 @@ const PastaManager = () => {
     fetchArquivos(empresaId, setArquivos, setLoading);
   }, [empresaId]);
 
-  // Efeito para definir filtros XML padrão e anos disponíveis
-  useEffect(() => {
-    if (selectedPasta && selectedPasta.tipo === 'xml') {
-      const currentYear = new Date().getFullYear().toString();
-      const currentMonth = new Date().toLocaleString('pt-BR', { month: 'long' }).toLowerCase();
-
-      const yearsInData = arquivos.xml && arquivos.xml.length > 0
-        ? [...new Set(arquivos.xml.map(f => f.ano.toString()))].sort((a, b) => b.localeCompare(a))
-        : [];
-      
-      let uniqueYears = [...yearsInData];
-      if (!uniqueYears.includes(currentYear)) {
-        uniqueYears.push(currentYear);
-        uniqueYears.sort((a, b) => b.localeCompare(a));
-      }
-      setAvailableXmlYears(uniqueYears.length > 0 ? uniqueYears : [currentYear]);
-
-      // Define o ano e mês selecionados como padrão (atual) apenas se não estiverem definidos ainda
-      // ou se a pasta foi recém-selecionada.
-      if (!selectedXmlYear || !uniqueYears.includes(selectedXmlYear)) {
-        setSelectedXmlYear(currentYear);
-      }
-      if (!selectedXmlMonth) {
-        setSelectedXmlMonth(currentMonth);
-      }
-    } else {
-      // Limpa filtros quando outra pasta é selecionada ou nenhuma pasta está selecionada
-      setSelectedXmlYear('');
-      setSelectedXmlMonth('');
-      setAvailableXmlYears([]);
-    }
-  }, [selectedPasta, arquivos.xml]); // Não incluir selectedXmlYear e selectedXmlMonth aqui para evitar loops
 
   const onDrop = useCallback((acceptedFiles, pastaTipo) => {
     if (!empresaNome || !empresaCnpj) {
@@ -193,6 +157,56 @@ const PastaManager = () => {
       .finally(() => setLoading(false));
   };
 
+  const groupFilesByYearAndMonth = (files) => {
+    if (!files || files.length === 0) return {}; // Retorna objeto vazio se não houver arquivos
+
+    const grouped = files.reduce((acc, file) => {
+        if (!file.ano || !file.mes) { // Pula arquivos sem ano ou mês definidos
+            console.warn('Arquivo sem ano ou mês definidos:', file);
+            return acc;
+        }
+        const year = file.ano.toString();
+        // Garante que o mês (do backend, "01"-"12") seja usado para a chave e nome
+        const monthNumber = parseInt(file.mes, 10); // ex: 1, 2, ..., 12
+        if (isNaN(monthNumber) || monthNumber < 1 || monthNumber > 12) {
+            console.warn('Mês inválido para o arquivo:', file);
+            return acc;
+        }
+        const monthKey = `${file.mes.padStart(2, '0')}${year}`; // Chave única ex: "012025"
+        const monthName = monthOrder[monthNumber - 1] || `Mês ${file.mes}`;
+
+        if (!acc[year]) {
+            acc[year] = {};
+        }
+        if (!acc[year][monthKey]) {
+            acc[year][monthKey] = { 
+                monthNameDisplay: monthName.charAt(0).toUpperCase() + monthName.slice(1), // ex: "Janeiro"
+                monthSortKey: monthNumber, // Para ordenação
+                files: [] 
+            };
+        }
+        acc[year][monthKey].files.push(file);
+        return acc;
+    }, {});
+
+    // Ordena os anos (mais recentes primeiro)
+    const sortedYears = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+    
+    const result = {};
+    for (const year of sortedYears) {
+        const yearData = grouped[year];
+        // Ordena os meses dentro de cada ano cronologicamente
+        const sortedMonthKeys = Object.keys(yearData).sort((a, b) => {
+            return yearData[a].monthSortKey - yearData[b].monthSortKey;
+        });
+        result[year] = {};
+        for (const monthKey of sortedMonthKeys) {
+            result[year][monthKey] = yearData[monthKey];
+        }
+    }
+    return result; // Estrutura: { "2025": { "012025": { monthNameDisplay: "Janeiro", files: [] }, ... }, ... }
+  };
+
   const handleWhatsAppClick = () => {
     if (selectedFiles.length === 0) {
         alert('Por favor, selecione pelo menos um arquivo.');
@@ -244,47 +258,6 @@ const PastaManager = () => {
     .finally(() => {
         setLoading(false);
     });
-  };
-
-  const renderFilteredXmlFiles = () => {
-    if (!selectedXmlYear || !selectedXmlMonth) {
-      return <p className="text-gray-500 mt-4">Selecione o ano e o mês para visualizar os arquivos XML.</p>;
-    }
-    if (!arquivos.xml || arquivos.xml.length === 0) {
-        return <p className="text-gray-500 mt-4">Nenhum arquivo XML encontrado para esta empresa.</p>;
-    }
-
-    const filtered = arquivos.xml.filter(
-      file => file.ano.toString() === selectedXmlYear && file.mes.toLowerCase() === selectedXmlMonth.toLowerCase()
-    );
-
-    if (filtered.length === 0) {
-      return <p className="text-gray-500 mt-4">Nenhum arquivo XML encontrado para {selectedXmlMonth}/{selectedXmlYear}.</p>;
-    }
-
-    return (
-      <ul className="space-y-2 mt-4">
-        {filtered.map(file => (
-          <li key={file.id} className="text-gray-300 flex items-center space-x-2 p-2 hover:bg-gray-700 rounded-md transition-colors">
-            <input
-              type="checkbox"
-              checked={selectedFiles.includes(file.id)}
-              onChange={() => toggleFileSelection(file.id)}
-              className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500"
-            />
-            <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-            <a
-              href={`http://192.168.196.162:8000${file.caminho_arquivo}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors"
-            >
-              Ver
-            </a>
-          </li>
-        ))}
-      </ul>
-    );
   };
   
   const handlePastaClick = (pasta) => {
