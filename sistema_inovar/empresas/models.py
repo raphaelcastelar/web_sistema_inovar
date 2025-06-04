@@ -4,7 +4,7 @@ import re # Para sanitizar nomes de pastas/arquivos
 import unidecode # Para remover acentos de nomes de pastas/arquivos (pip install unidecode)
 from django.db import models
 import logging
-from utils import gerar_nome_pasta_empresa_padronizado
+from .utils import gerar_nome_pasta_empresa_padronizado
 
 logger = logging.getLogger(__name__)
 

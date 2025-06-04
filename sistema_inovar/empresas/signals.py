@@ -2,7 +2,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
-from utils import gerar_nome_pasta_empresa_padronizado
+from .utils import gerar_nome_pasta_empresa_padronizado
 import os
 import re
 import unidecode # Lembre-se: pip install unidecode
