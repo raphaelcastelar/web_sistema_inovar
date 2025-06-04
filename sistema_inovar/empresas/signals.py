@@ -6,20 +6,21 @@ import os
 import re
 import unidecode
 import logging
-import datetime
+import datetime # Necessário para obter o ano atual e formatar meses
 
 from .models import Empresa
 
 logger = logging.getLogger(__name__)
 
-# Mantenha sua função get_uppercased_empresa_name_folder como definida anteriormente
-# Ela deve retornar o nome da pasta da empresa em maiúsculas, baseado no nome da empresa.
-# Exemplo da função (certifique-se que a sua está correta):
+# Sua função get_uppercased_empresa_name_folder deve estar aqui ou ser importada
+# Certifique-se de que ela retorna o nome da pasta da empresa EM MAIÚSCULAS
+# baseado no nome da empresa, como definido anteriormente.
+# Exemplo (cole a sua versão completa e correta aqui):
 def get_uppercased_empresa_name_folder(empresa_instance):
     company_name_str = empresa_instance.nome
     if not company_name_str:
         logger.warning(f"Empresa ID: {empresa_instance.id} não possui nome. Usando fallback.")
-        return f"EMPRESA_ID_{empresa_instance.id}" # Fallback
+        return f"EMPRESA_ID_{empresa_instance.id}"
     name_no_accents = unidecode.unidecode(str(company_name_str))
     name_underscored = re.sub(r'[\s.\-]+', '_', name_no_accents)
     name_sanitized = re.sub(r'[^\w_]', '', name_underscored)
@@ -34,7 +35,7 @@ def get_uppercased_empresa_name_folder(empresa_instance):
 def criar_pastas_empresa_handler(sender, instance, created, **kwargs):
     """
     Cria as pastas base para uma empresa recém-criada, incluindo
-    subestrutura de ANO/MESANO para tipos de documento específicos.
+    subestrutura de ANO_ATUAL/ e todas as 12 subpastas MESANO para tipos de documento específicos.
     """
     if created: # Executa apenas quando um novo registro de Empresa é criado
         if not settings.MEDIA_ROOT:
@@ -49,37 +50,37 @@ def criar_pastas_empresa_handler(sender, instance, created, **kwargs):
             os.makedirs(base_company_path, exist_ok=True)
             logger.info(f"Pasta base criada para '{instance.nome}': {base_company_path}")
 
-            # Define quais subpastas precisam da estrutura ANO/MESANO
-            # True = precisa, False = não precisa
             tipos_de_pasta_config = {
-                'DOCUMENTOS CONSTITUTIVOS': False,
+                'DOCUMENTOS CONSTITUTIVOS': False, # False = não cria subestrutura ANO/MESANO
                 'OUTROS': False,
-                'DEPARTAMENTO PESSOAL': True,
+                'DEPARTAMENTO PESSOAL': True,   # True = cria subestrutura ANO/MESANO
                 'SIMPLES NACIONAL': True,
                 'XML': True
             }
 
-            # Obtém o ano e mês atuais para as subpastas
-            hoje = datetime.date.today()
-            ano_atual_str = str(hoje.year)  # Ex: "2025"
-            mes_atual_str = hoje.strftime("%m")  # Ex: "06" para Junho
+            ano_atual_str = str(datetime.date.today().year)  # Ex: "2025"
 
-            for nome_pasta_tipo, criar_subestrutura_data in tipos_de_pasta_config.items():
+            for nome_pasta_tipo, criar_subestrutura_ano_meses in tipos_de_pasta_config.items():
                 caminho_pasta_tipo = os.path.join(base_company_path, nome_pasta_tipo)
                 os.makedirs(caminho_pasta_tipo, exist_ok=True)
                 logger.info(f"Subpasta de tipo criada: {caminho_pasta_tipo}")
 
-                if criar_subestrutura_data:
+                if criar_subestrutura_ano_meses:
                     # Cria a pasta do ANO ATUAL (ex: .../DEPARTAMENTO PESSOAL/2025/)
                     caminho_pasta_ano = os.path.join(caminho_pasta_tipo, ano_atual_str)
                     os.makedirs(caminho_pasta_ano, exist_ok=True)
-                    logger.info(f"Subpasta de ANO criada: {caminho_pasta_ano}")
+                    logger.info(f"Subpasta de ANO ({ano_atual_str}) criada em: {caminho_pasta_ano}")
 
-                    # Cria a pasta MESANO ATUAL (ex: .../DEPARTAMENTO PESSOAL/2025/062025/)
-                    nome_pasta_mes_ano = f"{mes_atual_str}{ano_atual_str}" # Ex: "062025"
-                    caminho_pasta_mes_ano = os.path.join(caminho_pasta_ano, nome_pasta_mes_ano)
-                    os.makedirs(caminho_pasta_mes_ano, exist_ok=True)
-                    logger.info(f"Subpasta de MESANO criada: {caminho_pasta_mes_ano}")
+                    # Cria todas as 12 pastas de MÊS (MESANO) dentro da pasta do ano atual
+                    for numero_mes in range(1, 13):  # Itera de 1 a 12
+                        # Formata o mês para ter dois dígitos (ex: 1 -> "01", 10 -> "10")
+                        mes_formatado_str = f"{numero_mes:02d}" 
+                        
+                        nome_pasta_mes_ano = f"{mes_formatado_str}{ano_atual_str}" # Ex: "012025", "022025", ..., "122025"
+                        
+                        caminho_pasta_mes_ano = os.path.join(caminho_pasta_ano, nome_pasta_mes_ano)
+                        os.makedirs(caminho_pasta_mes_ano, exist_ok=True)
+                        logger.info(f"Subpasta de MESANO criada: {caminho_pasta_mes_ano}")
 
         except Exception as e:
             logger.error(f"Erro ao criar pastas para a empresa '{instance.nome}' (ID: {instance.id}): {e}")
