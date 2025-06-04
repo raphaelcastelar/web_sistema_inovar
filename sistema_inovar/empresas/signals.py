@@ -15,19 +15,20 @@ logger = logging.getLogger(__name__)
 # Mantenha sua função get_uppercased_empresa_name_folder como definida anteriormente
 # Ela deve retornar o nome da pasta da empresa em maiúsculas, baseado no nome da empresa.
 # Exemplo da função (certifique-se que a sua está correta):
-def get_uppercased_empresa_name_folder(empresa_instance):
-    company_name_str = empresa_instance.nome
-    if not company_name_str:
-        logger.warning(f"Empresa ID: {empresa_instance.id} não possui nome. Usando fallback.")
-        return f"EMPRESA_ID_{empresa_instance.id}" # Fallback
-    name_no_accents = unidecode.unidecode(str(company_name_str))
-    name_underscored = re.sub(r'[\s.\-]+', '_', name_no_accents)
-    name_sanitized = re.sub(r'[^\w_]', '', name_underscored)
-    name_upper = name_sanitized.upper()
-    if not name_upper:
-        logger.warning(f"Nome da empresa '{company_name_str}' resultou em nome de pasta vazio. Usando fallback.")
-        return f"EMPRESA_ID_{empresa_instance.id}_NOME_INVALIDO"
-    return name_upper
+def gerar_nome_pasta_empresa_com_espacos_e_maiusculas(nome_da_empresa_str):
+    # ... (lógica completa da função como mostrado acima) ...
+    if not nome_da_empresa_str:
+        logger.warning("Tentativa de gerar nome de pasta para empresa sem nome.")
+        return "EMPRESA_SEM_NOME_DEFINIDO" 
+    nome_sem_acentos = unidecode.unidecode(str(nome_da_empresa_str))
+    caracteres_invalidos_pattern = r'[<>:"/\\|?*\x00-\x1F]'
+    nome_sanitizado_parcial = re.sub(caracteres_invalidos_pattern, '', nome_sem_acentos)
+    nome_com_espacos_normalizados = re.sub(r'\s+', ' ', nome_sanitizado_parcial).strip()
+    nome_final_pasta = nome_com_espacos_normalizados.upper()
+    if not nome_final_pasta:
+        logger.warning(f"Nome da empresa '{nome_da_empresa_str}' resultou em nome de pasta vazio.")
+        return "NOME_EMPRESA_INVALIDO_PARA_PASTA"
+    return nome_final_pasta
 
 
 @receiver(post_save, sender=Empresa)
@@ -42,7 +43,7 @@ def criar_pastas_empresa_handler(sender, instance, created, **kwargs):
             return
 
         try:
-            company_folder_name = get_uppercased_empresa_name_folder(instance)
+            company_folder_name = gerar_nome_pasta_empresa_com_espacos_e_maiusculas(instance)
             base_company_path = os.path.join(settings.MEDIA_ROOT, company_folder_name)
 
             # Cria a pasta base da empresa
