@@ -12,6 +12,8 @@ from django.http import JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+from django_filters.rest_framework import DjangoFilterBackend 
+from .filters import HistoricoEnviosFilter 
 from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios
 from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, HistoricoEnviosSerializer
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
@@ -160,6 +162,12 @@ class OutrosViewSet(viewsets.ModelViewSet):
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HistoricoEnvios.objects.all()
     serializer_class = HistoricoEnviosSerializer
+
+class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = HistoricoEnvios.objects.all()
+    serializer_class = HistoricoEnviosSerializer
+    filter_backends = [DjangoFilterBackend] # Adicione esta linha
+    filterset_class = HistoricoEnviosFilter   # Adicione esta linha
 
 @api_view(['POST'])
 def enviar_email(request):
