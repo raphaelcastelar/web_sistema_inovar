@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios
 import re
 
 
@@ -84,4 +84,9 @@ class SimplesNacionalSerializer(serializers.ModelSerializer):
 class OutrosSerializer(serializers.ModelSerializer):
     class Meta:
         model = Outros
+        fields = '__all__'
+
+class HistoricoEnviosSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HistoricoEnvios
         fields = '__all__'

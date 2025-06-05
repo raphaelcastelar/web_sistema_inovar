@@ -12,13 +12,14 @@ from django.http import JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros
-from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios
+from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, HistoricoEnviosSerializer
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 import logging
 import datetime
 import re
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
+
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +156,10 @@ class OutrosViewSet(viewsets.ModelViewSet):
             except Empresa.DoesNotExist:
                 return Outros.objects.none()
         return super().get_queryset()
+    
+class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = HistoricoEnvios.objects.all()
+    serializer_class = HistoricoEnviosSerializer
 
 @api_view(['POST'])
 def enviar_email(request):
@@ -518,10 +523,19 @@ def enviar_documentos_whatsapp_api(request):
         )
 
         if message_id:
-            files_sent_count += 1
+            status_envio = 'sucesso'
             successful_sends.append({"filename": original_filename, "message_id": message_id})
+            files_sent_count += 1
         else:
+            status_envio = 'falha'
             failed_sends.append({"filename": original_filename, "reason": f"Falha ao enviar template: {error_sending}"})
+
+        HistoricoEnvios.objects.create(
+            remetente=recipient_whatsapp_number,
+            arquivo=original_filename,
+            status=status_envio,
+            message_id=message_id # Será None se houver falha
+        )
 
     final_status = status.HTTP_200_OK
     if files_sent_count == 0 and documentos_qs.exists(): 

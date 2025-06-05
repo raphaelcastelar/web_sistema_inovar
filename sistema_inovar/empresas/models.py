@@ -162,3 +162,27 @@ class Outros(models.Model):
 
     def __str__(self):
         return self.nome_arquivo
+    
+class HistoricoEnvios(models.Model):
+    STATUS_CHOICES = [
+        ('sucesso', 'Sucesso'),
+        ('falha', 'Falha'),
+    ]
+
+    id = models.AutoField(primary_key=True)
+    # auto_now_add=True preenche automaticamente com a data e hora da criação
+    data_hora = models.DateTimeField(auto_now_add=True) 
+    remetente = models.CharField(max_length=20) # Número para o qual foi enviado
+    arquivo = models.CharField(max_length=255)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    # message_id pode ser nulo se o envio falhar antes de ser gerado
+    message_id = models.CharField(max_length=255, null=True, blank=True)
+
+    class Meta:
+        # Define o nome da tabela explicitamente
+        db_table = 'historico_envios'
+        # Ordena os resultados mais recentes primeiro por padrão
+        ordering = ['-data_hora']
+
+    def __str__(self):
+        return f"Envio para {self.remetente} em {self.data_hora.strftime('%d/%m/%Y %H:%M')} - Status: {self.status}"

@@ -4,6 +4,7 @@ import Navbar from './components/navbar';
 import EmpresaList from './components/EmpresaList';
 import EmpresaForm from './components/EmpresaForm';
 import PastaManager from './components/PastaManager';
+import HistoricoWhatsApp from './pages/HistoricoWhatsApp'
 import './App.css';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
             <Route path="/empresas/cadastrar" element={<EmpresaForm />} />
             <Route path="/empresas/editar/:empresaId" element={<EmpresaForm />} />
             <Route path="/empresas/:empresaId/pastas" element={<PastaManager />} />
+            <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
           </Routes>
         </div>
       </div>
