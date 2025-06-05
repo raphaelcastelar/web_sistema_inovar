@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
-import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon, ArrowPathIcon } from '@heroicons/react/24/outline'; // Adicionado ArrowPathIcon
 
 const API_BASE_URL = 'http://192.168.196.162:8000/api';
 const SERVER_FILE_URL_BASE = 'http://192.168.196.162:8000'; 
@@ -38,13 +38,11 @@ const groupFilesByYearAndMonth = (files) => {
     if (!files || files.length === 0) return {};
     const grouped = files.reduce((acc, file) => {
         if (!file.ano || !file.mes) {
-            // console.warn('Arquivo sem ano ou mês definidos:', file);
             return acc;
         }
         const year = file.ano.toString();
         const monthNumber = parseInt(file.mes, 10);
         if (isNaN(monthNumber) || monthNumber < 1 || monthNumber > 12) {
-            // console.warn('Mês inválido para o arquivo:', file);
             return acc;
         }
         const monthKey = `${file.mes.padStart(2, '0')}${year}`;
@@ -216,11 +214,9 @@ const PastaManager = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
-  
-  // --- INÍCIO: Estados para seleção de Mês/Ano para Upload ---
   const [targetUploadYear, setTargetUploadYear] = useState('');
   const [targetUploadMonth, setTargetUploadMonth] = useState('');
-  // --- FIM: Estados para seleção de Mês/Ano para Upload ---
+  const [isRefreshingPasta, setIsRefreshingPasta] = useState(false); // Novo estado
 
   useEffect(() => {
     setLoading(true);
@@ -249,24 +245,21 @@ const PastaManager = () => {
         alert('Selecione uma pasta antes de arrastar arquivos.');
         return;
     }
-    setUploading(true); // Esta função (setUploading) é estável
+    setUploading(true);
     acceptedFiles.forEach(file => {
       const tipo = pastaTipo;
       const formData = new FormData();
       formData.append('caminho_arquivo', file);
       formData.append('nome_arquivo', file.name);
-      formData.append('cnpj_empresa', empresaCnpj); // Dependência: empresaCnpj
-      formData.append('nome_empresa', empresaNome); // Dependência: empresaNome
+      formData.append('cnpj_empresa', empresaCnpj);
+      formData.append('nome_empresa', empresaNome); 
       formData.append('tipo_documento', tipo.replace('_', '-'));
-
       if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(tipo)) {
-        const anoParaSalvar = targetUploadYear || new Date().getFullYear().toString(); // Dependência: targetUploadYear
-        const mesParaSalvar = targetUploadMonth || (new Date().getMonth() + 1).toString().padStart(2, '0'); // Dependência: targetUploadMonth
-        
+        const anoParaSalvar = targetUploadYear || new Date().getFullYear().toString();
+        const mesParaSalvar = targetUploadMonth || (new Date().getMonth() + 1).toString().padStart(2, '0');
         formData.append('mes', mesParaSalvar);
         formData.append('ano', anoParaSalvar);
       }
-
       if (['departamento_pessoal', 'simples_nacional'].includes(tipo)) {
         formData.append('entregue', 'false');
       }
@@ -276,23 +269,14 @@ const PastaManager = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
         .then(() => { 
-          // fetchArquivos é definida fora, sua referência não muda.
-          // empresaId, setArquivos, setLoading são passados para ela.
-          fetchArquivos(empresaId, setArquivos, setLoading); 
+          fetchArquivos(empresaId, setArquivos, setLoading);
         })
         .catch(err => {
           console.error(`Erro ao salvar ${tipo}:`, err.response ? err.response.data : err.message);
           alert(`Erro no upload: ${err.response ? JSON.stringify(err.response.data) : err.message}`);
         })
-        .finally(() => setUploading(false)); // setUploading é estável
+        .finally(() => setUploading(false));
     });
-  // Lista de dependências corrigida:
-  // Apenas variáveis/funções do escopo do componente que são usadas dentro do useCallback
-  // e que podem mudar entre renderizações, necessitando que o useCallback retorne uma nova
-  // instância da função.
-  // 'setArquivos' e 'setLoading' são state setters e são estáveis,
-  // o ESLint geralmente não os requer, mas incluí-los não causa problemas.
-  // O ESLint estava reclamando especificamente de 'fetchArquivos'.
   }, [empresaId, empresaNome, empresaCnpj, targetUploadYear, targetUploadMonth, setArquivos, setLoading, setUploading]);
 
 
@@ -396,11 +380,38 @@ const PastaManager = () => {
     setSelectedPasta(pasta);
     setSelectedFiles([]);
     setError(null);
-    // --- INÍCIO: Resetar targetUploadYear e targetUploadMonth ---
     setTargetUploadYear('');
     setTargetUploadMonth('');
-    // --- FIM: Resetar targetUploadYear e targetUploadMonth ---
   };
+
+  // --- INÍCIO: Função para atualizar a pasta selecionada ---
+  const handleRefreshSelectedPasta = async () => {
+    if (!selectedPasta || !empresaId) return;
+
+    setIsRefreshingPasta(true);
+    setError(null); 
+    
+    const tipoPasta = selectedPasta.tipo;
+    const endpoint = tipoPasta.replace('_', '-');
+    const url = `${API_BASE_URL}/${endpoint}/`;
+    
+    console.log(`Atualizando pasta: ${tipoPasta} para empresa ID: ${empresaId}`);
+
+    try {
+        const response = await axios.get(url, { params: { empresa_id: empresaId } });
+        setArquivos(prevArquivos => ({
+            ...prevArquivos,
+            [tipoPasta]: response.data 
+        }));
+        console.log(`Pasta ${tipoPasta} atualizada com sucesso.`);
+    } catch (err) { // Usando 'err' para não conflitar com o estado 'error'
+        console.error(`Erro ao atualizar arquivos para ${tipoPasta}:`, err);
+        setError(`Falha ao atualizar a pasta ${tipoPasta.replace(/_/g, ' ')}.`); 
+    } finally {
+        setIsRefreshingPasta(false);
+    }
+  };
+  // --- FIM: Função para atualizar a pasta selecionada ---
 
   return (
     <div className="p-4 sm:p-6 bg-gray-900 min-h-screen text-gray-100">
@@ -438,12 +449,30 @@ const PastaManager = () => {
             animate={{ opacity: 1, y: 0 }}
             className="bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6"
           >
-            <h3 className="text-xl sm:text-2xl font-semibold text-indigo-300 mb-4 capitalize flex items-center">
-              <DocumentTextIcon className="h-7 w-7 mr-2 text-indigo-400" />
-              {selectedPasta.tipo.replace(/_/g, ' ')}
+            {/* --- INÍCIO: Título da pasta com botão de atualizar --- */}
+            <h3 className="text-xl sm:text-2xl font-semibold text-indigo-300 mb-4 capitalize flex items-center justify-between">
+              <div className="flex items-center">
+                <DocumentTextIcon className="h-7 w-7 mr-2 text-indigo-400" />
+                {selectedPasta.tipo.replace(/_/g, ' ')}
+              </div>
+              <button
+                onClick={handleRefreshSelectedPasta}
+                disabled={isRefreshingPasta || loading || uploading}
+                className="p-1.5 text-indigo-400 hover:text-indigo-200 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title={`Atualizar pasta ${selectedPasta.tipo.replace(/_/g, ' ')}`}
+              >
+                {isRefreshingPasta ? (
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <ArrowPathIcon className="h-5 w-5" /> // Usando o ícone importado
+                )}
+              </button>
             </h3>
+            {/* --- FIM: Título da pasta com botão de atualizar --- */}
             
-            {/* --- INÍCIO: Seletores de Mês/Ano para Upload --- */}
             {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional') && (
               <div className="my-4 p-4 bg-gray-700 rounded-lg shadow-md flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 items-start sm:items-end">
                 <p className="text-sm text-indigo-300 font-semibold sm:mb-1 whitespace-nowrap self-center sm:self-end">Período do Documento para Upload:</p>
@@ -456,7 +485,7 @@ const PastaManager = () => {
                     className="block w-full sm:w-32 pl-3 pr-10 py-2 text-sm border-gray-600 bg-gray-600 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
                   >
                     <option value="">Ano Atual</option>
-                    {[...Array(7)].map((_, i) => { // Gera uma lista de anos: atual + 2 futuros, atual - 4 passados
+                    {[...Array(7)].map((_, i) => {
                       const yearOption = new Date().getFullYear() + 2 - i;
                       return <option key={yearOption} value={yearOption.toString()}>{yearOption}</option>;
                     })}
@@ -480,7 +509,6 @@ const PastaManager = () => {
                 </div>
               </div>
             )}
-            {/* --- FIM: Seletores de Mês/Ano para Upload --- */}
 
             <div 
               {...getRootProps()} 
@@ -509,7 +537,7 @@ const PastaManager = () => {
                         onClick={handleEmailClick} 
                         className="flex items-center text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" 
                         title="Enviar por Email" 
-                        disabled={loading || uploading}>
+                        disabled={loading || uploading || isRefreshingPasta}>
                       <EnvelopeIcon className="h-5 w-5 mr-1" /> Email
                     </button>
                     <button 
@@ -518,7 +546,8 @@ const PastaManager = () => {
                         title="Enviar por WhatsApp"
                         disabled={ 
                           loading || 
-                          uploading || 
+                          uploading ||
+                          isRefreshingPasta || 
                           selectedFiles.length === 0 ||
                           !selectedPasta ||
                           selectedPasta.tipo === 'xml'
