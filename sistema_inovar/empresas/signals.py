@@ -1,7 +1,8 @@
 # empresas/signals.py
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.conf import settings
+import shutil
 import os
 import re
 import unidecode
@@ -9,12 +10,11 @@ import logging
 import datetime # Necessário para obter o ano atual e formatar meses
 
 from .models import Empresa
+from.utils import gerar_nome_pasta_empresa_padronizado
 
 logger = logging.getLogger(__name__)
 
-# Mantenha sua função get_uppercased_empresa_name_folder como definida anteriormente
-# Ela deve retornar o nome da pasta da empresa em maiúsculas, baseado no nome da empresa.
-# Exemplo da função (certifique-se que a sua está correta):
+
 def gerar_nome_pasta_empresa_com_espacos_e_maiusculas(nome_da_empresa_str):
     # ... (lógica completa da função como mostrado acima) ...
     if not nome_da_empresa_str:
@@ -29,7 +29,6 @@ def gerar_nome_pasta_empresa_com_espacos_e_maiusculas(nome_da_empresa_str):
         logger.warning(f"Nome da empresa '{nome_da_empresa_str}' resultou em nome de pasta vazio.")
         return "NOME_EMPRESA_INVALIDO_PARA_PASTA"
     return nome_final_pasta
-
 
 @receiver(post_save, sender=Empresa)
 def criar_pastas_empresa_handler(sender, instance, created, **kwargs):
@@ -84,3 +83,37 @@ def criar_pastas_empresa_handler(sender, instance, created, **kwargs):
 
         except Exception as e:
             logger.error(f"Erro ao criar pastas para a empresa '{instance.nome}' (ID: {instance.id}): {e}")
+
+@receiver(post_delete, sender=Empresa)
+def deletar_pasta_empresa_handler(sender, instance, **kwargs):
+    """
+    Deleta a pasta da empresa e todo o seu conteúdo do sistema de arquivos
+    APÓS o registro da Empresa ser deletado do banco de dados.
+    """
+    if not settings.MEDIA_ROOT:
+        logger.error("MEDIA_ROOT não está configurado. Não é possível deletar a pasta da empresa.")
+        return
+
+    try:
+        # PASSO CRÍTICO: Usa a MESMA função para gerar o nome da pasta, garantindo consistência.
+        # A instância que é passada para o sinal post_delete ainda contém todos os dados do objeto deletado.
+        company_folder_name = gerar_nome_pasta_empresa_padronizado(instance.nome)
+        company_folder_path = os.path.join(settings.MEDIA_ROOT, company_folder_name)
+
+        # Verifica se o diretório realmente existe antes de tentar deletar
+        if os.path.isdir(company_folder_path):
+            # shutil.rmtree() deleta a pasta e tudo dentro dela recursivamente (cuidado!)
+            shutil.rmtree(company_folder_path)
+            logger.info(f"Pasta da empresa '{instance.nome}' e todo o seu conteúdo foram deletados de: {company_folder_path}")
+        else:
+            # Isso é normal se a empresa foi criada antes da lógica de criação de pastas
+            # ou se nunca teve nenhum arquivo carregado. Apenas registra um aviso.
+            logger.warning(f"Tentativa de deletar pasta para a empresa '{instance.nome}', mas o diretório não foi encontrado em: {company_folder_path}")
+
+    except Exception as e:
+        # Captura qualquer exceção (ex: PermissionError no sistema de arquivos) para 
+        # evitar que o sinal quebre a aplicação. Apenas registra o erro.
+        logger.error(
+            f"Erro ao tentar deletar a pasta para a empresa '{instance.nome}' (ID: {instance.id}). "
+            f"Caminho: {company_folder_path if 'company_folder_path' in locals() else 'não determinado'}. Erro: {e}"
+        )
