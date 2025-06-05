@@ -96,6 +96,7 @@ class DocumentosConstitutivos(models.Model):
 class XML(models.Model):
     id = models.AutoField(primary_key=True)
     nome_arquivo = models.CharField(max_length=255, null=False)
+    nome_empresa = models.CharField(max_length=255, null=True, blank=True, help_text="Nome da empresa para path de upload")
     cnpj_empresa = models.CharField(max_length=18, null=False) # Usado por get_company_folder_identifier
     tipo_documento = models.CharField(max_length=40, null=False)
     caminho_arquivo = models.FileField(upload_to=xml_upload_path, null=False, max_length=500) # ATUALIZADO
@@ -112,6 +113,7 @@ class XML(models.Model):
 class DepartamentoPessoal(models.Model):
     id = models.AutoField(primary_key=True)
     nome_arquivo = models.CharField(max_length=255, null=False)
+    nome_empresa = models.CharField(max_length=255, null=True, blank=True, help_text="Nome da empresa para path de upload")
     cnpj_empresa = models.CharField(max_length=18, null=False) # Usado por get_company_folder_identifier
     tipo_documento = models.CharField(max_length=40, null=False)
     caminho_arquivo = models.FileField(upload_to=departamento_pessoal_upload_path, null=False, max_length=500) # ATUALIZADO
@@ -129,6 +131,7 @@ class DepartamentoPessoal(models.Model):
 class SimplesNacional(models.Model):
     id = models.AutoField(primary_key=True)
     nome_arquivo = models.CharField(max_length=255, null=False)
+    nome_empresa = models.CharField(max_length=255, null=True, blank=True, help_text="Nome da empresa para path de upload")
     cnpj_empresa = models.CharField(max_length=18, null=False) # Usado por get_company_folder_identifier
     tipo_documento = models.CharField(max_length=40, null=False)
     caminho_arquivo = models.FileField(upload_to=simples_nacional_upload_path, null=False, max_length=500) # ATUALIZADO
