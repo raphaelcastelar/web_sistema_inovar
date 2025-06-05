@@ -402,26 +402,37 @@ const PastaManager = () => {
   };
 
   const handleRefreshSelectedPasta = async () => {
-    if (!selectedPasta || !empresaId) return;
-    setIsRefreshingPasta(true);
-    setError(null); 
-    const tipoPasta = selectedPasta.tipo;
-    const endpoint = tipoPasta.replace('_', '-');
-    const url = `${API_BASE_URL}/${endpoint}/`;
-    console.log(`Atualizando pasta: ${tipoPasta} para empresa ID: ${empresaId}`);
-    try {
-        const response = await axios.get(url, { params: { empresa_id: empresaId } });
-        setArquivos(prevArquivos => ({
-            ...prevArquivos,
-            [tipoPasta]: response.data 
-        }));
-        console.log(`Pasta ${tipoPasta} atualizada com sucesso.`);
-    } catch (err) { 
-        console.error(`Erro ao atualizar arquivos para ${tipoPasta}:`, err);
-        setError(`Falha ao atualizar a pasta ${tipoPasta.replace(/_/g, ' ')}.`); 
-    } finally {
-        setIsRefreshingPasta(false);
-    }
+        if (!selectedPasta || !empresaId) return;
+
+        setIsRefreshingPasta(true);
+        setError(null); 
+        
+        const tipoPasta = selectedPasta.tipo;
+        console.log(`Sincronizando pasta: ${tipoPasta} para empresa ID: ${empresaId}`);
+
+        try {
+            // AGORA É UMA REQUISIÇÃO POST para o endpoint de sincronização
+            const response = await axios.post(`${API_BASE_URL}/sincronizar-pasta/`, {
+                empresa_id: empresaId,
+                tipo_pasta: tipoPasta
+            });
+            
+            // A resposta do backend agora inclui a lista de dados atualizada
+            setArquivos(prevArquivos => ({
+                ...prevArquivos,
+                [tipoPasta]: response.data.data // Assumindo que a resposta é { message: "...", data: [...] }
+            }));
+            console.log(`Pasta ${tipoPasta} sincronizada: ${response.data.message}`);
+            // Você pode querer exibir response.data.message para o usuário de forma mais elegante
+            alert(response.data.message); // Exemplo simples
+        } catch (err) {
+            console.error(`Erro ao sincronizar arquivos para ${tipoPasta}:`, err.response?.data || err.message);
+            const errorDetail = err.response?.data?.error || err.response?.data?.detail || `Falha ao sincronizar a pasta ${tipoPasta.replace(/_/g, ' ')}.`;
+            setError(errorDetail);
+            alert(errorDetail); // Exemplo simples
+        } finally {
+            setIsRefreshingPasta(false);
+        }
   };
 
   return (
