@@ -420,7 +420,7 @@ const PastaManager = () => {
               <div className="flex flex-col items-center text-center">
                 <DocumentTextIcon className={`h-8 w-8 mb-1 ${selectedPasta?.id === pasta.id ? 'text-white' : 'text-indigo-400'}`} />
                 <p className={`text-sm font-medium ${selectedPasta?.id === pasta.id ? 'text-white' : 'text-gray-300'} capitalize`}>
-                  {pasta.tipo.replace('_', ' ')}
+                  {pasta.tipo.replace(/_/g, ' ')}
                 </p>
               </div>
             </motion.div>
@@ -435,7 +435,7 @@ const PastaManager = () => {
           >
             <h3 className="text-xl sm:text-2xl font-semibold text-indigo-300 mb-4 capitalize flex items-center">
               <DocumentTextIcon className="h-7 w-7 mr-2 text-indigo-400" />
-              {selectedPasta.tipo.replace('_', ' ')}
+              {selectedPasta.tipo.replace(/_/g, ' ')}
             </h3>
             
             <div 
@@ -477,7 +477,7 @@ const PastaManager = () => {
                           uploading || 
                           selectedFiles.length === 0 ||
                           !selectedPasta ||
-                          selectedPasta.tipo !== 'documentos_constitutivos' || 'departamento_pessoal' || 'simples_nacional' || 'outros'
+                          selectedPasta.tipo === 'xml' // Desabilitar APENAS se for 'xml'
                         }>
                       <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-1" /> WhatsApp
                     </button>
@@ -505,7 +505,7 @@ const PastaManager = () => {
                                     className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500 cursor-pointer"
                                 />
                                 <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                {file.hasOwnProperty('entregue') && ( // Apenas mostrar 'entregue' se existir
+                                {file.hasOwnProperty('entregue') && (
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${file.entregue ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>
                                         {file.entregue ? 'Entregue' : 'Pendente'}
                                     </span>
