@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion'; // Importar AnimatePresence
 import { useDropzone } from 'react-dropzone';
-import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon, ArrowPathIcon } from '@heroicons/react/24/outline'; // Adicionado ArrowPathIcon
+import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 const API_BASE_URL = 'http://192.168.196.162:8000/api';
 const SERVER_FILE_URL_BASE = 'http://192.168.196.162:8000'; 
@@ -78,13 +78,16 @@ const groupFilesByYearAndMonth = (files) => {
 const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverFileUrlBase }) => {
     const [activeYear, setActiveYear] = useState(null);
     const [activeMonthKey, setActiveMonthKey] = useState(null);
+    const [initialAutoExpandDone, setInitialAutoExpandDone] = useState(false);
+
 
     const groupedData = useMemo(() => groupFilesByYearAndMonth(files), [files]);
     const sortedYears = useMemo(() => Object.keys(groupedData), [groupedData]);
 
     useEffect(() => {
-        if (sortedYears.length > 0) {
-            if (activeYear === null || !sortedYears.includes(activeYear)) {
+        // Auto-expande na primeira vez que 'files' tem dados ou quando 'files' muda de identidade.
+        if (files && files.length > 0 && sortedYears.length > 0) {
+            if (!initialAutoExpandDone) {
                 const latestYear = sortedYears[0];
                 setActiveYear(latestYear);
                 const monthsInLatestYear = groupedData[latestYear];
@@ -94,22 +97,36 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
                 } else {
                     setActiveMonthKey(null);
                 }
+                setInitialAutoExpandDone(true);
             }
         } else {
             setActiveYear(null);
             setActiveMonthKey(null);
+            setInitialAutoExpandDone(false); // Reseta se não houver dados para permitir re-expansão se os dados voltarem
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [files, sortedYears]);
+    }, [files, sortedYears, groupedData, initialAutoExpandDone]); // Dependências do efeito
+
+    // Efeito para resetar initialAutoExpandDone se a prop 'files' mudar (nova referência)
+    // Isso permite que o efeito acima re-execute a lógica de auto-expansão para o novo conjunto de arquivos.
+    const prevFilesRef = useRef(files);
+    useEffect(() => {
+        if (prevFilesRef.current !== files) {
+            setInitialAutoExpandDone(false);
+            prevFilesRef.current = files;
+        }
+    }, [files]);
+
 
     const handleYearToggle = (yearToToggle) => {
         const newActiveYear = activeYear === yearToToggle ? null : yearToToggle;
         setActiveYear(newActiveYear);
         setActiveMonthKey(null); 
+        setInitialAutoExpandDone(true); // Usuário interagiu, impede auto-expansão imediata unless files change
     };
 
     const handleMonthToggle = (monthKeyToToggle) => {
         setActiveMonthKey(activeMonthKey === monthKeyToToggle ? null : monthKeyToToggle);
+        setInitialAutoExpandDone(true); // Usuário interagiu
     };
 
     if (!files || files.length === 0) {
@@ -216,7 +233,7 @@ const PastaManager = () => {
   const [error, setError] = useState(null);
   const [targetUploadYear, setTargetUploadYear] = useState('');
   const [targetUploadMonth, setTargetUploadMonth] = useState('');
-  const [isRefreshingPasta, setIsRefreshingPasta] = useState(false); // Novo estado
+  const [isRefreshingPasta, setIsRefreshingPasta] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -384,19 +401,14 @@ const PastaManager = () => {
     setTargetUploadMonth('');
   };
 
-  // --- INÍCIO: Função para atualizar a pasta selecionada ---
   const handleRefreshSelectedPasta = async () => {
     if (!selectedPasta || !empresaId) return;
-
     setIsRefreshingPasta(true);
     setError(null); 
-    
     const tipoPasta = selectedPasta.tipo;
     const endpoint = tipoPasta.replace('_', '-');
     const url = `${API_BASE_URL}/${endpoint}/`;
-    
     console.log(`Atualizando pasta: ${tipoPasta} para empresa ID: ${empresaId}`);
-
     try {
         const response = await axios.get(url, { params: { empresa_id: empresaId } });
         setArquivos(prevArquivos => ({
@@ -404,14 +416,13 @@ const PastaManager = () => {
             [tipoPasta]: response.data 
         }));
         console.log(`Pasta ${tipoPasta} atualizada com sucesso.`);
-    } catch (err) { // Usando 'err' para não conflitar com o estado 'error'
+    } catch (err) { 
         console.error(`Erro ao atualizar arquivos para ${tipoPasta}:`, err);
         setError(`Falha ao atualizar a pasta ${tipoPasta.replace(/_/g, ' ')}.`); 
     } finally {
         setIsRefreshingPasta(false);
     }
   };
-  // --- FIM: Função para atualizar a pasta selecionada ---
 
   return (
     <div className="p-4 sm:p-6 bg-gray-900 min-h-screen text-gray-100">
@@ -421,7 +432,13 @@ const PastaManager = () => {
         </h2>
 
         {loading && !selectedPasta && <p className="text-center text-indigo-400">Carregando dados...</p>}
-        {error && <p className="text-red-400 bg-red-900 p-3 rounded mb-4">{error}</p>}
+        {error && 
+            <div className="bg-red-800 border border-red-700 text-red-200 px-4 py-3 rounded relative mb-6" role="alert">
+                <strong className="font-bold">Ocorreu um erro:</strong>
+                <span className="block sm:inline"> {error}</span>
+          </div>
+        }
+
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-6">
           {pastas.map(pasta => (
@@ -443,163 +460,172 @@ const PastaManager = () => {
           ))}
         </div>
 
-        {selectedPasta && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6"
-          >
-            {/* --- INÍCIO: Título da pasta com botão de atualizar --- */}
-            <h3 className="text-xl sm:text-2xl font-semibold text-indigo-300 mb-4 capitalize flex items-center justify-between">
-              <div className="flex items-center">
-                <DocumentTextIcon className="h-7 w-7 mr-2 text-indigo-400" />
-                {selectedPasta.tipo.replace(/_/g, ' ')}
-              </div>
-              <button
-                onClick={handleRefreshSelectedPasta}
-                disabled={isRefreshingPasta || loading || uploading}
-                className="p-1.5 text-indigo-400 hover:text-indigo-200 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                title={`Atualizar pasta ${selectedPasta.tipo.replace(/_/g, ' ')}`}
-              >
-                {isRefreshingPasta ? (
-                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                ) : (
-                  <ArrowPathIcon className="h-5 w-5" /> // Usando o ícone importado
-                )}
-              </button>
-            </h3>
-            {/* --- FIM: Título da pasta com botão de atualizar --- */}
-            
-            {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional') && (
-              <div className="my-4 p-4 bg-gray-700 rounded-lg shadow-md flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 items-start sm:items-end">
-                <p className="text-sm text-indigo-300 font-semibold sm:mb-1 whitespace-nowrap self-center sm:self-end">Período do Documento para Upload:</p>
-                <div>
-                  <label htmlFor="upload-year-select" className="block text-xs font-medium text-gray-300 mb-1">Ano</label>
-                  <select
-                    id="upload-year-select"
-                    value={targetUploadYear}
-                    onChange={(e) => setTargetUploadYear(e.target.value)}
-                    className="block w-full sm:w-32 pl-3 pr-10 py-2 text-sm border-gray-600 bg-gray-600 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
-                  >
-                    <option value="">Ano Atual</option>
-                    {[...Array(7)].map((_, i) => {
-                      const yearOption = new Date().getFullYear() + 2 - i;
-                      return <option key={yearOption} value={yearOption.toString()}>{yearOption}</option>;
-                    })}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="upload-month-select" className="block text-xs font-medium text-gray-300 mb-1">Mês</label>
-                  <select
-                    id="upload-month-select"
-                    value={targetUploadMonth}
-                    onChange={(e) => setTargetUploadMonth(e.target.value)}
-                    className="block w-full sm:w-40 pl-3 pr-10 py-2 text-sm border-gray-600 bg-gray-600 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
-                  >
-                    <option value="">Mês Atual</option>
-                    {monthOrder.map((monthName, index) => (
-                      <option key={monthName} value={(index + 1).toString().padStart(2, '0')}>
-                        {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-
-            <div 
-              {...getRootProps()} 
-              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
-                          transition-all duration-300 ease-in-out mb-6
-                          ${isDragActive ? 'border-indigo-400 bg-gray-700' : 'border-gray-600 hover:border-indigo-500 bg-gray-750 hover:bg-gray-700'}`}
-              onClick={() => document.getElementById(`fileInput-${selectedPasta.id}`)?.click()}
+        <AnimatePresence mode="wait"> {/* Adicionado AnimatePresence */}
+            {selectedPasta && (
+            <motion.div
+                key={selectedPasta.id} // Chave para o motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.2 }}
+                className="bg-gray-800 rounded-lg shadow-xl p-4 sm:p-6"
             >
-              <input {...getInputProps({ id: `fileInput-${selectedPasta.id}` })} />
-              {uploading ? ( <p className="text-indigo-400">Enviando arquivos...</p>
-              ) : isDragActive ? ( <p className="text-indigo-300">Solte os arquivos aqui...</p>
-              ) : ( <p className="text-gray-400">Arraste e solte arquivos aqui, ou clique para selecionar.</p> )}
-            </div>
-
-            <div className="mt-6">
-              <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-700">
-                <h4 className="text-lg font-semibold text-indigo-300">
-                  Arquivos na Pasta
-                  {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional')
-                    ? ` (Agrupados por Ano/Mês)`
-                    : ''}
-                </h4>
-                {selectedFiles.length > 0 && (
-                  <div className="flex space-x-2">
-                    <button 
-                        onClick={handleEmailClick} 
-                        className="flex items-center text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" 
-                        title="Enviar por Email" 
-                        disabled={loading || uploading || isRefreshingPasta}>
-                      <EnvelopeIcon className="h-5 w-5 mr-1" /> Email
-                    </button>
-                    <button 
-                        onClick={handleWhatsAppClick} 
-                        className="flex items-center text-sm bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" 
-                        title="Enviar por WhatsApp"
-                        disabled={ 
-                          loading || 
-                          uploading ||
-                          isRefreshingPasta || 
-                          selectedFiles.length === 0 ||
-                          !selectedPasta ||
-                          selectedPasta.tipo === 'xml'
-                        }>
-                      <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-1" /> WhatsApp
-                    </button>
-                  </div>
-                )}
-              </div>
-              {error && <p className="text-red-400 bg-red-900 p-2 rounded mb-3 text-sm">{error}</p>}
-              
-              {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional') ? (
-                <YearMonthAccordion 
-                    files={arquivos[selectedPasta.tipo] || []} 
-                    selectedFiles={selectedFiles}
-                    toggleFileSelection={toggleFileSelection}
-                    serverFileUrlBase={SERVER_FILE_URL_BASE}
-                />
-              ) : (
-                arquivos[selectedPasta.tipo] && arquivos[selectedPasta.tipo].length > 0 ? (
-                    <ul className="space-y-2">
-                        {arquivos[selectedPasta.tipo].map(file => (
-                            <li key={file.id} className="text-gray-300 flex items-center space-x-2 p-2 hover:bg-gray-700 rounded-md transition-colors">
-                                <input 
-                                    type="checkbox" 
-                                    checked={selectedFiles.includes(file.id)} 
-                                    onChange={() => toggleFileSelection(file.id)} 
-                                    className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500 cursor-pointer"
-                                />
-                                <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                {file.hasOwnProperty('entregue') && (
-                                    <span className={`text-xs px-2 py-0.5 rounded-full ${file.entregue ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>
-                                        {file.entregue ? 'Entregue' : 'Pendente'}
-                                    </span>
-                                )}
-                                <a 
-                                    href={`${SERVER_FILE_URL_BASE}${file.caminho_arquivo}`} 
-                                    target="_blank" rel="noopener noreferrer" 
-                                    className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors">
-                                    Ver
-                                </a>
-                            </li>
+                <h3 className="text-xl sm:text-2xl font-semibold text-indigo-300 mb-4 capitalize flex items-center justify-between">
+                <div className="flex items-center">
+                    <DocumentTextIcon className="h-7 w-7 mr-2 text-indigo-400" />
+                    {selectedPasta.tipo.replace(/_/g, ' ')}
+                </div>
+                <button
+                    onClick={handleRefreshSelectedPasta}
+                    disabled={isRefreshingPasta || loading || uploading}
+                    className="p-1.5 text-indigo-400 hover:text-indigo-200 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors rounded-full hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    title={`Atualizar pasta ${selectedPasta.tipo.replace(/_/g, ' ')}`}
+                >
+                    {isRefreshingPasta ? (
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    ) : (
+                    <ArrowPathIcon className="h-5 w-5" />
+                    )}
+                </button>
+                </h3>
+                
+                {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional') && (
+                <div className="my-4 p-4 bg-gray-700 rounded-lg shadow-md flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 items-start sm:items-end">
+                    <p className="text-sm text-indigo-300 font-semibold sm:mb-1 whitespace-nowrap self-center sm:self-end">Período do Doc. para Upload:</p>
+                    <div>
+                    <label htmlFor="upload-year-select" className="block text-xs font-medium text-gray-300 mb-1">Ano</label>
+                    <select
+                        id="upload-year-select"
+                        value={targetUploadYear}
+                        onChange={(e) => setTargetUploadYear(e.target.value)}
+                        className="block w-full sm:w-32 pl-3 pr-10 py-2 text-sm border-gray-600 bg-gray-600 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
+                    >
+                        <option value="">Ano Atual</option>
+                        {[...Array(7)].map((_, i) => {
+                        const yearOption = new Date().getFullYear() + 2 - i;
+                        return <option key={yearOption} value={yearOption.toString()}>{yearOption}</option>;
+                        })}
+                    </select>
+                    </div>
+                    <div>
+                    <label htmlFor="upload-month-select" className="block text-xs font-medium text-gray-300 mb-1">Mês</label>
+                    <select
+                        id="upload-month-select"
+                        value={targetUploadMonth}
+                        onChange={(e) => setTargetUploadMonth(e.target.value)}
+                        className="block w-full sm:w-40 pl-3 pr-10 py-2 text-sm border-gray-600 bg-gray-600 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
+                    >
+                        <option value="">Mês Atual</option>
+                        {monthOrder.map((monthName, index) => (
+                        <option key={monthName} value={(index + 1).toString().padStart(2, '0')}>
+                            {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
+                        </option>
                         ))}
-                    </ul>
-                ) : ( <p className="text-gray-500 italic mt-4">Nenhum arquivo encontrado nesta pasta.</p> )
-              )}
-            </div>
-          </motion.div>
-        )}
+                    </select>
+                    </div>
+                </div>
+                )}
+
+                <div 
+                {...getRootProps()} 
+                className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
+                                transition-all duration-300 ease-in-out mb-6
+                                ${isDragActive ? 'border-indigo-400 bg-gray-700' : 'border-gray-600 hover:border-indigo-500 bg-gray-750 hover:bg-gray-700'}`}
+                onClick={() => document.getElementById(`fileInput-${selectedPasta.id}`)?.click()}
+                >
+                <input {...getInputProps({ id: `fileInput-${selectedPasta.id}` })} />
+                {uploading ? ( <p className="text-indigo-400">Enviando arquivos...</p>
+                ) : isDragActive ? ( <p className="text-indigo-300">Solte os arquivos aqui...</p>
+                ) : ( <p className="text-gray-400">Arraste e solte arquivos aqui, ou clique para selecionar.</p> )}
+                </div>
+
+                <div className="mt-6">
+                <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-700">
+                    <h4 className="text-lg font-semibold text-indigo-300">
+                    Arquivos na Pasta
+                    {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional')
+                        ? ` (Agrupados por Ano/Mês)`
+                        : ''}
+                    </h4>
+                    {selectedFiles.length > 0 && (
+                    <div className="flex space-x-2">
+                        <button 
+                            onClick={handleEmailClick} 
+                            className="flex items-center text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" 
+                            title="Enviar por Email" 
+                            disabled={loading || uploading || isRefreshingPasta}>
+                        <EnvelopeIcon className="h-5 w-5 mr-1" /> Email
+                        </button>
+                        <button 
+                            onClick={handleWhatsAppClick} 
+                            className="flex items-center text-sm bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" 
+                            title="Enviar por WhatsApp"
+                            disabled={ 
+                            loading || 
+                            uploading ||
+                            isRefreshingPasta || 
+                            selectedFiles.length === 0 ||
+                            !selectedPasta ||
+                            selectedPasta.tipo === 'xml'
+                            }>
+                        <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-1" /> WhatsApp
+                        </button>
+                    </div>
+                    )}
+                </div>
+                {error && !isRefreshingPasta && <p className="text-red-400 bg-red-900 p-2 rounded mb-3 text-sm">{error}</p>} {/* Não mostra erro geral se estiver atualizando */}
+                
+                {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional') ? (
+                    <YearMonthAccordion 
+                        key={selectedPasta.tipo + "-accordion"} // Adicionada key para forçar remount
+                        files={arquivos[selectedPasta.tipo] || []} 
+                        selectedFiles={selectedFiles}
+                        toggleFileSelection={toggleFileSelection}
+                        serverFileUrlBase={SERVER_FILE_URL_BASE}
+                    />
+                ) : (
+                    arquivos[selectedPasta.tipo] && arquivos[selectedPasta.tipo].length > 0 ? (
+                        <ul className="space-y-2" key={selectedPasta.tipo + "-list"}> {/* Adicionada key */}
+                            {arquivos[selectedPasta.tipo].map(file => (
+                                <li key={file.id} className="text-gray-300 flex items-center space-x-2 p-2 hover:bg-gray-700 rounded-md transition-colors">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={selectedFiles.includes(file.id)} 
+                                        onChange={() => toggleFileSelection(file.id)} 
+                                        className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500 cursor-pointer"
+                                    />
+                                    <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
+                                    {file.hasOwnProperty('entregue') && (
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${file.entregue ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>
+                                            {file.entregue ? 'Entregue' : 'Pendente'}
+                                        </span>
+                                    )}
+                                    <a 
+                                        href={`${SERVER_FILE_URL_BASE}${file.caminho_arquivo}`} 
+                                        target="_blank" rel="noopener noreferrer" 
+                                        className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors">
+                                        Ver
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : ( <p className="text-gray-500 italic mt-4" key={selectedPasta.tipo + "-empty"}>Nenhum arquivo encontrado nesta pasta.</p> ) // Adicionada key
+                )}
+                </div>
+            </motion.div>
+            )}
+        </AnimatePresence> {/* Fechando AnimatePresence */}
       </div>
     </div>
   );
 };
+
+// É necessário importar useRef do React para o YearMonthAccordion
+const { useRef } = React; // Adicione esta linha se useRef não estiver no import principal.
+                           // Ou adicione useRef ao import principal: import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+
 
 export default PastaManager;
