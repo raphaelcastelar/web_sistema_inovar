@@ -6,7 +6,7 @@ import { useDropzone } from 'react-dropzone';
 import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/react/24/outline';
 
 const API_BASE_URL = 'http://192.168.196.162:8000/api';
-const SERVER_FILE_URL_BASE = 'http://192.168.196.162:8000';
+const SERVER_FILE_URL_BASE = 'http://192.168.196.162:8000'; 
 
 const fetchArquivos = (empresaId, setArquivos, setLoadingState) => {
     setLoadingState(true);
@@ -77,71 +77,62 @@ const groupFilesByYearAndMonth = (files) => {
     return result;
 };
 
+//               Componente YearMonthAccordion MODIFICADO ABAIXO
+//VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
 const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverFileUrlBase }) => {
     const [activeYear, setActiveYear] = useState(null);
-    const [activeMonthKey, setActiveMonthKey] = useState(null);
+    const [activeMonthKey, setActiveMonthKey] = useState(null); // Armazena a chave como "012025"
 
     const groupedData = useMemo(() => groupFilesByYearAndMonth(files), [files]);
     const sortedYears = useMemo(() => Object.keys(groupedData), [groupedData]);
 
     useEffect(() => {
-        // console.log("Accordion useEffect: files changed or initial load. SortedYears:", sortedYears);
         if (sortedYears.length > 0) {
-            // Este estado é para auto-abrir na primeira carga ou quando os arquivos mudam.
-            // Só define se o activeYear for null (primeira carga) OU se o activeYear atual se tornou inválido.
             if (activeYear === null || !sortedYears.includes(activeYear)) {
                 const latestYear = sortedYears[0];
-                // console.log("Setting activeYear to latest:", latestYear);
                 setActiveYear(latestYear);
-
                 const monthsInLatestYear = groupedData[latestYear];
                 if (monthsInLatestYear && Object.keys(monthsInLatestYear).length > 0) {
                     const monthKeys = Object.keys(monthsInLatestYear);
-                    const latestMonthKey = monthKeys[monthKeys.length - 1];
-                    // console.log("Setting activeMonthKey to latest in year:", latestMonthKey);
-                    setActiveMonthKey(latestMonthKey);
+                    setActiveMonthKey(monthKeys[monthKeys.length - 1]);
                 } else {
-                    // console.log("No months in latest year, setting activeMonthKey to null");
                     setActiveMonthKey(null);
                 }
             }
-        } else { // Nenhum ano com dados
-            // console.log("No sorted years, setting activeYear and activeMonthKey to null");
+        } else {
             setActiveYear(null);
             setActiveMonthKey(null);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [files]); // Depender apenas de 'files'. groupedData e sortedYears são derivados.
-                  // A intenção é que este useEffect reaja a uma mudança fundamental nos dados de entrada.
+    }, [files, sortedYears]); // Removido groupedData e activeYear da lista de dependência para evitar re-trigger indesejado
 
     const handleYearToggle = (yearToToggle) => {
-        // console.log(`Toggling year: ${yearToToggle}. Current activeYear: ${activeYear}`);
         const newActiveYear = activeYear === yearToToggle ? null : yearToToggle;
         setActiveYear(newActiveYear);
-        // Sempre reseta o mês ao alternar o ano (seja abrindo um novo ou fechando o atual)
-        setActiveMonthKey(null);
-        // console.log(`New activeYear: ${newActiveYear}, activeMonthKey reset to null`);
+        setActiveMonthKey(null); // Sempre reseta o mês ao alternar o ano
     };
 
     const handleMonthToggle = (monthKeyToToggle) => {
-        // console.log(`Toggling month: ${monthKeyToToggle}. Current activeMonthKey: ${activeMonthKey}`);
         setActiveMonthKey(activeMonthKey === monthKeyToToggle ? null : monthKeyToToggle);
-        // console.log(`New activeMonthKey: ${activeMonthKey === monthKeyToToggle ? null : monthKeyToToggle}`);
     };
 
     if (!files || files.length === 0) {
         return <p className="text-gray-500 italic mt-4">Nenhum arquivo encontrado nesta categoria.</p>;
     }
-    if (Object.keys(groupedData).length === 0 && files.length > 0) {
-         return <p className="text-gray-500 mt-4">Arquivos presentes, mas não foi possível agrupar por ano/mês. Verifique os dados 'ano' e 'mes' dos arquivos.</p>;
+    // Não precisamos mais desta verificação específica aqui, pois vamos listar todos os meses
+    // if (Object.keys(groupedData).length === 0 && files.length > 0) { ... }
+    
+    // Se não há anos após o agrupamento (pode acontecer se todos os arquivos tiverem ano/mês inválidos)
+    if (sortedYears.length === 0 && files.length > 0) {
+        return <p className="text-gray-500 mt-4">Arquivos presentes, mas não foi possível agrupar por ano. Verifique os dados 'ano' dos arquivos.</p>;
     }
-    if (Object.keys(groupedData).length === 0) {
-        return <p className="text-gray-500 italic mt-4">Nenhum arquivo para agrupar.</p>;
+    if (sortedYears.length === 0) { // Se não há anos (e consequentemente não há arquivos com ano/mês válidos)
+        return <p className="text-gray-500 italic mt-4">Nenhum arquivo com dados de ano/mês para agrupar.</p>;
     }
 
     return (
         <div className="space-y-3 mt-4">
-            {sortedYears.map(year => (
+            {sortedYears.map(year => ( // 'year' aqui é uma string como "2025"
                 <div key={year} className="bg-gray-750 rounded-lg shadow-md overflow-hidden">
                     <button
                         onClick={() => handleYearToggle(year)}
@@ -156,49 +147,62 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
                     </button>
                     {activeYear === year && (
                         <div className="border-t border-gray-700">
-                            {Object.keys(groupedData[year]).length === 0 ? (
-                                <p className="text-gray-500 p-4 ml-4">Nenhum mês com arquivos para {year}.</p>
-                            ) : (
-                                Object.entries(groupedData[year]).map(([monthKey, monthData]) => (
-                                    <div key={monthKey} className="border-b border-gray-600 last:border-b-0">
+                            {/* Iterar de 1 a 12 para criar entradas para todos os meses do ano ativo */}
+                            {monthOrder.map((nomeDoMes, indexDoMes) => {
+                                const numeroDoMes = indexDoMes + 1; // 1 para janeiro, 2 para fevereiro, etc.
+                                const mesFormatadoStr = numeroDoMes.toString().padStart(2, '0'); // "01", "02", ..., "12"
+                                const chaveMesAnoParaBusca = `${mesFormatadoStr}${activeYear}`; // ex: "012025"
+                                
+                                // Tenta buscar os dados do mês no objeto groupedData
+                                const dadosDoMes = groupedData[activeYear]?.[chaveMesAnoParaBusca];
+                                const arquivosParaEsteMes = dadosDoMes?.files || [];
+                                const nomeExibicaoMes = nomeDoMes.charAt(0).toUpperCase() + nomeDoMes.slice(1);
+
+                                return (
+                                    <div key={chaveMesAnoParaBusca} className="border-b border-gray-600 last:border-b-0">
                                         <button
-                                            onClick={() => handleMonthToggle(monthKey)}
+                                            onClick={() => handleMonthToggle(chaveMesAnoParaBusca)}
                                             className="w-full flex justify-between items-center text-left py-3 px-6 text-gray-200 hover:bg-gray-600 transition-colors"
                                         >
-                                            {monthData.monthNameDisplay}
-                                            <span className={`transform transition-transform duration-200 ${activeMonthKey === monthKey && activeYear === year ? 'rotate-180' : 'rotate-0'}`}>
+                                            {nomeExibicaoMes}
+                                            <span className={`transform transition-transform duration-200 ${activeMonthKey === chaveMesAnoParaBusca && activeYear === year ? 'rotate-180' : 'rotate-0'}`}>
                                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                                 </svg>
                                             </span>
                                         </button>
-                                        {activeMonthKey === monthKey && activeYear === year && (
-                                            <ul className="pl-8 pr-4 py-2 space-y-1 bg-gray-700">
-                                                {monthData.files.map(file => (
-                                                    <li key={file.id} className="text-gray-300 flex items-center space-x-2 p-1.5 hover:bg-gray-600 rounded-md transition-colors">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedFiles.includes(file.id)}
-                                                            onChange={() => toggleFileSelection(file.id)}
-                                                            className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500 cursor-pointer"
-                                                        />
-                                                        <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                                        <a
-                                                            href={`${serverFileUrlBase}${file.caminho_arquivo}`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors"
-                                                        >
-                                                            Ver
-                                                        </a>
-                                                    </li>
-                                                ))}
-                                                {monthData.files.length === 0 && <p className="text-gray-500 italic pl-2">Nenhum arquivo para este mês.</p>}
-                                            </ul>
+                                        {activeMonthKey === chaveMesAnoParaBusca && activeYear === year && (
+                                            <div className="pl-8 pr-4 py-2 bg-gray-700"> {/* Usar div para padding consistente */}
+                                                {arquivosParaEsteMes.length > 0 ? (
+                                                    <ul className="space-y-1">
+                                                        {arquivosParaEsteMes.map(file => (
+                                                            <li key={file.id} className="text-gray-300 flex items-center space-x-2 p-1.5 hover:bg-gray-600 rounded-md transition-colors">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedFiles.includes(file.id)}
+                                                                    onChange={() => toggleFileSelection(file.id)}
+                                                                    className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500 cursor-pointer"
+                                                                />
+                                                                <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
+                                                                <a
+                                                                    href={`${serverFileUrlBase}${file.caminho_arquivo}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors"
+                                                                >
+                                                                    Ver
+                                                                </a>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                ) : (
+                                                    <p className="text-gray-500 italic py-2">Nenhum arquivo para {nomeExibicaoMes} de {activeYear}.</p>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
-                                ))
-                            )}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -206,6 +210,9 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
         </div>
     );
 };
+//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+//               Fim das modificações no YearMonthAccordion
+
 
 const PastaManager = () => {
   const { empresaId: empresaIdStr } = useParams();
@@ -235,13 +242,9 @@ const PastaManager = () => {
 
     const pastaTypes = ['documentos_constitutivos', 'departamento_pessoal', 'xml', 'simples_nacional', 'outros'];
     setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
-
-    // Passando stableFetchArquivos se for usá-lo em dependências, mas fetchArquivos é definido fora, então é estável.
-    fetchArquivos(empresaId, setArquivos, setLoading); 
+    fetchArquivos(empresaId, setArquivos, setLoading);
   }, [empresaId]);
 
-  // A função onDrop é recriada se empresaNome ou empresaCnpj mudarem. Isso é ok.
-  // fetchArquivos é definido fora, então é estável e não precisa estar em dependências de useCallback se não for usado como prop que muda.
   const onDrop = useCallback((acceptedFiles, pastaTipo) => {
     if (!empresaNome || !empresaCnpj) {
       alert('Aguarde o carregamento dos dados da empresa antes de fazer upload.');
@@ -258,7 +261,7 @@ const PastaManager = () => {
       formData.append('caminho_arquivo', file);
       formData.append('nome_arquivo', file.name);
       formData.append('cnpj_empresa', empresaCnpj);
-      formData.append('nome_empresa', empresaNome); // Enviando nome da empresa para todos os uploads
+      formData.append('nome_empresa', empresaNome);
       formData.append('tipo_documento', tipo.replace('_', '-'));
       if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(tipo)) {
         const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
@@ -273,8 +276,8 @@ const PastaManager = () => {
       axios.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
-        .then(() => { // Não precisamos da response aqui
-          fetchArquivos(empresaId, setArquivos, setLoading); // Apenas recarrega
+        .then(() => { 
+          fetchArquivos(empresaId, setArquivos, setLoading);
         })
         .catch(err => {
           console.error(`Erro ao salvar ${tipo}:`, err.response ? err.response.data : err.message);
@@ -282,8 +285,8 @@ const PastaManager = () => {
         })
         .finally(() => setUploading(false));
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [empresaId, empresaNome, empresaCnpj]); // fetchArquivos não precisa estar aqui se setLoading for gerenciado de outra forma ou se for estável
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empresaId, empresaNome, empresaCnpj]);
 
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -373,8 +376,6 @@ const PastaManager = () => {
     setSelectedPasta(pasta);
     setSelectedFiles([]);
     setError(null);
-    // O YearMonthAccordion irá resetar seus próprios activeYear/Month através de seu useEffect
-    // quando a prop 'files' mudar devido à mudança de 'selectedPasta.tipo'
   };
 
   return (
@@ -466,7 +467,6 @@ const PastaManager = () => {
               </div>
               {error && <p className="text-red-400 bg-red-900 p-2 rounded mb-3 text-sm">{error}</p>}
               
-              {/* ***** APLICAÇÃO DO PASSO 4 - RENDERIZAÇÃO CONDICIONAL ***** */}
               {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional') ? (
                 <YearMonthAccordion 
                     files={arquivos[selectedPasta.tipo] || []} 
@@ -475,7 +475,6 @@ const PastaManager = () => {
                     serverFileUrlBase={SERVER_FILE_URL_BASE}
                 />
               ) : (
-                // Renderização padrão para 'documentos_constitutivos' e 'outros'
                 arquivos[selectedPasta.tipo] && arquivos[selectedPasta.tipo].length > 0 ? (
                     <ul className="space-y-2">
                         {arquivos[selectedPasta.tipo].map(file => (
@@ -487,8 +486,7 @@ const PastaManager = () => {
                                     className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500 cursor-pointer"
                                 />
                                 <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                {/* Não precisamos mais mostrar mês/ano aqui para DP/SN pois usarão o acordeão */}
-                                {file.hasOwnProperty('entregue') && (
+                                {file.hasOwnProperty('entregue') && ( // Apenas mostrar 'entregue' se existir
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${file.entregue ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>
                                         {file.entregue ? 'Entregue' : 'Pendente'}
                                     </span>
