@@ -1,9 +1,8 @@
-// src/pages/HistoricoWhatsApp.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { CheckCircleIcon, XCircleIcon, ClipboardDocumentIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/solid';
 
-const API_BASE_URL = 'http://192.168.196.162:8000/api';
+const API_BASE_URL = 'http://192.168.196.162:8000/api'; // Certifique-se que esta URL está correta
 
 const HistoricoWhatsApp = () => {
     const [historico, setHistorico] = useState([]);
@@ -56,14 +55,15 @@ const HistoricoWhatsApp = () => {
                 {/* Itens da timeline */}
                 <div className="space-y-8">
                     {historico.length === 0 ? (
-                        <p className="text-gray-500">Nenhum registro de envio encontrado.</p>
+                        <p className="text-gray-500 ml-4">Nenhum registro de envio encontrado.</p>
                     ) : (
                         historico.map(item => (
                             <div key={item.id} className="relative flex items-start">
                                 {/* Ícone e Ponto na Linha */}
-                                <div className="flex items-center justify-center h-18">
-                                    <div className="z-10 flex items-center justify-center w-18 h-18 rounded-full">
-                                        {item.status === 'sucesso' ? (
+                                <div className="flex-shrink-0 flex items-center justify-center h-18 w-18">
+                                    <div className="z-10 flex items-center justify-center rounded-full">
+                                        {/* CORREÇÃO AQUI: Torna a verificação do status mais robusta */}
+                                        {item.status && item.status.trim().toLowerCase() === 'sucesso' ? (
                                             <CheckCircleIcon className="h-8 w-8 text-green-500 bg-gray-900 rounded-full" />
                                         ) : (
                                             <XCircleIcon className="h-8 w-8 text-red-500 bg-gray-900 rounded-full" />
@@ -72,11 +72,16 @@ const HistoricoWhatsApp = () => {
                                 </div>
                                 
                                 {/* Card com os Detalhes */}
-                                <div className="ml-8 w-full p-4 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
+                                <div className="ml-4 w-full p-4 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
                                     <div className="flex justify-between items-center mb-2">
-                                        <p className="font-semibold text-lg text-white">{item.arquivo}</p>
-                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${item.status === 'sucesso' ? 'bg-green-800 text-green-200' : 'bg-red-800 text-red-200'}`}>
-                                            {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                                        <p className="font-semibold text-lg text-white break-words">{item.arquivo}</p>
+                                        {/* CORREÇÃO AQUI: Usa a mesma verificação robusta para a cor de fundo */}
+                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                            item.status && item.status.trim().toLowerCase() === 'sucesso' 
+                                            ? 'bg-green-800 text-green-200' 
+                                            : 'bg-red-800 text-red-200'
+                                        }`}>
+                                            {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : 'Indefinido'}
                                         </span>
                                     </div>
                                     <p className="text-sm text-gray-400">
