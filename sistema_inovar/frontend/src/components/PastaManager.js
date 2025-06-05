@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Adicionado useMemo
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -6,9 +6,7 @@ import { useDropzone } from 'react-dropzone';
 import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/react/24/outline';
 
 const API_BASE_URL = 'http://192.168.196.162:8000/api';
-// Adicionando uma constante para a base da URL do servidor para links de arquivos,
-// pois file.caminho_arquivo geralmente é relativo ao MEDIA_URL (ex: /media/...)
-const SERVER_FILE_URL_BASE = 'http://192.168.196.162:8000'; 
+const SERVER_FILE_URL_BASE = 'http://192.168.196.162:8000';
 
 const fetchArquivos = (empresaId, setArquivos, setLoadingState) => {
     setLoadingState(true);
@@ -36,7 +34,6 @@ const fetchArquivos = (empresaId, setArquivos, setLoadingState) => {
 
 const monthOrder = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
-// Função para agrupar arquivos (como você já tinha)
 const groupFilesByYearAndMonth = (files) => {
     if (!files || files.length === 0) return {};
     const grouped = files.reduce((acc, file) => {
@@ -80,31 +77,57 @@ const groupFilesByYearAndMonth = (files) => {
     return result;
 };
 
-// Componente YearMonthAccordion (como você já tinha, com pequeno ajuste na URL do arquivo)
 const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverFileUrlBase }) => {
     const [activeYear, setActiveYear] = useState(null);
     const [activeMonthKey, setActiveMonthKey] = useState(null);
 
     const groupedData = useMemo(() => groupFilesByYearAndMonth(files), [files]);
-    const sortedYears = Object.keys(groupedData);
+    const sortedYears = useMemo(() => Object.keys(groupedData), [groupedData]);
 
     useEffect(() => {
+        // console.log("Accordion useEffect: files changed or initial load. SortedYears:", sortedYears);
         if (sortedYears.length > 0) {
-            const latestYear = sortedYears[0];
-            setActiveYear(latestYear);
-            const monthsInLatestYear = groupedData[latestYear];
-            if (monthsInLatestYear && Object.keys(monthsInLatestYear).length > 0) {
-                const monthKeys = Object.keys(monthsInLatestYear);
-                setActiveMonthKey(monthKeys[monthKeys.length - 1]); 
-            } else {
-                setActiveMonthKey(null);
+            // Este estado é para auto-abrir na primeira carga ou quando os arquivos mudam.
+            // Só define se o activeYear for null (primeira carga) OU se o activeYear atual se tornou inválido.
+            if (activeYear === null || !sortedYears.includes(activeYear)) {
+                const latestYear = sortedYears[0];
+                // console.log("Setting activeYear to latest:", latestYear);
+                setActiveYear(latestYear);
+
+                const monthsInLatestYear = groupedData[latestYear];
+                if (monthsInLatestYear && Object.keys(monthsInLatestYear).length > 0) {
+                    const monthKeys = Object.keys(monthsInLatestYear);
+                    const latestMonthKey = monthKeys[monthKeys.length - 1];
+                    // console.log("Setting activeMonthKey to latest in year:", latestMonthKey);
+                    setActiveMonthKey(latestMonthKey);
+                } else {
+                    // console.log("No months in latest year, setting activeMonthKey to null");
+                    setActiveMonthKey(null);
+                }
             }
-        } else {
+        } else { // Nenhum ano com dados
+            // console.log("No sorted years, setting activeYear and activeMonthKey to null");
             setActiveYear(null);
             setActiveMonthKey(null);
         }
-    }, [files, groupedData, sortedYears]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [files]); // Depender apenas de 'files'. groupedData e sortedYears são derivados.
+                  // A intenção é que este useEffect reaja a uma mudança fundamental nos dados de entrada.
 
+    const handleYearToggle = (yearToToggle) => {
+        // console.log(`Toggling year: ${yearToToggle}. Current activeYear: ${activeYear}`);
+        const newActiveYear = activeYear === yearToToggle ? null : yearToToggle;
+        setActiveYear(newActiveYear);
+        // Sempre reseta o mês ao alternar o ano (seja abrindo um novo ou fechando o atual)
+        setActiveMonthKey(null);
+        // console.log(`New activeYear: ${newActiveYear}, activeMonthKey reset to null`);
+    };
+
+    const handleMonthToggle = (monthKeyToToggle) => {
+        // console.log(`Toggling month: ${monthKeyToToggle}. Current activeMonthKey: ${activeMonthKey}`);
+        setActiveMonthKey(activeMonthKey === monthKeyToToggle ? null : monthKeyToToggle);
+        // console.log(`New activeMonthKey: ${activeMonthKey === monthKeyToToggle ? null : monthKeyToToggle}`);
+    };
 
     if (!files || files.length === 0) {
         return <p className="text-gray-500 italic mt-4">Nenhum arquivo encontrado nesta categoria.</p>;
@@ -121,13 +144,7 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
             {sortedYears.map(year => (
                 <div key={year} className="bg-gray-750 rounded-lg shadow-md overflow-hidden">
                     <button
-                        onClick={() => {
-                            const newActiveYear = activeYear === year ? null : year;
-                            setActiveYear(newActiveYear);
-                            if (activeYear !== newActiveYear || !newActiveYear) {
-                                setActiveMonthKey(null);
-                            }
-                        }}
+                        onClick={() => handleYearToggle(year)}
                         className="w-full flex justify-between items-center text-left p-4 font-semibold text-lg text-indigo-300 hover:bg-gray-700 transition-colors"
                     >
                         Ano: {year}
@@ -140,12 +157,12 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
                     {activeYear === year && (
                         <div className="border-t border-gray-700">
                             {Object.keys(groupedData[year]).length === 0 ? (
-                                <p className="text-gray-500 p-4">Nenhum arquivo para {year}.</p>
+                                <p className="text-gray-500 p-4 ml-4">Nenhum mês com arquivos para {year}.</p>
                             ) : (
                                 Object.entries(groupedData[year]).map(([monthKey, monthData]) => (
                                     <div key={monthKey} className="border-b border-gray-600 last:border-b-0">
                                         <button
-                                            onClick={() => setActiveMonthKey(activeMonthKey === monthKey ? null : monthKey)}
+                                            onClick={() => handleMonthToggle(monthKey)}
                                             className="w-full flex justify-between items-center text-left py-3 px-6 text-gray-200 hover:bg-gray-600 transition-colors"
                                         >
                                             {monthData.monthNameDisplay}
@@ -176,6 +193,7 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
                                                         </a>
                                                     </li>
                                                 ))}
+                                                {monthData.files.length === 0 && <p className="text-gray-500 italic pl-2">Nenhum arquivo para este mês.</p>}
                                             </ul>
                                         )}
                                     </div>
@@ -189,7 +207,6 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
     );
 };
 
-
 const PastaManager = () => {
   const { empresaId: empresaIdStr } = useParams();
   const empresaId = parseInt(empresaIdStr, 10);
@@ -197,14 +214,11 @@ const PastaManager = () => {
   const [selectedPasta, setSelectedPasta] = useState(null);
   const [empresaNome, setEmpresaNome] = useState('');
   const [empresaCnpj, setEmpresaCnpj] = useState('');
-  const [arquivos, setArquivos] = useState({}); // Alterado para objeto vazio para consistência
+  const [arquivos, setArquivos] = useState({});
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
-
-  // REMOVIDOS: selectedXmlYear, selectedXmlMonth, availableXmlYears (e o useEffect que os populava)
-  // O useEffect para popular filtros de XML foi removido. O YearMonthAccordion lida com sua própria lógica de expansão.
 
   useEffect(() => {
     setLoading(true);
@@ -222,9 +236,12 @@ const PastaManager = () => {
     const pastaTypes = ['documentos_constitutivos', 'departamento_pessoal', 'xml', 'simples_nacional', 'outros'];
     setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
 
-    fetchArquivos(empresaId, setArquivos, setLoading);
+    // Passando stableFetchArquivos se for usá-lo em dependências, mas fetchArquivos é definido fora, então é estável.
+    fetchArquivos(empresaId, setArquivos, setLoading); 
   }, [empresaId]);
 
+  // A função onDrop é recriada se empresaNome ou empresaCnpj mudarem. Isso é ok.
+  // fetchArquivos é definido fora, então é estável e não precisa estar em dependências de useCallback se não for usado como prop que muda.
   const onDrop = useCallback((acceptedFiles, pastaTipo) => {
     if (!empresaNome || !empresaCnpj) {
       alert('Aguarde o carregamento dos dados da empresa antes de fazer upload.');
@@ -241,11 +258,9 @@ const PastaManager = () => {
       formData.append('caminho_arquivo', file);
       formData.append('nome_arquivo', file.name);
       formData.append('cnpj_empresa', empresaCnpj);
-      formData.append('nome_empresa', empresaNome);
+      formData.append('nome_empresa', empresaNome); // Enviando nome da empresa para todos os uploads
       formData.append('tipo_documento', tipo.replace('_', '-'));
       if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(tipo)) {
-        // const uploadMonth = new Date().toLocaleString('pt-BR', { month: 'long' }); // Não usado
-        // const uploadYear = new Date().getFullYear().toString(); // Não usado
         const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
         formData.append('mes', currentMonth);
         formData.append('ano', new Date().getFullYear().toString());
@@ -258,8 +273,8 @@ const PastaManager = () => {
       axios.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
-        .then(response => {
-          fetchArquivos(empresaId, setArquivos, setLoading);
+        .then(() => { // Não precisamos da response aqui
+          fetchArquivos(empresaId, setArquivos, setLoading); // Apenas recarrega
         })
         .catch(err => {
           console.error(`Erro ao salvar ${tipo}:`, err.response ? err.response.data : err.message);
@@ -267,7 +282,8 @@ const PastaManager = () => {
         })
         .finally(() => setUploading(false));
     });
-  }, [empresaId, empresaNome, empresaCnpj]); // fetchArquivos foi removido das dependências
+  // eslint-disable-next-line react-hooks/exhaustive-deps 
+  }, [empresaId, empresaNome, empresaCnpj]); // fetchArquivos não precisa estar aqui se setLoading for gerenciado de outra forma ou se for estável
 
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -321,7 +337,7 @@ const PastaManager = () => {
         file_ids: selectedFiles,
     })
     .then(response => {
-        let message = `Relatório do Envio por WhatsApp para ${empresaNome}:\n`;
+        let message = `Relatório do Envio por WhatsApp para ${empresaNome} (usando telefone cadastrado):\n`;
         if (response.data.successful_sends && response.data.successful_sends.length > 0) {
             message += `\nSucessos (${response.data.successful_sends.length}):\n`;
             response.data.successful_sends.forEach(send => {
@@ -357,21 +373,9 @@ const PastaManager = () => {
     setSelectedPasta(pasta);
     setSelectedFiles([]);
     setError(null);
+    // O YearMonthAccordion irá resetar seus próprios activeYear/Month através de seu useEffect
+    // quando a prop 'files' mudar devido à mudança de 'selectedPasta.tipo'
   };
-
-  // Adicionando o useCallback para fetchArquivos se ele for usado em dependências de useEffect ou useCallback.
-  // Neste caso, onDrop o usa, então é bom ter.
-  const stableFetchArquivos = useCallback(fetchArquivos, []);
-  useEffect(() => {
-    // Se onDrop for depender de fetchArquivos e fetchArquivos mudar,
-    // o onDrop seria recriado. Ao usar stableFetchArquivos, isso é evitado
-    // se fetchArquivos em si não depender de props/state que mudam frequentemente.
-    // No entanto, fetchArquivos aqui é definido fora do componente,
-    // então não precisa de useCallback aqui para ser estável, mas se fosse interna, precisaria.
-    // A dependência de onDrop em fetchArquivos pode ser removida se o setLoading
-    // for passado como parâmetro para onDrop e depois para fetchArquivos.
-  }, [stableFetchArquivos]); // Apenas exemplo de uso, pode não ser necessário aqui.
-
 
   return (
     <div className="p-4 sm:p-6 bg-gray-900 min-h-screen text-gray-100">
@@ -431,12 +435,10 @@ const PastaManager = () => {
               <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-700">
                 <h4 className="text-lg font-semibold text-indigo-300">
                   Arquivos na Pasta
-                  {/* Removida a parte que mostrava selectedXmlMonth/Year no título */}
                   {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional')
                     ? ` (Agrupados por Ano/Mês)`
                     : ''}
                 </h4>
-                {/* Condição de exibição dos botões de ação foi simplificada */}
                 {selectedFiles.length > 0 && (
                   <div className="flex space-x-2">
                     <button 
@@ -450,12 +452,12 @@ const PastaManager = () => {
                         onClick={handleWhatsAppClick} 
                         className="flex items-center text-sm bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" 
                         title="Enviar por WhatsApp"
-                        disabled={ // Lógica para desabilitar o botão WhatsApp
+                        disabled={ 
                           loading || 
                           uploading || 
                           selectedFiles.length === 0 ||
                           !selectedPasta ||
-                          selectedPasta.tipo !== 'documentos_constitutivos' // Mantém restrição por enquanto
+                          selectedPasta.tipo !== 'documentos_constitutivos'
                         }>
                       <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-1" /> WhatsApp
                     </button>
@@ -464,16 +466,16 @@ const PastaManager = () => {
               </div>
               {error && <p className="text-red-400 bg-red-900 p-2 rounded mb-3 text-sm">{error}</p>}
               
-              {/* ***** INÍCIO DA APLICAÇÃO DO PASSO 4 ***** */}
-              {selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional' ? (
+              {/* ***** APLICAÇÃO DO PASSO 4 - RENDERIZAÇÃO CONDICIONAL ***** */}
+              {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional') ? (
                 <YearMonthAccordion 
                     files={arquivos[selectedPasta.tipo] || []} 
                     selectedFiles={selectedFiles}
                     toggleFileSelection={toggleFileSelection}
-                    serverFileUrlBase={SERVER_FILE_URL_BASE} // Usando a nova constante
+                    serverFileUrlBase={SERVER_FILE_URL_BASE}
                 />
               ) : (
-                // Renderização antiga para 'documentos_constitutivos' e 'outros'
+                // Renderização padrão para 'documentos_constitutivos' e 'outros'
                 arquivos[selectedPasta.tipo] && arquivos[selectedPasta.tipo].length > 0 ? (
                     <ul className="space-y-2">
                         {arquivos[selectedPasta.tipo].map(file => (
@@ -485,13 +487,7 @@ const PastaManager = () => {
                                     className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500 cursor-pointer"
                                 />
                                 <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                {/* Exibição de Mês/Ano para pastas que os possuem na listagem simples (ex: DP, SN antes do acordeão) */}
-                                {/* Este bloco pode ser redundante se essas pastas sempre usarem o acordeão */}
-                                {(file.mes && file.ano && (selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional')) && (
-                                    <span className="text-xs text-gray-500 capitalize">
-                                        {monthOrder[parseInt(file.mes,10)-1] || file.mes}/{file.ano}
-                                    </span>
-                                )}
+                                {/* Não precisamos mais mostrar mês/ano aqui para DP/SN pois usarão o acordeão */}
                                 {file.hasOwnProperty('entregue') && (
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${file.entregue ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>
                                         {file.entregue ? 'Entregue' : 'Pendente'}
@@ -508,7 +504,6 @@ const PastaManager = () => {
                     </ul>
                 ) : ( <p className="text-gray-500 italic mt-4">Nenhum arquivo encontrado nesta pasta.</p> )
               )}
-              {/* ***** FIM DA APLICAÇÃO DO PASSO 4 ***** */}
             </div>
           </motion.div>
         )}
