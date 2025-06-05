@@ -21,10 +21,30 @@ from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_tem
 logger = logging.getLogger(__name__)
 
 MODEL_CONFIG_MAP = {
-    'documentos_constitutivos': {'model': DocumentosConstitutivos, 'company_field_name': 'nome_empresa', 'company_attr': 'nome'},
-    'departamento_pessoal': {'model': DepartamentoPessoal, 'company_field_name': 'cnpj_empresa', 'company_attr': 'cnpj'},
-    'simples_nacional': {'model': SimplesNacional, 'company_field_name': 'cnpj_empresa', 'company_attr': 'cnpj'},
-    'outros': {'model': Outros, 'company_field_name': 'nome_empresa', 'company_attr': 'nome'},
+    'documentos_constitutivos': {
+        'model': DocumentosConstitutivos, 
+        'company_field_name': 'nome_empresa', 
+        'company_attr': 'nome',
+        'whatsapp_template_name': 'envio_documento_com_contato'
+    },
+    'departamento_pessoal': {
+        'model': DepartamentoPessoal, 
+        'company_field_name': 'cnpj_empresa', 
+        'company_attr': 'cnpj',
+        'whatsapp_template_name': 'enviar_dp' 
+    },
+    'simples_nacional': {
+        'model': SimplesNacional, 
+        'company_field_name': 'cnpj_empresa', 
+        'company_attr': 'cnpj',
+        'whatsapp_template_name': 'enviar_sn' 
+    },
+    'outros': {
+        'model': Outros, 
+        'company_field_name': 'nome_empresa', 
+        'company_attr': 'nome',
+        'whatsapp_template_name': 'envio_documento_com_contato'
+    },
 }
 
 class EmpresaViewSet(viewsets.ModelViewSet):
@@ -231,10 +251,10 @@ def enviar_email(request):
     
 
 @api_view(['POST'])
-def enviar_documentos_whatsapp_api(request): # Nome da view generalizado
+def enviar_documentos_whatsapp_api(request):
     empresa_id = request.data.get('empresa_id')
     file_ids = request.data.get('file_ids')
-    tipo_pasta = request.data.get('tipo_pasta') # Frontend agora envia isso
+    tipo_pasta = request.data.get('tipo_pasta')
 
     if not all([empresa_id, file_ids, tipo_pasta]):
         return Response(
@@ -242,7 +262,7 @@ def enviar_documentos_whatsapp_api(request): # Nome da view generalizado
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if tipo_pasta == 'xml': # XML não é permitido
+    if tipo_pasta == 'xml':
         return Response({"error": "Envio de arquivos XML por WhatsApp não é suportado."}, status=status.HTTP_400_BAD_REQUEST)
 
     if tipo_pasta not in MODEL_CONFIG_MAP:
@@ -250,6 +270,7 @@ def enviar_documentos_whatsapp_api(request): # Nome da view generalizado
 
     config = MODEL_CONFIG_MAP[tipo_pasta]
     DocumentModel = config['model']
+    whatsapp_template_to_use = config['whatsapp_template_name'] # Pega o nome do template do config
 
     try:
         empresa = Empresa.objects.get(id=empresa_id)
@@ -262,7 +283,6 @@ def enviar_documentos_whatsapp_api(request): # Nome da view generalizado
         return Response({"error": "Telefone não cadastrado para esta empresa."}, status=status.HTTP_400_BAD_REQUEST)
 
     recipient_whatsapp_number = re.sub(r'\D', '', raw_phone_number)
-    # Validação e formatação do número (como definido anteriormente)
     if not (len(recipient_whatsapp_number) >= 10 and len(recipient_whatsapp_number) <= 13 and recipient_whatsapp_number.isdigit()):
          return Response({"error": f"O número de telefone '{raw_phone_number}' cadastrado para a empresa não é válido para WhatsApp."}, status=status.HTTP_400_BAD_REQUEST)
     if not recipient_whatsapp_number.startswith('55') and len(recipient_whatsapp_number) in [10,11]:
@@ -272,7 +292,6 @@ def enviar_documentos_whatsapp_api(request): # Nome da view generalizado
 
     logger.info(f"Número de WhatsApp a ser utilizado para {empresa.nome}: {recipient_whatsapp_number}")
 
-    # Filtra os documentos pelos IDs fornecidos e pela associação com a empresa
     filter_kwargs = {'id__in': file_ids}
     filter_kwargs[config['company_field_name']] = getattr(empresa, config['company_attr'])
     documentos_qs = DocumentModel.objects.filter(**filter_kwargs)
@@ -296,7 +315,7 @@ def enviar_documentos_whatsapp_api(request): # Nome da view generalizado
         
         file_path_on_server = doc.caminho_arquivo.path
         original_filename = doc.nome_arquivo
-        logger.info(f"Processando envio para WhatsApp: {original_filename} para {recipient_whatsapp_number}")
+        logger.info(f"Processando envio para WhatsApp: {original_filename} para {recipient_whatsapp_number} (Empresa: {company_name_for_template}) usando template: {whatsapp_template_to_use}")
 
         media_id, _ = upload_media_to_whatsapp(file_path_on_server, original_filename)
 
@@ -305,14 +324,12 @@ def enviar_documentos_whatsapp_api(request): # Nome da view generalizado
             failed_sends.append({"filename": original_filename, "reason": "Falha no upload da mídia."})
             continue
 
-        # Assumindo que o mesmo template é usado para todos os tipos de documento.
-        # Se precisar de templates diferentes, adicione lógica aqui para escolher o template_name.
         message_id, error_sending = send_whatsapp_document_template_message(
             recipient_number=recipient_whatsapp_number,
             document_media_id=media_id,
             document_filename=original_filename,
             company_name_for_template=company_name_for_template,
-            # template_name=settings.WHATSAPP_TEMPLATE_NAME_DOCS # Ou dinâmico
+            template_name=whatsapp_template_to_use # <<< USA O TEMPLATE DINÂMICO AQUI
         )
 
         if message_id:
@@ -321,13 +338,17 @@ def enviar_documentos_whatsapp_api(request): # Nome da view generalizado
         else:
             failed_sends.append({"filename": original_filename, "reason": f"Falha ao enviar template: {error_sending}"})
 
-    # Ajustar status da resposta
     final_status = status.HTTP_200_OK
-    if files_sent_count == 0 and documentos_qs.exists() and not failed_sends: # Nenhum erro, mas nenhum enviado (ex: todos os caminhos inválidos)
-        final_status = status.HTTP_400_BAD_REQUEST
-    elif files_sent_count == 0 and failed_sends: # Todos falharam
-        final_status = status.HTTP_400_BAD_REQUEST
-        
+    if files_sent_count == 0 and documentos_qs.exists(): 
+        if failed_sends: # Se houve tentativas mas todas falharam
+             final_status = status.HTTP_400_BAD_REQUEST
+        # Se não houve falhas mas nenhum foi enviado (ex: todos os caminhos inválidos antes do upload)
+        # Isso já seria coberto por failed_sends. Se failed_sends está vazio e files_sent_count é 0,
+        # mas documentos_qs existe, é uma situação estranha, mas manteremos 400.
+        elif not failed_sends:
+             final_status = status.HTTP_400_BAD_REQUEST
+
+
     return Response({
         "message": f"{files_sent_count} de {documentos_qs.count()} documento(s) processado(s).",
         "successful_sends": successful_sends,

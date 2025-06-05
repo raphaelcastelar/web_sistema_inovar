@@ -36,7 +36,7 @@ def send_whatsapp_document_template_message(
     document_media_id: str,
     document_filename: str,
     company_name_for_template: str,
-    template_name: str = settings.WHATSAPP_TEMPLATE_NAME_DOCS
+    template_name: str
 ):
     # ... (código da função send_whatsapp_document_template_message como definido anteriormente) ...
     # Exemplo:
