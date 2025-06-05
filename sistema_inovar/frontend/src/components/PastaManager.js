@@ -77,8 +77,6 @@ const groupFilesByYearAndMonth = (files) => {
     return result;
 };
 
-//               Componente YearMonthAccordion MODIFICADO ABAIXO
-//VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
 const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverFileUrlBase }) => {
     const [activeYear, setActiveYear] = useState(null);
     const [activeMonthKey, setActiveMonthKey] = useState(null); // Armazena a chave como "012025"
@@ -210,8 +208,6 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
         </div>
     );
 };
-//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-//               Fim das modificações no YearMonthAccordion
 
 
 const PastaManager = () => {
@@ -325,51 +321,74 @@ const PastaManager = () => {
       .finally(() => setLoading(false));
   };
 
- const handleWhatsAppClick = () => {
-    if (selectedFiles.length === 0) {
-        alert('Por favor, selecione pelo menos um arquivo.');
-        return;
-    }
-    if (!selectedPasta || selectedPasta.tipo !== 'documentos_constitutivos') {
-        alert('A funcionalidade de envio por WhatsApp está implementada apenas para "Documentos Constitutivos" por enquanto.');
-        return;
-    }
-    setLoading(true); setError(null);
-    axios.post(`${API_BASE_URL}/enviar-doc-constitutivo-whatsapp/`, {
-        empresa_id: empresaId,
-        file_ids: selectedFiles,
-    })
-    .then(response => {
-        let message = `Relatório do Envio por WhatsApp para ${empresaNome} (usando telefone cadastrado):\n`;
-        if (response.data.successful_sends && response.data.successful_sends.length > 0) {
-            message += `\nSucessos (${response.data.successful_sends.length}):\n`;
-            response.data.successful_sends.forEach(send => {
-                message += `- ${send.filename} (ID: ${send.message_id})\n`;
-            });
+  const handleWhatsAppClick = () => {
+        if (selectedFiles.length === 0) {
+            alert('Por favor, selecione pelo menos um arquivo.');
+            return;
         }
-        if (response.data.failed_sends && response.data.failed_sends.length > 0) {
-            message += `\nFalhas (${response.data.failed_sends.length}):\n`;
-            response.data.failed_sends.forEach(fail => {
-                message += `- ${fail.filename}: ${fail.reason}\n`;
-            });
+
+        if (!selectedPasta) {
+            alert('Nenhuma pasta selecionada.');
+            return;
         }
-        if (!response.data.successful_sends?.length && !response.data.failed_sends?.length && response.data.message) {
-             message = response.data.message;
-        } else if (!response.data.successful_sends?.length && !response.data.failed_sends?.length) {
-            message = "Nenhuma operação de envio foi processada ou todas falharam sem detalhes específicos.";
+
+        // Define os tipos de pasta permitidos para envio por WhatsApp
+        const allowedPastaTypesForWhatsApp = [
+            'documentos_constitutivos', 
+            'departamento_pessoal', 
+            'simples_nacional', 
+            'outros'
+            // 'xml' NÃO está incluído
+        ];
+
+        if (!allowedPastaTypesForWhatsApp.includes(selectedPasta.tipo)) {
+            alert(`A funcionalidade de envio por WhatsApp não está disponível para a pasta "${selectedPasta.tipo.replace(/_/g, ' ')}".\n\nDisponível para: Documentos Constitutivos, Departamento Pessoal, Simples Nacional e Outros.`);
+            return;
         }
-        alert(message);
-        setSelectedFiles([]);
-    })
-    .catch(err => {
-        console.error('Erro detalhado ao enviar por WhatsApp:', err.response ? err.response.data : err.message);
-        const errorMsg = err.response?.data?.error || err.response?.data?.detail || 'Erro desconhecido ao tentar enviar por WhatsApp.';
-        setError(errorMsg);
-        alert(`Erro ao enviar por WhatsApp: ${errorMsg}`);
-    })
-    .finally(() => {
-        setLoading(false);
-    });
+        
+        setLoading(true); 
+        setError(null);   
+
+        axios.post(`${API_BASE_URL}/enviar-documentos-whatsapp/`, { // USA O NOVO ENDPOINT GENERALIZADO
+            empresa_id: empresaId,
+            file_ids: selectedFiles,
+            tipo_pasta: selectedPasta.tipo // ENVIA O tipo_pasta
+        })
+        .then(response => {
+            let message = `Relatório do Envio por WhatsApp para ${empresaNome} (Pasta: ${selectedPasta.tipo.replace(/_/g, ' ')})\n(Usando telefone cadastrado):\n`;
+            if (response.data.successful_sends && response.data.successful_sends.length > 0) {
+                message += `\nSucessos (${response.data.successful_sends.length}):\n`;
+                response.data.successful_sends.forEach(send => {
+                    message += `- ${send.filename} (ID: ${send.message_id})\n`;
+                });
+            }
+            if (response.data.failed_sends && response.data.failed_sends.length > 0) {
+                message += `\nFalhas (${response.data.failed_sends.length}):\n`;
+                response.data.failed_sends.forEach(fail => {
+                    message += `- ${fail.filename}: ${fail.reason}\n`;
+                });
+            }
+            
+            if ((!response.data.successful_sends || response.data.successful_sends.length === 0) && 
+                (!response.data.failed_sends || response.data.failed_sends.length === 0) &&
+                response.data.message) {
+                 message = response.data.message;
+            } else if (!response.data.successful_sends?.length && !response.data.failed_sends?.length) {
+                message = `Nenhuma operação de envio para a pasta ${selectedPasta.tipo.replace(/_/g, ' ')} foi processada ou todas falharam sem detalhes específicos.`;
+            }
+            
+            alert(message); 
+            setSelectedFiles([]); 
+        })
+        .catch(err => {
+            console.error('Erro detalhado ao enviar por WhatsApp:', err.response ? err.response.data : err.message);
+            const errorMsg = err.response?.data?.error || err.response?.data?.detail || 'Erro desconhecido ao tentar enviar por WhatsApp.';
+            setError(errorMsg);
+            alert(`Erro ao enviar por WhatsApp: ${errorMsg}`);
+        })
+        .finally(() => {
+            setLoading(false);
+        });
   };
   
   const handlePastaClick = (pasta) => {

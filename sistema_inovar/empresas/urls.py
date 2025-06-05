@@ -2,9 +2,9 @@
 from django.urls import path
 from .views import (
     enviar_email, 
-    enviar_doc_constitutivo_whatsapp_api
+    enviar_documentos_whatsapp_api
 )
 urlpatterns = [
     path('enviar-email/', enviar_email, name='enviar_email'),
-    path('enviar-doc-constitutivo-whatsapp/', enviar_doc_constitutivo_whatsapp_api, name='enviar_doc_constitutivo_whatsapp'),
+    path('enviar-documentos-whatsapp/', enviar_documentos_whatsapp_api, name='enviar_documentos_whatsapp'),
 ]

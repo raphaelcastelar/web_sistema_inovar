@@ -20,6 +20,13 @@ from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_tem
 
 logger = logging.getLogger(__name__)
 
+MODEL_CONFIG_MAP = {
+    'documentos_constitutivos': {'model': DocumentosConstitutivos, 'company_field_name': 'nome_empresa', 'company_attr': 'nome'},
+    'departamento_pessoal': {'model': DepartamentoPessoal, 'company_field_name': 'cnpj_empresa', 'company_attr': 'cnpj'},
+    'simples_nacional': {'model': SimplesNacional, 'company_field_name': 'cnpj_empresa', 'company_attr': 'cnpj'},
+    'outros': {'model': Outros, 'company_field_name': 'nome_empresa', 'company_attr': 'nome'},
+}
+
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all()
     serializer_class = EmpresaSerializer
@@ -224,16 +231,25 @@ def enviar_email(request):
     
 
 @api_view(['POST'])
-def enviar_doc_constitutivo_whatsapp_api(request):
+def enviar_documentos_whatsapp_api(request): # Nome da view generalizado
     empresa_id = request.data.get('empresa_id')
     file_ids = request.data.get('file_ids')
-    recipient_whatsapp_number = request.data.get('whatsapp_number')
+    tipo_pasta = request.data.get('tipo_pasta') # Frontend agora envia isso
 
-    if not all([empresa_id, file_ids]):
+    if not all([empresa_id, file_ids, tipo_pasta]):
         return Response(
-            {"error": "Parâmetros faltando: empresa_id, file_ids e whatsapp_number são obrigatórios."},
+            {"error": "Parâmetros faltando: empresa_id, file_ids e tipo_pasta são obrigatórios."},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    if tipo_pasta == 'xml': # XML não é permitido
+        return Response({"error": "Envio de arquivos XML por WhatsApp não é suportado."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if tipo_pasta not in MODEL_CONFIG_MAP:
+        return Response({"error": f"Tipo de pasta '{tipo_pasta}' não suportado para envio por WhatsApp."}, status=status.HTTP_400_BAD_REQUEST)
+
+    config = MODEL_CONFIG_MAP[tipo_pasta]
+    DocumentModel = config['model']
 
     try:
         empresa = Empresa.objects.get(id=empresa_id)
@@ -244,79 +260,76 @@ def enviar_doc_constitutivo_whatsapp_api(request):
     if not raw_phone_number:
         logger.warning(f"Empresa {empresa.nome} (ID: {empresa_id}) não possui telefone cadastrado.")
         return Response({"error": "Telefone não cadastrado para esta empresa."}, status=status.HTTP_400_BAD_REQUEST)
+
     recipient_whatsapp_number = re.sub(r'\D', '', raw_phone_number)
-
-    if not (recipient_whatsapp_number.startswith('55') and 12 <= len(recipient_whatsapp_number) <= 13) and \
-       not (10 <= len(recipient_whatsapp_number) <= 11 and not recipient_whatsapp_number.startswith('55')): # Para números locais sem DDI, assumindo que pode ser necessário adicionar 55
-        logger.warning(f"Número de telefone da empresa '{empresa.nome}' (ID: {empresa_id}) "
-                       f"após limpeza ('{recipient_whatsapp_number}') não parece ser um número de WhatsApp válido "
-                       f"(original: '{raw_phone_number}').")
-
-        if not (len(recipient_whatsapp_number) >= 10 and len(recipient_whatsapp_number) <= 13 and recipient_whatsapp_number.isdigit()):
-             return Response({"error": f"O número de telefone '{raw_phone_number}' cadastrado para a empresa não é válido para WhatsApp. Deve conter apenas números e ter entre 10 a 13 dígitos (com DDI)."}, status=status.HTTP_400_BAD_REQUEST)
-        # Se não começar com 55, você pode querer prefixar automaticamente, ou exigir que o usuário cadastre com DDI.
-        # Por exemplo, se você sabe que todos os números são do Brasil:
-        if not recipient_whatsapp_number.startswith('55') and len(recipient_whatsapp_number) in [10,11]: # DDD + Numero (8 ou 9 digitos)
-            recipient_whatsapp_number = '55' + recipient_whatsapp_number
-        elif not recipient_whatsapp_number.startswith('55'): # Outros casos
-            return Response({"error": f"O DDI (ex: 55 para Brasil) parece estar faltando no número de telefone '{raw_phone_number}'."}, status=status.HTTP_400_BAD_REQUEST)
+    # Validação e formatação do número (como definido anteriormente)
+    if not (len(recipient_whatsapp_number) >= 10 and len(recipient_whatsapp_number) <= 13 and recipient_whatsapp_number.isdigit()):
+         return Response({"error": f"O número de telefone '{raw_phone_number}' cadastrado para a empresa não é válido para WhatsApp."}, status=status.HTTP_400_BAD_REQUEST)
+    if not recipient_whatsapp_number.startswith('55') and len(recipient_whatsapp_number) in [10,11]:
+        recipient_whatsapp_number = '55' + recipient_whatsapp_number
+    elif not recipient_whatsapp_number.startswith('55'):
+        return Response({"error": f"O DDI (ex: 55 para Brasil) parece estar faltando no número de telefone '{raw_phone_number}'."}, status=status.HTTP_400_BAD_REQUEST)
 
     logger.info(f"Número de WhatsApp a ser utilizado para {empresa.nome}: {recipient_whatsapp_number}")
 
-
-    documentos_qs = DocumentosConstitutivos.objects.filter(id__in=file_ids, nome_empresa=empresa.nome)
+    # Filtra os documentos pelos IDs fornecidos e pela associação com a empresa
+    filter_kwargs = {'id__in': file_ids}
+    filter_kwargs[config['company_field_name']] = getattr(empresa, config['company_attr'])
+    documentos_qs = DocumentModel.objects.filter(**filter_kwargs)
 
     if not documentos_qs.exists():
         return Response(
-            {"error": "Nenhum documento constitutivo válido encontrado."},
+            {"error": f"Nenhum documento válido do tipo '{tipo_pasta}' encontrado para os IDs e empresa fornecidos."},
             status=status.HTTP_404_NOT_FOUND
         )
 
     files_sent_count = 0
     successful_sends = []
     failed_sends = []
-    company_name_for_template = empresa.nome
+    company_name_for_template = empresa.nome 
 
     for doc in documentos_qs:
         if not doc.caminho_arquivo or not hasattr(doc.caminho_arquivo, 'path'):
-            logger.warning(f"Documento ID {doc.id} ({doc.nome_arquivo}) sem caminho de arquivo.")
-            failed_sends.append({"filename": doc.nome_arquivo, "reason": "Caminho inválido."})
+            logger.warning(f"Documento ID {doc.id} ({doc.nome_arquivo}) não tem um caminho de arquivo válido.")
+            failed_sends.append({"filename": doc.nome_arquivo, "reason": "Caminho do arquivo inválido."})
             continue
         
         file_path_on_server = doc.caminho_arquivo.path
         original_filename = doc.nome_arquivo
-        logger.info(f"Processando WhatsApp para: {original_filename} -> {recipient_whatsapp_number}")
+        logger.info(f"Processando envio para WhatsApp: {original_filename} para {recipient_whatsapp_number}")
 
         media_id, _ = upload_media_to_whatsapp(file_path_on_server, original_filename)
 
         if not media_id:
-            logger.error(f"Falha no upload da mídia para {original_filename}.")
+            logger.error(f"Falha ao fazer upload da mídia para {original_filename}.")
             failed_sends.append({"filename": original_filename, "reason": "Falha no upload da mídia."})
             continue
 
+        # Assumindo que o mesmo template é usado para todos os tipos de documento.
+        # Se precisar de templates diferentes, adicione lógica aqui para escolher o template_name.
         message_id, error_sending = send_whatsapp_document_template_message(
             recipient_number=recipient_whatsapp_number,
             document_media_id=media_id,
             document_filename=original_filename,
-            company_name_for_template=company_name_for_template
+            company_name_for_template=company_name_for_template,
+            # template_name=settings.WHATSAPP_TEMPLATE_NAME_DOCS # Ou dinâmico
         )
 
         if message_id:
             files_sent_count += 1
             successful_sends.append({"filename": original_filename, "message_id": message_id})
-            logger.info(f"Template para {original_filename} enviado. ID: {message_id}")
         else:
-            logger.error(f"Falha ao enviar template para {original_filename}: {error_sending}")
-            failed_sends.append({"filename": original_filename, "reason": f"Falha no template: {error_sending}"})
+            failed_sends.append({"filename": original_filename, "reason": f"Falha ao enviar template: {error_sending}"})
 
-    if files_sent_count > 0:
-        return Response({
-            "message": f"{files_sent_count} de {documentos_qs.count()} doc(s) processados.",
-            "successful_sends": successful_sends,
-            "failed_sends": failed_sends
-        }, status=status.HTTP_200_OK)
-    else:
-        return Response({
-            "error": "Nenhum documento enviado com sucesso.",
-            "failed_sends": failed_sends
-        }, status=status.HTTP_400_BAD_REQUEST)
+    # Ajustar status da resposta
+    final_status = status.HTTP_200_OK
+    if files_sent_count == 0 and documentos_qs.exists() and not failed_sends: # Nenhum erro, mas nenhum enviado (ex: todos os caminhos inválidos)
+        final_status = status.HTTP_400_BAD_REQUEST
+    elif files_sent_count == 0 and failed_sends: # Todos falharam
+        final_status = status.HTTP_400_BAD_REQUEST
+        
+    return Response({
+        "message": f"{files_sent_count} de {documentos_qs.count()} documento(s) processado(s).",
+        "successful_sends": successful_sends,
+        "failed_sends": failed_sends
+    }, status=final_status)
