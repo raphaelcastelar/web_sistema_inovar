@@ -2,6 +2,7 @@
 import re
 import unidecode
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -25,3 +26,19 @@ def gerar_nome_pasta_empresa_padronizado(nome_da_empresa_str):
         return "NOME_EMPRESA_INVALIDO_PARA_PASTA"
 
     return name_upper
+
+def sanitize_filename_for_upload(filename):
+    """
+    Sanitiza o nome do arquivo para ser usado em caminhos.
+    Consistente com o que as funções upload_to devem fazer.
+    Exemplo: remove acentos, substitui espaços por underscores, remove caracteres inválidos.
+    """
+    name, ext = os.path.splitext(filename)
+    clean_name_no_accents = unidecode.unidecode(name)
+    name_underscored = re.sub(r'[\s.\-]+', '_', clean_name_no_accents) # Troca espaços, pontos, hífens por _
+    name_sanitized = re.sub(r'[^\w_.-]+', '', name_underscored) # Permite alphanumeric, _, ., -
+                                                              # Se quiser mais restrito (só \w e -): r'[^\w-]'
+    
+    if not name_sanitized: # Evita nome de arquivo vazio
+        name_sanitized = "arquivo_sem_nome_valido"
+    return f"{name_sanitized}{ext}"

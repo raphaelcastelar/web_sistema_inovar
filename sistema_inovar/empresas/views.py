@@ -14,7 +14,7 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros
 from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer
-from .utils import gerar_nome_pasta_empresa_padronizado
+from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 import logging
 import datetime
 import re
@@ -52,27 +52,32 @@ MODEL_CONFIG_MAP = {
 MODEL_CONFIG_MAP_SYNC = {
     'documentos_constitutivos': {
         'model': DocumentosConstitutivos, 'serializer': DocumentosConstitutivosSerializer,
-        'company_field_name': 'nome_empresa', 'company_attr': 'nome',
+        'company_field_name_in_doc_model': 'nome_empresa', # Campo no modelo do documento que guarda o nome da empresa
+        'company_attr_in_empresa_model': 'nome', # Atributo no modelo Empresa para filtro (geralmente nome ou cnpj)
         'fs_folder_name': 'DOCUMENTOS CONSTITUTIVOS', 'has_year_month': False
     },
     'departamento_pessoal': {
         'model': DepartamentoPessoal, 'serializer': DepartamentoPessoalSerializer,
-        'company_field_name': 'cnpj_empresa', 'company_attr': 'cnpj', # ou nome_empresa se você padronizou
+        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
+        'company_attr_in_empresa_model': 'nome', 
         'fs_folder_name': 'DEPARTAMENTO PESSOAL', 'has_year_month': True
     },
     'simples_nacional': {
         'model': SimplesNacional, 'serializer': SimplesNacionalSerializer,
-        'company_field_name': 'cnpj_empresa', 'company_attr': 'cnpj', # ou nome_empresa
+        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
+        'company_attr_in_empresa_model': 'nome',
         'fs_folder_name': 'SIMPLES NACIONAL', 'has_year_month': True
     },
     'xml': {
         'model': XML, 'serializer': XMLSerializer,
-        'company_field_name': 'cnpj_empresa', 'company_attr': 'cnpj', # ou nome_empresa
+        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
+        'company_attr_in_empresa_model': 'nome',
         'fs_folder_name': 'XML', 'has_year_month': True
     },
     'outros': {
         'model': Outros, 'serializer': OutrosSerializer,
-        'company_field_name': 'nome_empresa', 'company_attr': 'nome',
+        'company_field_name_in_doc_model': 'nome_empresa',
+        'company_attr_in_empresa_model': 'nome',
         'fs_folder_name': 'OUTROS', 'has_year_month': False
     },
 }
@@ -299,17 +304,15 @@ def sincronizar_pasta_empresa_api(request):
     DocumentModel = config['model']
     DocumentSerializer = config['serializer']
     
-    # Usa a função que você definiu para gerar o nome da pasta da empresa (MAIÚSCULAS, COM ESPAÇOS)
+    # USA A SUA FUNÇÃO DO UTILS.PY PARA O NOME DA PASTA DA EMPRESA
     company_folder_name_on_fs = gerar_nome_pasta_empresa_padronizado(empresa.nome)
-    base_doc_type_path_on_fs = os.path.join(settings.MEDIA_ROOT, company_folder_name_on_fs, config['fs_folder_name'])
+    fs_doc_type_folder_name = config['fs_folder_name']
+    base_doc_type_path_on_fs = os.path.join(settings.MEDIA_ROOT, company_folder_name_on_fs, fs_doc_type_folder_name)
 
     if not os.path.isdir(base_doc_type_path_on_fs):
-        # Se a pasta base do tipo de documento não existe, podemos criá-la
-        # ou retornar um erro/aviso. Por agora, vamos criá-la se o sinal não o fez.
-        try:
+        try: # Tenta criar a estrutura base se não existir (o sinal deveria ter feito, mas como garantia)
             os.makedirs(base_doc_type_path_on_fs, exist_ok=True)
-            logger.info(f"Criado diretório base do tipo de documento que faltava durante sync: {base_doc_type_path_on_fs}")
-            # Se for um tipo com estrutura de ano/mês, criamos o ano atual e os 12 meses
+            logger.info(f"SYNC: Criado diretório base do tipo de documento que faltava: {base_doc_type_path_on_fs}")
             if config['has_year_month']:
                 ano_atual_str = str(datetime.date.today().year)
                 caminho_pasta_ano = os.path.join(base_doc_type_path_on_fs, ano_atual_str)
@@ -319,129 +322,116 @@ def sincronizar_pasta_empresa_api(request):
                     nome_pasta_mes_ano = f"{mes_formatado_str}{ano_atual_str}"
                     caminho_pasta_mes_ano = os.path.join(caminho_pasta_ano, nome_pasta_mes_ano)
                     os.makedirs(caminho_pasta_mes_ano, exist_ok=True)
-        except Exception as e:
-            logger.error(f"Erro ao tentar criar estrutura de pasta para sync: {e}")
-            # Não prosseguir se não puder garantir a pasta base
+        except Exception as e_mkdir:
+            logger.error(f"SYNC: Erro crítico ao tentar criar estrutura de pasta para {base_doc_type_path_on_fs}: {e_mkdir}")
             return Response({"error": f"Não foi possível acessar ou criar a pasta de destino no servidor: {base_doc_type_path_on_fs}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # 1. Obter todos os arquivos do banco de dados
+    db_files_map = {} 
+    # Usa o nome da empresa para filtrar, pois os modelos de documento devem ter `nome_empresa`
+    # Se alguns usam cnpj_empresa para filtro, o MODEL_CONFIG_MAP_SYNC precisaria ser ajustado.
+    # Assumindo que todos os documentos podem ser filtrados por empresa.nome se 'nome_empresa' está neles.
+    # Ou, se você adicionou um FK empresa aos modelos de doc: DocumentModel.objects.filter(empresa=empresa)
+    db_queryset = DocumentModel.objects.filter(nome_empresa=empresa.nome) # Simplificado se todos tiverem nome_empresa
+    # Se alguns usam cnpj_empresa, a lógica de filtro precisa ser mais dinâmica baseada no config:
+    # company_filter_key_for_doc = config['company_field_name_in_doc_model']
+    # company_value_for_doc_filter = getattr(empresa, config['company_attr_in_empresa_model']) # ex: empresa.nome ou empresa.cnpj
+    # db_queryset = DocumentModel.objects.filter(**{company_filter_key_for_doc: company_value_for_doc_filter})
 
-    # 1. Obter todos os arquivos do banco de dados para esta empresa e tipo de pasta
-    db_files_map = {} # { 'caminho/relativo/arquivo.pdf': instance }
-    company_filter_value = getattr(empresa, config['company_attr'])
-    db_queryset = DocumentModel.objects.filter(**{config['company_field_name']: company_filter_value})
     for doc_instance in db_queryset:
         if doc_instance.caminho_arquivo and doc_instance.caminho_arquivo.name:
-            db_files_map[doc_instance.caminho_arquivo.name] = doc_instance
+            db_path_normalized = doc_instance.caminho_arquivo.name.replace('\\', '/')
+            db_files_map[db_path_normalized] = doc_instance
 
-    # 2. Varrer o sistema de arquivos e comparar
-    found_fs_files_relative_paths = set()
+    # 2. Varrer o sistema de arquivos
+    found_fs_files_normalized_paths = set()
     added_count = 0
     
-    # Lógica de varredura (simplificada)
+    scan_paths = []
     if config['has_year_month']:
         if os.path.exists(base_doc_type_path_on_fs):
-            for year_name in os.listdir(base_doc_type_path_on_fs): # ex: "2023", "2024"
+            for year_name in os.listdir(base_doc_type_path_on_fs):
                 year_path = os.path.join(base_doc_type_path_on_fs, year_name)
                 if os.path.isdir(year_path) and year_name.isdigit() and len(year_name) == 4:
-                    for monthyear_name in os.listdir(year_path): # ex: "012023", "122023"
+                    for monthyear_name in os.listdir(year_path):
                         monthyear_path = os.path.join(year_path, monthyear_name)
                         if os.path.isdir(monthyear_path) and len(monthyear_name) == 6 and monthyear_name[:2].isdigit():
-                            month_str = monthyear_name[:2]
-                            for filename in os.listdir(monthyear_path):
-                                if os.path.isfile(os.path.join(monthyear_path, filename)):
-                                    # Caminho relativo como seria salvo pelo upload_to
-                                    # Este caminho precisa ser IDÊNTICO ao que a função upload_to geraria
-                                    # para o arquivo se ele fosse carregado normalmente.
-                                    # Adapte se sua função `gerar_nome_pasta_empresa_padronizado` for diferente
-                                    # do company_folder_name_on_fs ou se sanitize_filename mudar muito o nome.
-                                    
-                                    # Assumindo que sanitize_filename e gerar_nome_pasta_empresa_com_espacos_e_maiusculas
-                                    # são usados pelas suas funções upload_to.
-                                    # O `filename` aqui é o nome como está no FS. O `sanitize_filename`
-                                    # é aplicado no upload. Para sync, talvez você queira usar o nome do FS diretamente.
-                                    # Por simplicidade, vamos assumir que o nome do arquivo no FS é o nome a ser usado.
-                                    
-                                    # A função 'upload_to' original que você tem para estes tipos:
-                                    # timed_folder_upload_path(instance, filename, base_folder_name)
-                                    # Ela espera 'instance.ano', 'instance.mes'.
-                                    # Ao criar um novo registro, precisamos preencher esses.
-                                    
-                                    # Para construir o caminho relativo correto:
-                                    # Este é o nome da pasta da empresa, já MAIÚSCULO e com espaços
-                                    path_part_empresa = company_folder_name_on_fs 
-                                    # Este é o nome da pasta do tipo de doc, ex: 'XML'
-                                    path_part_tipo = config['fs_folder_name'] 
-                                    
-                                    relative_path = os.path.join(path_part_empresa, path_part_tipo, year_name, monthyear_name, filename)
-                                    found_fs_files_relative_paths.add(relative_path)
-
-                                    if relative_path not in db_files_map:
-                                        try:
-                                            # Arquivo no FS, não no DB -> Adicionar
-                                            # Precisamos do 'nome_empresa' para consistência se os modelos de doc o usam
-                                            # nas funções upload_to, mesmo que derivemos do objeto 'empresa'.
-                                            doc_data = {
-                                                config['company_field_name']: company_filter_value,
-                                                'nome_arquivo': filename,
-                                                'tipo_documento': tipo_pasta_sync.replace("_", "-"), # Ou mais específico
-                                                'ano': year_name,
-                                                'mes': month_str,
-                                                'caminho_arquivo': relative_path # Atribuição direta do caminho
-                                            }
-                                            if 'nome_empresa' in DocumentModel._meta.get_fields_map(): # Se o modelo tem nome_empresa
-                                                doc_data['nome_empresa'] = empresa.nome
-                                            if 'entregue' in DocumentModel._meta.get_fields_map(): # Para DP, SN
-                                                doc_data['entregue'] = False 
-                                            
-                                            DocumentModel.objects.create(**doc_data)
-                                            added_count += 1
-                                            logger.info(f"SYNC: Adicionado ao DB: {relative_path}")
-                                        except Exception as e_create:
-                                            logger.error(f"SYNC: Erro ao criar registro no DB para {relative_path}: {e_create}")
-    else: # Pastas sem estrutura de ano/mês (DocumentosConstitutivos, Outros)
+                            scan_paths.append({
+                                "path": monthyear_path, 
+                                "year": year_name, 
+                                "month": monthyear_name[:2],
+                                "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name, year_name, monthyear_name]
+                            })
+    else: # Pastas sem estrutura de ano/mês
         if os.path.exists(base_doc_type_path_on_fs):
-            for filename in os.listdir(base_doc_type_path_on_fs):
-                if os.path.isfile(os.path.join(base_doc_type_path_on_fs, filename)):
-                    path_part_empresa = company_folder_name_on_fs
-                    path_part_tipo = config['fs_folder_name']
-                    relative_path = os.path.join(path_part_empresa, path_part_tipo, filename)
-                    found_fs_files_relative_paths.add(relative_path)
+            scan_paths.append({
+                "path": base_doc_type_path_on_fs, 
+                "year": None, 
+                "month": None,
+                "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name]
+            })
 
-                    if relative_path not in db_files_map:
-                        try:
-                            doc_data = {
-                                config['company_field_name']: company_filter_value,
-                                'nome_arquivo': filename,
-                                'tipo_documento': tipo_pasta_sync.replace("_", "-"),
-                                'caminho_arquivo': relative_path
-                            }
-                            if 'nome_empresa' in DocumentModel._meta.get_fields_map():
-                                 doc_data['nome_empresa'] = empresa.nome
+    for item_to_scan in scan_paths:
+        current_scan_path = item_to_scan["path"]
+        for filename_raw_from_fs in os.listdir(current_scan_path):
+            if os.path.isfile(os.path.join(current_scan_path, filename_raw_from_fs)):
+                filename_sanitized_for_path = sanitize_filename_for_upload(filename_raw_from_fs) # USA A FUNÇÃO DE SANITIZAÇÃO CONSISTENTE
+                
+                # Constrói o caminho relativo da mesma forma que upload_to faria
+                path_parts = item_to_scan["sub_path_parts"] + [filename_sanitized_for_path]
+                temp_relative_path = os.path.join(*path_parts)
+                normalized_fs_path = temp_relative_path.replace(os.sep, '/')
+                found_fs_files_normalized_paths.add(normalized_fs_path)
 
-                            DocumentModel.objects.create(**doc_data)
-                            added_count += 1
-                            logger.info(f"SYNC: Adicionado ao DB: {relative_path}")
-                        except Exception as e_create:
-                            logger.error(f"SYNC: Erro ao criar registro no DB para {relative_path}: {e_create}")
+                if normalized_fs_path not in db_files_map:
+                    try:
+                        doc_data = {
+                            'nome_empresa': empresa.nome, # Todos os modelos de documento agora devem ter nome_empresa
+                            'nome_arquivo': filename_raw_from_fs,
+                            'tipo_documento': tipo_pasta_sync.replace("_", "-"), 
+                            'caminho_arquivo': normalized_fs_path
+                        }
+                        if config['has_year_month']:
+                            doc_data['ano'] = item_to_scan["year"]
+                            doc_data['mes'] = item_to_scan["month"]
+                        if 'entregue' in [f.name for f in DocumentModel._meta.get_fields()]: # Checa se o campo existe
+                            doc_data['entregue'] = False 
+                        if 'cnpj_empresa' in [f.name for f in DocumentModel._meta.get_fields()]:
+                            doc_data['cnpj_empresa'] = empresa.cnpj
+                        
+                        DocumentModel.objects.create(**doc_data)
+                        added_count += 1
+                        logger.info(f"SYNC: Adicionado ao DB: {normalized_fs_path}")
+                    except Exception as e_create:
+                        logger.error(f"SYNC: Erro ao criar registro no DB para {normalized_fs_path}: {e_create} com dados {doc_data}")
+
 
     # 3. Remover do DB arquivos que não estão mais no FS
     removed_count = 0
-    for db_path, db_instance in db_files_map.items():
-        if db_path not in found_fs_files_relative_paths:
-            try:
-                db_instance.delete()
-                removed_count += 1
-                logger.info(f"SYNC: Removido do DB (não encontrado no FS): {db_path}")
-            except Exception as e_delete:
-                logger.error(f"SYNC: Erro ao remover registro do DB para {db_path}: {e_delete}")
+    for db_path_normalized, db_instance in db_files_map.items():
+        if db_path_normalized not in found_fs_files_normalized_paths:
+            # Dupla checagem no sistema de arquivos antes de deletar do DB
+            full_physical_path_check = os.path.join(settings.MEDIA_ROOT, db_path_normalized.replace('/', os.sep))
+            if not os.path.exists(full_physical_path_check):
+                try:
+                    db_instance.delete()
+                    removed_count += 1
+                    logger.info(f"SYNC: Removido do DB (arquivo físico também não encontrado): {db_path_normalized}")
+                except Exception as e_delete:
+                    logger.error(f"SYNC: Erro ao remover registro do DB para {db_path_normalized}: {e_delete}")
+            else:
+                logger.warning(f"SYNC: Arquivo {db_path_normalized} está no DB e no FS, mas não foi listado pela varredura. Não removido.")
 
     # 4. Retornar a lista atualizada
-    final_queryset = DocumentModel.objects.filter(**{config['company_field_name']: company_filter_value})
-    serializer = DocumentSerializer(final_queryset, many=True)
+    # Recarrega o queryset após as modificações
+    db_queryset_updated = DocumentModel.objects.filter(nome_empresa=empresa.nome) # ou o filtro apropriado
+    # ... (lógica de filtro de company_filter_key_for_doc como acima, se necessário) ...
+
+    serializer = DocumentSerializer(db_queryset_updated, many=True)
     
     return Response({
         "message": f"Sincronização da pasta '{config['fs_folder_name']}' concluída. "
-                   f"{added_count} adicionado(s), {removed_count} removido(s).",
+                   f"{added_count} arquivo(s) adicionado(s), {removed_count} registro(s) removido(s) do banco.",
         "data": serializer.data
     }, status=status.HTTP_200_OK)
 
