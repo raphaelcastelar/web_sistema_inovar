@@ -249,24 +249,22 @@ const PastaManager = () => {
         alert('Selecione uma pasta antes de arrastar arquivos.');
         return;
     }
-    setUploading(true);
+    setUploading(true); // Esta função (setUploading) é estável
     acceptedFiles.forEach(file => {
       const tipo = pastaTipo;
       const formData = new FormData();
       formData.append('caminho_arquivo', file);
       formData.append('nome_arquivo', file.name);
-      formData.append('cnpj_empresa', empresaCnpj);
-      formData.append('nome_empresa', empresaNome); 
+      formData.append('cnpj_empresa', empresaCnpj); // Dependência: empresaCnpj
+      formData.append('nome_empresa', empresaNome); // Dependência: empresaNome
       formData.append('tipo_documento', tipo.replace('_', '-'));
 
       if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(tipo)) {
-        // --- INÍCIO: Usar targetUploadYear/Month se definidos, senão o atual ---
-        const anoParaSalvar = targetUploadYear || new Date().getFullYear().toString();
-        const mesParaSalvar = targetUploadMonth || (new Date().getMonth() + 1).toString().padStart(2, '0');
+        const anoParaSalvar = targetUploadYear || new Date().getFullYear().toString(); // Dependência: targetUploadYear
+        const mesParaSalvar = targetUploadMonth || (new Date().getMonth() + 1).toString().padStart(2, '0'); // Dependência: targetUploadMonth
         
         formData.append('mes', mesParaSalvar);
         formData.append('ano', anoParaSalvar);
-        // --- FIM: Usar targetUploadYear/Month ---
       }
 
       if (['departamento_pessoal', 'simples_nacional'].includes(tipo)) {
@@ -278,19 +276,24 @@ const PastaManager = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
         .then(() => { 
-          fetchArquivos(empresaId, setArquivos, setLoading);
-          // Opcional: resetar targetUploadYear e targetUploadMonth aqui após sucesso.
-          // setTargetUploadYear(''); 
-          // setTargetUploadMonth('');
+          // fetchArquivos é definida fora, sua referência não muda.
+          // empresaId, setArquivos, setLoading são passados para ela.
+          fetchArquivos(empresaId, setArquivos, setLoading); 
         })
         .catch(err => {
           console.error(`Erro ao salvar ${tipo}:`, err.response ? err.response.data : err.message);
           alert(`Erro no upload: ${err.response ? JSON.stringify(err.response.data) : err.message}`);
         })
-        .finally(() => setUploading(false));
+        .finally(() => setUploading(false)); // setUploading é estável
     });
-  // Adicionado targetUploadYear e targetUploadMonth às dependências do useCallback
-  }, [empresaId, empresaNome, empresaCnpj, targetUploadYear, targetUploadMonth, fetchArquivos, setLoading]); 
+  // Lista de dependências corrigida:
+  // Apenas variáveis/funções do escopo do componente que são usadas dentro do useCallback
+  // e que podem mudar entre renderizações, necessitando que o useCallback retorne uma nova
+  // instância da função.
+  // 'setArquivos' e 'setLoading' são state setters e são estáveis,
+  // o ESLint geralmente não os requer, mas incluí-los não causa problemas.
+  // O ESLint estava reclamando especificamente de 'fetchArquivos'.
+  }, [empresaId, empresaNome, empresaCnpj, targetUploadYear, targetUploadMonth, setArquivos, setLoading, setUploading]);
 
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
