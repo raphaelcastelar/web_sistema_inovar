@@ -4,7 +4,7 @@ from .views import (
     enviar_email, 
     enviar_documentos_whatsapp_api,
     sincronizar_pasta_empresa_api,
-    HistoricoEnviosViewSet,
+
 )
 urlpatterns = [
     path('enviar-email/', enviar_email, name='enviar_email'),

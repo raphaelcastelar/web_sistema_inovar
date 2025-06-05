@@ -4,7 +4,7 @@ import Navbar from './components/navbar';
 import EmpresaList from './components/EmpresaList';
 import EmpresaForm from './components/EmpresaForm';
 import PastaManager from './components/PastaManager';
-import HistoricoWhatsApp from './pages/HistoricoWhatsApp'
+import HistoricoWhatsApp from './components/HistoricoWhatsapp'
 import './App.css';
 
 function App() {
