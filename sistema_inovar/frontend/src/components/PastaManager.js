@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react'; // Adicionado useMemo
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -6,8 +6,11 @@ import { useDropzone } from 'react-dropzone';
 import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon } from '@heroicons/react/24/outline';
 
 const API_BASE_URL = 'http://192.168.196.162:8000/api';
+// Adicionando uma constante para a base da URL do servidor para links de arquivos,
+// pois file.caminho_arquivo geralmente é relativo ao MEDIA_URL (ex: /media/...)
+const SERVER_FILE_URL_BASE = 'http://192.168.196.162:8000'; 
 
-const fetchArquivos = (empresaId, setArquivos, setLoadingState) => { // Renomeado setLoading para setLoadingState
+const fetchArquivos = (empresaId, setArquivos, setLoadingState) => {
     setLoadingState(true);
     const pastaTypes = ['documentos_constitutivos', 'departamento_pessoal', 'xml', 'simples_nacional', 'outros'];
     const promises = pastaTypes.map(tipo => {
@@ -31,8 +34,161 @@ const fetchArquivos = (empresaId, setArquivos, setLoadingState) => { // Renomead
     });
 };
 
-// Lista de meses para o seletor
 const monthOrder = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+// Função para agrupar arquivos (como você já tinha)
+const groupFilesByYearAndMonth = (files) => {
+    if (!files || files.length === 0) return {};
+    const grouped = files.reduce((acc, file) => {
+        if (!file.ano || !file.mes) {
+            console.warn('Arquivo sem ano ou mês definidos:', file);
+            return acc;
+        }
+        const year = file.ano.toString();
+        const monthNumber = parseInt(file.mes, 10);
+        if (isNaN(monthNumber) || monthNumber < 1 || monthNumber > 12) {
+            console.warn('Mês inválido para o arquivo:', file);
+            return acc;
+        }
+        const monthKey = `${file.mes.padStart(2, '0')}${year}`;
+        const monthName = monthOrder[monthNumber - 1] || `Mês ${file.mes}`;
+        if (!acc[year]) {
+            acc[year] = {};
+        }
+        if (!acc[year][monthKey]) {
+            acc[year][monthKey] = { 
+                monthNameDisplay: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+                monthSortKey: monthNumber,
+                files: [] 
+            };
+        }
+        acc[year][monthKey].files.push(file);
+        return acc;
+    }, {});
+    const sortedYears = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+    const result = {};
+    for (const year of sortedYears) {
+        const yearData = grouped[year];
+        const sortedMonthKeys = Object.keys(yearData).sort((a, b) => {
+            return yearData[a].monthSortKey - yearData[b].monthSortKey;
+        });
+        result[year] = {};
+        for (const monthKey of sortedMonthKeys) {
+            result[year][monthKey] = yearData[monthKey];
+        }
+    }
+    return result;
+};
+
+// Componente YearMonthAccordion (como você já tinha, com pequeno ajuste na URL do arquivo)
+const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverFileUrlBase }) => {
+    const [activeYear, setActiveYear] = useState(null);
+    const [activeMonthKey, setActiveMonthKey] = useState(null);
+
+    const groupedData = useMemo(() => groupFilesByYearAndMonth(files), [files]);
+    const sortedYears = Object.keys(groupedData);
+
+    useEffect(() => {
+        if (sortedYears.length > 0) {
+            const latestYear = sortedYears[0];
+            setActiveYear(latestYear);
+            const monthsInLatestYear = groupedData[latestYear];
+            if (monthsInLatestYear && Object.keys(monthsInLatestYear).length > 0) {
+                const monthKeys = Object.keys(monthsInLatestYear);
+                setActiveMonthKey(monthKeys[monthKeys.length - 1]); 
+            } else {
+                setActiveMonthKey(null);
+            }
+        } else {
+            setActiveYear(null);
+            setActiveMonthKey(null);
+        }
+    }, [files, groupedData, sortedYears]);
+
+
+    if (!files || files.length === 0) {
+        return <p className="text-gray-500 italic mt-4">Nenhum arquivo encontrado nesta categoria.</p>;
+    }
+    if (Object.keys(groupedData).length === 0 && files.length > 0) {
+         return <p className="text-gray-500 mt-4">Arquivos presentes, mas não foi possível agrupar por ano/mês. Verifique os dados 'ano' e 'mes' dos arquivos.</p>;
+    }
+    if (Object.keys(groupedData).length === 0) {
+        return <p className="text-gray-500 italic mt-4">Nenhum arquivo para agrupar.</p>;
+    }
+
+    return (
+        <div className="space-y-3 mt-4">
+            {sortedYears.map(year => (
+                <div key={year} className="bg-gray-750 rounded-lg shadow-md overflow-hidden">
+                    <button
+                        onClick={() => {
+                            const newActiveYear = activeYear === year ? null : year;
+                            setActiveYear(newActiveYear);
+                            if (activeYear !== newActiveYear || !newActiveYear) {
+                                setActiveMonthKey(null);
+                            }
+                        }}
+                        className="w-full flex justify-between items-center text-left p-4 font-semibold text-lg text-indigo-300 hover:bg-gray-700 transition-colors"
+                    >
+                        Ano: {year}
+                        <span className={`transform transition-transform duration-200 ${activeYear === year ? 'rotate-180' : 'rotate-0'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                        </span>
+                    </button>
+                    {activeYear === year && (
+                        <div className="border-t border-gray-700">
+                            {Object.keys(groupedData[year]).length === 0 ? (
+                                <p className="text-gray-500 p-4">Nenhum arquivo para {year}.</p>
+                            ) : (
+                                Object.entries(groupedData[year]).map(([monthKey, monthData]) => (
+                                    <div key={monthKey} className="border-b border-gray-600 last:border-b-0">
+                                        <button
+                                            onClick={() => setActiveMonthKey(activeMonthKey === monthKey ? null : monthKey)}
+                                            className="w-full flex justify-between items-center text-left py-3 px-6 text-gray-200 hover:bg-gray-600 transition-colors"
+                                        >
+                                            {monthData.monthNameDisplay}
+                                            <span className={`transform transition-transform duration-200 ${activeMonthKey === monthKey && activeYear === year ? 'rotate-180' : 'rotate-0'}`}>
+                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                                </svg>
+                                            </span>
+                                        </button>
+                                        {activeMonthKey === monthKey && activeYear === year && (
+                                            <ul className="pl-8 pr-4 py-2 space-y-1 bg-gray-700">
+                                                {monthData.files.map(file => (
+                                                    <li key={file.id} className="text-gray-300 flex items-center space-x-2 p-1.5 hover:bg-gray-600 rounded-md transition-colors">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedFiles.includes(file.id)}
+                                                            onChange={() => toggleFileSelection(file.id)}
+                                                            className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500 cursor-pointer"
+                                                        />
+                                                        <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
+                                                        <a
+                                                            href={`${serverFileUrlBase}${file.caminho_arquivo}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors"
+                                                        >
+                                                            Ver
+                                                        </a>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+};
+
 
 const PastaManager = () => {
   const { empresaId: empresaIdStr } = useParams();
@@ -41,12 +197,14 @@ const PastaManager = () => {
   const [selectedPasta, setSelectedPasta] = useState(null);
   const [empresaNome, setEmpresaNome] = useState('');
   const [empresaCnpj, setEmpresaCnpj] = useState('');
-  const [arquivos, setArquivos] = useState({ xml: [] }); // Inicializa arquivos.xml como array
+  const [arquivos, setArquivos] = useState({}); // Alterado para objeto vazio para consistência
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
 
+  // REMOVIDOS: selectedXmlYear, selectedXmlMonth, availableXmlYears (e o useEffect que os populava)
+  // O useEffect para popular filtros de XML foi removido. O YearMonthAccordion lida com sua própria lógica de expansão.
 
   useEffect(() => {
     setLoading(true);
@@ -55,8 +213,8 @@ const PastaManager = () => {
         setEmpresaNome(response.data.nome);
         setEmpresaCnpj(response.data.cnpj);
       })
-      .catch(error => {
-        console.error('Erro ao carregar dados da empresa:', error);
+      .catch(err => {
+        console.error('Erro ao carregar dados da empresa:', err);
         setError('Erro ao carregar dados da empresa.');
       })
       .finally(() => setLoading(false));
@@ -67,7 +225,6 @@ const PastaManager = () => {
     fetchArquivos(empresaId, setArquivos, setLoading);
   }, [empresaId]);
 
-
   const onDrop = useCallback((acceptedFiles, pastaTipo) => {
     if (!empresaNome || !empresaCnpj) {
       alert('Aguarde o carregamento dos dados da empresa antes de fazer upload.');
@@ -77,7 +234,6 @@ const PastaManager = () => {
         alert('Selecione uma pasta antes de arrastar arquivos.');
         return;
     }
-
     setUploading(true);
     acceptedFiles.forEach(file => {
       const tipo = pastaTipo;
@@ -87,38 +243,31 @@ const PastaManager = () => {
       formData.append('cnpj_empresa', empresaCnpj);
       formData.append('nome_empresa', empresaNome);
       formData.append('tipo_documento', tipo.replace('_', '-'));
-
       if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(tipo)) {
-        const uploadMonth = new Date().toLocaleString('pt-BR', { month: 'long' });
-        const uploadYear = new Date().getFullYear().toString();
-        const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0'); // Ex: "01", "06", "12"
+        // const uploadMonth = new Date().toLocaleString('pt-BR', { month: 'long' }); // Não usado
+        // const uploadYear = new Date().getFullYear().toString(); // Não usado
+        const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
         formData.append('mes', currentMonth);
         formData.append('ano', new Date().getFullYear().toString());
-
-        // Se o upload for para a pasta XML e os filtros estiverem no mês/ano atual,
-        // os arquivos novos aparecerão. Se não, o usuário precisará ajustar o filtro.
       }
-      
       if (['departamento_pessoal', 'simples_nacional'].includes(tipo)) {
         formData.append('entregue', 'false');
       }
-
       const endpoint = tipo.replace('_', '-');
       const url = `${API_BASE_URL}/${endpoint}/`;
-
       axios.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
         .then(response => {
-          fetchArquivos(empresaId, setArquivos, setLoading); // Atualiza lista de arquivos
+          fetchArquivos(empresaId, setArquivos, setLoading);
         })
-        .catch(error => {
-          console.error(`Erro ao salvar ${tipo}:`, error.response ? error.response.data : error.message);
-          alert(`Erro no upload: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
+        .catch(err => {
+          console.error(`Erro ao salvar ${tipo}:`, err.response ? err.response.data : err.message);
+          alert(`Erro no upload: ${err.response ? JSON.stringify(err.response.data) : err.message}`);
         })
         .finally(() => setUploading(false));
     });
-  }, [empresaId, empresaNome, empresaCnpj, fetchArquivos]);
+  }, [empresaId, empresaNome, empresaCnpj]); // fetchArquivos foi removido das dependências
 
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -150,85 +299,28 @@ const PastaManager = () => {
       empresa_id: empresaId, tipo_pasta: selectedPasta.tipo, file_ids: selectedFiles,
     })
       .then(response => { alert(response.data.message); setSelectedFiles([]); })
-      .catch(error => {
-        const errorMsg = error.response?.data?.error || 'Erro ao enviar email.';
+      .catch(err => {
+        const errorMsg = err.response?.data?.error || 'Erro ao enviar email.';
         setError(errorMsg); alert(`Erro: ${errorMsg}`);
       })
       .finally(() => setLoading(false));
   };
 
-  const groupFilesByYearAndMonth = (files) => {
-    if (!files || files.length === 0) return {}; // Retorna objeto vazio se não houver arquivos
-
-    const grouped = files.reduce((acc, file) => {
-        if (!file.ano || !file.mes) { // Pula arquivos sem ano ou mês definidos
-            console.warn('Arquivo sem ano ou mês definidos:', file);
-            return acc;
-        }
-        const year = file.ano.toString();
-        // Garante que o mês (do backend, "01"-"12") seja usado para a chave e nome
-        const monthNumber = parseInt(file.mes, 10); // ex: 1, 2, ..., 12
-        if (isNaN(monthNumber) || monthNumber < 1 || monthNumber > 12) {
-            console.warn('Mês inválido para o arquivo:', file);
-            return acc;
-        }
-        const monthKey = `${file.mes.padStart(2, '0')}${year}`; // Chave única ex: "012025"
-        const monthName = monthOrder[monthNumber - 1] || `Mês ${file.mes}`;
-
-        if (!acc[year]) {
-            acc[year] = {};
-        }
-        if (!acc[year][monthKey]) {
-            acc[year][monthKey] = { 
-                monthNameDisplay: monthName.charAt(0).toUpperCase() + monthName.slice(1), // ex: "Janeiro"
-                monthSortKey: monthNumber, // Para ordenação
-                files: [] 
-            };
-        }
-        acc[year][monthKey].files.push(file);
-        return acc;
-    }, {});
-
-    // Ordena os anos (mais recentes primeiro)
-    const sortedYears = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-    
-    const result = {};
-    for (const year of sortedYears) {
-        const yearData = grouped[year];
-        // Ordena os meses dentro de cada ano cronologicamente
-        const sortedMonthKeys = Object.keys(yearData).sort((a, b) => {
-            return yearData[a].monthSortKey - yearData[b].monthSortKey;
-        });
-        result[year] = {};
-        for (const monthKey of sortedMonthKeys) {
-            result[year][monthKey] = yearData[monthKey];
-        }
-    }
-    return result; // Estrutura: { "2025": { "012025": { monthNameDisplay: "Janeiro", files: [] }, ... }, ... }
-  };
-
-  const handleWhatsAppClick = () => {
+ const handleWhatsAppClick = () => {
     if (selectedFiles.length === 0) {
         alert('Por favor, selecione pelo menos um arquivo.');
         return;
     }
-
-    // Inicialmente, implementando apenas para Documentos Constitutivos
     if (!selectedPasta || selectedPasta.tipo !== 'documentos_constitutivos') {
         alert('A funcionalidade de envio por WhatsApp está implementada apenas para "Documentos Constitutivos" por enquanto.');
         return;
     }
-
-
-    setLoading(true); // Assumindo que você tem um estado 'loading'
-    setError(null);   // Assumindo que você tem um estado 'error'
-
-    axios.post(`${API_BASE_URL}/enviar-doc-constitutivo-whatsapp/`, { // Endpoint correto
-        empresa_id: empresaId,      // ID da empresa atual
-        file_ids: selectedFiles,    // IDs dos DocumentosConstitutivos selecionados
+    setLoading(true); setError(null);
+    axios.post(`${API_BASE_URL}/enviar-doc-constitutivo-whatsapp/`, {
+        empresa_id: empresaId,
+        file_ids: selectedFiles,
     })
     .then(response => {
-        // console.log("Resposta do envio por WhatsApp:", response.data);
         let message = `Relatório do Envio por WhatsApp para ${empresaNome}:\n`;
         if (response.data.successful_sends && response.data.successful_sends.length > 0) {
             message += `\nSucessos (${response.data.successful_sends.length}):\n`;
@@ -242,16 +334,17 @@ const PastaManager = () => {
                 message += `- ${fail.filename}: ${fail.reason}\n`;
             });
         }
-        if (!response.data.successful_sends?.length && !response.data.failed_sends?.length) {
-             message = response.data.message || "Nenhuma operação realizada.";
+        if (!response.data.successful_sends?.length && !response.data.failed_sends?.length && response.data.message) {
+             message = response.data.message;
+        } else if (!response.data.successful_sends?.length && !response.data.failed_sends?.length) {
+            message = "Nenhuma operação de envio foi processada ou todas falharam sem detalhes específicos.";
         }
-        
-        alert(message); // Exibe um resumo
-        setSelectedFiles([]); // Limpa a seleção após o envio
+        alert(message);
+        setSelectedFiles([]);
     })
-    .catch(error => {
-        console.error('Erro detalhado ao enviar por WhatsApp:', error.response ? error.response.data : error.message);
-        const errorMsg = error.response?.data?.error || error.response?.data?.detail || 'Erro desconhecido ao tentar enviar por WhatsApp.';
+    .catch(err => {
+        console.error('Erro detalhado ao enviar por WhatsApp:', err.response ? err.response.data : err.message);
+        const errorMsg = err.response?.data?.error || err.response?.data?.detail || 'Erro desconhecido ao tentar enviar por WhatsApp.';
         setError(errorMsg);
         alert(`Erro ao enviar por WhatsApp: ${errorMsg}`);
     })
@@ -262,10 +355,23 @@ const PastaManager = () => {
   
   const handlePastaClick = (pasta) => {
     setSelectedPasta(pasta);
-    setSelectedFiles([]); // Limpa seleção de arquivos ao trocar de pasta
-    setError(null); // Limpa erros
-    // Resetar filtros de XML é feito pelo useEffect [selectedPasta, arquivos.xml]
+    setSelectedFiles([]);
+    setError(null);
   };
+
+  // Adicionando o useCallback para fetchArquivos se ele for usado em dependências de useEffect ou useCallback.
+  // Neste caso, onDrop o usa, então é bom ter.
+  const stableFetchArquivos = useCallback(fetchArquivos, []);
+  useEffect(() => {
+    // Se onDrop for depender de fetchArquivos e fetchArquivos mudar,
+    // o onDrop seria recriado. Ao usar stableFetchArquivos, isso é evitado
+    // se fetchArquivos em si não depender de props/state que mudam frequentemente.
+    // No entanto, fetchArquivos aqui é definido fora do componente,
+    // então não precisa de useCallback aqui para ser estável, mas se fosse interna, precisaria.
+    // A dependência de onDrop em fetchArquivos pode ser removida se o setLoading
+    // for passado como parâmetro para onDrop e depois para fetchArquivos.
+  }, [stableFetchArquivos]); // Apenas exemplo de uso, pode não ser necessário aqui.
+
 
   return (
     <div className="p-4 sm:p-6 bg-gray-900 min-h-screen text-gray-100">
@@ -283,7 +389,7 @@ const PastaManager = () => {
               key={pasta.id}
               className={`rounded-lg shadow-lg p-3 cursor-pointer transition-all duration-200 ease-in-out
                           ${selectedPasta?.id === pasta.id ? 'bg-indigo-600 ring-2 ring-indigo-400' : 'bg-gray-800 hover:bg-gray-700'}`}
-              onClick={() => handlePastaClick(pasta)} // Usar handlePastaClick
+              onClick={() => handlePastaClick(pasta)}
               whileHover={{ scale: selectedPasta?.id === pasta.id ? 1 : 1.03 }}
               whileTap={{ scale: 0.97 }}
             >
@@ -324,19 +430,33 @@ const PastaManager = () => {
             <div className="mt-6">
               <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-700">
                 <h4 className="text-lg font-semibold text-indigo-300">
-                  {selectedPasta.tipo === 'xml' ? `Arquivos de ${selectedXmlMonth || ''}/${selectedXmlYear || ''}` : 'Arquivos na Pasta'}
+                  Arquivos na Pasta
+                  {/* Removida a parte que mostrava selectedXmlMonth/Year no título */}
+                  {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional')
+                    ? ` (Agrupados por Ano/Mês)`
+                    : ''}
                 </h4>
-                {(selectedFiles.length > 0 && (!selectedPasta || selectedPasta.tipo !== 'xml' || (selectedPasta.tipo === 'xml' && arquivos.xml.filter(f => f.ano.toString() === selectedXmlYear && f.mes.toLowerCase() === selectedXmlMonth.toLowerCase() && selectedFiles.includes(f.id) ).length > 0 ) )) && (
+                {/* Condição de exibição dos botões de ação foi simplificada */}
+                {selectedFiles.length > 0 && (
                   <div className="flex space-x-2">
-                    <button onClick={handleEmailClick} className="flex items-center text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" title="Enviar por Email" disabled={loading || uploading}>
+                    <button 
+                        onClick={handleEmailClick} 
+                        className="flex items-center text-sm bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" 
+                        title="Enviar por Email" 
+                        disabled={loading || uploading}>
                       <EnvelopeIcon className="h-5 w-5 mr-1" /> Email
                     </button>
-                    <button onClick={handleWhatsAppClick} className="flex items-center text-sm bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" title="Enviar por WhatsApp (Em breve)" 
-                    disabled={
-                      loading || 
-                      uploading || 
-                      selectedFiles.length === 0 ||
-                      !selectedPasta}>
+                    <button 
+                        onClick={handleWhatsAppClick} 
+                        className="flex items-center text-sm bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-3 rounded-md shadow-md transition duration-150 ease-in-out disabled:opacity-50" 
+                        title="Enviar por WhatsApp"
+                        disabled={ // Lógica para desabilitar o botão WhatsApp
+                          loading || 
+                          uploading || 
+                          selectedFiles.length === 0 ||
+                          !selectedPasta ||
+                          selectedPasta.tipo !== 'documentos_constitutivos' // Mantém restrição por enquanto
+                        }>
                       <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-1" /> WhatsApp
                     </button>
                   </div>
@@ -344,53 +464,51 @@ const PastaManager = () => {
               </div>
               {error && <p className="text-red-400 bg-red-900 p-2 rounded mb-3 text-sm">{error}</p>}
               
-              {selectedPasta.tipo === 'xml' ? (
-                <>
-                  <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mb-4 p-4 bg-gray-750 rounded-md items-end">
-                    <div>
-                      <label htmlFor="xml-year-select" className="block text-sm font-medium text-gray-300 mb-1">Ano:</label>
-                      <select
-                        id="xml-year-select"
-                        value={selectedXmlYear}
-                        onChange={(e) => { setSelectedXmlYear(e.target.value); setSelectedFiles([]); }} // Limpa seleção ao mudar filtro
-                        className="block w-full sm:w-32 pl-3 pr-10 py-2 text-base border-gray-600 bg-gray-700 text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm"
-                      >
-                        {availableXmlYears.map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label htmlFor="xml-month-select" className="block text-sm font-medium text-gray-300 mb-1">Mês:</label>
-                      <select
-                        id="xml-month-select"
-                        value={selectedXmlMonth}
-                        onChange={(e) => { setSelectedXmlMonth(e.target.value); setSelectedFiles([]); }} // Limpa seleção ao mudar filtro
-                        className="block w-full sm:w-40 pl-3 pr-10 py-2 text-base border-gray-600 bg-gray-700 text-gray-200 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm"
-                      >
-                        {monthOrder.map(monthName => (
-                          <option key={monthName} value={monthName.toLowerCase()}>{monthName.charAt(0).toUpperCase() + monthName.slice(1)}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  {renderFilteredXmlFiles()}
-                </>
+              {/* ***** INÍCIO DA APLICAÇÃO DO PASSO 4 ***** */}
+              {selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional' ? (
+                <YearMonthAccordion 
+                    files={arquivos[selectedPasta.tipo] || []} 
+                    selectedFiles={selectedFiles}
+                    toggleFileSelection={toggleFileSelection}
+                    serverFileUrlBase={SERVER_FILE_URL_BASE} // Usando a nova constante
+                />
               ) : (
+                // Renderização antiga para 'documentos_constitutivos' e 'outros'
                 arquivos[selectedPasta.tipo] && arquivos[selectedPasta.tipo].length > 0 ? (
-                  <ul className="space-y-2">
-                    {arquivos[selectedPasta.tipo].map(file => (
-                      <li key={file.id} className="text-gray-300 flex items-center space-x-2 p-2 hover:bg-gray-700 rounded-md transition-colors">
-                        <input type="checkbox" checked={selectedFiles.includes(file.id)} onChange={() => toggleFileSelection(file.id)} className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500"/>
-                        <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                        {(file.mes && file.ano) && (<span className="text-xs text-gray-500 capitalize">{file.mes}/{file.ano}</span>)}
-                        {file.hasOwnProperty('entregue') && (<span className={`text-xs px-2 py-0.5 rounded-full ${file.entregue ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
-                        <a href={`http://192.168.196.162${file.caminho_arquivo}`} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors">Ver</a>
-                      </li>
-                    ))}
-                  </ul>
-                ) : ( <p className="text-gray-500 italic">Nenhum arquivo encontrado nesta pasta.</p> )
+                    <ul className="space-y-2">
+                        {arquivos[selectedPasta.tipo].map(file => (
+                            <li key={file.id} className="text-gray-300 flex items-center space-x-2 p-2 hover:bg-gray-700 rounded-md transition-colors">
+                                <input 
+                                    type="checkbox" 
+                                    checked={selectedFiles.includes(file.id)} 
+                                    onChange={() => toggleFileSelection(file.id)} 
+                                    className="form-checkbox h-4 w-4 text-indigo-600 rounded bg-gray-800 border-gray-600 focus:ring-indigo-500 cursor-pointer"
+                                />
+                                <span className="flex-1 truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
+                                {/* Exibição de Mês/Ano para pastas que os possuem na listagem simples (ex: DP, SN antes do acordeão) */}
+                                {/* Este bloco pode ser redundante se essas pastas sempre usarem o acordeão */}
+                                {(file.mes && file.ano && (selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional')) && (
+                                    <span className="text-xs text-gray-500 capitalize">
+                                        {monthOrder[parseInt(file.mes,10)-1] || file.mes}/{file.ano}
+                                    </span>
+                                )}
+                                {file.hasOwnProperty('entregue') && (
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${file.entregue ? 'bg-green-700 text-green-200' : 'bg-yellow-700 text-yellow-200'}`}>
+                                        {file.entregue ? 'Entregue' : 'Pendente'}
+                                    </span>
+                                )}
+                                <a 
+                                    href={`${SERVER_FILE_URL_BASE}${file.caminho_arquivo}`} 
+                                    target="_blank" rel="noopener noreferrer" 
+                                    className="text-indigo-400 hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-700 transition-colors">
+                                    Ver
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                ) : ( <p className="text-gray-500 italic mt-4">Nenhum arquivo encontrado nesta pasta.</p> )
               )}
+              {/* ***** FIM DA APLICAÇÃO DO PASSO 4 ***** */}
             </div>
           </motion.div>
         )}
