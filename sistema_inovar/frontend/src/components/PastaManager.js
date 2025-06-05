@@ -477,7 +477,7 @@ const PastaManager = () => {
                           uploading || 
                           selectedFiles.length === 0 ||
                           !selectedPasta ||
-                          selectedPasta.tipo !== 'documentos_constitutivos'
+                          selectedPasta.tipo !== 'documentos_constitutivos' || 'departamento_pessoal' || 'simples_nacional' || 'outros'
                         }>
                       <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-1" /> WhatsApp
                     </button>
