@@ -38,13 +38,13 @@ const groupFilesByYearAndMonth = (files) => {
     if (!files || files.length === 0) return {};
     const grouped = files.reduce((acc, file) => {
         if (!file.ano || !file.mes) {
-            console.warn('Arquivo sem ano ou mês definidos:', file);
+            // console.warn('Arquivo sem ano ou mês definidos:', file);
             return acc;
         }
         const year = file.ano.toString();
         const monthNumber = parseInt(file.mes, 10);
         if (isNaN(monthNumber) || monthNumber < 1 || monthNumber > 12) {
-            console.warn('Mês inválido para o arquivo:', file);
+            // console.warn('Mês inválido para o arquivo:', file);
             return acc;
         }
         const monthKey = `${file.mes.padStart(2, '0')}${year}`;
@@ -79,7 +79,7 @@ const groupFilesByYearAndMonth = (files) => {
 
 const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverFileUrlBase }) => {
     const [activeYear, setActiveYear] = useState(null);
-    const [activeMonthKey, setActiveMonthKey] = useState(null); // Armazena a chave como "012025"
+    const [activeMonthKey, setActiveMonthKey] = useState(null);
 
     const groupedData = useMemo(() => groupFilesByYearAndMonth(files), [files]);
     const sortedYears = useMemo(() => Object.keys(groupedData), [groupedData]);
@@ -102,12 +102,12 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
             setActiveMonthKey(null);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [files, sortedYears]); // Removido groupedData e activeYear da lista de dependência para evitar re-trigger indesejado
+    }, [files, sortedYears]);
 
     const handleYearToggle = (yearToToggle) => {
         const newActiveYear = activeYear === yearToToggle ? null : yearToToggle;
         setActiveYear(newActiveYear);
-        setActiveMonthKey(null); // Sempre reseta o mês ao alternar o ano
+        setActiveMonthKey(null); 
     };
 
     const handleMonthToggle = (monthKeyToToggle) => {
@@ -117,20 +117,16 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
     if (!files || files.length === 0) {
         return <p className="text-gray-500 italic mt-4">Nenhum arquivo encontrado nesta categoria.</p>;
     }
-    // Não precisamos mais desta verificação específica aqui, pois vamos listar todos os meses
-    // if (Object.keys(groupedData).length === 0 && files.length > 0) { ... }
-    
-    // Se não há anos após o agrupamento (pode acontecer se todos os arquivos tiverem ano/mês inválidos)
     if (sortedYears.length === 0 && files.length > 0) {
         return <p className="text-gray-500 mt-4">Arquivos presentes, mas não foi possível agrupar por ano. Verifique os dados 'ano' dos arquivos.</p>;
     }
-    if (sortedYears.length === 0) { // Se não há anos (e consequentemente não há arquivos com ano/mês válidos)
+    if (sortedYears.length === 0) {
         return <p className="text-gray-500 italic mt-4">Nenhum arquivo com dados de ano/mês para agrupar.</p>;
     }
 
     return (
         <div className="space-y-3 mt-4">
-            {sortedYears.map(year => ( // 'year' aqui é uma string como "2025"
+            {sortedYears.map(year => (
                 <div key={year} className="bg-gray-750 rounded-lg shadow-md overflow-hidden">
                     <button
                         onClick={() => handleYearToggle(year)}
@@ -145,32 +141,30 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, serverF
                     </button>
                     {activeYear === year && (
                         <div className="border-t border-gray-700">
-                            {/* Iterar de 1 a 12 para criar entradas para todos os meses do ano ativo */}
-                            {monthOrder.map((nomeDoMes, indexDoMes) => {
-                                const numeroDoMes = indexDoMes + 1; // 1 para janeiro, 2 para fevereiro, etc.
-                                const mesFormatadoStr = numeroDoMes.toString().padStart(2, '0'); // "01", "02", ..., "12"
-                                const chaveMesAnoParaBusca = `${mesFormatadoStr}${activeYear}`; // ex: "012025"
+                            {monthOrder.map((nomeDoMesOriginal, indexDoMesArray) => {
+                                const numeroDoMes = indexDoMesArray + 1;
+                                const mesFormatadoStr = numeroDoMes.toString().padStart(2, '0');
+                                const chaveMesAnoParaDados = `${mesFormatadoStr}${activeYear}`;
                                 
-                                // Tenta buscar os dados do mês no objeto groupedData
-                                const dadosDoMes = groupedData[activeYear]?.[chaveMesAnoParaBusca];
+                                const dadosDoMes = groupedData[activeYear]?.[chaveMesAnoParaDados];
                                 const arquivosParaEsteMes = dadosDoMes?.files || [];
-                                const nomeExibicaoMes = nomeDoMes.charAt(0).toUpperCase() + nomeDoMes.slice(1);
+                                const nomeExibicaoMes = nomeDoMesOriginal.charAt(0).toUpperCase() + nomeDoMesOriginal.slice(1);
 
                                 return (
-                                    <div key={chaveMesAnoParaBusca} className="border-b border-gray-600 last:border-b-0">
+                                    <div key={chaveMesAnoParaDados} className="border-b border-gray-600 last:border-b-0">
                                         <button
-                                            onClick={() => handleMonthToggle(chaveMesAnoParaBusca)}
+                                            onClick={() => handleMonthToggle(chaveMesAnoParaDados)}
                                             className="w-full flex justify-between items-center text-left py-3 px-6 text-gray-200 hover:bg-gray-600 transition-colors"
                                         >
                                             {nomeExibicaoMes}
-                                            <span className={`transform transition-transform duration-200 ${activeMonthKey === chaveMesAnoParaBusca && activeYear === year ? 'rotate-180' : 'rotate-0'}`}>
+                                            <span className={`transform transition-transform duration-200 ${activeMonthKey === chaveMesAnoParaDados && activeYear === year ? 'rotate-180' : 'rotate-0'}`}>
                                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                                                 </svg>
                                             </span>
                                         </button>
-                                        {activeMonthKey === chaveMesAnoParaBusca && activeYear === year && (
-                                            <div className="pl-8 pr-4 py-2 bg-gray-700"> {/* Usar div para padding consistente */}
+                                        {activeMonthKey === chaveMesAnoParaDados && activeYear === year && (
+                                            <div className="pl-8 pr-4 py-2 bg-gray-700"> 
                                                 {arquivosParaEsteMes.length > 0 ? (
                                                     <ul className="space-y-1">
                                                         {arquivosParaEsteMes.map(file => (
@@ -222,6 +216,11 @@ const PastaManager = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // --- INÍCIO: Estados para seleção de Mês/Ano para Upload ---
+  const [targetUploadYear, setTargetUploadYear] = useState('');
+  const [targetUploadMonth, setTargetUploadMonth] = useState('');
+  // --- FIM: Estados para seleção de Mês/Ano para Upload ---
 
   useEffect(() => {
     setLoading(true);
@@ -257,13 +256,19 @@ const PastaManager = () => {
       formData.append('caminho_arquivo', file);
       formData.append('nome_arquivo', file.name);
       formData.append('cnpj_empresa', empresaCnpj);
-      formData.append('nome_empresa', empresaNome);
+      formData.append('nome_empresa', empresaNome); 
       formData.append('tipo_documento', tipo.replace('_', '-'));
+
       if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(tipo)) {
-        const currentMonth = (new Date().getMonth() + 1).toString().padStart(2, '0');
-        formData.append('mes', currentMonth);
-        formData.append('ano', new Date().getFullYear().toString());
+        // --- INÍCIO: Usar targetUploadYear/Month se definidos, senão o atual ---
+        const anoParaSalvar = targetUploadYear || new Date().getFullYear().toString();
+        const mesParaSalvar = targetUploadMonth || (new Date().getMonth() + 1).toString().padStart(2, '0');
+        
+        formData.append('mes', mesParaSalvar);
+        formData.append('ano', anoParaSalvar);
+        // --- FIM: Usar targetUploadYear/Month ---
       }
+
       if (['departamento_pessoal', 'simples_nacional'].includes(tipo)) {
         formData.append('entregue', 'false');
       }
@@ -274,6 +279,9 @@ const PastaManager = () => {
       })
         .then(() => { 
           fetchArquivos(empresaId, setArquivos, setLoading);
+          // Opcional: resetar targetUploadYear e targetUploadMonth aqui após sucesso.
+          // setTargetUploadYear(''); 
+          // setTargetUploadMonth('');
         })
         .catch(err => {
           console.error(`Erro ao salvar ${tipo}:`, err.response ? err.response.data : err.message);
@@ -281,8 +289,8 @@ const PastaManager = () => {
         })
         .finally(() => setUploading(false));
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [empresaId, empresaNome, empresaCnpj]);
+  // Adicionado targetUploadYear e targetUploadMonth às dependências do useCallback
+  }, [empresaId, empresaNome, empresaCnpj, targetUploadYear, targetUploadMonth, fetchArquivos, setLoading]); 
 
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -321,80 +329,74 @@ const PastaManager = () => {
       .finally(() => setLoading(false));
   };
 
-  const handleWhatsAppClick = () => {
-        if (selectedFiles.length === 0) {
-            alert('Por favor, selecione pelo menos um arquivo.');
-            return;
+ const handleWhatsAppClick = () => {
+    if (selectedFiles.length === 0) {
+        alert('Por favor, selecione pelo menos um arquivo.');
+        return;
+    }
+    if (!selectedPasta) {
+        alert('Nenhuma pasta selecionada.');
+        return;
+    }
+    const allowedPastaTypesForWhatsApp = [
+        'documentos_constitutivos', 
+        'departamento_pessoal', 
+        'simples_nacional', 
+        'outros'
+    ];
+    if (!allowedPastaTypesForWhatsApp.includes(selectedPasta.tipo)) {
+        alert(`A funcionalidade de envio por WhatsApp não está disponível para a pasta "${selectedPasta.tipo.replace(/_/g, ' ')}".`);
+        return;
+    }
+    setLoading(true); setError(null);
+    axios.post(`${API_BASE_URL}/enviar-documentos-whatsapp/`, {
+        empresa_id: empresaId,
+        file_ids: selectedFiles,
+        tipo_pasta: selectedPasta.tipo
+    })
+    .then(response => {
+        let message = `Relatório do Envio por WhatsApp para ${empresaNome} (Pasta: ${selectedPasta.tipo.replace(/_/g, ' ')})\n(Usando telefone cadastrado):\n`;
+        if (response.data.successful_sends && response.data.successful_sends.length > 0) {
+            message += `\nSucessos (${response.data.successful_sends.length}):\n`;
+            response.data.successful_sends.forEach(send => {
+                message += `- ${send.filename} (ID: ${send.message_id})\n`;
+            });
         }
-
-        if (!selectedPasta) {
-            alert('Nenhuma pasta selecionada.');
-            return;
+        if (response.data.failed_sends && response.data.failed_sends.length > 0) {
+            message += `\nFalhas (${response.data.failed_sends.length}):\n`;
+            response.data.failed_sends.forEach(fail => {
+                message += `- ${fail.filename}: ${fail.reason}\n`;
+            });
         }
-
-        // Define os tipos de pasta permitidos para envio por WhatsApp
-        const allowedPastaTypesForWhatsApp = [
-            'documentos_constitutivos', 
-            'departamento_pessoal', 
-            'simples_nacional', 
-            'outros'
-            // 'xml' NÃO está incluído
-        ];
-
-        if (!allowedPastaTypesForWhatsApp.includes(selectedPasta.tipo)) {
-            alert(`A funcionalidade de envio por WhatsApp não está disponível para a pasta "${selectedPasta.tipo.replace(/_/g, ' ')}".\n\nDisponível para: Documentos Constitutivos, Departamento Pessoal, Simples Nacional e Outros.`);
-            return;
+        if ((!response.data.successful_sends || response.data.successful_sends.length === 0) && 
+            (!response.data.failed_sends || response.data.failed_sends.length === 0) &&
+            response.data.message) {
+             message = response.data.message;
+        } else if (!response.data.successful_sends?.length && !response.data.failed_sends?.length) {
+            message = `Nenhuma operação de envio para a pasta ${selectedPasta.tipo.replace(/_/g, ' ')} foi processada ou todas falharam sem detalhes específicos.`;
         }
-        
-        setLoading(true); 
-        setError(null);   
-
-        axios.post(`${API_BASE_URL}/enviar-documentos-whatsapp/`, { // USA O NOVO ENDPOINT GENERALIZADO
-            empresa_id: empresaId,
-            file_ids: selectedFiles,
-            tipo_pasta: selectedPasta.tipo // ENVIA O tipo_pasta
-        })
-        .then(response => {
-            let message = `Relatório do Envio por WhatsApp para ${empresaNome} (Pasta: ${selectedPasta.tipo.replace(/_/g, ' ')})\n(Usando telefone cadastrado):\n`;
-            if (response.data.successful_sends && response.data.successful_sends.length > 0) {
-                message += `\nSucessos (${response.data.successful_sends.length}):\n`;
-                response.data.successful_sends.forEach(send => {
-                    message += `- ${send.filename} (ID: ${send.message_id})\n`;
-                });
-            }
-            if (response.data.failed_sends && response.data.failed_sends.length > 0) {
-                message += `\nFalhas (${response.data.failed_sends.length}):\n`;
-                response.data.failed_sends.forEach(fail => {
-                    message += `- ${fail.filename}: ${fail.reason}\n`;
-                });
-            }
-            
-            if ((!response.data.successful_sends || response.data.successful_sends.length === 0) && 
-                (!response.data.failed_sends || response.data.failed_sends.length === 0) &&
-                response.data.message) {
-                 message = response.data.message;
-            } else if (!response.data.successful_sends?.length && !response.data.failed_sends?.length) {
-                message = `Nenhuma operação de envio para a pasta ${selectedPasta.tipo.replace(/_/g, ' ')} foi processada ou todas falharam sem detalhes específicos.`;
-            }
-            
-            alert(message); 
-            setSelectedFiles([]); 
-        })
-        .catch(err => {
-            console.error('Erro detalhado ao enviar por WhatsApp:', err.response ? err.response.data : err.message);
-            const errorMsg = err.response?.data?.error || err.response?.data?.detail || 'Erro desconhecido ao tentar enviar por WhatsApp.';
-            setError(errorMsg);
-            alert(`Erro ao enviar por WhatsApp: ${errorMsg}`);
-        })
-        .finally(() => {
-            setLoading(false);
-        });
+        alert(message);
+        setSelectedFiles([]);
+    })
+    .catch(err => {
+        console.error('Erro detalhado ao enviar por WhatsApp:', err.response ? err.response.data : err.message);
+        const errorMsg = err.response?.data?.error || err.response?.data?.detail || 'Erro desconhecido ao tentar enviar por WhatsApp.';
+        setError(errorMsg);
+        alert(`Erro ao enviar por WhatsApp: ${errorMsg}`);
+    })
+    .finally(() => {
+        setLoading(false);
+    });
   };
   
   const handlePastaClick = (pasta) => {
     setSelectedPasta(pasta);
     setSelectedFiles([]);
     setError(null);
+    // --- INÍCIO: Resetar targetUploadYear e targetUploadMonth ---
+    setTargetUploadYear('');
+    setTargetUploadMonth('');
+    // --- FIM: Resetar targetUploadYear e targetUploadMonth ---
   };
 
   return (
@@ -438,6 +440,45 @@ const PastaManager = () => {
               {selectedPasta.tipo.replace(/_/g, ' ')}
             </h3>
             
+            {/* --- INÍCIO: Seletores de Mês/Ano para Upload --- */}
+            {(selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional') && (
+              <div className="my-4 p-4 bg-gray-700 rounded-lg shadow-md flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 items-start sm:items-end">
+                <p className="text-sm text-indigo-300 font-semibold sm:mb-1 whitespace-nowrap self-center sm:self-end">Período do Documento para Upload:</p>
+                <div>
+                  <label htmlFor="upload-year-select" className="block text-xs font-medium text-gray-300 mb-1">Ano</label>
+                  <select
+                    id="upload-year-select"
+                    value={targetUploadYear}
+                    onChange={(e) => setTargetUploadYear(e.target.value)}
+                    className="block w-full sm:w-32 pl-3 pr-10 py-2 text-sm border-gray-600 bg-gray-600 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
+                  >
+                    <option value="">Ano Atual</option>
+                    {[...Array(7)].map((_, i) => { // Gera uma lista de anos: atual + 2 futuros, atual - 4 passados
+                      const yearOption = new Date().getFullYear() + 2 - i;
+                      return <option key={yearOption} value={yearOption.toString()}>{yearOption}</option>;
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="upload-month-select" className="block text-xs font-medium text-gray-300 mb-1">Mês</label>
+                  <select
+                    id="upload-month-select"
+                    value={targetUploadMonth}
+                    onChange={(e) => setTargetUploadMonth(e.target.value)}
+                    className="block w-full sm:w-40 pl-3 pr-10 py-2 text-sm border-gray-600 bg-gray-600 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md shadow-sm"
+                  >
+                    <option value="">Mês Atual</option>
+                    {monthOrder.map((monthName, index) => (
+                      <option key={monthName} value={(index + 1).toString().padStart(2, '0')}>
+                        {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+            {/* --- FIM: Seletores de Mês/Ano para Upload --- */}
+
             <div 
               {...getRootProps()} 
               className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
@@ -477,7 +518,7 @@ const PastaManager = () => {
                           uploading || 
                           selectedFiles.length === 0 ||
                           !selectedPasta ||
-                          selectedPasta.tipo === 'xml' // Desabilitar APENAS se for 'xml'
+                          selectedPasta.tipo === 'xml'
                         }>
                       <ChatBubbleBottomCenterTextIcon className="h-5 w-5 mr-1" /> WhatsApp
                     </button>
