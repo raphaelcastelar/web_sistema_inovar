@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { HomeIcon, UsersIcon, DocumentTextIcon, ClockIcon } from '@heroicons/react/24/outline'; // Adicione ClockIcon
+import React, { useState, useEffect } from 'react';
+import { HomeIcon, UsersIcon, ClockIcon } from '@heroicons/react/24/outline'; // Adicione ClockIcon
 import { Link, useLocation } from 'react-router-dom'; // Adicione useLocation
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 
