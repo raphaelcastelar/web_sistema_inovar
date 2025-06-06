@@ -96,7 +96,7 @@ WSGI_APPLICATION = 'sistema_inovar.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'sistemaweb2',
+        'NAME': 'sistemaweb',
         'USER': 'postgres',
         'PASSWORD': '@hoanD1323',
         'HOST': '192.168.196.162',
