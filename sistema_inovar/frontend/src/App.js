@@ -6,6 +6,8 @@ import EmpresaForm from './components/EmpresaForm';
 import PastaManager from './components/PastaManager';
 import HistoricoWhatsApp from './components/HistoricoWhatsapp'
 import LoginPage from './components/LoginPage';
+import FuncionarioList from './components/FuncionarioList';
+import FuncionarioForm from './components/FuncionarioForm';
 import './App.css';
 
 function App() {
@@ -21,6 +23,9 @@ function App() {
             <Route path="/empresas/editar/:empresaId" element={<EmpresaForm />} />
             <Route path="/empresas/:empresaId/pastas" element={<PastaManager />} />
             <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
+            <Route path="/gerenciar-usuarios" element={<FuncionarioList />} />
+            <Route path="/gerenciar-usuarios/novo" element={<FuncionarioForm />} />
+            <Route path="/gerenciar-usuarios/editar/:funcionarioId" element={<FuncionarioForm />} />
           </Routes>
         </div>
       </div>

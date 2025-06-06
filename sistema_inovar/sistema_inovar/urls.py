@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from empresas.views import EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet, DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, enviar_email, HistoricoEnviosViewSet
+from empresas.views import EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet, DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import (
@@ -17,6 +17,7 @@ router.register(r'departamento-pessoal', DepartamentoPessoalViewSet)
 router.register(r'simples-nacional', SimplesNacionalViewSet)
 router.register(r'outros', OutrosViewSet)
 router.register(r'historico-envios', HistoricoEnviosViewSet, basename='historicoenvios')
+router.register(r'funcionarios', FuncionarioViewSet, basename='funcionarios')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

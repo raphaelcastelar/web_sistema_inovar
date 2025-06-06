@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario
 import re
 
 
@@ -90,3 +90,54 @@ class HistoricoEnviosSerializer(serializers.ModelSerializer):
     class Meta:
         model = HistoricoEnvios
         fields = '__all__'
+        
+class FuncionarioSerializer(serializers.ModelSerializer):
+    # Definimos a senha como um campo que só pode ser escrito (não será enviado de volta na API)
+    # e não é obrigatório para atualização (para não forçar a troca de senha toda vez).
+    password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
+
+    class Meta:
+        model = Funcionario
+        # Incluímos os campos mais importantes. Não inclua o hash da senha (o campo 'password' do modelo)
+        # diretamente aqui para leitura, pois é um dado sensível.
+        fields = ['id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_active', 'is_staff']
+        # Podemos definir campos como somente leitura se quisermos
+        # read_only_fields = ['id', 'date_joined', 'last_login']
+
+    def create(self, validated_data):
+        """
+        Cria um novo funcionário com a senha corretamente hasheada.
+        """
+        user = Funcionario.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data.get('email', ''),
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
+            # Usa a senha fornecida no payload para criar o hash
+            password=validated_data['password'] 
+        )
+        # Define outros campos que podem ter sido passados
+        user.is_active = validated_data.get('is_active', True)
+        user.is_staff = validated_data.get('is_staff', False)
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        """
+        Atualiza um funcionário. Se uma nova senha for fornecida, ela é hasheada.
+        """
+        # Atualiza os campos normais
+        instance.username = validated_data.get('username', instance.username)
+        instance.email = validated_data.get('email', instance.email)
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.last_name = validated_data.get('last_name', instance.last_name)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.is_staff = validated_data.get('is_staff', instance.is_staff)
+
+        # Verifica se uma nova senha foi fornecida no payload da requisição
+        password = validated_data.get('password')
+        if password:
+            instance.set_password(password) # Usa set_password para hashear corretamente
+
+        instance.save()
+        return instance

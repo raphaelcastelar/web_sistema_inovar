@@ -11,12 +11,12 @@ from django.conf import settings
 from django.http import JsonResponse
 from rest_framework.decorators import api_view
 from rest_framework import viewsets, status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
 from .filters import HistoricoEnviosFilter 
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios
-from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, HistoricoEnviosSerializer
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario
+from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, HistoricoEnviosSerializer, FuncionarioSerializer
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 import logging
 import datetime
@@ -170,6 +170,15 @@ class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = HistoricoEnviosSerializer
     filter_backends = [DjangoFilterBackend] # Adicione esta linha
     filterset_class = HistoricoEnviosFilter   # Adicione esta linha
+
+class FuncionarioViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para visualizar, criar, editar e deletar funcionários.
+    Apenas usuários administradores (is_staff=True) podem acessar.
+    """
+    queryset = Funcionario.objects.all().order_by('first_name')
+    serializer_class = FuncionarioSerializer
+    permission_classes = [IsAdminUser] # Apenas administradores podem gerenciar usuários
 
 @api_view(['POST'])
 def enviar_email(request):
