@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { HomeIcon, UsersIcon, ClockIcon, ArrowLeftEndOnRectangleIcon } from '@heroicons/react/24/outline'; // Adicione ClockIcon
+import { HomeIcon, UsersIcon, ClockIcon } from '@heroicons/react/24/outline'; // Adicione ClockIcon
+import { ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline';
 import { Link, useLocation, useNavigate } from 'react-router-dom'; // Adicione useLocation
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 import axiosInstance from '../api/axiosInstance';
