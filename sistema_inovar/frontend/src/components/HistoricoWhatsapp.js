@@ -49,7 +49,7 @@ const HistoricoWhatsApp = () => {
         const queryParams = new URLSearchParams(params).toString();
         const url = `${API_BASE_URL}/historico-envios/?${queryParams}`;
 
-        axios.get(url)
+        axiosInstance.get(url)
             .then(response => {
                 setHistorico(response.data);
             })

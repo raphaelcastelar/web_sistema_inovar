@@ -55,7 +55,7 @@ const EmpresaForm = () => {
         setLoading(true);
         setError(null);
         try {
-          const response = await axios.get(`${API_BASE_URL}/empresas/${empresaId}/`);
+          const response = await axiosInstance.get(`${API_BASE_URL}/empresas/${empresaId}/`);
           const apiTelefone = response.data.telefone || '';
           let displayTelefone = apiTelefone;
 
@@ -128,7 +128,7 @@ const EmpresaForm = () => {
     const method = empresaId ? 'put' : 'post';
 
     try {
-      await axios[method](url, payload); // Removido 'response =' pois não estava sendo usado diretamente
+      await axiosInstance[method](url, payload); // Removido 'response =' pois não estava sendo usado diretamente
       // console.log('Empresa salva:', response.data);
       navigate('/empresas');
     } catch (err) {

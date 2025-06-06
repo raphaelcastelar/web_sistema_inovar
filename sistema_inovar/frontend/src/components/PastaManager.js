@@ -14,7 +14,7 @@ const fetchArquivos = (empresaId, setArquivos, setLoadingState) => {
     const promises = pastaTypes.map(tipo => {
       const endpoint = tipo.replace('_', '-');
       const url = `${API_BASE_URL}/${endpoint}/`;
-      return axios.get(url, { params: { empresa_id: empresaId } })
+      return axiosInstance.get(url, { params: { empresa_id: empresaId } })
         .then(response => ({ tipo, data: response.data }))
         .catch(error => {
           console.error(`Erro ao buscar arquivos para ${tipo}:`, error);
@@ -237,7 +237,7 @@ const PastaManager = () => {
 
   useEffect(() => {
     setLoading(true);
-    axios.get(`${API_BASE_URL}/empresas/${empresaId}/`)
+    axiosInstance.get(`${API_BASE_URL}/empresas/${empresaId}/`)
       .then(response => {
         setEmpresaNome(response.data.nome);
         setEmpresaCnpj(response.data.cnpj);
@@ -282,7 +282,7 @@ const PastaManager = () => {
       }
       const endpoint = tipo.replace('_', '-');
       const url = `${API_BASE_URL}/${endpoint}/`;
-      axios.post(url, formData, {
+      axiosInstance.post(url, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
         .then(() => { 
@@ -322,7 +322,7 @@ const PastaManager = () => {
         alert('Nenhuma pasta selecionada.'); return;
     }
     setLoading(true); setError(null);
-    axios.post(`${API_BASE_URL}/enviar-email/`, {
+    axiosInstance.post(`${API_BASE_URL}/enviar-email/`, {
       empresa_id: empresaId, tipo_pasta: selectedPasta.tipo, file_ids: selectedFiles,
     })
       .then(response => { alert(response.data.message); setSelectedFiles([]); })
@@ -353,7 +353,7 @@ const PastaManager = () => {
         return;
     }
     setLoading(true); setError(null);
-    axios.post(`${API_BASE_URL}/enviar-documentos-whatsapp/`, {
+    axiosInstance.post(`${API_BASE_URL}/enviar-documentos-whatsapp/`, {
         empresa_id: empresaId,
         file_ids: selectedFiles,
         tipo_pasta: selectedPasta.tipo
@@ -412,7 +412,7 @@ const PastaManager = () => {
 
         try {
             // AGORA É UMA REQUISIÇÃO POST para o endpoint de sincronização
-            const response = await axios.post(`${API_BASE_URL}/sincronizar-pasta/`, {
+            const response = await axiosInstance.post(`${API_BASE_URL}/sincronizar-pasta/`, {
                 empresa_id: empresaId,
                 tipo_pasta: tipoPasta
             });

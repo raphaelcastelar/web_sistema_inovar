@@ -1,6 +1,6 @@
 // src/pages/LoginPage.js
 import React, { useState } from 'react';
-import axios from 'axios';
+import axiosInstance from '../api/axiosInstance';
 import { useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = 'http://192.168.196.162:8000'; // Ajuste conforme necessário
@@ -16,7 +16,7 @@ const LoginPage = () => {
         setError('');
 
         try {
-            const response = await axios.post(`${API_BASE_URL}/api/token/`, {
+            const response = await axiosInstance.post(`${API_BASE_URL}/api/token/`, {
                 username: username,
                 password: password,
             });
