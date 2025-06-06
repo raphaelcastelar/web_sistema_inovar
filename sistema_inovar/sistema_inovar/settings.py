@@ -174,10 +174,18 @@ try:
     print("Decouple importado com sucesso")
     EMAIL_REMETENTE = config('EMAIL_REMETENTE', default='default_email@example.com')
     EMAIL_SENHA_APP = config('EMAIL_SENHA_APP', default='default_senha')
+
+    SERPRO_CONSUMER_KEY = config('SERPRO_CONSUMER_KEY')
+    SERPRO_CONSUMER_SECRET = config('SERPRO_CONSUMER_SECRET')
+    SERPRO_CERT_PASSWORD = config('SERPRO_CERT_PASSWORD')
 except ImportError as e:
     print(f"Erro ao importar decouple: {e}")
     EMAIL_REMETENTE = 'default_email@example.com'
     EMAIL_SENHA_APP = 'default_senha'
+
+    SERPRO_CONSUMER_KEY = ''
+    SERPRO_CONSUMER_SECRET = ''
+    SERPRO_CERT_PASSWORD = ''
 
 
 WHATSAPP_ACCESS_TOKEN = 'EAANIXCvVAZBwBO59BDRjh5i1VivZAZB1ZA2n14ZBuh1gV4pZBZBZBnoJHzhoT7dPWNUGO5wuSqevJDwvqSn9xkfZAF87QK2rN2YMNRQNiKNGkGZBfSQTpnvuwvTEZBxlH17YkFtkZA7MrWh7zZA0ZCpnjIn3UEOEuPhiQs484T3x3Jf5Vbj7oLD5V3lC5OACZAYhUVCqQZDZD'
@@ -188,10 +196,5 @@ WHATSAPP_TEMPLATE_NAME_DOCS = 'envio_documento_com_contato'
 
 AUTH_USER_MODEL = 'empresas.Funcionario'
 
-# Credenciais do Serpro lidas de variáveis de ambiente
-SERPRO_CONSUMER_KEY = os.environ.get('SERPRO_CONSUMER_KEY')
-SERPRO_CONSUMER_SECRET = os.environ.get('SERPRO_CONSUMER_SECRET')
-
 # Caminho para o certificado e a senha (lida do ambiente)
 SERPRO_CERT_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\FABIO LUIS DE FREITAS.pfx'
-SERPRO_CERT_PASSWORD = os.environ.get('123456')
