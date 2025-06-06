@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axiosInstance from '../api/axiosInstance';
 // Ícones opcionais para feedback visual (ex: usando Heroicons)
 // import { CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
 

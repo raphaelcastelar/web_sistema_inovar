@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import axiosInstance from '../api/axiosInstance';
 import { motion, AnimatePresence } from 'framer-motion'; // Importar AnimatePresence
 import { useDropzone } from 'react-dropzone';
 import { DocumentTextIcon, EnvelopeIcon, ChatBubbleBottomCenterTextIcon, ArrowPathIcon } from '@heroicons/react/24/outline';

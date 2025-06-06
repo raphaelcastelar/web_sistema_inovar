@@ -5,6 +5,7 @@ import unidecode # Para remover acentos de nomes de pastas/arquivos (pip install
 from django.db import models
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado
+from django.contrib.auth.models import AbstractUser
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,15 @@ def xml_upload_path(instance, filename):
     return timed_folder_upload_path(instance, filename, 'XML')
 
 # --- Atualize seus modelos para usar as novas funções upload_to ---
+
+class Funcionario(AbstractUser):
+    # O AbstractUser já inclui: username, password, email, first_name, last_name, etc.
+    # Você pode adicionar campos extras aqui se precisar, por exemplo:
+    # cargo = models.CharField(max_length=100, null=True, blank=True)
+    # ramal = models.CharField(max_length=10, null=True, blank=True)
+
+    def __str__(self):
+        return self.get_full_name() or self.username
 
 class DocumentosConstitutivos(models.Model):
     id = models.AutoField(primary_key=True)

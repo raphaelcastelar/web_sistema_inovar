@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import axios from 'axios';
+import axiosInstance from '../api/axiosInstance';
 import { CheckCircleIcon, XCircleIcon, ClipboardDocumentIcon, ClipboardDocumentCheckIcon, FunnelIcon } from '@heroicons/react/24/solid';
 
 const API_BASE_URL = 'http://192.168.196.162:8000/api';

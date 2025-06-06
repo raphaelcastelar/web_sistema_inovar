@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axiosInstance from '../api/axiosInstance';
 import { Link } from 'react-router-dom';
 import { PencilIcon, TrashIcon, PlusIcon, FolderIcon } from '@heroicons/react/24/outline';
 

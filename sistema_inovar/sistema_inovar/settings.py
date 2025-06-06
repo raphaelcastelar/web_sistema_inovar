@@ -41,8 +41,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework_simplejwt',
     'empresas',
     'corsheaders',
+    
 ]
 
 MIDDLEWARE = [
@@ -57,6 +59,16 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    # (Opcional) Você pode definir permissões padrão aqui também
+    # 'DEFAULT_PERMISSION_CLASSES': [
+    #     'rest_framework.permissions.IsAuthenticated',
+    # ]
+}
 
 ROOT_URLCONF = 'sistema_inovar.urls'
 
@@ -172,3 +184,6 @@ WHATSAPP_ACCESS_TOKEN = 'EAANIXCvVAZBwBO59BDRjh5i1VivZAZB1ZA2n14ZBuh1gV4pZBZBZBn
 WHATSAPP_PHONE_NUMBER_ID = '638831082650518'
 WHATSAPP_API_VERSION = 'v20.0' 
 WHATSAPP_TEMPLATE_NAME_DOCS = 'envio_documento_com_contato'
+
+
+AUTH_USER_MODEL = 'empresas.Funcionario'

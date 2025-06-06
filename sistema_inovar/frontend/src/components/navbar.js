@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { HomeIcon, UsersIcon, ClockIcon } from '@heroicons/react/24/outline'; // Adicione ClockIcon
-import { Link, useLocation } from 'react-router-dom'; // Adicione useLocation
+import { HomeIcon, UsersIcon, ClockIcon, ArrowLeftEndOnRectangleIcon } from '@heroicons/react/24/outline'; // Adicione ClockIcon
+import { Link, useLocation, useNavigate } from 'react-router-dom'; // Adicione useLocation
 import LogoContabilidade from '../assets/logo_contabilidade.png';
+import axiosInstance from '../api/axiosInstance';
 
 const Navbar = () => {
     // Usar useLocation para deixar a seleção de item mais robusta
+    const navigate = useNavigate();
     const location = useLocation();
     const [selectedItem, setSelectedItem] = useState(location.pathname);
+
+    const handleLogout = () => {
+        localStorage.removeItem('authTokens');
+        navigate('/login');
+        window.location.reload();
+    };
 
     // Atualiza o item selecionado quando a rota muda
     useEffect(() => {
@@ -50,6 +58,14 @@ const Navbar = () => {
                     <ClockIcon className="h-7 w-7" />
                     <span className="text-base font-medium">Histórico</span>
                 </Link>
+
+                <button
+                    onClick={handleLogout}
+                    className="flex items-center space-x-4 px-6 py-3 text-red-400 hover:bg-red-700 hover:text-white transition-all duration-300 w-full mt-auto"
+                >
+                    <ArrowLeftOnRectangleIcon className="h-7 w-7" />
+                    <span className="text-base font-medium">Sair</span>
+                </button>
             </div>
         </div>
     );

@@ -14,6 +14,7 @@ function App() {
         <Navbar />
         <div className="flex-1 pl-56 p-6">
           <Routes>
+            <Route path="/login" element={<LoginPage />} />
             <Route path="/empresas" element={<EmpresaList />} />
             <Route path="/empresas/cadastrar" element={<EmpresaForm />} />
             <Route path="/empresas/editar/:empresaId" element={<EmpresaForm />} />
