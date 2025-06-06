@@ -79,7 +79,7 @@ def xml_upload_path(instance, filename):
 class Funcionario(AbstractUser):
     # O AbstractUser já inclui: username, password, email, first_name, last_name, etc.
     # Você pode adicionar campos extras aqui se precisar, por exemplo:
-    # cargo = models.CharField(max_length=100, null=True, blank=True)
+    cargo = models.CharField(max_length=100, null=True, blank=True)
     # ramal = models.CharField(max_length=10, null=True, blank=True)
 
     def __str__(self):
