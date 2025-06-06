@@ -3,69 +3,63 @@ import requests
 import base64
 import json
 from django.conf import settings
-from django.core.cache import cache # Usaremos o cache do Django para armazenar o token
+from django.core.cache import cache
 import logging
 
 logger = logging.getLogger(__name__)
 
-# URL de autenticação do Serpro
 AUTH_URL = 'https://autenticacao.sapi.serpro.gov.br/authenticate'
-
-# URL do gateway da API Integra Contador
 GATEWAY_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1'
-
-# Chave para armazenar o token no cache do Django
-SERPRO_TOKEN_CACHE_KEY = 'serpro_api_access_token'
-
+SERPRO_TOKEN_CACHE_KEY = 'serpro_api_tokens_dict' # Chave de cache atualizada
 
 def get_serpro_token():
     """
-    Obtém um token de acesso da API Serpro.
-    Primeiro, tenta pegar do cache. Se não existir ou estiver expirado (o que faremos na chamada),
-    solicita um novo.
+    Obtém um dicionário contendo o access_token e o jwt_token da API Serpro.
+    Tenta pegar do cache, se não existir, solicita novos tokens.
     """
-    token = cache.get(SERPRO_TOKEN_CACHE_KEY)
-    if token:
-        logger.info("Token da API Serpro encontrado no cache.")
-        return token
+    tokens = cache.get(SERPRO_TOKEN_CACHE_KEY)
+    if tokens:
+        logger.info("Tokens da API Serpro encontrados no cache.")
+        return tokens
 
-    logger.info("Token não encontrado ou expirado. Solicitando novo token...")
+    logger.info("Tokens não encontrados ou expirados. Solicitando novos tokens...")
 
-    # Codifica as credenciais em Base64
     credentials = f"{settings.SERPRO_CONSUMER_KEY}:{settings.SERPRO_CONSUMER_SECRET}"
     encoded_credentials = base64.b64encode(credentials.encode()).decode()
 
     headers = {
         "Authorization": f"Basic {encoded_credentials}",
         "Content-Type": "application/x-www-form-urlencoded",
-        "Role-Type": "TERCEIROS"  # <-- LINHA ADICIONADA
+        "Role-Type": "TERCEIROS"
     }
+    data = {"grant_type": "client_credentials"}
     
-    data = {
-        "grant_type": "client_credentials"
-    }
-
-    # O certificado precisa ser passado na requisição.
-    # A biblioteca 'requests' aceita um tuple (caminho_do_cert, senha) no parâmetro 'cert'.
-    cert_info = (
-        r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\certificado_publico.pem', 
-        r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\chave_privada_sem_senha.pem'
-    )
+    # A biblioteca 'requests' espera um tuple com os caminhos para o certificado público e a chave privada.
+    cert_info = (settings.SERPRO_CERT_PUBLIC_PATH, settings.SERPRO_CERT_PRIVATE_KEY_PATH)
 
     try:
         response = requests.post(AUTH_URL, headers=headers, data=data, cert=cert_info)
-        response.raise_for_status() # Levanta erro para respostas 4xx/5xx
+        response.raise_for_status()
 
         token_data = response.json()
-        access_token = token_data.get('access_token')
         
-        # Armazena o token no cache com um tempo de expiração ligeiramente menor que o 'expires_in'
-        # para evitar usar um token que está prestes a expirar.
-        expires_in = token_data.get('expires_in', 3600) # Padrão de 1 hora se não vier
-        cache.set(SERPRO_TOKEN_CACHE_KEY, access_token, timeout=(expires_in - 60)) # Armazena por 1 minuto a menos
+        # --- CORREÇÃO AQUI: Extrair e armazenar AMBOS os tokens ---
+        tokens = {
+            'access_token': token_data.get('access_token'),
+            'jwt_token': token_data.get('jwt_token')
+        }
+        
+        # Verifica se ambos os tokens foram recebidos com sucesso
+        if not all(tokens.values()):
+            logger.error(f"Falha ao extrair access_token ou jwt_token da resposta do Serpro: {token_data}")
+            return None
 
-        logger.info("Novo token da API Serpro obtido e armazenado em cache.")
-        return access_token
+        expires_in = token_data.get('expires_in', 3600)
+        # Armazena o dicionário de tokens no cache
+        cache.set(SERPRO_TOKEN_CACHE_KEY, tokens, timeout=(expires_in - 60))
+
+        logger.info("Novos tokens da API Serpro obtidos e armazenados em cache.")
+        return tokens
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Erro ao solicitar token da API Serpro: {e}")
@@ -80,29 +74,21 @@ def get_serpro_token():
 def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     """
     Chama o endpoint 'Emitir' da API Integra Contador para gerar o DAS.
-    
-    Args:
-        cnpj_empresa (str): CNPJ do contribuinte para o qual o DAS será gerado.
-        periodo_apuracao (str): Período de apuração no formato "YYYYMM".
     """
-    token = get_serpro_token()
-    if not token:
+    tokens = get_serpro_token()
+    if not tokens:
         return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
 
     url = f"{GATEWAY_URL}/Emitir"
 
+    # --- CORREÇÃO AQUI: Adicionar o jwt_token ao cabeçalho ---
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'],
         "Content-Type": "application/json"
-        # 'jwt_token' e 'autenticar_procurador_token' não são necessários para esta chamada
     }
 
-    # O CNPJ do contratante e do autor do pedido é geralmente o CNPJ do escritório de contabilidade
-    # que possui o certificado e o contrato com o Serpro. Vamos assumir que está no settings.
-    # Se for variável, precisará ser passado como parâmetro.
-    # Por agora, vamos assumir que o contratante é o mesmo que o contribuinte para simplificar.
-    # Ajuste 'numero' em 'contratante' e 'autorPedidoDados' para o CNPJ do seu escritório.
-    cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ # Ou um CNPJ específico do seu escritório
+    cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
     
     payload = {
       "contratante": { "numero": cnpj_contratante, "tipo": 2 },
@@ -121,31 +107,30 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     try:
         response = requests.post(url, json=payload, headers=headers)
         
-        # Se a resposta for 401 (Unauthorized), o token pode ter expirado.
-        if response.status_code == 401:
+        if response.status_code == 401: # Se o token expirou
             logger.warning("Token expirado (401). Solicitando um novo e tentando novamente.")
-            cache.delete(SERPRO_TOKEN_CACHE_KEY) # Limpa o token antigo
-            token = get_serpro_token() # Pega um novo
-            if not token:
+            cache.delete(SERPRO_TOKEN_CACHE_KEY)
+            tokens = get_serpro_token()
+            if not tokens:
                 return {"sucesso": False, "erro": "Falha ao renovar o token de autenticação."}
-            headers["Authorization"] = f"Bearer {token}" # Atualiza o header
-            response = requests.post(url, json=payload, headers=headers) # Tenta a chamada de novo
+            
+            # Atualiza os dois headers antes de tentar novamente
+            headers["Authorization"] = f"Bearer {tokens['access_token']}"
+            headers["jwt_token"] = tokens['jwt_token']
+            response = requests.post(url, json=payload, headers=headers)
 
         response.raise_for_status()
 
-        # A API retorna um PDF diretamente no corpo da resposta
-        # O content-type da resposta provavelmente será 'application/pdf'
         if 'application/pdf' in response.headers.get('Content-Type', ''):
             logger.info(f"DAS em PDF gerado com sucesso para {cnpj_empresa} / {periodo_apuracao}.")
             return {"sucesso": True, "pdf_content": response.content, "filename": f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf"}
         else:
-            # Se não for um PDF, pode ser um JSON de erro
             logger.error(f"Resposta inesperada ao gerar DAS (não é PDF): {response.text}")
             return {"sucesso": False, "erro": "Resposta inesperada da API Serpro.", "detalhes": response.json()}
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Erro na requisição para gerar DAS: {e}")
+        error_message = f"Erro na requisição para gerar DAS: {e}"
         if hasattr(e, 'response') and e.response is not None:
-            logger.error(f"Resposta da API Serpro (erro): {e.response.status_code} - {e.response.text}")
-            return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": e.response.text}
-        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro."}
+            error_message += f" - Resposta: {e.response.text}"
+        logger.error(error_message)
+        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": e.response.text if hasattr(e, 'response') else str(e)}
