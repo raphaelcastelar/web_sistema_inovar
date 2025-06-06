@@ -187,3 +187,11 @@ WHATSAPP_TEMPLATE_NAME_DOCS = 'envio_documento_com_contato'
 
 
 AUTH_USER_MODEL = 'empresas.Funcionario'
+
+# Credenciais do Serpro lidas de variáveis de ambiente
+SERPRO_CONSUMER_KEY = os.environ.get('q4zLdPcssela_ZQK0eUEKxHqxRQa')
+SERPRO_CONSUMER_SECRET = os.environ.get('Pb39qTxZZorWU_LZOfeEjEtN4uUa')
+
+# Caminho para o certificado e a senha (lida do ambiente)
+SERPRO_CERT_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\FABIO LUIS DE FREITAS.pfx'
+SERPRO_CERT_PASSWORD = os.environ.get('123456')

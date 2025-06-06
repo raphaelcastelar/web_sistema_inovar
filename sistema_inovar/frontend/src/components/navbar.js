@@ -70,6 +70,16 @@ const Navbar = () => {
                     <span className="text-base font-medium">Usuários</span>
                 </Link>
 
+                <Link
+                    to="/gerar-das"
+                    className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
+                        selectedItem === '/gerar-das' ? 'bg-indigo-800 text-white' : ''
+                    }`}
+                >
+                    <DocumentArrowDownIcon className="h-7 w-7" />
+                    <span className="text-base font-medium">Gerar DAS</span>
+                </Link>
+
                 <button
                     onClick={handleLogout}
                     className="flex items-center space-x-4 px-6 py-3 text-red-400 hover:bg-red-700 hover:text-white transition-all duration-300 w-full mt-auto"

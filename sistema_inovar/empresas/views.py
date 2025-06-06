@@ -9,12 +9,14 @@ from email import encoders
 from email.utils import formatdate
 from django.conf import settings
 from django.http import JsonResponse
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework import viewsets, status
+from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
 from .filters import HistoricoEnviosFilter 
+from .serpro_service import gerar_das_serpro
 from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario
 from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, HistoricoEnviosSerializer, FuncionarioSerializer
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
@@ -572,3 +574,28 @@ def enviar_documentos_whatsapp_api(request):
         "successful_sends": successful_sends,
         "failed_sends": failed_sends
     }, status=final_status)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated]) # Garante que apenas usuários logados podem chamar
+def gerar_das_api(request):
+    cnpj = request.data.get('cnpj')
+    periodo = request.data.get('periodo') # Esperado no formato "YYYYMM"
+
+    if not cnpj or not periodo:
+        return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
+
+    resultado = gerar_das_serpro(cnpj_empresa=cnpj, periodo_apuracao=periodo)
+
+    if resultado.get("sucesso"):
+        # Retorna o arquivo PDF para download
+        pdf_content = resultado.get("pdf_content")
+        filename = resultado.get("filename", "DAS.pdf")
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    else:
+        # Retorna a mensagem de erro em JSON
+        return Response(
+            {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
+            status=status.HTTP_400_BAD_REQUEST
+        )
