@@ -102,7 +102,7 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     # Se for variável, precisará ser passado como parâmetro.
     # Por agora, vamos assumir que o contratante é o mesmo que o contribuinte para simplificar.
     # Ajuste 'numero' em 'contratante' e 'autorPedidoDados' para o CNPJ do seu escritório.
-    cnpj_contratante = settings.SERPRO_CONSUMER_KEY # Ou um CNPJ específico do seu escritório
+    cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ # Ou um CNPJ específico do seu escritório
     
     payload = {
       "contratante": { "numero": cnpj_contratante, "tipo": 2 },
