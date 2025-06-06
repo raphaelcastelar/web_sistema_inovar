@@ -198,5 +198,6 @@ WHATSAPP_TEMPLATE_NAME_DOCS = 'envio_documento_com_contato'
 
 AUTH_USER_MODEL = 'empresas.Funcionario'
 
-# Caminho para o certificado e a senha (lida do ambiente)
-SERPRO_CERT_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\FABIO LUIS DE FREITAS.pfx'
+SERPRO_CERT_PUBLIC_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\certificado_publico.pem'
+SERPRO_CERT_PRIVATE_KEY_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\chave_privada_sem_senha.pem'
+
