@@ -46,7 +46,10 @@ def get_serpro_token():
 
     # O certificado precisa ser passado na requisição.
     # A biblioteca 'requests' aceita um tuple (caminho_do_cert, senha) no parâmetro 'cert'.
-    cert_info = (settings.SERPRO_CERT_PATH, settings.SERPRO_CERT_PASSWORD)
+    cert_info = (
+        r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\certificado_publico.pem', 
+        r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\chave_privada_sem_senha.pem'
+    )
 
     try:
         response = requests.post(AUTH_URL, headers=headers, data=data, cert=cert_info)
