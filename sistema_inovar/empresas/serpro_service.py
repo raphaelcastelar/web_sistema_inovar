@@ -37,7 +37,8 @@ def get_serpro_token():
 
     headers = {
         "Authorization": f"Basic {encoded_credentials}",
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Role-Type": "TERCEIROS"  # <-- LINHA ADICIONADA
     }
     
     data = {
