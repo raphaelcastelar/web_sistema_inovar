@@ -140,15 +140,16 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     
 def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
     """
-    Chama a API para obter os dados detalhados (extrato) de um DAS
-    para um determinado período de apuração.
-    Usa o serviço GERARDAS12, que retorna um JSON com todos os detalhes.
+    Chama a API para obter os dados da DECLARAÇÃO MENSAL (extrato) de um
+    determinado período de apuração.
+    Usa o serviço CONSULTARDECLARACAO13 no endpoint /Consultar.
     """
     tokens = get_serpro_token()
     if not tokens:
         return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
 
-    url = f"{GATEWAY_URL}/Emitir"
+    # O endpoint para consultar é /Consultar
+    url = f"{GATEWAY_URL}/Consultar"
     headers = {
         "Authorization": f"Bearer {tokens['access_token']}",
         "jwt_token": tokens['jwt_token'],
@@ -162,18 +163,18 @@ def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
       "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
       "pedidoDados": {
         "idSistema": "PGDASD",
-        "idServico": "GERARDAS12", # Usamos este serviço para obter os dados detalhados
+        "idServico": "CONSDECLARACAO13", # <-- CORRIGIDO PARA O SERVIÇO CORRETO!
         "versaoSistema": "1.0",
         "dados": json.dumps({"periodoApuracao": periodo_apuracao})
       }
     }
 
-    logger.info(f"Enviando payload para OBTER DADOS DO EXTRATO: {json.dumps(payload, indent=2)}")
+    logger.info(f"Enviando payload para CONSULTAR DECLARAÇÃO: {json.dumps(payload, indent=2)}")
 
     try:
         response = requests.post(url, json=payload, headers=headers)
         
-        if response.status_code == 401: # Lógica para renovar token
+        if response.status_code == 401:
             logger.warning("Token expirado (401). Renovando e tentando novamente.")
             cache.delete(SERPRO_TOKEN_CACHE_KEY)
             tokens = get_serpro_token()
@@ -185,30 +186,38 @@ def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
         response.raise_for_status()
         
         response_data = response.json()
-        logger.info(f"Resposta da consulta de extrato recebida: {response_data}")
-
-        if not any(msg.get('codigo') == '[Sucesso-PGDASD]' for msg in response_data.get('mensagens', [])):
-            return {"sucesso": False, "erro": "A API Serpro indicou uma falha.", "detalhes": response_data.get('mensagens')}
+        logger.info(f"Resposta da consulta de declaração recebida: {response_data}")
+        
+        mensagens = response_data.get('mensagens', [])
+        
+        # Procura por uma mensagem de sucesso ou uma mensagem de aviso comum (como não haver débitos)
+        # que ainda assim indica uma consulta bem-sucedida.
+        if not any('sucesso' in msg.get('texto', '').lower() or 'MSG_E0139' in msg.get('codigo', '') for msg in mensagens):
+             error_message = mensagens[0].get('texto') if mensagens else "A API Serpro retornou um erro não especificado."
+             return {"sucesso": False, "erro": error_message, "detalhes": response_data}
 
         dados_str = response_data.get('dados')
-        if not dados_str:
-            return {"sucesso": False, "erro": "A API Serpro não retornou o campo 'dados' com o extrato."}
+        # Se não há valor a pagar, o campo 'dados' pode vir vazio.
+        # Nesse caso, retornamos a mensagem de aviso da API.
+        if not dados_str or dados_str == '[]':
+            aviso = "Não há dados de extrato para este período."
+            if any('MSG_E0139' in msg.get('codigo', '') for msg in mensagens):
+                aviso = mensagens[0].get('texto', aviso)
+            return {"sucesso": False, "erro": aviso}
         
-        # O campo 'dados' é um JSON dentro de uma string, precisamos parseá-lo
         dados_internos = json.loads(dados_str)
         
-        # A estrutura da resposta é uma lista, pegamos o primeiro item
         if isinstance(dados_internos, list) and len(dados_internos) > 0:
             return {"sucesso": True, "extrato_data": dados_internos[0]}
         else:
             return {"sucesso": False, "erro": "Formato de dados do extrato inesperado."}
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Erro na requisição para obter extrato: {e}")
+        logger.error(f"Erro na requisição para consultar declaração: {e}")
         detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
         return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
     except (json.JSONDecodeError, KeyError, IndexError) as e:
-        logger.error(f"Erro ao processar resposta do extrato: {e}")
+        logger.error(f"Erro ao processar resposta da declaração: {e}")
         return {"sucesso": False, "erro": "Erro ao ler a resposta da API Serpro."}
     
 def obter_extrato_pdf_serpro(cnpj_empresa, numero_das): # REMOVIDO 'tokens' dos parâmetros
