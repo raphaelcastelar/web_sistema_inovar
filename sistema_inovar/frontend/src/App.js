@@ -11,7 +11,7 @@ import LoginPage from './components/LoginPage';
 import FuncionarioList from './components/FuncionarioList';
 import FuncionarioForm from './components/FuncionarioForm';
 import GerarDasPage from './components/GerarDasPage';
-import ConsultarExtratoPage from '.components/ConsultarExtratoPage'
+import ConsultarExtratoPage from './components/ConsultarExtratoPage'
 
 
 import PrivateRoute from './utils/PrivateRoute';

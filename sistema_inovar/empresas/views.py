@@ -16,7 +16,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
 from .filters import HistoricoEnviosFilter 
-from .serpro_service import gerar_das_serpro, obter_dados_extrato_serpro
+from .serpro_service import gerar_das_serpro, obter_dados_extrato_serpro, obter_extrato_pdf_serpro, get_serpro_token
 from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario
 from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, HistoricoEnviosSerializer, FuncionarioSerializer
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
@@ -616,6 +616,30 @@ def consultar_extrato_api(request):
         return Response(resultado.get("extrato_data"), status=status.HTTP_200_OK)
     else:
         # Retorna a mensagem de erro em JSON
+        return Response(
+            {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def download_extrato_pdf_api(request):
+    cnpj = request.data.get('cnpj')
+    numero_das = request.data.get('numero_das')
+
+    if not cnpj or not numero_das:
+        return Response({"error": "CNPJ e numero_das são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # A view agora só precisa chamar a função de serviço, sem se preocupar com tokens.
+    resultado = obter_extrato_pdf_serpro(cnpj_empresa=cnpj, numero_das=numero_das)
+
+    if resultado.get("sucesso"):
+        pdf_content = resultado.get("pdf_content")
+        filename = resultado.get("filename", "Extrato.pdf")
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    else:
         return Response(
             {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
             status=status.HTTP_400_BAD_REQUEST
