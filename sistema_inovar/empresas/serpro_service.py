@@ -155,7 +155,7 @@ def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
         return {"sucesso": False, "erro": erro}
 
     # PASSO B: Usar o número da declaração para consultar os detalhes
-    url = f"{GATEWAY_URL}/Consultar"
+    url = f"{GATEWAY_URL}/Emitir"
     headers = {"Authorization": f"Bearer {tokens['access_token']}", "jwt_token": tokens['jwt_token'], "Content-Type": "application/json"}
     cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
     payload = {
