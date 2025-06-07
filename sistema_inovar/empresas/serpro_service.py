@@ -57,8 +57,6 @@ def get_serpro_token():
         logger.error(f"Erro inesperado ao manusear certificado ou token Serpro: {e}")
         return None
 
-#       SUBSTITUA SUA FUNÇÃO gerar_das_serpro PELA VERSÃO ABAIXO
-# VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
 def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     """
     Chama a API Integra Contador usando o serviço GERARDASCOBRANCA17
@@ -139,3 +137,76 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
         logger.error(f"Erro na requisição para gerar DAS Cobrança: {e}")
         detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
         return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
+    
+def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
+    """
+    Chama a API para obter os dados detalhados (extrato) de um DAS
+    para um determinado período de apuração.
+    Usa o serviço GERARDAS12, que retorna um JSON com todos os detalhes.
+    """
+    tokens = get_serpro_token()
+    if not tokens:
+        return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
+
+    url = f"{GATEWAY_URL}/Emitir"
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'],
+        "Content-Type": "application/json"
+    }
+    cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
+    
+    payload = {
+      "contratante": {"numero": cnpj_contratante, "tipo": 2},
+      "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+      "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+      "pedidoDados": {
+        "idSistema": "PGDASD",
+        "idServico": "GERARDAS12", # Usamos este serviço para obter os dados detalhados
+        "versaoSistema": "1.0",
+        "dados": json.dumps({"periodoApuracao": periodo_apuracao})
+      }
+    }
+
+    logger.info(f"Enviando payload para OBTER DADOS DO EXTRATO: {json.dumps(payload, indent=2)}")
+
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        
+        if response.status_code == 401: # Lógica para renovar token
+            logger.warning("Token expirado (401). Renovando e tentando novamente.")
+            cache.delete(SERPRO_TOKEN_CACHE_KEY)
+            tokens = get_serpro_token()
+            if not tokens: return {"sucesso": False, "erro": "Falha ao renovar token."}
+            headers["Authorization"] = f"Bearer {tokens['access_token']}"
+            headers["jwt_token"] = tokens['jwt_token']
+            response = requests.post(url, json=payload, headers=headers)
+
+        response.raise_for_status()
+        
+        response_data = response.json()
+        logger.info(f"Resposta da consulta de extrato recebida: {response_data}")
+
+        if not any(msg.get('codigo') == '[Sucesso-PGDASD]' for msg in response_data.get('mensagens', [])):
+            return {"sucesso": False, "erro": "A API Serpro indicou uma falha.", "detalhes": response_data.get('mensagens')}
+
+        dados_str = response_data.get('dados')
+        if not dados_str:
+            return {"sucesso": False, "erro": "A API Serpro não retornou o campo 'dados' com o extrato."}
+        
+        # O campo 'dados' é um JSON dentro de uma string, precisamos parseá-lo
+        dados_internos = json.loads(dados_str)
+        
+        # A estrutura da resposta é uma lista, pegamos o primeiro item
+        if isinstance(dados_internos, list) and len(dados_internos) > 0:
+            return {"sucesso": True, "extrato_data": dados_internos[0]}
+        else:
+            return {"sucesso": False, "erro": "Formato de dados do extrato inesperado."}
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro na requisição para obter extrato: {e}")
+        detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
+        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.error(f"Erro ao processar resposta do extrato: {e}")
+        return {"sucesso": False, "erro": "Erro ao ler a resposta da API Serpro."}

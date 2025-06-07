@@ -80,6 +80,14 @@ const Navbar = () => {
                     <span className="text-base font-medium">Gerar DAS</span>
                 </Link>
 
+                <Link
+                    to="/consultar-extrato"
+                    className={`...`} // suas classes de estilo
+                >
+                    <DocumentMagnifyingGlassIcon className="h-7 w-7" />
+                    <span className="text-base font-medium">Consultar Extrato</span>
+                </Link>
+
                 <button
                     onClick={handleLogout}
                     className="flex items-center space-x-4 px-6 py-3 text-red-400 hover:bg-red-700 hover:text-white transition-all duration-300 w-full mt-auto"

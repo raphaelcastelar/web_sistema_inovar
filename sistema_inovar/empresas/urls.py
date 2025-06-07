@@ -5,6 +5,7 @@ from .views import (
     enviar_documentos_whatsapp_api,
     sincronizar_pasta_empresa_api,
     gerar_das_api,
+    consultar_extrato_api,
 
 )
 urlpatterns = [
@@ -12,4 +13,5 @@ urlpatterns = [
     path('enviar-documentos-whatsapp/', enviar_documentos_whatsapp_api, name='enviar_documentos_whatsapp'),
     path('sincronizar-pasta/', sincronizar_pasta_empresa_api, name='sincronizar_pasta_empresa'),
     path('serpro/gerar-das/', gerar_das_api, name='gerar_das_api'),
+    path('serpro/consultar-extrato/', consultar_extrato_api, name='consultar_extrato_api'),
 ]

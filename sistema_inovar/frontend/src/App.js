@@ -11,6 +11,7 @@ import LoginPage from './components/LoginPage';
 import FuncionarioList from './components/FuncionarioList';
 import FuncionarioForm from './components/FuncionarioForm';
 import GerarDasPage from './components/GerarDasPage';
+import ConsultarExtratoPage from '.components/ConsultarExtratoPage'
 
 
 import PrivateRoute from './utils/PrivateRoute';
@@ -39,8 +40,9 @@ function App() {
               <Route path="/gerenciar-usuarios/novo" element={<FuncionarioForm />} />
               <Route path="/gerenciar-usuarios/editar/:funcionarioId" element={<FuncionarioForm />} />
               
-              {/* 3. NOVA ROTA PROTEGIDA PARA GERAR DAS */}
+              {/* 3. NOVA ROTA PROTEGIDA PARA DAS */}
               <Route path="/gerar-das" element={<GerarDasPage />} />
+              <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
               
               {/* Rota padrão para redirecionar usuários logados */}
               <Route path="/" element={<EmpresaList />} />
