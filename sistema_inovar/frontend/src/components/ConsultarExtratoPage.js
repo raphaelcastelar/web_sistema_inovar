@@ -145,22 +145,51 @@ const ConsultarExtratoPage = () => {
         }
         setLoading(true);
         setError('');
-        setExtratoData(null);
+        // setExtratoData(null); // Não precisamos mais exibir dados, vamos direto para o download
 
         const periodoApuracao = `${selectedYear}${selectedMonth}`;
         const empresaSelecionada = empresas.find(e => e.id === parseInt(selectedEmpresaId));
+        if (!empresaSelecionada) {
+            setError("Empresa selecionada não encontrada."); setLoading(false); return;
+        }
         const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
 
         try {
+            // A chamada agora espera um PDF (blob) como resposta
             const response = await axiosInstance.post('/api/serpro/consultar-extrato/', {
                 cnpj: cnpjLimpo,
                 periodo: periodoApuracao,
+            }, {
+                responseType: 'blob', // MUITO IMPORTANTE: espera um arquivo como resposta
             });
-            setExtratoData(response.data);
+
+            // Lógica de download do arquivo
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            const contentDisposition = response.headers['content-disposition'];
+            let filename = `Extrato_Simples_${cnpjLimpo}_${periodoApuracao}.pdf`; // Nome padrão
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                if (filenameMatch && filenameMatch.length === 2)
+                filename = filenameMatch[1];
+            }
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
         } catch (err) {
             console.error("Erro ao consultar extrato:", err);
-            const errorDetail = err.response?.data?.error || "Ocorreu um erro ao consultar o extrato.";
-            setError(errorDetail);
+            // Se o erro retornar um JSON, precisamos lê-lo do Blob
+            if (err.response && err.response.data && err.response.data instanceof Blob && err.response.data.type === "application/json") {
+                const errorJsonText = await err.response.data.text();
+                const errorObj = JSON.parse(errorJsonText);
+                setError(errorObj.error || "Ocorreu um erro ao consultar o extrato.");
+            } else {
+                setError("Ocorreu um erro inesperado ou de comunicação com o servidor.");
+            }
         } finally {
             setLoading(false);
         }

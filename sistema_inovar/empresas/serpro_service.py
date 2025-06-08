@@ -13,52 +13,125 @@ GATEWAY_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1'
 SERPRO_TOKEN_CACHE_KEY = 'serpro_api_tokens_dict'
 
 def get_serpro_token():
-    """
-    Obtém e gerencia os tokens de autenticação da API Serpro.
-    Esta função está correta e não precisa de alterações.
-    """
+    """Obtém e gerencia os tokens de autenticação da API Serpro."""
     tokens = cache.get(SERPRO_TOKEN_CACHE_KEY)
     if tokens:
         logger.info("Tokens da API Serpro encontrados no cache.")
         return tokens
-
     logger.info("Tokens não encontrados ou expirados. Solicitando novos tokens...")
     try:
         credentials = f"{settings.SERPRO_CONSUMER_KEY}:{settings.SERPRO_CONSUMER_SECRET}"
         encoded_credentials = base64.b64encode(credentials.encode()).decode()
-        headers = {
-            "Authorization": f"Basic {encoded_credentials}",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Role-Type": "TERCEIROS"
-        }
+        headers = { "Authorization": f"Basic {encoded_credentials}", "Content-Type": "application/x-www-form-urlencoded", "Role-Type": "TERCEIROS" }
         data = {"grant_type": "client_credentials"}
         cert_info = (settings.SERPRO_CERT_PUBLIC_PATH, settings.SERPRO_CERT_PRIVATE_KEY_PATH)
-        
         response = requests.post(AUTH_URL, headers=headers, data=data, cert=cert_info)
         response.raise_for_status()
-        
         token_data = response.json()
-        tokens = {
-            'access_token': token_data.get('access_token'),
-            'jwt_token': token_data.get('jwt_token')
-        }
+        tokens = {'access_token': token_data.get('access_token'), 'jwt_token': token_data.get('jwt_token')}
         if not all(tokens.values()):
             logger.error(f"Falha ao extrair tokens da resposta: {token_data}")
             return None
-        
         expires_in = token_data.get('expires_in', 3600)
         cache.set(SERPRO_TOKEN_CACHE_KEY, tokens, timeout=(expires_in - 60))
         logger.info("Novos tokens da API Serpro obtidos com sucesso.")
         return tokens
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Erro ao solicitar token da API Serpro: {e}")
-        if hasattr(e, 'response') and e.response is not None:
-            logger.error(f"Resposta da API Serpro: {e.response.status_code} - {e.response.text}")
-        return None
     except Exception as e:
-        logger.error(f"Erro inesperado ao manusear certificado ou token Serpro: {e}")
+        logger.error(f"Erro ao solicitar token: {e}")
         return None
+
+def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
+    """
+    Orquestra o novo fluxo de 2 passos para obter o extrato de um mês específico.
+    1. Usa CONSDECLARACAO13 para obter a lista de DAS do ano.
+    2. Encontra o DAS do mês desejado.
+    3. Usa CONSEXTRATO16 para obter o PDF do extrato daquele DAS.
+    """
+    tokens = get_serpro_token()
+    if not tokens:
+        return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
+    
+    # --- PASSO A: Buscar a lista de declarações do ano ---
+    ano_calendario = periodo_apuracao[:4] # Extrai o ano "YYYY" de "YYYYMM"
+    
+    url_consulta_ano = f"{GATEWAY_URL}/Consultar"
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'],
+        "Content-Type": "application/json"
+    }
+    cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
+    payload_lista_declaracoes = {
+        "contratante": {"numero": cnpj_contratante, "tipo": 2},
+        "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+        "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+        "pedidoDados": {
+            "idSistema": "PGDASD",
+            "idServico": "CONSDECLARACAO13",
+            "versaoSistema": "1.0",
+            "dados": json.dumps({"anoCalendario": ano_calendario})
+        }
+    }
+
+    try:
+        logger.info(f"Passo A - Buscando lista de declarações para o ano {ano_calendario}")
+        response_lista = requests.post(url_consulta_ano, json=payload_lista_declaracoes, headers=headers)
+        response_lista.raise_for_status()
+        response_data_lista = response_lista.json()
+        logger.info(f"Resposta do Passo A (Lista): {response_data_lista}")
+
+        # --- PASSO B: Encontrar o numeroDas para o mês desejado ---
+        numero_das_alvo = None
+        dados_lista_str = response_data_lista.get('dados')
+        if dados_lista_str:
+            dados_lista = json.loads(dados_lista_str)
+            periodos = dados_lista.get('periodos', [])
+            for periodo in periodos:
+                if str(periodo.get('periodoApuracao')) == periodo_apuracao:
+                    # Encontramos o mês correto, agora procuramos o último DAS gerado
+                    operacoes = periodo.get('operacoes', [])
+                    for op in reversed(operacoes): # Começa do final para pegar a última geração
+                        if op.get('tipoOperacao') == 'Geração de DAS' and op.get('indiceDas'):
+                            numero_das_alvo = op['indiceDas'].get('numeroDas')
+                            if numero_das_alvo:
+                                logger.info(f"Encontrado numeroDas '{numero_das_alvo}' para o período {periodo_apuracao}")
+                                break # Para o loop interno
+                    break # Para o loop externo
+
+        if not numero_das_alvo:
+            return {"sucesso": False, "erro": f"Não foi encontrada uma guia DAS gerada para o período {periodo_apuracao[4:]}/{periodo_apuracao[:4]}."}
+
+        # --- PASSO C: Usar o numeroDas para obter o PDF do extrato ---
+        url_extrato = f"{GATEWAY_URL}/Consultar"
+        payload_extrato = {
+            "contratante": {"numero": cnpj_contratante, "tipo": 2},
+            "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+            "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+            "pedidoDados": { "idSistema": "PGDASD", "idServico": "CONSEXTRATO16", "versaoSistema": "1.0", "dados": json.dumps({"numeroDas": numero_das_alvo}) }
+        }
+
+        logger.info(f"Passo C - Buscando PDF do extrato para o DAS '{numero_das_alvo}'")
+        response_pdf = requests.post(url_extrato, json=payload_extrato, headers=headers)
+        response_pdf.raise_for_status()
+        
+        # O serviço CONSEXTRATO16 retorna um JSON com o PDF em Base64
+        response_pdf_data = response_pdf.json()
+        dados_pdf_str = response_pdf_data.get('dados')
+        if not dados_pdf_str: return {"sucesso": False, "erro": "API não retornou dados ao buscar PDF."}
+
+        dados_pdf = json.loads(dados_pdf_str)
+        pdf_base64 = dados_pdf.get('extrato', {}).get('pdf')
+        if not pdf_base64: return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
+        
+        pdf_content = base64.b64decode(pdf_base64)
+        filename = dados_pdf.get('extrato', {}).get('nomeArquivo', f"Extrato_{cnpj_empresa}_{periodo_apuracao}.pdf")
+        
+        return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
+
+    except Exception as e:
+        logger.error(f"Erro no fluxo de consulta de extrato: {e}")
+        detalhes = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
+        return {"sucesso": False, "erro": "Erro de comunicação ou resposta inesperada da API Serpro.", "detalhes": detalhes}
 
 def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     """
