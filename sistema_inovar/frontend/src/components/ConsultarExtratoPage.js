@@ -1,36 +1,49 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
-import { UsersIcon, CalendarDaysIcon, MagnifyingGlassIcon, DocumentArrowDownIcon, InformationCircleIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { 
+    UsersIcon, 
+    CalendarDaysIcon, 
+    MagnifyingGlassIcon, 
+    DocumentArrowDownIcon, 
+    InformationCircleIcon, 
+    CheckCircleIcon 
+} from '@heroicons/react/24/outline';
 
+// Função utilitária para formatar moeda
 const formatCurrency = (value) => {
     if (value === null || value === undefined || isNaN(value)) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
-// --- SUB-COMPONENTE INTELIGENTE PARA RENDERIZAR O RESULTADO ---
+// --- SUB-COMPONENTE PARA RENDERIZAR O RESULTADO ---
 const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
     if (!data) {
         return null; // Não renderiza nada se não houver dados
     }
 
-    // --- CENÁRIO: Declaração entregue, mas sem valor a pagar ---
+    // --- CENÁRIO 2: Confirmação de Entrega (sem valor a pagar) ---
     if (data.tipo === 'declaracao_sem_valor') {
+        const { periodoApuracao, numeroDeclaracao, dataHoraTransmissao, mensagem } = data;
+        const dataFormatada = dataHoraTransmissao ? new Date(dataHoraTransmissao.replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6')).toLocaleString('pt-BR') : 'N/A';
+
         return (
             <div className="max-w-4xl mx-auto mt-10 bg-gray-800 p-8 rounded-xl shadow-lg animate-fade-in border-l-4 border-blue-500">
                 <div className="flex items-center gap-4">
                     <InformationCircleIcon className="h-12 w-12 text-blue-400 flex-shrink-0"/>
                     <div>
                         <h2 className="text-2xl font-bold text-white mb-1">
-                            Período de {data.periodoApuracao ? `${data.periodoApuracao.substring(4, 6)}/${data.periodoApuracao.substring(0, 4)}` : ''}
+                            Período de {periodoApuracao ? `${periodoApuracao.substring(4, 6)}/${periodoApuracao.substring(0, 4)}` : ''}
                         </h2>
-                        <p className="text-blue-200">{data.mensagem}</p>
+                        <p className="text-blue-200">{mensagem}</p>
+                        <p className="text-sm text-gray-400 mt-2">Nº da Declaração: {numeroDeclaracao || 'N/A'}</p>
+                        <p className="text-sm text-gray-400">Data de Entrega: {dataFormatada}</p>
                     </div>
                 </div>
             </div>
         );
     }
 
-    // --- CENÁRIO: Extrato Detalhado (com valor a pagar) ---
+    // --- CENÁRIO 1: Extrato Detalhado (com valor a pagar) ---
     if (data.tipo === 'extrato_detalhado') {
         const dasDetails = data.declaracoes?.[0]?.das?.[0]?.detalhamentoDas;
         if (!dasDetails) {
@@ -42,7 +55,7 @@ const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
         }
         
         const composicao = dasDetails.composicao || [];
-
+        
         return (
             <div className="max-w-4xl mx-auto mt-10 bg-gray-800 p-8 rounded-xl shadow-lg animate-fade-in">
                 <div className="flex justify-between items-center border-b border-gray-700 pb-4 mb-6">
@@ -69,11 +82,13 @@ const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
             </div>
         );
     }
-    return null; // Caso 'data' tenha um tipo não reconhecido
+
+    // Fallback para caso o `data.tipo` não seja nenhum dos esperados
+    return null;
 };
 
 
-// --- COMPONENTE PRINCIPAL ---
+// --- COMPONENTE PRINCIPAL DA PÁGINA ---
 const ConsultarExtratoPage = () => {
     const [empresas, setEmpresas] = useState([]);
     const [selectedEmpresaId, setSelectedEmpresaId] = useState('');
@@ -108,6 +123,7 @@ const ConsultarExtratoPage = () => {
         setLoading(true);
         setError('');
         setExtratoData(null);
+
         const periodoApuracao = `${selectedYear}${selectedMonth}`;
         const empresaSelecionada = empresas.find(e => e.id === parseInt(selectedEmpresaId));
         if (!empresaSelecionada) {
@@ -116,12 +132,15 @@ const ConsultarExtratoPage = () => {
             return;
         }
         const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
+
         try {
             const response = await axiosInstance.post('/api/serpro/consultar-extrato/', {
                 cnpj: cnpjLimpo,
                 periodo: periodoApuracao,
             });
-            setExtratoData(response.data.extrato_data); // Corrigido para pegar o objeto correto
+            // --- CORREÇÃO PRINCIPAL AQUI ---
+            // A resposta do backend já é o objeto de dados que queremos
+            setExtratoData(response.data); 
         } catch (err) {
             console.error("Erro ao consultar extrato:", err);
             const errorDetail = err.response?.data?.error || "Ocorreu um erro ao consultar o extrato.";
@@ -133,9 +152,10 @@ const ConsultarExtratoPage = () => {
 
     const handleDownloadPdf = async () => {
         if (!extratoData || !selectedEmpresaId) {
-            setError("Dados do extrato ou empresa não disponíveis para baixar o PDF.");
+            setError("Dados do extrato ou empresa não estão disponíveis para baixar o PDF.");
             return;
         }
+        
         const numero_das = extratoData.declaracoes?.[0]?.das?.[0]?.detalhamentoDas?.numeroDocumento;
 
         if (!numero_das) {
@@ -147,6 +167,7 @@ const ConsultarExtratoPage = () => {
         setError('');
         const empresaSelecionada = empresas.find(e => e.id === parseInt(selectedEmpresaId));
         const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
+
         try {
             const response = await axiosInstance.post('/api/serpro/download-extrato-pdf/', {
                 cnpj: cnpjLimpo,
@@ -171,7 +192,7 @@ const ConsultarExtratoPage = () => {
         } catch (err) {
             console.error("Erro ao baixar PDF do extrato:", err);
             let errorMsg = "Ocorreu um erro ao baixar o PDF.";
-            if (err.response?.data instanceof Blob && err.response?.data.type === "application/json") {
+            if (err.response?.data instanceof Blob && err.response.data.type === "application/json") {
                 const errorJsonText = await err.response.data.text();
                 const errorObj = JSON.parse(errorJsonText);
                 errorMsg = errorObj.error || errorMsg;
@@ -186,10 +207,10 @@ const ConsultarExtratoPage = () => {
         <div className="p-6 md:p-10 bg-gray-900 min-h-screen">
             <h1 className="text-3xl font-bold text-indigo-400 mb-8">Consultar Extrato do Simples Nacional</h1>
             <div className="max-w-xl mx-auto bg-gray-800 p-8 rounded-xl shadow-lg space-y-6">
-                 <div><label htmlFor="empresa-select" className="flex items-center text-sm font-medium text-gray-300 mb-1"><UsersIcon className="h-5 w-5 mr-2 text-indigo-400"/>Empresa</label><select id="empresa-select" value={selectedEmpresaId} onChange={(e) => setSelectedEmpresaId(e.target.value)} className="w-full p-3 bg-gray-700 text-white rounded-md mt-1 focus:ring-indigo-500 focus:border-indigo-500"><option value="">Selecione uma empresa...</option>{empresas.map(emp => (<option key={emp.id} value={emp.id}>{emp.nome}</option>))}</select></div>
-                 <div><label className="flex items-center text-sm font-medium text-gray-300 mb-1"><CalendarDaysIcon className="h-5 w-5 mr-2 text-indigo-400"/>Período de Apuração</label><div className="flex items-center gap-4 mt-1"><select id="month-select" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full p-3 bg-gray-700 text-white rounded-md focus:ring-indigo-500 focus:border-indigo-500">{monthOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}</select><select id="year-select" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full p-3 bg-gray-700 text-white rounded-md focus:ring-indigo-500 focus:border-indigo-500">{yearOptions.map(year => (<option key={year} value={year}>{year}</option>))}</select></div></div>
-                 {error && !loading && <div className="p-3 bg-red-900/30 text-red-300 text-sm rounded-md">{error}</div>}
-                 <div className="pt-4"><button onClick={handleConsultarExtrato} disabled={loading || !selectedEmpresaId} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 disabled:opacity-50">
+                <div><label htmlFor="empresa-select" className="flex items-center text-sm font-medium text-gray-300 mb-1"><UsersIcon className="h-5 w-5 mr-2 text-indigo-400"/>Empresa</label><select id="empresa-select" value={selectedEmpresaId} onChange={(e) => setSelectedEmpresaId(e.target.value)} className="w-full p-3 bg-gray-700 text-white rounded-md mt-1 focus:ring-indigo-500 focus:border-indigo-500"><option value="">Selecione uma empresa...</option>{empresas.map(emp => (<option key={emp.id} value={emp.id}>{emp.nome}</option>))}</select></div>
+                <div><label className="flex items-center text-sm font-medium text-gray-300 mb-1"><CalendarDaysIcon className="h-5 w-5 mr-2 text-indigo-400"/>Período de Apuração</label><div className="flex items-center gap-4 mt-1"><select id="month-select" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full p-3 bg-gray-700 text-white rounded-md focus:ring-indigo-500 focus:border-indigo-500">{monthOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}</select><select id="year-select" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full p-3 bg-gray-700 text-white rounded-md focus:ring-indigo-500 focus:border-indigo-500">{yearOptions.map(year => (<option key={year} value={year}>{year}</option>))}</select></div></div>
+                {error && !loading && <div className="p-3 bg-red-900/20 text-red-300 text-sm rounded-md">{error}</div>}
+                <div className="pt-4"><button onClick={handleConsultarExtrato} disabled={loading || !selectedEmpresaId} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 disabled:opacity-50">
                     {loading ? 'Consultando...' : <><MagnifyingGlassIcon className="h-5 w-5"/> Consultar Extrato</>}
                 </button></div>
             </div>
