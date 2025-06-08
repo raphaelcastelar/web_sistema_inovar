@@ -27,11 +27,12 @@ const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
     if (!dasDetails) {
         return (
             <div className="max-w-4xl mx-auto mt-10 bg-gray-800 p-8 rounded-xl shadow-lg animate-fade-in">
-                <p className="text-center text-yellow-400">Nenhuma declaração ou detalhamento de DAS encontrado para este período.</p>
+                 <p className="text-center text-yellow-400">Nenhuma declaração ou detalhamento de DAS encontrado para este período.</p>
             </div>
         );
     }
     
+    const composicao = dasDetails.composicao || [];
     const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
     return (
@@ -40,6 +41,7 @@ const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
                 <h2 className="text-2xl font-bold text-indigo-400">
                     Extrato para {dasDetails.periodoApuracao ? `${dasDetails.periodoApuracao.substring(4, 6)}/${dasDetails.periodoApuracao.substring(0, 4)}` : 'Período Indefinido'}
                 </h2>
+                {/* --- BOTÃO DE DOWNLOAD DO PDF ADICIONADO AQUI --- */}
                 <button
                     onClick={onDownloadPdf}
                     disabled={isDownloadingPdf}
@@ -48,9 +50,9 @@ const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
                 >
                     {isDownloadingPdf ? (
                         <>
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                           <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                             Baixando...
                         </>
@@ -61,6 +63,7 @@ const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
                         </>
                     )}
                 </button>
+                {/* --- FIM DO BOTÃO --- */}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6 text-center">
@@ -71,7 +74,7 @@ const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
                 <div className="bg-gray-700 p-4 rounded-lg">
                     <p className="text-sm text-gray-400">Data de Vencimento</p>
                     <p className="text-xl font-semibold text-white">
-                        {dasDetails.dataVencimento ? new Date(dasDetails.dataVencimento.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}
+                        {dasDetails.dataVencimento ? new Date(dasDetails.dataVencimento.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'N/A'}
                     </p>
                 </div>
                 <div className="bg-green-800 p-4 rounded-lg">
@@ -94,7 +97,7 @@ const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700">
-                        {(dasDetails.composicao || []).map((comp, compIndex) => (
+                        {composicao.map((comp, compIndex) => (
                             <tr key={compIndex} className="hover:bg-gray-700">
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{comp.denominacao} ({comp.codigo})</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200 text-right">{formatCurrency(comp.valores?.principal || 0)}</td>
@@ -115,13 +118,11 @@ const ConsultarExtratoPage = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [extratoData, setExtratoData] = useState(null);
-    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false); // Novo estado
 
     const yearOptions = useMemo(() => {
-        const currentYear = new Date().getFullYear();
-        const years = [];
-        for (let i = -2; i <= 4; i++) { years.push(currentYear - i); }
-        return years;
+        const currentYear = new Date().getFullYear(); const years = [];
+        for (let i = -2; i <= 4; i++) { years.push(currentYear - i); } return years;
     }, []);
     const monthOptions = useMemo(() => [
         { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' },
@@ -133,8 +134,7 @@ const ConsultarExtratoPage = () => {
     ], []);
 
     useEffect(() => {
-        axiosInstance.get('/api/empresas/')
-            .then(response => setEmpresas(response.data))
+        axiosInstance.get('/api/empresas/').then(response => setEmpresas(response.data))
             .catch(err => setError("Não foi possível carregar as empresas."));
     }, []);
 
@@ -145,7 +145,7 @@ const ConsultarExtratoPage = () => {
         }
         setLoading(true);
         setError('');
-        setExtratoData(null); // Limpa os dados anteriores
+        // setExtratoData(null); // Não precisamos mais exibir dados, vamos direto para o download
 
         const periodoApuracao = `${selectedYear}${selectedMonth}`;
         const empresaSelecionada = empresas.find(e => e.id === parseInt(selectedEmpresaId));
@@ -155,15 +155,38 @@ const ConsultarExtratoPage = () => {
         const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
 
         try {
+            // A chamada agora espera um PDF (blob) como resposta
             const response = await axiosInstance.post('/api/serpro/consultar-extrato/', {
                 cnpj: cnpjLimpo,
                 periodo: periodoApuracao,
+            }, {
+                responseType: 'blob', // MUITO IMPORTANTE: espera um arquivo como resposta
             });
-            setExtratoData(response.data.extrato_data); // Armazena os dados do extrato
+
+            // Lógica de download do arquivo
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            const contentDisposition = response.headers['content-disposition'];
+            let filename = `Extrato_Simples_${cnpjLimpo}_${periodoApuracao}.pdf`; // Nome padrão
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                if (filenameMatch && filenameMatch.length === 2)
+                filename = filenameMatch[1];
+            }
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
         } catch (err) {
             console.error("Erro ao consultar extrato:", err);
-            if (err.response?.data?.erro) {
-                setError(err.response.data.erro);
+            // Se o erro retornar um JSON, precisamos lê-lo do Blob
+            if (err.response && err.response.data && err.response.data instanceof Blob && err.response.data.type === "application/json") {
+                const errorJsonText = await err.response.data.text();
+                const errorObj = JSON.parse(errorJsonText);
+                setError(errorObj.error || "Ocorreu um erro ao consultar o extrato.");
             } else {
                 setError("Ocorreu um erro inesperado ou de comunicação com o servidor.");
             }
@@ -172,6 +195,7 @@ const ConsultarExtratoPage = () => {
         }
     };
 
+    // --- Lógica para o Download do PDF ---
     const handleDownloadPdf = async () => {
         if (!extratoData || !selectedEmpresaId) {
             setError("Dados do extrato ou empresa não estão disponíveis para baixar o PDF.");
@@ -206,18 +230,18 @@ const ConsultarExtratoPage = () => {
             let filename = `Extrato_Simples_${cnpjLimpo}_${numero_das}.pdf`;
             if (contentDisposition) {
                 const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-                if (filenameMatch && filenameMatch.length === 2) {
-                    filename = filenameMatch[1];
-                }
+                if (filenameMatch && filenameMatch.length === 2)
+                  filename = filenameMatch[1];
             }
             link.setAttribute('download', filename);
             document.body.appendChild(link);
             link.click();
             link.parentNode.removeChild(link);
             window.URL.revokeObjectURL(url);
+
         } catch (err) {
             console.error("Erro ao baixar PDF do extrato:", err);
-            const errorMsg = err.response?.data?.erro || "Ocorreu um erro ao baixar o PDF.";
+            const errorMsg = err.response?.data?.error || "Ocorreu um erro ao baixar o PDF.";
             setError(errorMsg);
         } finally {
             setIsDownloadingPdf(false);
@@ -287,7 +311,7 @@ const ConsultarExtratoPage = () => {
                 </div>
             </div>
 
-            <ExtratoResult data={extratoData} onDownloadPdf={handleDownloadPdf} isDownloadingPdf={isDownloadingPdf} />
+            <ExtratoResult data={extratoData} onDownloadPdf={handleDownloadPdf} isDownloading={isDownloadingPdf} />
         </div>
     );
 };

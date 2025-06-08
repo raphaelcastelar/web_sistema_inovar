@@ -14,9 +14,9 @@ from rest_framework import viewsets, status
 from django.http import HttpResponse
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
-from .filters import HistoricoEnviosFilter
-from .serpro_service import gerar_das_serpro, obter_dados_extrato_serpro, obter_extrato_pdf_serpro, get_serpro_token
+from django_filters.rest_framework import DjangoFilterBackend 
+from .filters import HistoricoEnviosFilter 
+from .serpro_service import gerar_das_serpro, obter_dados_extrato_serpro, obter_extrato_pdf_serpro, get_serpro_token, orquestrar_consulta_extrato
 from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario
 from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, HistoricoEnviosSerializer, FuncionarioSerializer
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
@@ -25,30 +25,31 @@ import datetime
 import re
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 
+
 logger = logging.getLogger(__name__)
 
 MODEL_CONFIG_MAP = {
     'documentos_constitutivos': {
-        'model': DocumentosConstitutivos,
-        'company_field_name': 'nome_empresa',
+        'model': DocumentosConstitutivos, 
+        'company_field_name': 'nome_empresa', 
         'company_attr': 'nome',
         'whatsapp_template_name': 'envio_documento_com_contato'
     },
     'departamento_pessoal': {
-        'model': DepartamentoPessoal,
-        'company_field_name': 'cnpj_empresa',
+        'model': DepartamentoPessoal, 
+        'company_field_name': 'cnpj_empresa', 
         'company_attr': 'cnpj',
-        'whatsapp_template_name': 'enviar_dp'
+        'whatsapp_template_name': 'enviar_dp' 
     },
     'simples_nacional': {
-        'model': SimplesNacional,
-        'company_field_name': 'cnpj_empresa',
+        'model': SimplesNacional, 
+        'company_field_name': 'cnpj_empresa', 
         'company_attr': 'cnpj',
-        'whatsapp_template_name': 'enviar_sn'
+        'whatsapp_template_name': 'enviar_sn' 
     },
     'outros': {
-        'model': Outros,
-        'company_field_name': 'nome_empresa',
+        'model': Outros, 
+        'company_field_name': 'nome_empresa', 
         'company_attr': 'nome',
         'whatsapp_template_name': 'envio_documento_com_contato'
     },
@@ -57,25 +58,25 @@ MODEL_CONFIG_MAP = {
 MODEL_CONFIG_MAP_SYNC = {
     'documentos_constitutivos': {
         'model': DocumentosConstitutivos, 'serializer': DocumentosConstitutivosSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa',
-        'company_attr_in_empresa_model': 'nome',
+        'company_field_name_in_doc_model': 'nome_empresa', # Campo no modelo do documento que guarda o nome da empresa
+        'company_attr_in_empresa_model': 'nome', # Atributo no modelo Empresa para filtro (geralmente nome ou cnpj)
         'fs_folder_name': 'DOCUMENTOS CONSTITUTIVOS', 'has_year_month': False
     },
     'departamento_pessoal': {
         'model': DepartamentoPessoal, 'serializer': DepartamentoPessoalSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa',
-        'company_attr_in_empresa_model': 'nome',
+        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
+        'company_attr_in_empresa_model': 'nome', 
         'fs_folder_name': 'DEPARTAMENTO PESSOAL', 'has_year_month': True
     },
     'simples_nacional': {
         'model': SimplesNacional, 'serializer': SimplesNacionalSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa',
+        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
         'company_attr_in_empresa_model': 'nome',
         'fs_folder_name': 'SIMPLES NACIONAL', 'has_year_month': True
     },
     'xml': {
         'model': XML, 'serializer': XMLSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa',
+        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
         'company_attr_in_empresa_model': 'nome',
         'fs_folder_name': 'XML', 'has_year_month': True
     },
@@ -93,7 +94,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = EmpresaSerializer
 
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
-    queryset = DocumentosConstitutivos.objects.all()
+    queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base
     serializer_class = DocumentosConstitutivosSerializer
 
     def get_queryset(self):
@@ -107,7 +108,7 @@ class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
         return super().get_queryset()
 
 class DepartamentoPessoalViewSet(viewsets.ModelViewSet):
-    queryset = DepartamentoPessoal.objects.all()
+    queryset = DepartamentoPessoal.objects.all()  # Defina o queryset base
     serializer_class = DepartamentoPessoalSerializer
 
     def get_queryset(self):
@@ -121,7 +122,7 @@ class DepartamentoPessoalViewSet(viewsets.ModelViewSet):
         return super().get_queryset()
 
 class XMLViewSet(viewsets.ModelViewSet):
-    queryset = XML.objects.all()
+    queryset = XML.objects.all()  # Defina o queryset base
     serializer_class = XMLSerializer
 
     def get_queryset(self):
@@ -135,7 +136,7 @@ class XMLViewSet(viewsets.ModelViewSet):
         return super().get_queryset()
 
 class SimplesNacionalViewSet(viewsets.ModelViewSet):
-    queryset = SimplesNacional.objects.all()
+    queryset = SimplesNacional.objects.all()  # Defina o queryset base
     serializer_class = SimplesNacionalSerializer
 
     def get_queryset(self):
@@ -161,17 +162,25 @@ class OutrosViewSet(viewsets.ModelViewSet):
             except Empresa.DoesNotExist:
                 return Outros.objects.none()
         return super().get_queryset()
+    
+class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = HistoricoEnvios.objects.all()
+    serializer_class = HistoricoEnviosSerializer
 
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HistoricoEnvios.objects.all()
     serializer_class = HistoricoEnviosSerializer
-    filter_backends = [DjangoFilterBackend]
-    filterset_class = HistoricoEnviosFilter
+    filter_backends = [DjangoFilterBackend] # Adicione esta linha
+    filterset_class = HistoricoEnviosFilter   # Adicione esta linha
 
 class FuncionarioViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para visualizar, criar, editar e deletar funcionários.
+    Apenas usuários administradores (is_staff=True) podem acessar.
+    """
     queryset = Funcionario.objects.all().order_by('first_name')
     serializer_class = FuncionarioSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [IsAdminUser] # Apenas administradores podem gerenciar usuários
 
 @api_view(['POST'])
 def enviar_email(request):
@@ -199,7 +208,7 @@ def enviar_email(request):
             'departamento_pessoal': (DepartamentoPessoal, 'cnpj_empresa'),
             'xml': (XML, 'cnpj_empresa'),
             'simples_nacional': (SimplesNacional, 'cnpj_empresa'),
-            'outros': (Outros, 'nome_empresa'),
+            'outros': (Outros, 'nome_empresa'), 
         }
 
         if tipo_pasta not in modelos:
@@ -216,11 +225,12 @@ def enviar_email(request):
         if not arquivos.exists():
             return Response({'error': 'Nenhum arquivo encontrado para os IDs fornecidos.'}, status=status.HTTP_404_NOT_FOUND)
 
+        # Verificar tamanho total dos arquivos
         total_size = 0
         caminhos_arquivos = []
         nomes_arquivos = []
         for arquivo in arquivos:
-            caminho_arquivo = arquivo.caminho_arquivo.path
+            caminho_arquivo = arquivo.caminho_arquivo.path  # Caminho absoluto no servidor
             if os.path.exists(caminho_arquivo):
                 total_size += os.path.getsize(caminho_arquivo)
                 caminhos_arquivos.append(caminho_arquivo)
@@ -228,9 +238,10 @@ def enviar_email(request):
             else:
                 logger.warning(f"Arquivo não encontrado no servidor: {caminho_arquivo}")
 
-        if total_size > 20 * 1024 * 1024:
+        if total_size > 20 * 1024 * 1024:  # 20 MB
             return Response({'error': 'O tamanho total dos arquivos excede 20 MB.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Preparar o email
         msg = MIMEMultipart()
         msg['From'] = settings.EMAIL_REMETENTE
         msg['To'] = email_destinatario
@@ -243,6 +254,7 @@ def enviar_email(request):
         body += "\nAtenciosamente, Inovar Contabilidade"
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
+        # Anexar os arquivos
         for caminho_arquivo, nome_arquivo in zip(caminhos_arquivos, nomes_arquivos):
             extensao = os.path.splitext(nome_arquivo)[1].lower()
             content_types = {
@@ -269,6 +281,7 @@ def enviar_email(request):
             part.add_header('Content-Transfer-Encoding', 'base64')
             msg.attach(part)
 
+        # Enviar o email
         dominio = settings.EMAIL_REMETENTE.split('@')[1].lower()
         if dominio == 'gmail.com':
             smtp_server = 'smtp.gmail.com'
@@ -296,7 +309,7 @@ def enviar_email(request):
     except Exception as e:
         logger.error(f"Erro ao enviar email: {str(e)}")
         return Response({'error': f'Erro ao enviar email: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+    
 @api_view(['POST'])
 def sincronizar_pasta_empresa_api(request):
     empresa_id = request.data.get('empresa_id')
@@ -317,12 +330,13 @@ def sincronizar_pasta_empresa_api(request):
     DocumentModel = config['model']
     DocumentSerializer = config['serializer']
     
+    # USA A SUA FUNÇÃO DO UTILS.PY PARA O NOME DA PASTA DA EMPRESA
     company_folder_name_on_fs = gerar_nome_pasta_empresa_padronizado(empresa.nome)
     fs_doc_type_folder_name = config['fs_folder_name']
     base_doc_type_path_on_fs = os.path.join(settings.MEDIA_ROOT, company_folder_name_on_fs, fs_doc_type_folder_name)
 
     if not os.path.isdir(base_doc_type_path_on_fs):
-        try:
+        try: # Tenta criar a estrutura base se não existir (o sinal deveria ter feito, mas como garantia)
             os.makedirs(base_doc_type_path_on_fs, exist_ok=True)
             logger.info(f"SYNC: Criado diretório base do tipo de documento que faltava: {base_doc_type_path_on_fs}")
             if config['has_year_month']:
@@ -338,13 +352,24 @@ def sincronizar_pasta_empresa_api(request):
             logger.error(f"SYNC: Erro crítico ao tentar criar estrutura de pasta para {base_doc_type_path_on_fs}: {e_mkdir}")
             return Response({"error": f"Não foi possível acessar ou criar a pasta de destino no servidor: {base_doc_type_path_on_fs}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    db_files_map = {}
-    db_queryset = DocumentModel.objects.filter(nome_empresa=empresa.nome)
+    # 1. Obter todos os arquivos do banco de dados
+    db_files_map = {} 
+    # Usa o nome da empresa para filtrar, pois os modelos de documento devem ter `nome_empresa`
+    # Se alguns usam cnpj_empresa para filtro, o MODEL_CONFIG_MAP_SYNC precisaria ser ajustado.
+    # Assumindo que todos os documentos podem ser filtrados por empresa.nome se 'nome_empresa' está neles.
+    # Ou, se você adicionou um FK empresa aos modelos de doc: DocumentModel.objects.filter(empresa=empresa)
+    db_queryset = DocumentModel.objects.filter(nome_empresa=empresa.nome) # Simplificado se todos tiverem nome_empresa
+    # Se alguns usam cnpj_empresa, a lógica de filtro precisa ser mais dinâmica baseada no config:
+    # company_filter_key_for_doc = config['company_field_name_in_doc_model']
+    # company_value_for_doc_filter = getattr(empresa, config['company_attr_in_empresa_model']) # ex: empresa.nome ou empresa.cnpj
+    # db_queryset = DocumentModel.objects.filter(**{company_filter_key_for_doc: company_value_for_doc_filter})
+
     for doc_instance in db_queryset:
         if doc_instance.caminho_arquivo and doc_instance.caminho_arquivo.name:
             db_path_normalized = doc_instance.caminho_arquivo.name.replace('\\', '/')
             db_files_map[db_path_normalized] = doc_instance
 
+    # 2. Varrer o sistema de arquivos
     found_fs_files_normalized_paths = set()
     added_count = 0
     
@@ -358,16 +383,16 @@ def sincronizar_pasta_empresa_api(request):
                         monthyear_path = os.path.join(year_path, monthyear_name)
                         if os.path.isdir(monthyear_path) and len(monthyear_name) == 6 and monthyear_name[:2].isdigit():
                             scan_paths.append({
-                                "path": monthyear_path,
-                                "year": year_name,
+                                "path": monthyear_path, 
+                                "year": year_name, 
                                 "month": monthyear_name[:2],
                                 "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name, year_name, monthyear_name]
                             })
-    else:
+    else: # Pastas sem estrutura de ano/mês
         if os.path.exists(base_doc_type_path_on_fs):
             scan_paths.append({
-                "path": base_doc_type_path_on_fs,
-                "year": None,
+                "path": base_doc_type_path_on_fs, 
+                "year": None, 
                 "month": None,
                 "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name]
             })
@@ -376,7 +401,9 @@ def sincronizar_pasta_empresa_api(request):
         current_scan_path = item_to_scan["path"]
         for filename_raw_from_fs in os.listdir(current_scan_path):
             if os.path.isfile(os.path.join(current_scan_path, filename_raw_from_fs)):
-                filename_sanitized_for_path = sanitize_filename_for_upload(filename_raw_from_fs)
+                filename_sanitized_for_path = sanitize_filename_for_upload(filename_raw_from_fs) # USA A FUNÇÃO DE SANITIZAÇÃO CONSISTENTE
+                
+                # Constrói o caminho relativo da mesma forma que upload_to faria
                 path_parts = item_to_scan["sub_path_parts"] + [filename_sanitized_for_path]
                 temp_relative_path = os.path.join(*path_parts)
                 normalized_fs_path = temp_relative_path.replace(os.sep, '/')
@@ -385,16 +412,16 @@ def sincronizar_pasta_empresa_api(request):
                 if normalized_fs_path not in db_files_map:
                     try:
                         doc_data = {
-                            'nome_empresa': empresa.nome,
+                            'nome_empresa': empresa.nome, # Todos os modelos de documento agora devem ter nome_empresa
                             'nome_arquivo': filename_raw_from_fs,
-                            'tipo_documento': tipo_pasta_sync.replace("_", "-"),
+                            'tipo_documento': tipo_pasta_sync.replace("_", "-"), 
                             'caminho_arquivo': normalized_fs_path
                         }
                         if config['has_year_month']:
                             doc_data['ano'] = item_to_scan["year"]
                             doc_data['mes'] = item_to_scan["month"]
-                        if 'entregue' in [f.name for f in DocumentModel._meta.get_fields()]:
-                            doc_data['entregue'] = False
+                        if 'entregue' in [f.name for f in DocumentModel._meta.get_fields()]: # Checa se o campo existe
+                            doc_data['entregue'] = False 
                         if 'cnpj_empresa' in [f.name for f in DocumentModel._meta.get_fields()]:
                             doc_data['cnpj_empresa'] = empresa.cnpj
                         
@@ -404,9 +431,12 @@ def sincronizar_pasta_empresa_api(request):
                     except Exception as e_create:
                         logger.error(f"SYNC: Erro ao criar registro no DB para {normalized_fs_path}: {e_create} com dados {doc_data}")
 
+
+    # 3. Remover do DB arquivos que não estão mais no FS
     removed_count = 0
     for db_path_normalized, db_instance in db_files_map.items():
         if db_path_normalized not in found_fs_files_normalized_paths:
+            # Dupla checagem no sistema de arquivos antes de deletar do DB
             full_physical_path_check = os.path.join(settings.MEDIA_ROOT, db_path_normalized.replace('/', os.sep))
             if not os.path.exists(full_physical_path_check):
                 try:
@@ -418,7 +448,11 @@ def sincronizar_pasta_empresa_api(request):
             else:
                 logger.warning(f"SYNC: Arquivo {db_path_normalized} está no DB e no FS, mas não foi listado pela varredura. Não removido.")
 
-    db_queryset_updated = DocumentModel.objects.filter(nome_empresa=empresa.nome)
+    # 4. Retornar a lista atualizada
+    # Recarrega o queryset após as modificações
+    db_queryset_updated = DocumentModel.objects.filter(nome_empresa=empresa.nome) # ou o filtro apropriado
+    # ... (lógica de filtro de company_filter_key_for_doc como acima, se necessário) ...
+
     serializer = DocumentSerializer(db_queryset_updated, many=True)
     
     return Response({
@@ -447,7 +481,7 @@ def enviar_documentos_whatsapp_api(request):
 
     config = MODEL_CONFIG_MAP[tipo_pasta]
     DocumentModel = config['model']
-    whatsapp_template_to_use = config['whatsapp_template_name']
+    whatsapp_template_to_use = config['whatsapp_template_name'] # Pega o nome do template do config
 
     try:
         empresa = Empresa.objects.get(id=empresa_id)
@@ -461,8 +495,8 @@ def enviar_documentos_whatsapp_api(request):
 
     recipient_whatsapp_number = re.sub(r'\D', '', raw_phone_number)
     if not (len(recipient_whatsapp_number) >= 10 and len(recipient_whatsapp_number) <= 13 and recipient_whatsapp_number.isdigit()):
-        return Response({"error": f"O número de telefone '{raw_phone_number}' cadastrado para a empresa não é válido para WhatsApp."}, status=status.HTTP_400_BAD_REQUEST)
-    if not recipient_whatsapp_number.startswith('55') and len(recipient_whatsapp_number) in [10, 11]:
+         return Response({"error": f"O número de telefone '{raw_phone_number}' cadastrado para a empresa não é válido para WhatsApp."}, status=status.HTTP_400_BAD_REQUEST)
+    if not recipient_whatsapp_number.startswith('55') and len(recipient_whatsapp_number) in [10,11]:
         recipient_whatsapp_number = '55' + recipient_whatsapp_number
     elif not recipient_whatsapp_number.startswith('55'):
         return Response({"error": f"O DDI (ex: 55 para Brasil) parece estar faltando no número de telefone '{raw_phone_number}'."}, status=status.HTTP_400_BAD_REQUEST)
@@ -482,7 +516,7 @@ def enviar_documentos_whatsapp_api(request):
     files_sent_count = 0
     successful_sends = []
     failed_sends = []
-    company_name_for_template = empresa.nome
+    company_name_for_template = empresa.nome 
 
     for doc in documentos_qs:
         if not doc.caminho_arquivo or not hasattr(doc.caminho_arquivo, 'path'):
@@ -506,7 +540,7 @@ def enviar_documentos_whatsapp_api(request):
             document_media_id=media_id,
             document_filename=original_filename,
             company_name_for_template=company_name_for_template,
-            template_name=whatsapp_template_to_use
+            template_name=whatsapp_template_to_use # <<< USA O TEMPLATE DINÂMICO AQUI
         )
 
         if message_id:
@@ -521,15 +555,19 @@ def enviar_documentos_whatsapp_api(request):
             remetente=recipient_whatsapp_number,
             arquivo=original_filename,
             status=status_envio,
-            message_id=message_id
+            message_id=message_id # Será None se houver falha
         )
 
     final_status = status.HTTP_200_OK
-    if files_sent_count == 0 and documentos_qs.exists():
-        if failed_sends:
-            final_status = status.HTTP_400_BAD_REQUEST
+    if files_sent_count == 0 and documentos_qs.exists(): 
+        if failed_sends: # Se houve tentativas mas todas falharam
+             final_status = status.HTTP_400_BAD_REQUEST
+        # Se não houve falhas mas nenhum foi enviado (ex: todos os caminhos inválidos antes do upload)
+        # Isso já seria coberto por failed_sends. Se failed_sends está vazio e files_sent_count é 0,
+        # mas documentos_qs existe, é uma situação estranha, mas manteremos 400.
         elif not failed_sends:
-            final_status = status.HTTP_400_BAD_REQUEST
+             final_status = status.HTTP_400_BAD_REQUEST
+
 
     return Response({
         "message": f"{files_sent_count} de {documentos_qs.count()} documento(s) processado(s).",
@@ -541,7 +579,7 @@ def enviar_documentos_whatsapp_api(request):
 @permission_classes([IsAuthenticated])
 def gerar_das_api(request):
     cnpj = request.data.get('cnpj')
-    periodo = request.data.get('periodo')
+    periodo = request.data.get('periodo') # Esperado no formato "YYYYMM"
 
     if not cnpj or not periodo:
         return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
@@ -549,22 +587,24 @@ def gerar_das_api(request):
     resultado = gerar_das_serpro(cnpj_empresa=cnpj, periodo_apuracao=periodo)
 
     if resultado.get("sucesso"):
+        # Retorna o arquivo PDF para download
         pdf_content = resultado.get("pdf_content")
         filename = resultado.get("filename", "DAS.pdf")
         response = HttpResponse(pdf_content, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
     else:
+        # Retorna a mensagem de erro em JSON
         return Response(
             {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
             status=status.HTTP_400_BAD_REQUEST
         )
-
+    
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def consultar_extrato_api(request):
     cnpj = request.data.get('cnpj')
-    periodo = request.data.get('periodo')
+    periodo = request.data.get('periodo') # Esperado no formato "YYYYMM"
 
     if not cnpj or not periodo:
         return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
@@ -572,13 +612,15 @@ def consultar_extrato_api(request):
     resultado = obter_dados_extrato_serpro(cnpj_empresa=cnpj, periodo_apuracao=periodo)
 
     if resultado.get("sucesso"):
+        # Retorna os dados do extrato em JSON para o frontend renderizar
         return Response(resultado.get("extrato_data"), status=status.HTTP_200_OK)
     else:
+        # Retorna a mensagem de erro em JSON
         return Response(
             {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
             status=status.HTTP_400_BAD_REQUEST
         )
-
+    
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def download_extrato_pdf_api(request):
@@ -588,6 +630,7 @@ def download_extrato_pdf_api(request):
     if not cnpj or not numero_das:
         return Response({"error": "CNPJ e numero_das são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
 
+    # A view agora só precisa chamar a função de serviço, sem se preocupar com tokens.
     resultado = obter_extrato_pdf_serpro(cnpj_empresa=cnpj, numero_das=numero_das)
 
     if resultado.get("sucesso"):
@@ -597,6 +640,31 @@ def download_extrato_pdf_api(request):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
     else:
+        return Response(
+            {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def consultar_extrato_api(request):
+    cnpj = request.data.get('cnpj')
+    periodo = request.data.get('periodo') # Esperado no formato "YYYYMM"
+
+    if not cnpj or not periodo:
+        return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
+
+    resultado = orquestrar_consulta_extrato(cnpj_empresa=cnpj, periodo_apuracao=periodo)
+
+    if resultado.get("sucesso"):
+        # Se funcionou, retorna o PDF para download
+        pdf_content = resultado.get("pdf_content")
+        filename = resultado.get("filename", "Extrato.pdf")
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    else:
+        # Se falhou, retorna a mensagem de erro em JSON
         return Response(
             {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
             status=status.HTTP_400_BAD_REQUEST
