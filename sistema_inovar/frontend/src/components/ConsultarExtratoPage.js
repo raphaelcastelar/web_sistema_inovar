@@ -1,13 +1,114 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
-import { 
-    UsersIcon, 
-    CalendarDaysIcon, 
-    MagnifyingGlassIcon, 
-    DocumentArrowDownIcon, 
-    InformationCircleIcon, 
-    CheckCircleIcon 
-} from '@heroicons/react/24/outline';
+import { UsersIcon, CalendarDaysIcon, MagnifyingGlassIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
+
+// Função auxiliar para encontrar os detalhes do DAS dentro da resposta da API
+const findDasDetails = (data) => {
+    if (!data) return null;
+    if (data.declaracoes?.[0]?.das?.[0]?.detalhamentoDas) {
+        return data.declaracoes[0].das[0].detalhamentoDas;
+    }
+    if (data.detalhamentoDas) {
+        return data.detalhamentoDas;
+    }
+    if (Array.isArray(data.das) && data.das[0]?.detalhamentoDas) {
+        return data.das[0].detalhamentoDas;
+    }
+    console.error("Estrutura de dados do extrato não reconhecida:", data);
+    return null;
+};
+
+// Sub-componente para renderizar o resultado de forma segura
+const ExtratoResult = ({ data, onDownloadPdf, isDownloadingPdf }) => {
+    if (!data) return null;
+
+    const dasDetails = findDasDetails(data);
+    
+    if (!dasDetails) {
+        return (
+            <div className="max-w-4xl mx-auto mt-10 bg-gray-800 p-8 rounded-xl shadow-lg animate-fade-in">
+                 <p className="text-center text-yellow-400">Nenhuma declaração ou detalhamento de DAS encontrado para este período.</p>
+            </div>
+        );
+    }
+    
+    const composicao = dasDetails.composicao || [];
+    const formatCurrency = (value) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+    return (
+        <div className="max-w-4xl mx-auto mt-10 bg-gray-800 p-8 rounded-xl shadow-lg animate-fade-in">
+            <div className="flex justify-between items-center border-b border-gray-700 pb-4 mb-6">
+                <h2 className="text-2xl font-bold text-indigo-400">
+                    Extrato para {dasDetails.periodoApuracao ? `${dasDetails.periodoApuracao.substring(4, 6)}/${dasDetails.periodoApuracao.substring(0, 4)}` : 'Período Indefinido'}
+                </h2>
+                {/* --- BOTÃO DE DOWNLOAD DO PDF ADICIONADO AQUI --- */}
+                <button
+                    onClick={onDownloadPdf}
+                    disabled={isDownloadingPdf}
+                    className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Baixar o extrato em formato PDF"
+                >
+                    {isDownloadingPdf ? (
+                        <>
+                           <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Baixando...
+                        </>
+                    ) : (
+                        <>
+                            <DocumentArrowDownIcon className="h-5 w-5"/>
+                            Baixar PDF do Extrato
+                        </>
+                    )}
+                </button>
+                {/* --- FIM DO BOTÃO --- */}
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6 text-center">
+                <div className="bg-gray-700 p-4 rounded-lg">
+                    <p className="text-sm text-gray-400">Número do Documento</p>
+                    <p className="text-xl font-semibold text-white break-all">{dasDetails.numeroDocumento || 'N/A'}</p>
+                </div>
+                <div className="bg-gray-700 p-4 rounded-lg">
+                    <p className="text-sm text-gray-400">Data de Vencimento</p>
+                    <p className="text-xl font-semibold text-white">
+                        {dasDetails.dataVencimento ? new Date(dasDetails.dataVencimento.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'N/A'}
+                    </p>
+                </div>
+                <div className="bg-green-800 p-4 rounded-lg">
+                    <p className="text-sm text-green-200">Valor Total</p>
+                    <p className="text-xl font-semibold text-white">{formatCurrency(dasDetails.valores?.total || 0)}</p>
+                </div>
+                <div className="bg-gray-700 p-4 rounded-lg">
+                    <p className="text-sm text-gray-400">Situação</p>
+                    <p className="text-xl font-semibold text-white">{dasDetails.situacao || 'N/A'}</p>
+                </div>
+            </div>
+            
+            <h3 className="text-xl font-semibold text-indigo-300 mt-8 mb-4">Composição dos Tributos</h3>
+            <div className="overflow-x-auto">
+                <table className="min-w-full bg-gray-750 rounded-lg">
+                    <thead>
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Tributo</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase">Valor Principal</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                        {composicao.map((comp, compIndex) => (
+                            <tr key={compIndex} className="hover:bg-gray-700">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{comp.denominacao} ({comp.codigo})</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200 text-right">{formatCurrency(comp.valores?.principal || 0)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
 
 const ConsultarExtratoPage = () => {
     const [empresas, setEmpresas] = useState([]);
@@ -17,33 +118,24 @@ const ConsultarExtratoPage = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [extratoData, setExtratoData] = useState(null);
-    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false); // Novo estado
 
     const yearOptions = useMemo(() => {
-        const currentYear = new Date().getFullYear(); 
-        const years = [];
-        for (let i = -4; i <= 2; i++) { // Range de anos: 4 anos passados, atual, 2 futuros
-            years.push(currentYear - i);
-        } 
-        return years;
+        const currentYear = new Date().getFullYear(); const years = [];
+        for (let i = -2; i <= 4; i++) { years.push(currentYear - i); } return years;
     }, []);
-
     const monthOptions = useMemo(() => [
-        { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' }, { value: '03', label: 'Março' },
-        { value: '04', label: 'Abril' }, { value: '05', label: 'Maio' }, { value: '06', label: 'Junho' },
-        { value: '07', label: 'Julho' }, { value: '08', label: 'Agosto' }, { value: '09', label: 'Setembro' },
-        { value: '10', label: 'Outubro' }, { value: '11', label: 'Novembro' }, { value: '12', label: 'Dezembro' }
+        { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' },
+        { value: '03', label: 'Março' }, { value: '04', label: 'Abril' },
+        { value: '05', label: 'Maio' }, { value: '06', label: 'Junho' },
+        { value: '07', label: 'Julho' }, { value: '08', label: 'Agosto' },
+        { value: '09', label: 'Setembro' }, { value: '10', label: 'Outubro' },
+        { value: '11', label: 'Novembro' }, { value: '12', label: 'Dezembro' }
     ], []);
 
     useEffect(() => {
-        axiosInstance.get('/api/empresas/')
-            .then(response => {
-                setEmpresas(response.data);
-            })
-            .catch(err => {
-                setError("Não foi possível carregar a lista de empresas.");
-                console.error("Erro ao buscar empresas:", err);
-            });
+        axiosInstance.get('/api/empresas/').then(response => setEmpresas(response.data))
+            .catch(err => setError("Não foi possível carregar as empresas."));
     }, []);
 
     const handleConsultarExtrato = async () => {
@@ -53,48 +145,73 @@ const ConsultarExtratoPage = () => {
         }
         setLoading(true);
         setError('');
-        setExtratoData(null);
+        // setExtratoData(null); // Não precisamos mais exibir dados, vamos direto para o download
 
         const periodoApuracao = `${selectedYear}${selectedMonth}`;
         const empresaSelecionada = empresas.find(e => e.id === parseInt(selectedEmpresaId));
-        
         if (!empresaSelecionada) {
-            setError("Erro: Empresa selecionada não encontrada na lista.");
-            setLoading(false);
-            return;
+            setError("Empresa selecionada não encontrada."); setLoading(false); return;
         }
         const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
 
         try {
+            // A chamada agora espera um PDF (blob) como resposta
             const response = await axiosInstance.post('/api/serpro/consultar-extrato/', {
                 cnpj: cnpjLimpo,
                 periodo: periodoApuracao,
+            }, {
+                responseType: 'blob', // MUITO IMPORTANTE: espera um arquivo como resposta
             });
-            setExtratoData(response.data);
+
+            // Lógica de download do arquivo
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            const contentDisposition = response.headers['content-disposition'];
+            let filename = `Extrato_Simples_${cnpjLimpo}_${periodoApuracao}.pdf`; // Nome padrão
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+                if (filenameMatch && filenameMatch.length === 2)
+                filename = filenameMatch[1];
+            }
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+
         } catch (err) {
             console.error("Erro ao consultar extrato:", err);
-            const errorDetail = err.response?.data?.error || "Ocorreu um erro ao consultar o extrato. Verifique se existe uma declaração para este período.";
-            setError(errorDetail);
+            // Se o erro retornar um JSON, precisamos lê-lo do Blob
+            if (err.response && err.response.data && err.response.data instanceof Blob && err.response.data.type === "application/json") {
+                const errorJsonText = await err.response.data.text();
+                const errorObj = JSON.parse(errorJsonText);
+                setError(errorObj.error || "Ocorreu um erro ao consultar o extrato.");
+            } else {
+                setError("Ocorreu um erro inesperado ou de comunicação com o servidor.");
+            }
         } finally {
             setLoading(false);
         }
     };
 
+    // --- Lógica para o Download do PDF ---
     const handleDownloadPdf = async () => {
         if (!extratoData || !selectedEmpresaId) {
-            setError("Dados do extrato não estão disponíveis para baixar o PDF.");
+            setError("Dados do extrato ou empresa não estão disponíveis para baixar o PDF.");
             return;
         }
-        
-        const numero_das = extratoData.declaracoes?.[0]?.das?.[0]?.detalhamentoDas?.numeroDocumento;
+        const dasDetails = findDasDetails(extratoData);
+        const numero_das = dasDetails?.numeroDocumento;
 
         if (!numero_das) {
-            setError("Não foi possível encontrar o Número do Documento para baixar o PDF do extrato.");
+            setError("Não foi possível encontrar o Número do Documento para baixar o PDF.");
             return;
         }
         
         setIsDownloadingPdf(true);
         setError('');
+
         const empresaSelecionada = empresas.find(e => e.id === parseInt(selectedEmpresaId));
         const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
 
@@ -102,7 +219,9 @@ const ConsultarExtratoPage = () => {
             const response = await axiosInstance.post('/api/serpro/download-extrato-pdf/', {
                 cnpj: cnpjLimpo,
                 numero_das: numero_das,
-            }, { responseType: 'blob' });
+            }, {
+                responseType: 'blob',
+            });
 
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
@@ -119,39 +238,35 @@ const ConsultarExtratoPage = () => {
             link.click();
             link.parentNode.removeChild(link);
             window.URL.revokeObjectURL(url);
+
         } catch (err) {
             console.error("Erro ao baixar PDF do extrato:", err);
-            let errorMsg = "Ocorreu um erro ao baixar o PDF.";
-            if (err.response?.data instanceof Blob && err.response.data.type === "application/json") {
-                const errorJsonText = await err.response.data.text();
-                const errorObj = JSON.parse(errorJsonText);
-                errorMsg = errorObj.error || errorMsg;
-            }
+            const errorMsg = err.response?.data?.error || "Ocorreu um erro ao baixar o PDF.";
             setError(errorMsg);
         } finally {
             setIsDownloadingPdf(false);
         }
     };
-    
-    const formatCurrency = (value) => {
-        if (value === null || value === undefined || isNaN(value)) return 'R$ 0,00';
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-    };
 
     return (
-        <div className="p-6 md:p-10 bg-gray-900 min-h-screen text-gray-100">
+        <div className="p-6 md:p-10 bg-gray-900 min-h-screen">
             <h1 className="text-3xl font-bold text-indigo-400 mb-8">Consultar Extrato do Simples Nacional</h1>
-            
-            {/* Formulário de Seleção */}
             <div className="max-w-xl mx-auto bg-gray-800 p-8 rounded-xl shadow-lg space-y-6">
                 <div>
                     <label htmlFor="empresa-select" className="flex items-center text-sm font-medium text-gray-300 mb-1">
                         <UsersIcon className="h-5 w-5 mr-2 text-indigo-400"/>
                         Empresa
                     </label>
-                    <select id="empresa-select" value={selectedEmpresaId} onChange={(e) => setSelectedEmpresaId(e.target.value)} className="w-full p-3 bg-gray-700 text-white rounded-md mt-1 focus:ring-indigo-500 focus:border-indigo-500">
+                    <select
+                        id="empresa-select"
+                        value={selectedEmpresaId}
+                        onChange={(e) => setSelectedEmpresaId(e.target.value)}
+                        className="w-full p-3 bg-gray-700 text-white rounded-md mt-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
                         <option value="">Selecione uma empresa...</option>
-                        {empresas.map(emp => (<option key={emp.id} value={emp.id}>{emp.nome}</option>))}
+                        {empresas.map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                        ))}
                     </select>
                 </div>
                 <div>
@@ -160,81 +275,43 @@ const ConsultarExtratoPage = () => {
                        Período de Apuração
                     </label>
                     <div className="flex items-center gap-4 mt-1">
-                        <select id="month-select" value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)} className="w-full p-3 bg-gray-700 text-white rounded-md focus:ring-indigo-500 focus:border-indigo-500">
-                            {monthOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+                        <select
+                            id="month-select"
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            className="w-full p-3 bg-gray-700 text-white rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        >
+                            {monthOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
                         </select>
-                        <select id="year-select" value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)} className="w-full p-3 bg-gray-700 text-white rounded-md focus:ring-indigo-500 focus:border-indigo-500">
-                            {yearOptions.map(year => (<option key={year} value={year}>{year}</option>))}
+                        <select
+                            id="year-select"
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(e.target.value)}
+                            className="w-full p-3 bg-gray-700 text-white rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                        >
+                            {yearOptions.map(year => (
+                                <option key={year} value={year}>{year}</option>
+                            ))}
                         </select>
                     </div>
                 </div>
+
+                {error && <p className="text-red-500 text-sm bg-red-900/20 p-3 rounded-md">{error}</p>}
+
                 <div className="pt-4">
-                    <button onClick={handleConsultarExtrato} disabled={loading || !selectedEmpresaId} className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button
+                        onClick={handleConsultarExtrato}
+                        disabled={loading || !selectedEmpresaId || !selectedYear || !selectedMonth}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
                         {loading ? 'Consultando...' : <><MagnifyingGlassIcon className="h-5 w-5"/> Consultar Extrato</>}
                     </button>
                 </div>
             </div>
 
-            {/* Container para Erros ou Resultados */}
-            <div className="mt-6">
-                {/* Exibe mensagem de erro geral */}
-                {!loading && error && (
-                    <div className="max-w-4xl mx-auto p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-300 flex items-center justify-center gap-3">
-                        <InformationCircleIcon className="h-6 w-6"/>
-                        <span>{error}</span>
-                    </div>
-                )}
-                
-                {/* Exibe o resultado da consulta (agora diretamente aqui) */}
-                {!loading && extratoData && (() => {
-                    // Cenário: Declaração sem valor a pagar
-                    if (extratoData.tipo === 'declaracao_sem_valor') {
-                        const { periodoApuracao, mensagem } = extratoData;
-                        return (
-                             <div className="max-w-4xl mx-auto mt-10 bg-gray-800 p-8 rounded-xl shadow-lg animate-fade-in border-l-4 border-blue-500">
-                                <div className="flex items-center gap-4">
-                                    <InformationCircleIcon className="h-12 w-12 text-blue-400 flex-shrink-0"/>
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-white mb-1">
-                                            Período de {periodoApuracao ? `${periodoApuracao.substring(4, 6)}/${periodoApuracao.substring(0, 4)}` : ''}
-                                        </h2>
-                                        <p className="text-blue-200">{mensagem}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    }
-                    // Cenário: Extrato detalhado com valor
-                    if (extratoData.tipo === 'extrato_detalhado') {
-                        const dasDetails = extratoData.declaracoes?.[0]?.das?.[0]?.detalhamentoDas;
-                        if (!dasDetails) return null; // Segurança extra
-                        const composicao = dasDetails.composicao || [];
-
-                        return (
-                            <div className="max-w-4xl mx-auto mt-10 bg-gray-800 p-8 rounded-xl shadow-lg animate-fade-in">
-                                <div className="flex justify-between items-center border-b border-gray-700 pb-4 mb-6">
-                                    <h2 className="text-2xl font-bold text-indigo-400">
-                                        Extrato para {dasDetails.periodoApuracao ? `${dasDetails.periodoApuracao.substring(4, 6)}/${dasDetails.periodoApuracao.substring(0, 4)}` : ''}
-                                    </h2>
-                                    <button onClick={handleDownloadPdf} disabled={isDownloadingPdf} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-500 disabled:opacity-50">
-                                        {isDownloadingPdf ? 'Baixando...' : <><DocumentArrowDownIcon className="h-5 w-5"/> Baixar PDF</>}
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6 text-center">
-                                    <div className="bg-gray-700 p-4 rounded-lg"><p className="text-sm text-gray-400">Nº Documento</p><p className="text-xl font-semibold text-white break-all">{dasDetails.numeroDocumento || 'N/A'}</p></div>
-                                    <div className="bg-gray-700 p-4 rounded-lg"><p className="text-sm text-gray-400">Vencimento</p><p className="text-xl font-semibold text-white">{dasDetails.dataVencimento ? new Date(dasDetails.dataVencimento.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')).toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'N/A'}</p></div>
-                                    <div className="bg-green-800 p-4 rounded-lg"><p className="text-sm text-green-200">Valor Total</p><p className="text-xl font-semibold text-white">{formatCurrency(dasDetails.valores?.total)}</p></div>
-                                    <div className="bg-gray-700 p-4 rounded-lg"><p className="text-sm text-gray-400">Situação</p><p className="text-xl font-semibold text-white">{dasDetails.situacao || 'N/A'}</p></div>
-                                </div>
-                                <h3 className="text-xl font-semibold text-indigo-300 mt-8 mb-4">Composição dos Tributos</h3>
-                                <div className="overflow-x-auto"><table className="min-w-full bg-gray-750 rounded-lg"><thead><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Tributo</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase">Valor Principal</th></tr></thead><tbody className="divide-y divide-gray-700">{composicao.map((comp, compIndex) => (<tr key={compIndex} className="hover:bg-gray-700"><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{comp.denominacao} ({comp.codigo})</td><td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200 text-right">{formatCurrency(comp.valores?.principal)}</td></tr>))}</tbody></table></div>
-                            </div>
-                        );
-                    }
-                    // Se o 'tipo' não for nenhum dos esperados, não renderiza nada
-                    return null;
-                })()}
-            </div>
+            <ExtratoResult data={extratoData} onDownloadPdf={handleDownloadPdf} isDownloading={isDownloadingPdf} />
         </div>
     );
 };
