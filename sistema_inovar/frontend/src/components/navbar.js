@@ -89,6 +89,18 @@ const Navbar = () => {
                     <DocumentMagnifyingGlassIcon className="h-7 w-7" />
                     <span className="text-base font-medium">Consultar Extrato</span>
                 </Link>
+
+            </div>
+
+            <div className="fixed ... flex flex-col ...">
+                <div className="flex-shrink-0 flex justify-between items-center px-4 py-8">
+                    <img src={LogoContabilidade} alt="Logo" className="h-16" />
+                    <ThemeToggle /> {/* <-- BOTÃO ADICIONADO AQUI */}
+                </div>
+                
+                {/* ... (seus Links de navegação) ... */}
+
+                {/* ... (seu botão de Sair) ... */}
             </div>
 
             {/* --- INÍCIO: Botão de Sair no final da Navbar --- */}

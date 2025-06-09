@@ -20,7 +20,6 @@ class Empresa(models.Model):
     def __str__(self):
         return self.nome
 
-# --- Função auxiliar para gerar nome da pasta da empresa ---
 def get_document_company_folder_name_for_upload(document_instance):
     """
     Obtém o nome da empresa da instância do documento e o formata para nome de pasta.
@@ -36,7 +35,6 @@ def get_document_company_folder_name_for_upload(document_instance):
         # Garanta que 'nome_empresa' seja sempre populado no documento.
         return "EMPRESA_NOME_NAO_FORNECIDO_NO_DOCUMENTO"
 
-# --- Função auxiliar para sanitizar nome do arquivo ---
 def sanitize_filename(filename):
     name, ext = os.path.splitext(filename)
     # Remove acentos e caracteres especiais do nome do arquivo, mantendo a extensão
@@ -45,7 +43,6 @@ def sanitize_filename(filename):
     clean_name = re.sub(r'[^\w-]', '', clean_name) # Remove outros caracteres não seguros
     return f"{clean_name}{ext}"
 
-# --- Funções upload_to específicas ---
 def documentos_constitutivos_upload_path(instance, filename):
     company_folder = get_document_company_folder_name_for_upload(instance)
     clean_filename = sanitize_filename(filename)
@@ -77,8 +74,17 @@ def xml_upload_path(instance, filename):
 # --- Atualize seus modelos para usar as novas funções upload_to ---
 
 class Funcionario(AbstractUser):
+    THEME_CHOICES = [
+        ('light', 'Claro'),
+        ('dark', 'Escuro'),
+    ]
     # O AbstractUser já inclui: username, password, email, first_name, last_name, etc.
     # Você pode adicionar campos extras aqui se precisar, por exemplo:
+    theme = models.CharField(
+        max_length=10, 
+        choices=THEME_CHOICES, 
+        default='light' # Define 'Claro' como o padrão para novos usuários
+    )
     cargo = models.CharField(max_length=100, null=True, blank=True)
     # ramal = models.CharField(max_length=10, null=True, blank=True)
 
