@@ -1,55 +1,51 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 
-// Componentes e Páginas
-import Navbar from './components/navbar';
+// Layouts e Utilitários
+import MainLayout from './layouts/MainLayout'; // <-- 1. Importe o novo layout
+import PrivateRoute from './utils/PrivateRoute'; // Importe sua rota protegida
+
+// Suas Páginas e Componentes
+import LoginPage from './components/LoginPage';
 import EmpresaList from './components/EmpresaList';
 import EmpresaForm from './components/EmpresaForm';
 import PastaManager from './components/PastaManager';
 import HistoricoWhatsApp from './components/HistoricoWhatsapp';
-import LoginPage from './components/LoginPage';
 import FuncionarioList from './components/FuncionarioList';
 import FuncionarioForm from './components/FuncionarioForm';
-import GerarDasPage from './components/GerarDasPage';
-import ConsultarExtratoPage from './components/ConsultarExtratoPage'
+import GerarDasPage from './pages/GerarDasPage'; // Ajuste o caminho se necessário
 
-
-import PrivateRoute from './utils/PrivateRoute';
+import './App.css';
 
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white flex">
-        {/* A Navbar pode ser renderizada condicionalmente no futuro se desejar escondê-la na tela de login */}
-        <Navbar />
-        <div className="flex-1 pl-56 p-6">
-          <Routes>
-            {/* ROTA PÚBLICA: Qualquer um pode acessar a página de login */}
-            <Route path="/login" element={<LoginPage />} />
+      <Routes>
+        {/* ROTA PÚBLICA: Renderiza a página de login sem a Navbar */}
+        <Route path="/login" element={<LoginPage />} />
 
-            {/* ROTAS PROTEGIDAS: Apenas usuários logados podem acessar as rotas abaixo */}
-            <Route element={<PrivateRoute />}>
-              <Route path="/empresas" element={<EmpresaList />} />
-              <Route path="/empresas/cadastrar" element={<EmpresaForm />} />
-              <Route path="/empresas/editar/:empresaId" element={<EmpresaForm />} />
-              <Route path="/empresas/:empresaId/pastas" element={<PastaManager />} />
-              
-              <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
-
-              <Route path="/gerenciar-usuarios" element={<FuncionarioList />} />
-              <Route path="/gerenciar-usuarios/novo" element={<FuncionarioForm />} />
-              <Route path="/gerenciar-usuarios/editar/:funcionarioId" element={<FuncionarioForm />} />
-              
-              {/* 3. NOVA ROTA PROTEGIDA PARA DAS */}
-              <Route path="/gerar-das" element={<GerarDasPage />} />
-              <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
-              
-              {/* Rota padrão para redirecionar usuários logados */}
-              <Route path="/" element={<EmpresaList />} />
-            </Route>
-          </Routes>
-        </div>
-      </div>
+        {/* ROTAS PROTEGIDAS: Todas as rotas aqui dentro exigem login */}
+        <Route element={<PrivateRoute />}>
+          {/* O MainLayout aplica a Navbar e o estilo principal a todas as rotas filhas */}
+          <Route element={<MainLayout />}>
+            <Route path="/empresas" element={<EmpresaList />} />
+            <Route path="/empresas/cadastrar" element={<EmpresaForm />} />
+            <Route path="/empresas/editar/:empresaId" element={<EmpresaForm />} />
+            <Route path="/empresas/:empresaId/pastas" element={<PastaManager />} />
+            
+            <Route path="/gerenciar-usuarios" element={<FuncionarioList />} />
+            <Route path="/gerenciar-usuarios/novo" element={<FuncionarioForm />} />
+            <Route path="/gerenciar-usuarios/editar/:funcionarioId" element={<FuncionarioForm />} />
+            
+            <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
+            <Route path="/gerar-das" element={<GerarDasPage />} />
+            <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} /> {/* Supondo que você tenha esta página */}
+            
+            {/* Rota padrão para usuários logados */}
+            <Route path="/" element={<EmpresaList />} />
+          </Route>
+        </Route>
+      </Routes>
     </Router>
   );
 }
