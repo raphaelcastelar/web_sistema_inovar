@@ -135,122 +135,77 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
 
 def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     """
-    Chama a API Integra Contador usando o serviço GERARDASCOBRANCA17
-    para obter o PDF da guia de pagamento do DAS diretamente.
+    Chama a API usando o serviço GERARDASAVULSO19 para obter o PDF da guia de pagamento.
     """
     tokens = get_serpro_token()
     if not tokens:
         return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
 
-    # O endpoint para este serviço é /Emitir, como mostra a documentação que você encontrou.
     url = f"{GATEWAY_URL}/Emitir"
     headers = {
         "Authorization": f"Bearer {tokens['access_token']}",
         "jwt_token": tokens['jwt_token'],
         "Content-Type": "application/json"
     }
-    
     cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
-    
-    # O payload agora usa o idServico correto e o periodoApuracao nos dados
     payload = {
         "contratante": {"numero": cnpj_contratante, "tipo": 2},
         "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
         "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
         "pedidoDados": {
             "idSistema": "PGDASD",
-            "idServico": "GERARDASCOBRANCA17", # <-- O SERVIÇO CORRETO!
+            "idServico": "GERARDASAVULSO19", # Serviço para guia de pagamento mensal
             "versaoSistema": "1.0",
-            "dados": json.dumps({"periodoApuracao": periodo_apuracao}) # Envia o período de apuração
+            "dados": json.dumps({"periodoApuracao": periodo_apuracao})
         }
     }
-
-    logger.info(f"Enviando payload para GERAR DAS COBRANÇA: {json.dumps(payload, indent=2)}")
-
+    logger.info(f"Enviando payload para GERAR DAS AVULSO: {json.dumps(payload, indent=2)}")
     try:
         response = requests.post(url, json=payload, headers=headers)
-        
-        # Lógica para tentar novamente se o token expirou
         if response.status_code == 401:
-            logger.warning("Token expirado (401). Renovando e tentando novamente.")
+            # Lógica de renovar token
             cache.delete(SERPRO_TOKEN_CACHE_KEY)
             tokens = get_serpro_token()
             if not tokens: return {"sucesso": False, "erro": "Falha ao renovar token."}
             headers["Authorization"] = f"Bearer {tokens['access_token']}"
             headers["jwt_token"] = tokens['jwt_token']
             response = requests.post(url, json=payload, headers=headers)
-
         response.raise_for_status()
-
-        # Verifica se a resposta é um PDF diretamente
         if 'application/pdf' in response.headers.get('Content-Type', ''):
-            logger.info(f"PDF da guia de pagamento DAS obtido com sucesso para {cnpj_empresa} / {periodo_apuracao}.")
-            return {
-                "sucesso": True, 
-                "pdf_content": response.content, 
-                "filename": f"DAS-Cobranca_{cnpj_empresa}_{periodo_apuracao}.pdf"
-            }
+            logger.info(f"PDF da guia de pagamento obtido para {cnpj_empresa}/{periodo_apuracao}.")
+            return {"sucesso": True, "pdf_content": response.content, "filename": f"DAS-Pagamento_{cnpj_empresa}_{periodo_apuracao}.pdf"}
         else:
-            # Se não for um PDF, pode ser um JSON com os dados (incluindo Base64) ou um erro.
-            # Vamos adicionar a lógica para tratar o caso de JSON com Base64 que vimos antes.
-            logger.warning(f"Resposta não foi PDF direto. Tentando extrair de JSON... Content-Type: {response.headers.get('Content-Type', '')}")
             response_data = response.json()
-            dados_str = response_data.get('dados')
-            if dados_str:
-                dados = json.loads(dados_str)
-                # Tentando encontrar o PDF em Base64 em campos comuns
-                pdf_base64_string = dados.get('pdf') or dados.get('extrato', {}).get('pdf') or dados.get('conteudoRecibo')
-                if pdf_base64_string:
-                    pdf_content_bytes = base64.b64decode(pdf_base64_string)
-                    nome_arquivo = dados.get('extrato', {}).get('nomeArquivo', f"DAS-Cobranca_{cnpj_empresa}_{periodo_apuracao}.pdf")
-                    logger.info(f"PDF do DAS decodificado com sucesso a partir de Base64.")
-                    return {"sucesso": True, "pdf_content": pdf_content_bytes, "filename": nome_arquivo}
-            
-            logger.error(f"Resposta inesperada ao gerar DAS Cobrança: {response.text}")
-            return {"sucesso": False, "erro": "Resposta inesperada da API Serpro.", "detalhes": response_data}
-
+            logger.error(f"Resposta inesperada ao gerar DAS (não é PDF): {response.text}")
+            error_message = response_data.get('mensagens', [{}])[0].get('texto', "Resposta inesperada da API Serpro.")
+            return {"sucesso": False, "erro": error_message, "detalhes": response_data}
     except requests.exceptions.RequestException as e:
-        logger.error(f"Erro na requisição para gerar DAS Cobrança: {e}")
-        detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
-        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
+        logger.error(f"Erro na requisição para gerar DAS: {e}")
+        detalhes = e.response.text if hasattr(e, 'response') else str(e)
+        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes}
     
 def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
     """
-    Faz uma ÚNICA chamada à API com o serviço GERARDAS12 para obter
-    os dados do extrato de um período de apuração.
-    Trata tanto respostas com dados quanto respostas de aviso (ex: sem valor devido).
+    Usa o serviço GERARDAS12 para obter os dados do extrato, tratando a resposta de 'sem valor devido'.
     """
     tokens = get_serpro_token()
     if not tokens:
         return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
 
-    url = f"{GATEWAY_URL}/Emitir" # O serviço GERARDAS12 usa o endpoint /Emitir
-    headers = {
-        "Authorization": f"Bearer {tokens['access_token']}",
-        "jwt_token": tokens['jwt_token'],
-        "Content-Type": "application/json"
-    }
+    url = f"{GATEWAY_URL}/Emitir"
+    headers = { "Authorization": f"Bearer {tokens['access_token']}", "jwt_token": tokens['jwt_token'], "Content-Type": "application/json" }
     cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
-    
     payload = {
       "contratante": {"numero": cnpj_contratante, "tipo": 2},
       "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
       "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
-      "pedidoDados": {
-        "idSistema": "PGDASD",
-        "idServico": "GERARDAS12", # Usamos este serviço que retorna todos os dados
-        "versaoSistema": "1.0",
-        "dados": json.dumps({"periodoApuracao": periodo_apuracao})
-      }
+      "pedidoDados": { "idSistema": "PGDASD", "idServico": "GERARDAS12", "versaoSistema": "1.0", "dados": json.dumps({"periodoApuracao": periodo_apuracao}) }
     }
-
     logger.info(f"Enviando payload para obter dados de extrato: {json.dumps(payload, indent=2)}")
-
     try:
         response = requests.post(url, json=payload, headers=headers)
-        
         if response.status_code == 401:
-            logger.warning("Token expirado (401). Renovando...")
+            # Lógica de renovar token...
             cache.delete(SERPRO_TOKEN_CACHE_KEY)
             tokens = get_serpro_token()
             if not tokens: return {"sucesso": False, "erro": "Falha ao renovar token."}
@@ -259,41 +214,33 @@ def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
             response = requests.post(url, json=payload, headers=headers)
 
         response.raise_for_status()
-        
         response_data = response.json()
         logger.info(f"Resposta da consulta de extrato recebida: {response_data}")
-
         mensagens = response_data.get('mensagens', [])
         
-        # Primeiro, verifica se há uma mensagem de aviso de "sem valor devido"
+        # --- LÓGICA INTELIGENTE PARA TRATAR A RESPOSTA ---
+        # 1. Verifica primeiro se é o aviso de "sem valor devido"
         if any('MSG_E0139' in msg.get('codigo', '') for msg in mensagens):
             texto_aviso = mensagens[0].get('texto', 'Não foi gerado DAS por não haver valor devido.')
             return {"sucesso": False, "erro": texto_aviso}
 
-        # Se não, verifica se há uma mensagem genérica de sucesso
-        if not any('sucesso' in msg.get('texto', '').lower() for msg in mensagens):
-             error_message = mensagens[0].get('texto') if mensagens else "A API Serpro retornou um erro não especificado."
-             return {"sucesso": False, "erro": error_message}
-
-        # Se houve sucesso, esperamos que o campo 'dados' contenha o extrato
-        dados_str = response_data.get('dados')
-        if not dados_str or dados_str == '[]':
-            return {"sucesso": False, "erro": "A API retornou sucesso, mas não há dados de extrato para este período."}
-        
-        dados_internos = json.loads(dados_str)
-        
-        if isinstance(dados_internos, list) and len(dados_internos) > 0:
-            return {"sucesso": True, "extrato_data": dados_internos[0]}
-        else:
-            return {"sucesso": False, "erro": "Formato de dados do extrato inesperado."}
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Erro na requisição para obter extrato: {e}")
-        detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
-        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
+        # 2. Se não for, verifica se a resposta foi de sucesso para então procurar os dados
+        if any('sucesso' in msg.get('texto', '').lower() for msg in mensagens):
+            dados_str = response_data.get('dados')
+            if not dados_str or dados_str == '[]':
+                return {"sucesso": False, "erro": "API retornou sucesso, mas não há dados de extrato para este período."}
+            dados_internos = json.loads(dados_str)
+            if isinstance(dados_internos, list) and len(dados_internos) > 0:
+                return {"sucesso": True, "data": dados_internos[0]} # Retorna os dados do extrato
+            else:
+                return {"sucesso": False, "erro": "Formato de dados do extrato inesperado."}
+        else: # Se não for sucesso nem aviso conhecido, é um erro
+            error_message = mensagens[0].get('texto') if mensagens else "Erro não especificado pela API."
+            return {"sucesso": False, "erro": error_message}
+            
     except Exception as e:
-        logger.error(f"Erro ao processar resposta do extrato: {e}")
-        return {"sucesso": False, "erro": "Erro ao ler a resposta da API Serpro."}
+        logger.error(f"Erro na requisição para obter extrato: {e}")
+        return {"sucesso": False, "erro": "Erro de comunicação ou resposta inesperada."}
     
 def obter_numero_declaracao_original(tokens, cnpj_empresa, periodo_apuracao):
     """
