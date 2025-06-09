@@ -6,7 +6,7 @@ import { UserIcon, LockClosedIcon, EyeIcon, EyeSlashIcon, ArrowRightOnRectangleI
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 
 // Importe e configure o fundo de partículas
-import Particles from "tsparticles-react";
+import Particles from "@tsparticles/react"; // <-- NOME CORRETO
 import { loadSlim } from "@tsparticles/slim";
 import particlesConfig from '../config/particlesConfig'; // Vamos criar este arquivo
 
