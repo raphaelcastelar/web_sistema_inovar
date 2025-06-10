@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-// Adicione useNavigate para o redirecionamento do logout
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
     HomeIcon, 
@@ -7,114 +6,98 @@ import {
     ClockIcon, 
     DocumentArrowDownIcon,
     DocumentMagnifyingGlassIcon,
-    ArrowLeftOnRectangleIcon // Ícone para o botão "Sair"
+    ArrowLeftOnRectangleIcon 
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
+import ThemeToggle from './ThemeToggle';
 
 const Navbar = () => {
     const location = useLocation();
-    const navigate = useNavigate(); // Hook para navegação
-    const [selectedItem, setSelectedItem] = useState(location.pathname);
+    const navigate = useNavigate();
 
-    useEffect(() => {
-        setSelectedItem(location.pathname);
-    }, [location.pathname]);
-
-    // --- INÍCIO: Lógica de Logout ---
     const handleLogout = () => {
-        // Remove os tokens de autenticação do armazenamento local
         localStorage.removeItem('authTokens');
-        // Redireciona para a página de login
         navigate('/login');
-        // Opcional: recarregar a página para limpar completamente o estado da aplicação
-        // window.location.reload(); 
+        window.location.reload(); 
     };
-    // --- FIM: Lógica de Logout ---
 
     return (
-        <div className="fixed left-0 top-0 h-full w-56 bg-gradient-to-b from-indigo-900 to-gray-800 shadow-xl flex flex-col items-center py-8">
-            <img
-                src={LogoContabilidade}
-                alt="Logo Contabilidade"
-                className="h-24 w-auto max-w-48 object-contain mb-10"
-            />
-            {/* Itens de Navegação Principais */}
-            <div className="w-full flex-grow flex flex-col space-y-2">
+        // Container principal fixo com flexbox em coluna
+        <div className="fixed left-0 top-0 h-full w-56 bg-gradient-to-b from-indigo-900 to-gray-800 shadow-xl flex flex-col">
+            
+            {/* Seção do Logo (topo) */}
+            <div className="flex-shrink-0 flex justify-center py-8">
+                <img
+                    src={LogoContabilidade}
+                    alt="Logo Contabilidade"
+                    className="h-24 w-auto"
+                />
+            </div>
+
+            {/* Seção dos Links de Navegação (ocupa o espaço restante) */}
+            <nav className="flex-grow w-full flex flex-col space-y-2 px-2">
                 <Link
                     to="/empresas"
-                    className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
                         location.pathname.startsWith('/empresas') ? 'bg-indigo-800 text-white' : ''
                     }`}
                 >
-                    <HomeIcon className="h-7 w-7" />
+                    <HomeIcon className="h-6 w-6" />
                     <span className="text-base font-medium">Início</span>
                 </Link>
                 
                 <Link
                     to="/gerenciar-usuarios"
-                    className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
                         location.pathname.startsWith('/gerenciar-usuarios') ? 'bg-indigo-800 text-white' : ''
                     }`}
                 >
-                    <UserGroupIcon className="h-7 w-7" />
+                    <UserGroupIcon className="h-6 w-6" />
                     <span className="text-base font-medium">Usuários</span>
                 </Link>
                 
                 <Link
                     to="/historico-whatsapp"
-                    className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
                         location.pathname === '/historico-whatsapp' ? 'bg-indigo-800 text-white' : ''
                     }`}
                 >
-                    <ClockIcon className="h-7 w-7" />
+                    <ClockIcon className="h-6 w-6" />
                     <span className="text-base font-medium">Histórico</span>
                 </Link>
 
                 <Link
                     to="/gerar-das"
-                    className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
                         location.pathname === '/gerar-das' ? 'bg-indigo-800 text-white' : ''
                     }`}
                 >
-                    <DocumentArrowDownIcon className="h-7 w-7" />
+                    <DocumentArrowDownIcon className="h-6 w-6" />
                     <span className="text-base font-medium">Gerar DAS</span>
                 </Link>
 
                 <Link
                     to="/consultar-extrato"
-                    className={`flex items-center space-x-4 px-6 py-3 text-indigo-300 hover:bg-indigo-700 hover:text-white transition-all duration-300 w-full ${
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
                         location.pathname === '/consultar-extrato' ? 'bg-indigo-800 text-white' : ''
                     }`}
                 >
-                    <DocumentMagnifyingGlassIcon className="h-7 w-7" />
+                    <DocumentMagnifyingGlassIcon className="h-6 w-6" />
                     <span className="text-base font-medium">Consultar Extrato</span>
                 </Link>
+            </nav>
 
-            </div>
-
-            <div className="fixed ... flex flex-col ...">
-                <div className="flex-shrink-0 flex justify-between items-center px-4 py-8">
-                    <img src={LogoContabilidade} alt="Logo" className="h-16" />
-                    <ThemeToggle /> {/* <-- BOTÃO ADICIONADO AQUI */}
-                </div>
-                
-                {/* ... (seus Links de navegação) ... */}
-
-                {/* ... (seu botão de Sair) ... */}
-            </div>
-
-            {/* --- INÍCIO: Botão de Sair no final da Navbar --- */}
-            {/* 'mt-auto' empurra este item para o final do container flex */}
-            <div className="w-full mt-auto">
+            {/* Seção do Rodapé da Navbar (com Tema e Sair) */}
+            <div className="w-full flex-shrink-0 p-4 space-y-2 border-t border-indigo-800/50">
+                <ThemeToggle />
                 <button
                     onClick={handleLogout}
-                    className="flex items-center space-x-4 px-6 py-3 text-red-400 hover:bg-red-800 hover:text-white transition-all duration-300 w-full"
+                    className="flex items-center w-full space-x-2 px-4 py-2 text-sm text-red-300 hover:bg-red-800/50 hover:text-white rounded-md transition-colors duration-200"
                 >
-                    <ArrowLeftOnRectangleIcon className="h-7 w-7" />
-                    <span className="text-base font-medium">Sair</span>
+                    <ArrowLeftOnRectangleIcon className="h-6 w-6" />
+                    <span className="font-medium">Sair</span>
                 </button>
             </div>
-            {/* --- FIM: Botão de Sair --- */}
         </div>
     );
 };

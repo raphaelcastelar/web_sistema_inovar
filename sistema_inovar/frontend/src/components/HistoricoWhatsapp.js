@@ -1,21 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
-import { CheckCircleIcon, XCircleIcon, ClipboardDocumentIcon, ClipboardDocumentCheckIcon, FunnelIcon } from '@heroicons/react/24/solid';
-
-const API_BASE_URL = 'http://192.168.196.162:8000/api';
+import { 
+    CheckCircleIcon, 
+    XCircleIcon, 
+    ClipboardDocumentIcon, 
+    ClipboardDocumentCheckIcon, 
+    FunnelIcon,
+    InformationCircleIcon 
+} from '@heroicons/react/24/solid';
+import { motion } from 'framer-motion';
 
 // Função para gerar os últimos 12 meses para o dropdown de filtro
 const generateMonthOptions = () => {
     const options = [];
     const d = new Date();
     for (let i = 0; i < 12; i++) {
-        d.setDate(1); // Evita problemas com meses de durações diferentes
+        d.setDate(1);
         const year = d.getFullYear();
-        const month = d.getMonth() + 1; // 1-12
+        const month = d.getMonth() + 1;
         const monthName = d.toLocaleString('pt-BR', { month: 'long' });
         
         options.push({
-            value: `${year}-${month}`, // ex: "2025-6"
+            value: `${year}-${month}`,
             label: `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} de ${year}`
         });
         d.setMonth(d.getMonth() - 1);
@@ -23,33 +29,30 @@ const generateMonthOptions = () => {
     return options;
 };
 
-
 const HistoricoWhatsApp = () => {
     const [historico, setHistorico] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [copiedId, setCopiedId] = useState(null);
     
-    // Estado para controlar os filtros
-    const [filter, setFilter] = useState({ year: '', month: '' });
-    const [activeQuickFilter, setActiveQuickFilter] = useState(''); // 'hoje', 'este_mes'
+    // Estado para filtros
+    const [filter, setFilter] = useState({ year: '', month: '', status: '' });
+    const [activeQuickFilter, setActiveQuickFilter] = useState('all');
 
-    // Gera as opções do dropdown uma vez
     const monthOptions = useMemo(() => generateMonthOptions(), []);
 
     useEffect(() => {
         setLoading(true);
         setError(null);
 
-        // Constrói os parâmetros da query a partir do estado de filtro
         const params = {};
         if (filter.year) params.year = filter.year;
         if (filter.month) params.month = filter.month;
+        if (filter.status) params.status = filter.status;
 
         const queryParams = new URLSearchParams(params).toString();
-        const url = `${API_BASE_URL}/historico-envios/?${queryParams}`;
-
-        axiosInstance.get(url)
+        
+        axiosInstance.get(`/api/historico-envios/?${queryParams}`)
             .then(response => {
                 setHistorico(response.data);
             })
@@ -60,145 +63,128 @@ const HistoricoWhatsApp = () => {
             .finally(() => {
                 setLoading(false);
             });
-    }, [filter]); // Re-executa o fetch sempre que o estado 'filter' mudar
+    }, [filter]);
 
     const copyToClipboard = (text, id) => {
         navigator.clipboard.writeText(text).then(() => {
             setCopiedId(id);
             setTimeout(() => setCopiedId(null), 2000);
-        }, (err) => {
-            console.error('Erro ao copiar: ', err);
+        }, () => {
             alert("Falha ao copiar o ID.");
         });
     };
     
-    const applyQuickFilter = (type) => {
-        const today = new Date();
-        setActiveQuickFilter(type);
-
-        if (type === 'hoje') {
-            // Se o backend suportasse ?date=YYYY-MM-DD seria mais preciso.
-            // Por agora, filtramos pelo dia de hoje usando o mês e ano atuais.
-            setFilter({
-                year: today.getFullYear().toString(),
-                month: (today.getMonth() + 1).toString(),
-            });
-        } else if (type === 'este_mes') {
-            setFilter({
-                year: today.getFullYear().toString(),
-                month: (today.getMonth() + 1).toString(),
-            });
+    const handleFilterChange = (type, value) => {
+        setActiveQuickFilter(''); // Limpa o filtro rápido ao usar um seletor
+        if(type === 'monthYear'){
+            if(!value){
+                setFilter(prev => ({ ...prev, year: '', month: '' }));
+            } else {
+                const [year, month] = value.split('-');
+                setFilter(prev => ({ ...prev, year, month }));
+            }
+        } else {
+             setFilter(prev => ({ ...prev, [type]: value }));
         }
     };
     
-    const handleMonthSelectChange = (e) => {
-        setActiveQuickFilter(''); // Desmarca filtros rápidos
-        const value = e.target.value;
-        if (!value) {
-            clearFilters();
-            return;
-        }
-        const [year, month] = value.split('-');
-        setFilter({ year, month });
-    };
-
     const clearFilters = () => {
-        setFilter({ year: '', month: '' });
-        setActiveQuickFilter('');
-        // Para o select voltar para a opção "Todos os Períodos"
-        document.getElementById('month-filter-select').value = '';
+        setFilter({ year: '', month: '', status: '' });
+        setActiveQuickFilter('all');
+    };
+    
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1 }
     };
 
     return (
-        <div className="p-6 md:p-10 bg-gray-900 min-h-screen">
-            <h1 className="text-3xl font-bold text-indigo-400 mb-4">Histórico de Envios (WhatsApp)</h1>
+        <div className="p-6 md:p-8 animate-fade-in">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-8">Histórico de Envios por WhatsApp</h1>
 
-            {/* --- INÍCIO: Controles de Filtro --- */}
-            <div className="mb-8 p-4 bg-gray-800 rounded-lg shadow-lg flex flex-wrap items-center gap-4">
-                <FunnelIcon className="h-6 w-6 text-indigo-400 flex-shrink-0" />
-                <span className="font-semibold text-gray-200 mr-4">Filtrar por:</span>
-                
-                <div className="flex items-center gap-2">
-                    <button onClick={() => applyQuickFilter('hoje')} className={`px-4 py-2 text-sm rounded-md transition-colors ${activeQuickFilter === 'hoje' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>Hoje</button>
-                    <button onClick={() => applyQuickFilter('este_mes')} className={`px-4 py-2 text-sm rounded-md transition-colors ${activeQuickFilter === 'este_mes' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>Este Mês</button>
+            {/* --- Controles de Filtro Modernizados --- */}
+            <div className="mb-8 p-4 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex flex-wrap items-center gap-4">
+                <FunnelIcon className="h-5 w-5 text-gray-500 dark:text-indigo-400" />
+                <div className="flex items-center gap-2 border-r border-gray-200 dark:border-gray-600 pr-4">
+                    <button onClick={() => { setFilter({ year: '', month: '', status: '' }); setActiveQuickFilter('all'); }} className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeQuickFilter === 'all' ? 'bg-indigo-600 text-white shadow' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>Todos</button>
+                    <button onClick={() => { setFilter({ status: 'sucesso' }); setActiveQuickFilter('sucesso'); }} className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeQuickFilter === 'sucesso' ? 'bg-green-600 text-white shadow' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>Sucesso</button>
+                    <button onClick={() => { setFilter({ status: 'falha' }); setActiveQuickFilter('falha'); }} className={`px-3 py-1.5 text-sm rounded-md transition-colors ${activeQuickFilter === 'falha' ? 'bg-red-600 text-white shadow' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>Falha</button>
                 </div>
-
                 <div className="flex items-center gap-2">
-                    <label htmlFor="month-filter-select" className="text-sm text-gray-400">Mês Específico:</label>
                     <select 
                         id="month-filter-select"
-                        onChange={handleMonthSelectChange}
-                        className="py-2 pl-3 pr-8 text-sm border-gray-600 bg-gray-700 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                        defaultValue=""
+                        onChange={(e) => handleFilterChange('monthYear', e.target.value)}
+                        className="py-2 pl-3 pr-8 text-sm bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
                     >
-                        <option value="">Todos os Períodos</option>
+                        <option value="">Filtrar por Mês...</option>
                         {monthOptions.map(opt => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                     </select>
                 </div>
-                
-                {(filter.year || filter.month) && (
-                    <button onClick={clearFilters} className="px-4 py-2 text-sm text-red-400 hover:text-white hover:bg-red-600 rounded-md border border-red-500 transition-colors">Limpar Filtro</button>
+                 {(filter.year || filter.month || filter.status) && (
+                    <button onClick={clearFilters} className="text-xs text-gray-500 hover:text-indigo-500 dark:hover:text-indigo-400 ml-auto">Limpar Filtros</button>
                 )}
             </div>
-            {/* --- FIM: Controles de Filtro --- */}
 
-            {loading && <div className="text-center text-gray-400">Carregando histórico...</div>}
+            {loading && <div className="text-center text-gray-500 dark:text-gray-400">Carregando histórico...</div>}
             {error && <div className="text-center text-red-500">{error}</div>}
 
             {!loading && !error && (
                 <div className="relative">
-                    {/* Linha da timeline */}
-                    <div className="absolute left-4 top-0 h-full w-0.5 bg-gray-700 hidden sm:block" aria-hidden="true"></div>
-
-                    {/* Itens da timeline */}
+                    <div className="absolute left-4 top-0 h-full w-0.5 bg-gray-200 dark:bg-gray-700 hidden sm:block" aria-hidden="true"></div>
                     <div className="space-y-8">
                         {historico.length === 0 ? (
-                            <div className="text-center py-10">
-                                <p className="text-gray-500 text-lg">Nenhum registro de envio encontrado para o período selecionado.</p>
+                            <div className="text-center py-16 px-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                                <InformationCircleIcon className="mx-auto h-12 w-12 text-gray-400"/>
+                                <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">Nenhum Registro Encontrado</h3>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Não há envios que correspondam aos filtros selecionados.</p>
                             </div>
                         ) : (
-                            historico.map(item => (
-                                <div key={item.id} className="relative flex items-start">
+                            historico.map((item, index) => (
+                                <motion.div 
+                                    key={item.id} 
+                                    className="relative flex items-start"
+                                    variants={itemVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    transition={{ delay: index * 0.05 }}
+                                >
                                     <div className="flex-shrink-0 flex items-center justify-center h-18 w-18">
-                                        <div className="z-10 flex items-center justify-center rounded-full">
-                                            {item.status && item.status.trim().toLowerCase() === 'sucesso' ? (
-                                                <CheckCircleIcon className="h-8 w-8 text-green-500 bg-gray-900 rounded-full" />
+                                        <span className="z-10 flex items-center justify-center p-1 rounded-full bg-white dark:bg-gray-800">
+                                            {item.status?.trim().toLowerCase() === 'sucesso' ? (
+                                                <CheckCircleIcon className="h-6 w-6 text-green-500" />
                                             ) : (
-                                                <XCircleIcon className="h-8 w-8 text-red-500 bg-gray-900 rounded-full" />
+                                                <XCircleIcon className="h-6 w-6 text-red-500" />
                                             )}
-                                        </div>
+                                        </span>
                                     </div>
-                                    
-                                    <div className="ml-4 w-full p-4 bg-gray-800 rounded-lg shadow-lg border border-gray-700">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <p className="font-semibold text-lg text-white break-words">{item.arquivo}</p>
-                                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${item.status && item.status.trim().toLowerCase() === 'sucesso' ? 'bg-green-800 text-green-200' : 'bg-red-800 text-red-200'}`}>
+                                    <div className="ml-4 w-full p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+                                        <div className="flex justify-between items-start mb-2 gap-2">
+                                            <p className="font-semibold text-base text-gray-900 dark:text-white break-words">{item.arquivo}</p>
+                                            <span className={`flex-shrink-0 px-2 py-1 text-xs font-semibold rounded-full ${item.status?.trim().toLowerCase() === 'sucesso' ? 'bg-green-100 text-green-800 dark:bg-green-800/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-800/50 dark:text-red-300'}`}>
                                                 {item.status ? item.status.charAt(0).toUpperCase() + item.status.slice(1) : 'Indefinido'}
                                             </span>
                                         </div>
-                                        <p className="text-sm text-gray-400">
-                                            Enviado para: <span className="font-medium text-gray-300">{item.remetente}</span>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                            Para: <span className="font-medium text-gray-700 dark:text-gray-300">{item.remetente}</span>
                                         </p>
-                                        <p className="text-sm text-gray-400">
-                                            Data: <span className="font-medium text-gray-300">{new Date(item.data_hora).toLocaleString('pt-BR')}</span>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                            Em: <span className="font-medium text-gray-700 dark:text-gray-300">{new Date(item.data_hora).toLocaleString('pt-BR')}</span>
                                         </p>
                                         {item.message_id && (
                                             <div className="mt-2 flex items-center text-xs text-gray-500">
                                                 <p className="truncate mr-2">
-                                                    Message ID: <span className="text-gray-400">{item.message_id}</span>
+                                                    ID: <span className="text-gray-400">{item.message_id}</span>
                                                 </p>
-                                                <button onClick={() => copyToClipboard(item.message_id, item.id)} title="Copiar ID da Mensagem" className="text-indigo-400 hover:text-indigo-200">
-                                                    {copiedId === item.id ? (
-                                                        <ClipboardDocumentCheckIcon className="h-4 w-4 text-green-400" />
-                                                    ) : (
-                                                        <ClipboardDocumentIcon className="h-4 w-4" />
-                                                    )}
+                                                <button onClick={() => copyToClipboard(item.message_id, item.id)} title="Copiar ID da Mensagem" className="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-200">
+                                                    {copiedId === item.id ? <ClipboardDocumentCheckIcon className="h-4 w-4 text-green-500" /> : <ClipboardDocumentIcon className="h-4 w-4" />}
                                                 </button>
                                             </div>
                                         )}
                                     </div>
-                                </div>
+                                </motion.div>
                             ))
                         )}
                     </div>

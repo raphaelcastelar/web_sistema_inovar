@@ -1,19 +1,27 @@
-// src/pages/FuncionarioList.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import axiosInstance from '../api/axiosInstance'; // Use a instância customizada!
-import { UserPlusIcon, PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
+import axiosInstance from '../api/axiosInstance';
+import { motion } from 'framer-motion';
+import { 
+    UserPlusIcon, 
+    PencilSquareIcon, 
+    TrashIcon, 
+    UserCircleIcon, 
+    ShieldCheckIcon 
+} from '@heroicons/react/24/outline';
 
 const FuncionarioList = () => {
     const [funcionarios, setFuncionarios] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [search, setSearch] = useState('');
 
     const fetchFuncionarios = () => {
         setLoading(true);
         axiosInstance.get('/api/funcionarios/')
             .then(response => {
-                setFuncionarios(response.data);
+                // Filtra para não exibir o superusuário "admin", se houver
+                setFuncionarios(response.data.filter(f => f.username !== 'admin'));
             })
             .catch(err => {
                 console.error("Erro ao buscar funcionários:", err);
@@ -26,8 +34,8 @@ const FuncionarioList = () => {
         fetchFuncionarios();
     }, []);
 
-    const handleDelete = (id) => {
-        if (window.confirm('Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.')) {
+    const handleDelete = (id, nome) => {
+        if (window.confirm(`Tem certeza que deseja excluir o usuário "${nome}"? Esta ação não pode ser desfeita.`)) {
             axiosInstance.delete(`/api/funcionarios/${id}/`)
                 .then(() => {
                     alert('Usuário excluído com sucesso!');
@@ -40,53 +48,91 @@ const FuncionarioList = () => {
         }
     };
 
-    if (loading) return <p className="p-8 text-center text-gray-400">Carregando usuários...</p>;
+    const filteredFuncionarios = useMemo(() => 
+        funcionarios.filter(func =>
+            `${func.first_name} ${func.last_name}`.toLowerCase().includes(search.toLowerCase()) ||
+            func.username.toLowerCase().includes(search.toLowerCase()) ||
+            func.email.toLowerCase().includes(search.toLowerCase())
+        ), [funcionarios, search]);
+
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: {
+            opacity: 1,
+            transition: { staggerChildren: 0.07 }
+        }
+    };
+
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1 }
+    };
+
+    if (loading) return <p className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando usuários...</p>;
     if (error) return <p className="p-8 text-center text-red-500">{error}</p>;
 
     return (
-        <div className="p-6 md:p-10 bg-gray-900 min-h-screen">
+        <div className="p-6 md:p-8 animate-fade-in">
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-3xl font-bold text-indigo-400">Gerenciamento de Usuários</h1>
-                <Link to="/gerenciar-usuarios/novo" className="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-500 transition-colors">
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300">Gerenciamento de Usuários</h1>
+                <Link to="/gerenciar-usuarios/novo" className="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-500 transition-colors shadow-lg">
                     <UserPlusIcon className="h-5 w-5 mr-2" />
                     Novo Usuário
                 </Link>
             </div>
-            <div className="bg-gray-800 shadow-xl rounded-lg overflow-hidden">
-                <table className="min-w-full">
-                    <thead className="bg-gray-750">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Nome</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Usuário</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-700">
-                        {funcionarios.map(func => (
-                            <tr key={func.id} className="hover:bg-gray-700">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{`${func.first_name} ${func.last_name}`}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{func.username}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{func.email}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${func.is_active ? 'bg-green-800 text-green-200' : 'bg-red-800 text-red-200'}`}>
-                                        {func.is_active ? 'Ativo' : 'Inativo'}
+
+            {/* Futuramente, uma barra de busca pode ser adicionada aqui */}
+
+            <motion.div 
+                className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+            >
+                {filteredFuncionarios.map(func => (
+                    <motion.div
+                        key={func.id}
+                        variants={itemVariants}
+                        className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col"
+                    >
+                        <div className="p-6 flex-grow">
+                            <div className="flex items-center gap-4">
+                                <div className="flex-shrink-0 bg-gray-200 dark:bg-gray-700 p-2 rounded-full">
+                                    <UserCircleIcon className="h-10 w-10 text-indigo-500 dark:text-indigo-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                                        {func.first_name || func.last_name ? `${func.first_name} ${func.last_name}`.trim() : 'Nome não cadastrado'}
+                                    </h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">@{func.username}</p>
+                                </div>
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-4 break-all">{func.email}</p>
+                            
+                            <div className="flex items-center gap-2 mt-4">
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${func.is_active ? 'bg-green-100 text-green-800 dark:bg-green-800/50 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-800/50 dark:text-red-300'}`}>
+                                    {func.is_active ? 'Ativo' : 'Inativo'}
+                                </span>
+                                {func.is_staff && (
+                                    <span className="flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-800/50 dark:text-indigo-300">
+                                        <ShieldCheckIcon className="h-4 w-4"/>
+                                        Admin
                                     </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                                    <Link to={`/gerenciar-usuarios/editar/${func.id}`} className="text-indigo-400 hover:text-indigo-300 inline-block p-1" title="Editar">
-                                        <PencilSquareIcon className="h-5 w-5" />
-                                    </Link>
-                                    <button onClick={() => handleDelete(func.id)} className="text-red-500 hover:text-red-400 inline-block p-1" title="Excluir">
-                                        <TrashIcon className="h-5 w-5" />
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="flex border-t border-gray-200 dark:border-gray-700">
+                            <Link to={`/gerenciar-usuarios/editar/${func.id}`} className="flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors" title="Editar">
+                                <PencilSquareIcon className="h-5 w-5" /> Editar
+                            </Link>
+                            <button onClick={() => handleDelete(func.id, `${func.first_name} ${func.last_name}`)} className="flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-red-600 dark:hover:text-red-400 rounded-bl-lg transition-colors border-l border-gray-200 dark:border-gray-700" title="Excluir">
+                                <TrashIcon className="h-5 w-5" /> Excluir
+                            </button>
+                        </div>
+                    </motion.div>
+                ))}
+            </motion.div>
         </div>
     );
 };
