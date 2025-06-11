@@ -6,7 +6,8 @@ import {
     ClockIcon, 
     DocumentArrowDownIcon,
     DocumentMagnifyingGlassIcon,
-    ArrowLeftOnRectangleIcon 
+    ArrowLeftOnRectangleIcon,
+    BuildingOfficeIcon
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 import ThemeToggle from './ThemeToggle';
@@ -37,15 +38,27 @@ const Navbar = () => {
             {/* Seção dos Links de Navegação (ocupa o espaço restante) */}
             <nav className="flex-grow w-full flex flex-col space-y-2 px-2">
                 <Link
-                    to="/empresas"
+                    to="/"
+                    // --- CORREÇÃO AQUI ---
+                    // Mudado de .startsWith('/') para uma comparação exata === '/'
                     className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
-                        location.pathname.startsWith('/empresas') ? 'bg-indigo-800 text-white' : ''
+                        location.pathname === '/' ? 'bg-indigo-800 text-white' : ''
                     }`}
                 >
                     <HomeIcon className="h-6 w-6" />
                     <span className="text-base font-medium">Início</span>
                 </Link>
                 
+                <Link
+                    to="/empresas"
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
+                        location.pathname.startsWith('/empresas') ? 'bg-indigo-800 text-white' : ''
+                    }`}
+                >
+                    <BuildingOfficeIcon className="h-6 w-6" />
+                    <span className="text-base font-medium">Empresas</span>
+                </Link>
+
                 <Link
                     to="/gerenciar-usuarios"
                     className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
