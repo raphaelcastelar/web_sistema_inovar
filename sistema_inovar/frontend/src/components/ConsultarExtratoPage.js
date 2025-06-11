@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
-import { UsersIcon, CalendarDaysIcon, MagnifyingGlassIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
+import { UsersIcon, CalendarDaysIcon, MagnifyingGlassIcon, DocumentArrowDownIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { motion } from 'framer-motion';
 
 // Função auxiliar para encontrar os detalhes do DAS dentro da resposta da API
 const findDasDetails = (data) => {
@@ -121,9 +122,12 @@ const ConsultarExtratoPage = () => {
     const yearOptions = useMemo(() => {
         const currentYear = new Date().getFullYear();
         const years = [];
-        for (let i = -2; i <= 4; i++) { years.push(currentYear - i); }
-        return years;
+        for (let i = -4; i <= 2; i++) {
+            years.push(currentYear - i);
+        }
+        return years.sort((a, b) => b - a);
     }, []);
+
     const monthOptions = useMemo(() => [
         { value: '01', label: 'Janeiro' }, { value: '02', label: 'Fevereiro' },
         { value: '03', label: 'Março' }, { value: '04', label: 'Abril' },
@@ -134,8 +138,14 @@ const ConsultarExtratoPage = () => {
     ], []);
 
     useEffect(() => {
-        axiosInstance.get('/api/empresas/').then(response => setEmpresas(response.data))
-            .catch(err => setError("Não foi possível carregar as empresas."));
+        axiosInstance.get('/api/empresas/')
+            .then(response => {
+                setEmpresas(response.data);
+            })
+            .catch(err => {
+                console.error("Erro ao buscar empresas:", err);
+                setError("Não foi possível carregar a lista de empresas.");
+            });
     }, []);
 
     const handleConsultarExtrato = async () => {
@@ -150,7 +160,9 @@ const ConsultarExtratoPage = () => {
         const periodoApuracao = `${selectedYear}${selectedMonth}`;
         const empresaSelecionada = empresas.find(e => e.id === parseInt(selectedEmpresaId));
         if (!empresaSelecionada) {
-            setError("Empresa selecionada não encontrada."); setLoading(false); return;
+            setError("Erro: Empresa selecionada não encontrada.");
+            setLoading(false);
+            return;
         }
         const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
 
@@ -245,69 +257,97 @@ const ConsultarExtratoPage = () => {
     };
 
     return (
-        <div className="p-6 md:p-10 bg-gray-100 dark:bg-gray-900 min-h-screen">
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-8">Consultar Extrato do Simples Nacional</h1>
-            <div className="max-w-xl mx-auto bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 space-y-6">
-                <div>
-                    <label htmlFor="empresa-select" className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        <UsersIcon className="h-5 w-5 mr-2 text-indigo-500 dark:text-indigo-400"/>
-                        Empresa
-                    </label>
-                    <select
-                        id="empresa-select"
-                        value={selectedEmpresaId}
-                        onChange={(e) => setSelectedEmpresaId(e.target.value)}
-                        className="w-full p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                    >
-                        <option value="">Selecione uma empresa...</option>
-                        {empresas.map(emp => (
-                            <option key={emp.id} value={emp.id}>{emp.nome}</option>
-                        ))}
-                    </select>
-                </div>
-                <div>
-                    <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        <CalendarDaysIcon className="h-5 w-5 mr-2 text-indigo-500 dark:text-indigo-400"/>
-                        Período de Apuração
-                    </label>
-                    <div className="flex items-center gap-4">
+        <div className="p-6 md:p-8 animate-fade-in">
+            <div className="max-w-2xl mx-auto">
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-2">Consultar Extrato do Simples Nacional</h1>
+                <p className="text-gray-600 dark:text-gray-400 mb-8">Selecione a empresa e o período para consultar o extrato detalhado do Simples Nacional.</p>
+                
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 space-y-6"
+                >
+                    <div>
+                        <label htmlFor="empresa-select" className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <UsersIcon className="h-5 w-5 mr-2 text-indigo-500 dark:text-indigo-400"/>
+                            Empresa
+                        </label>
                         <select
-                            id="month-select"
-                            value={selectedMonth}
-                            onChange={(e) => setSelectedMonth(e.target.value)}
+                            id="empresa-select"
+                            value={selectedEmpresaId}
+                            onChange={(e) => setSelectedEmpresaId(e.target.value)}
                             className="w-full p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                         >
-                            {monthOptions.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </select>
-                        <select
-                            id="year-select"
-                            value={selectedYear}
-                            onChange={(e) => setSelectedYear(e.target.value)}
-                            className="w-full p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                        >
-                            {yearOptions.map(year => (
-                                <option key={year} value={year}>{year}</option>
+                            <option value="">Selecione uma empresa...</option>
+                            {empresas.map(emp => (
+                                <option key={emp.id} value={emp.id}>{emp.nome}</option>
                             ))}
                         </select>
                     </div>
-                </div>
 
-                {error && <p className="text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30 p-3 rounded-md">{error}</p>}
+                    <div>
+                        <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            <CalendarDaysIcon className="h-5 w-5 mr-2 text-indigo-500 dark:text-indigo-400"/>
+                            Período de Apuração
+                        </label>
+                        <div className="grid grid-cols-2 gap-4">
+                            <select
+                                id="month-select"
+                                value={selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value)}
+                                className="w-full p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            >
+                                {monthOptions.map(opt => (
+                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                            </select>
+                            <select
+                                id="year-select"
+                                value={selectedYear}
+                                onChange={(e) => setSelectedYear(e.target.value)}
+                                className="w-full p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            >
+                                {yearOptions.map(year => (
+                                    <option key={year} value={year}>{year}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
 
-                <div className="pt-4">
-                    <button
-                        onClick={handleConsultarExtrato}
-                        disabled={loading || !selectedEmpresaId || !selectedYear || !selectedMonth}
-                        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-500 dark:hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                        {loading ? 'Consultando...' : <><MagnifyingGlassIcon className="h-5 w-5"/> Consultar Extrato</>}
-                    </button>
-                </div>
+                    <div className="pt-4">
+                        <button
+                            onClick={handleConsultarExtrato}
+                            disabled={loading || !selectedEmpresaId || !selectedYear || !selectedMonth}
+                            className="w-full flex items-center justify-center gap-3 px-6 py-4 text-base font-semibold bg-indigo-600 text-white rounded-lg shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-800 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105"
+                        >
+                            {loading ? (
+                                <>
+                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Consultando...
+                                </>
+                            ) : (
+                                <>
+                                    <MagnifyingGlassIcon className="h-6 w-6"/>
+                                    Consultar Extrato
+                                </>
+                            )}
+                        </button>
+                    </div>
+
+                    {error && 
+                        <div className="p-3 mt-4 text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg flex items-center gap-3">
+                            <InformationCircleIcon className="h-5 w-5"/>
+                            <span>{error}</span>
+                        </div>
+                    }
+                </motion.div>
+
+                <ExtratoResult data={extratoData} onDownloadPdf={handleDownloadPdf} isDownloadingPdf={isDownloadingPdf} />
             </div>
-
-            <ExtratoResult data={extratoData} onDownloadPdf={handleDownloadPdf} isDownloadingPdf={isDownloadingPdf} />
         </div>
     );
 };
