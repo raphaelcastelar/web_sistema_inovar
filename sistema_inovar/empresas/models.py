@@ -202,3 +202,29 @@ class HistoricoEnvios(models.Model):
 
     def __str__(self):
         return f"Envio para {self.remetente} em {self.data_hora.strftime('%d/%m/%Y %H:%M')} - Status: {self.status}"
+    
+class ObrigacaoMensal(models.Model):
+    STATUS_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('enviado', 'Enviado ao Cliente'),
+        ('nao_aplicavel', 'Não Aplicável (Sem Débito)'),
+    ]
+    TIPO_OBRIGACAO_CHOICES = [
+        ('simples_nacional', 'Simples Nacional (DAS)'),
+        # Você pode adicionar outras no futuro, como 'esocial', 'dctfweb', etc.
+    ]
+
+    id = models.AutoField(primary_key=True)
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='obrigacoes')
+    tipo = models.CharField(max_length=50, choices=TIPO_OBRIGACAO_CHOICES)
+    periodo_apuracao = models.DateField() # Armazena o 1º dia do mês de referência (ex: 2025-05-01)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
+    data_envio = models.DateTimeField(null=True, blank=True)
+    responsavel_envio = models.ForeignKey('Funcionario', on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        unique_together = ('empresa', 'tipo', 'periodo_apuracao') # Garante uma obrigação por tipo/mês/empresa
+        ordering = ['-periodo_apuracao']
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} - {self.empresa.nome} - {self.periodo_apuracao.strftime('%m/%Y')}"
