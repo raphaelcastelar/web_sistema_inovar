@@ -1,28 +1,45 @@
 import os
 import smtplib
 import urllib.parse
+import re
+import datetime
 import unidecode
+import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from email.utils import formatdate
+
 from django.conf import settings
-from django.http import JsonResponse
-from rest_framework.decorators import api_view, permission_classes
+from django.http import HttpResponse, JsonResponse
+from django.utils import timezone
+from django.db.models import Count
+from datetime import timedelta
+
 from rest_framework import viewsets, status
-from django.http import HttpResponse
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
-from .filters import HistoricoEnviosFilter 
-from .serpro_service import gerar_das_serpro, obter_dados_extrato_serpro, obter_extrato_pdf_serpro, get_serpro_token, orquestrar_consulta_extrato
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario
-from .serializers import EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, HistoricoEnviosSerializer, FuncionarioSerializer
+
+from .models import (
+    Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
+    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal
+)
+from .serializers import (
+    EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
+    DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
+    HistoricoEnviosSerializer, FuncionarioSerializer
+)
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
-import logging
-import datetime
-import re
+from .serpro_service import (
+    gerar_das_serpro, 
+    obter_dados_extrato_serpro, 
+    obter_extrato_pdf_serpro,
+    orquestrar_consulta_extrato
+)
+from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 
 
@@ -578,23 +595,23 @@ def enviar_documentos_whatsapp_api(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def gerar_das_api(request):
+    """View para a página 'Gerar DAS'."""
     cnpj = request.data.get('cnpj')
-    periodo = request.data.get('periodo') # Esperado no formato "YYYYMM"
+    periodo = request.data.get('periodo')
 
     if not cnpj or not periodo:
         return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
-
+    
+    # A lógica foi movida para o service.py
     resultado = gerar_das_serpro(cnpj_empresa=cnpj, periodo_apuracao=periodo)
-
+    
     if resultado.get("sucesso"):
-        # Retorna o arquivo PDF para download
         pdf_content = resultado.get("pdf_content")
         filename = resultado.get("filename", "DAS.pdf")
         response = HttpResponse(pdf_content, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
     else:
-        # Retorna a mensagem de erro em JSON
         return Response(
             {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
             status=status.HTTP_400_BAD_REQUEST
@@ -669,3 +686,35 @@ def consultar_extrato_api(request):
             {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
             status=status.HTTP_400_BAD_REQUEST
         )
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_status_simples_api(request):
+    """View para os dados do gráfico do dashboard."""
+    hoje = timezone.now().date()
+    primeiro_dia_mes_atual = hoje.replace(day=1)
+    ultimo_dia_mes_anterior = primeiro_dia_mes_atual - timedelta(days=1)
+    periodo_alvo = ultimo_dia_mes_anterior.replace(day=1)
+
+    total_empresas_simples = Empresa.objects.count()
+    
+    obrigacoes_do_periodo = ObrigacaoMensal.objects.filter(
+        tipo='simples_nacional', 
+        periodo_apuracao=periodo_alvo
+    )
+
+    contagem_status = obrigacoes_do_periodo.values('status').annotate(count=Count('id'))
+    
+    dados = {'enviado': 0, 'pendente': 0, 'nao_aplicavel': 0}
+    for item in contagem_status:
+        if item['status'] in dados:
+            dados[item['status']] = item['count']
+    
+    total_com_status_registrado = sum(dados.values())
+    dados['pendente'] += total_empresas_simples - total_com_status_registrado
+
+    return Response({
+        'periodo': periodo_alvo.strftime('%m/%Y'),
+        'labels': ['Enviado', 'Pendente', 'Não Aplicável'],
+        'data': [dados['enviado'], dados['pendente'], dados['nao_aplicavel']]
+    })
