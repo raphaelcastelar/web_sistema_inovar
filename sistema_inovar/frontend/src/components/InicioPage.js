@@ -147,4 +147,34 @@ const InicioPage = () => {
     );
 };
 
+const SimplesStatusChart = () => {
+    const [chartData, setChartData] = useState(null);
+
+    useEffect(() => {
+        axiosInstance.get('/api/dashboard/status-simples/')
+            .then(response => {
+                const data = response.data;
+                setChartData({
+                    labels: data.labels,
+                    datasets: [{
+                        data: data.data,
+                        backgroundColor: ['#22c55e', '#ef4444', '#64748b'], // Verde, Vermelho, Cinza
+                        borderColor: 'transparent',
+                    }]
+                });
+            });
+    }, []);
+
+    if (!chartData) return <div className="h-64 flex items-center justify-center">Carregando dados do gráfico...</div>;
+
+    return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">Status do Simples Nacional (Mês Anterior)</h2>
+            <div className="h-64 relative">
+                <Doughnut data={chartData} options={{ maintainAspectRatio: false, /* ...outras opções... */ }} />
+            </div>
+        </div>
+    );
+};
+
 export default InicioPage;
