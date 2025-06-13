@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
     HomeIcon, 
@@ -7,8 +7,7 @@ import {
     DocumentArrowDownIcon,
     DocumentMagnifyingGlassIcon,
     ArrowLeftOnRectangleIcon,
-    BuildingOfficeIcon,
-    Cog6ToothIcon // Ícone para a nova página de gerenciamento
+    BuildingOfficeIcon
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 import ThemeToggle from './ThemeToggle';
@@ -20,28 +19,14 @@ const Navbar = () => {
     const handleLogout = () => {
         localStorage.removeItem('authTokens');
         navigate('/login');
-    };
-
-    // Helper para criar os links e evitar repetição de código
-    const NavLink = ({ to, icon: Icon, text }) => {
-        const isActive = location.pathname.startsWith(to) && (to !== '/' || location.pathname === '/');
-        
-        return (
-            <Link
-                to={to}
-                className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
-                    isActive ? 'bg-indigo-800 text-white shadow-inner' : ''
-                }`}
-            >
-                <Icon className="h-6 w-6 flex-shrink-0" />
-                <span className="text-base font-medium">{text}</span>
-            </Link>
-        );
+        window.location.reload(); 
     };
 
     return (
+        // Container principal fixo com flexbox em coluna
         <div className="fixed left-0 top-0 h-full w-56 bg-gradient-to-b from-indigo-900 to-gray-800 shadow-xl flex flex-col">
             
+            {/* Seção do Logo (topo) */}
             <div className="flex-shrink-0 flex justify-center py-8">
                 <img
                     src={LogoContabilidade}
@@ -50,25 +35,72 @@ const Navbar = () => {
                 />
             </div>
 
-            <nav className="flex-grow w-full flex flex-col space-y-1 px-2">
-                <NavLink to="/" icon={HomeIcon} text="Início" />
-                <NavLink to="/empresas" icon={BuildingOfficeIcon} text="Empresas" />
-                <NavLink to="/gerenciar-usuarios" icon={UserGroupIcon} text="Usuários" />
+            {/* Seção dos Links de Navegação (ocupa o espaço restante) */}
+            <nav className="flex-grow w-full flex flex-col space-y-2 px-2">
+                <Link
+                    to="/"
+                    // --- CORREÇÃO AQUI ---
+                    // Mudado de .startsWith('/') para uma comparação exata === '/'
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
+                        location.pathname === '/' ? 'bg-indigo-800 text-white' : ''
+                    }`}
+                >
+                    <HomeIcon className="h-6 w-6" />
+                    <span className="text-base font-medium">Início</span>
+                </Link>
                 
-                {/* Divisor para agrupar visualmente os serviços */}
-                <div className="px-4 pt-4 pb-2">
-                    <span className="text-xs font-semibold text-indigo-400 uppercase">Serviços</span>
-                </div>
-                
-                <NavLink to="/gerar-das" icon={DocumentArrowDownIcon} text="Gerar DAS" />
-                <NavLink to="/consultar-extrato" icon={DocumentMagnifyingGlassIcon} text="Consultar Extrato" />
-                
-                {/* --- NOVO LINK ADICIONADO AQUI --- */}
-                <NavLink to="/gerenciamento/simples-nacional" icon={Cog6ToothIcon} text="Gerenciar Simples" />
+                <Link
+                    to="/empresas"
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
+                        location.pathname.startsWith('/empresas') ? 'bg-indigo-800 text-white' : ''
+                    }`}
+                >
+                    <BuildingOfficeIcon className="h-6 w-6" />
+                    <span className="text-base font-medium">Empresas</span>
+                </Link>
 
-                <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
+                <Link
+                    to="/gerenciar-usuarios"
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
+                        location.pathname.startsWith('/gerenciar-usuarios') ? 'bg-indigo-800 text-white' : ''
+                    }`}
+                >
+                    <UserGroupIcon className="h-6 w-6" />
+                    <span className="text-base font-medium">Usuários</span>
+                </Link>
+                
+                <Link
+                    to="/historico-whatsapp"
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
+                        location.pathname === '/historico-whatsapp' ? 'bg-indigo-800 text-white' : ''
+                    }`}
+                >
+                    <ClockIcon className="h-6 w-6" />
+                    <span className="text-base font-medium">Histórico</span>
+                </Link>
+
+                <Link
+                    to="/gerar-das"
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
+                        location.pathname === '/gerar-das' ? 'bg-indigo-800 text-white' : ''
+                    }`}
+                >
+                    <DocumentArrowDownIcon className="h-6 w-6" />
+                    <span className="text-base font-medium">Gerar DAS</span>
+                </Link>
+
+                <Link
+                    to="/consultar-extrato"
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
+                        location.pathname === '/consultar-extrato' ? 'bg-indigo-800 text-white' : ''
+                    }`}
+                >
+                    <DocumentMagnifyingGlassIcon className="h-6 w-6" />
+                    <span className="text-base font-medium">Consultar Extrato</span>
+                </Link>
             </nav>
 
+            {/* Seção do Rodapé da Navbar (com Tema e Sair) */}
             <div className="w-full flex-shrink-0 p-4 space-y-2 border-t border-indigo-800/50">
                 <ThemeToggle />
                 <button
