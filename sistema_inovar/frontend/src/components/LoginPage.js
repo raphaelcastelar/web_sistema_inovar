@@ -35,7 +35,7 @@ const LoginPage = () => {
             });
             
             localStorage.setItem('authTokens', JSON.stringify(response.data));
-            navigate('/empresas');
+            navigate('/');
             window.location.reload();
             
         } catch (err) {

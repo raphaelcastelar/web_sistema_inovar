@@ -7,6 +7,7 @@ from .views import (
     gerar_das_api,
     consultar_extrato_api,
     download_extrato_pdf_api,
+    dashboard_summary_api,
 
 )
 urlpatterns = [
@@ -16,4 +17,5 @@ urlpatterns = [
     path('serpro/gerar-das/', gerar_das_api, name='gerar_das_api'),
     path('serpro/consultar-extrato/', consultar_extrato_api, name='consultar_extrato_api'),
     path('serpro/download-extrato-pdf/', download_extrato_pdf_api, name='download_extrato_pdf_api'),
+    path('dashboard-summary/', dashboard_summary_api, name='dashboard_summary_api'),
 ]

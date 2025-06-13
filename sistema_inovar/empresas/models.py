@@ -3,6 +3,7 @@ import os
 import re # Para sanitizar nomes de pastas/arquivos
 import unidecode # Para remover acentos de nomes de pastas/arquivos (pip install unidecode)
 from django.db import models
+from django.utils import timezone
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado
 from django.contrib.auth.models import AbstractUser
@@ -218,13 +219,28 @@ class ObrigacaoMensal(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='obrigacoes')
     tipo = models.CharField(max_length=50, choices=TIPO_OBRIGACAO_CHOICES)
     periodo_apuracao = models.DateField() # Armazena o 1º dia do mês de referência (ex: 2025-05-01)
+    
+    # --- CAMPO FALTANTE ADICIONADO AQUI ---
+    data_vencimento = models.DateField(null=True, blank=True) # Define a data limite para a entrega
+    
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
     data_envio = models.DateTimeField(null=True, blank=True)
     responsavel_envio = models.ForeignKey('Funcionario', on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
-        unique_together = ('empresa', 'tipo', 'periodo_apuracao') # Garante uma obrigação por tipo/mês/empresa
-        ordering = ['-periodo_apuracao']
+        unique_together = ('empresa', 'tipo', 'periodo_apuracao')
+        ordering = ['-periodo_apuracao', 'data_vencimento']
+
+    def save(self, *args, **kwargs):
+        # Lógica automática para definir o vencimento do Simples Nacional para o dia 20 do mês seguinte
+        if self.tipo == 'simples_nacional' and not self.data_vencimento:
+            # Pega o primeiro dia do mês de apuração
+            primeiro_dia = self.periodo_apuracao
+            # Adiciona um mês
+            primeiro_dia_mes_seguinte = (primeiro_dia.replace(day=1) + timezone.timedelta(days=32)).replace(day=1)
+            # Define o vencimento para o dia 20
+            self.data_vencimento = primeiro_dia_mes_seguinte.replace(day=20)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.empresa.nome} - {self.periodo_apuracao.strftime('%m/%Y')}"
