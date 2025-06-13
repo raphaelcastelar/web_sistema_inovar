@@ -8,6 +8,8 @@ from .views import (
     consultar_extrato_api,
     download_extrato_pdf_api,
     dashboard_summary_api,
+    gerenciamento_simples_api,
+    toggle_monitoramento_simples,
 
 )
 urlpatterns = [
@@ -18,4 +20,6 @@ urlpatterns = [
     path('serpro/consultar-extrato/', consultar_extrato_api, name='consultar_extrato_api'),
     path('serpro/download-extrato-pdf/', download_extrato_pdf_api, name='download_extrato_pdf_api'),
     path('dashboard-summary/', dashboard_summary_api, name='dashboard_summary_api'),
+    path('gerenciamento-simples/', gerenciamento_simples_api, name='gerenciamento_simples'),
+    path('empresas/<int:empresa_id>/toggle-monitoramento-simples/', toggle_monitoramento_simples, name='toggle_monitoramento_simples'),
 ]

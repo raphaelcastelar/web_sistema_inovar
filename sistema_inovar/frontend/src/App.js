@@ -18,6 +18,7 @@ import FuncionarioList from './components/FuncionarioList';
 import FuncionarioForm from './components/FuncionarioForm';
 import GerarDasPage from './components/GerarDasPage';
 import ConsultarExtratoPage from './components/ConsultarExtratoPage';
+import GerenciamentoSimplesPage from './components/GerenciamentoSimplesPage';
 
 import './App.css';
 
@@ -41,6 +42,7 @@ function App() {
             <Route path="/gerenciar-usuarios/novo" element={<FuncionarioForm />} />
             <Route path="/gerenciar-usuarios/editar/:funcionarioId" element={<FuncionarioForm />} />
             
+            <Route path="/gerenciamento/simples-nacional" element={<GerenciamentoSimplesPage />} />
             <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
             <Route path="/gerar-das" element={<GerarDasPage />} />
             <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />

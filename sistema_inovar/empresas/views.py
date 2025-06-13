@@ -14,8 +14,8 @@ from email.utils import formatdate
 from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
-from django.db.models import Count
 from datetime import timedelta
+from django.db.models import OuterRef, Subquery, CharField
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes
@@ -564,6 +564,24 @@ def enviar_documentos_whatsapp_api(request):
             status_envio = 'sucesso'
             successful_sends.append({"filename": original_filename, "message_id": message_id})
             files_sent_count += 1
+            if tipo_pasta == 'simples_nacional':
+                try:
+                    # Determina o período de apuração do arquivo (pode precisar de ajuste)
+                    # Assumindo que o arquivo tem ano e mês. Se não, podemos pegar o mês atual.
+                    ano_do_arquivo = doc.ano or timezone.now().year
+                    mes_do_arquivo = doc.mes or timezone.now().month
+                    periodo_date = timezone.datetime(int(ano_do_arquivo), int(mes_do_arquivo), 1).date()
+
+                    ObrigacaoMensal.objects.filter(
+                        empresa=empresa,
+                        tipo='simples_nacional',
+                        periodo_apuracao=periodo_date
+                    ).update(status='enviado', data_envio=timezone.now(), responsavel_envio=request.user)
+                    
+                    logger.info(f"Status da Obrigação 'Simples Nacional' para {empresa.nome} ({periodo_date.strftime('%m/%Y')}) atualizado para 'Enviado'.")
+
+                except Exception as e:
+                    logger.error(f"Falha ao atualizar status da obrigação para {empresa.nome}: {e}")
         else:
             status_envio = 'falha'
             failed_sends.append({"filename": original_filename, "reason": f"Falha ao enviar template: {error_sending}"})
@@ -687,15 +705,6 @@ def consultar_extrato_api(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-# empresas/views.py
-from django.utils import timezone
-from datetime import timedelta
-from django.db.models import Count, Q
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from .models import Empresa, ObrigacaoMensal # Garanta que ObrigacaoMensal está aqui
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard_summary_api(request):
@@ -756,3 +765,34 @@ def dashboard_summary_api(request):
     except Exception as e:
         logger.error(f"Erro CRÍTICO ao gerar dados do dashboard: {e}")
         return Response({"error": "Falha grave no servidor ao processar dados do dashboard."}, status=500)
+    
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def gerenciamento_simples_api(request):
+    hoje = timezone.now().date()
+    periodo_alvo = hoje.replace(day=1)
+
+    # Subquery para buscar o status da obrigação do mês corrente para cada empresa
+    obrigacao_status = ObrigacaoMensal.objects.filter(
+        empresa=OuterRef('pk'),
+        tipo='simples_nacional',
+        periodo_apuracao=periodo_alvo
+    ).values('status')[:1]
+
+    # Anota o status na queryset de empresas
+    empresas = Empresa.objects.annotate(
+        status_simples_mes_atual=Subquery(obrigacao_status, output_field=CharField())
+    ).values('id', 'nome', 'cnpj', 'monitorar_simples', 'status_simples_mes_atual')
+
+    return Response(list(empresas))
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def toggle_monitoramento_simples(request, empresa_id):
+    try:
+        empresa = Empresa.objects.get(id=empresa_id)
+        empresa.monitorar_simples = not empresa.monitorar_simples
+        empresa.save()
+        return Response({'message': 'Status de monitoramento atualizado com sucesso.', 'novo_status': empresa.monitorar_simples})
+    except Empresa.DoesNotExist:
+        return Response({'error': 'Empresa não encontrada.'}, status=404)
