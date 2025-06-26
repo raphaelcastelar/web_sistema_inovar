@@ -10,15 +10,18 @@ const UserCompanyAccessManager = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [selectedEmpresas, setSelectedEmpresas] = useState([]); // Novo estado para empresas selecionadas
+    const [selectedEmpresas, setSelectedEmpresas] = useState([]);
     const [isAdmin, setIsAdmin] = useState(null);
 
     useEffect(() => {
         const checkAdmin = async () => {
             try {
+                console.log('Verificando permissões do usuário...');
                 const response = await axiosInstance.get('/api/current-user/');
+                console.log('Resposta do current-user:', response.data);
                 setIsAdmin(response.data.is_staff || response.data.is_superuser);
             } catch (err) {
+                console.error('Erro ao verificar permissões:', err.response?.data || err.message);
                 setError('Erro ao verificar permissões');
                 setIsAdmin(false);
             }
@@ -32,15 +35,15 @@ const UserCompanyAccessManager = () => {
             setLoading(true);
             try {
                 const [usersResponse, empresasResponse] = await Promise.all([
-                    axiosInstance.get('/api/funcionarios/'), // Ajustado para endpoint correto
+                    axiosInstance.get('/api/user-company-access/'),
                     axiosInstance.get('/api/empresas/')
                 ]);
                 setUsers(usersResponse.data);
                 setEmpresas(empresasResponse.data);
-                // Marcar todas as empresas por padrão
-                setSelectedEmpresas(empresasResponse.data.map(empresa => empresa.id));
                 if (usersResponse.data.length > 0) {
                     setSelectedUser(usersResponse.data[0]);
+                    // Marcar todas as empresas por padrão
+                    setSelectedEmpresas(empresasResponse.data.map(empresa => empresa.id));
                 }
             } catch (err) {
                 setError('Erro ao carregar dados: ' + (err.response?.data?.detail || 'Erro desconhecido'));
@@ -50,22 +53,6 @@ const UserCompanyAccessManager = () => {
         };
         fetchData();
     }, [isAdmin]);
-
-    useEffect(() => {
-        if (selectedUser) {
-            // Carregar associações do usuário selecionado
-            const fetchUserAccess = async () => {
-                try {
-                    const response = await axiosInstance.get(`/api/user-company-access/?user_id=${selectedUser.id}`);
-                    const userEmpresas = response.data.map(access => access.empresa_id);
-                    setSelectedEmpresas(userEmpresas.length > 0 ? userEmpresas : empresas.map(empresa => empresa.id));
-                } catch (err) {
-                    setError('Erro ao carregar associações');
-                }
-            };
-            fetchUserAccess();
-        }
-    }, [selectedUser, empresas]);
 
     const handleEmpresaToggle = (empresaId) => {
         setSelectedEmpresas(prev =>
@@ -77,22 +64,34 @@ const UserCompanyAccessManager = () => {
 
     const handleSave = async (e) => {
         e.preventDefault();
+        if (!selectedUser) {
+            setError('Selecione um usuário');
+            return;
+        }
         try {
             setLoading(true);
             // Remover associações existentes
-            await axiosInstance.delete(`/api/user-company-access/?user_id=${selectedUser.id}`);
-            // Adicionar novas associações
-            const promises = selectedEmpresas.map(empresaId =>
-                axiosInstance.post('/api/user-company-access/assign/', {
-                    user_id: selectedUser.id,
-                    empresa_id: empresaId
-                })
+            await Promise.all(
+                selectedUser.empresas.map(empresa =>
+                    axiosInstance.post('/api/user-company-access/remove/', {
+                        user_id: selectedUser.user_id,
+                        empresa_id: empresa.id
+                    })
+                )
             );
-            await Promise.all(promises);
+            // Adicionar novas associações
+            await Promise.all(
+                selectedEmpresas.map(empresaId =>
+                    axiosInstance.post('/api/user-company-access/assign/', {
+                        user_id: selectedUser.user_id,
+                        empresa_id: empresaId
+                    })
+                )
+            );
             alert('Associações salvas com sucesso');
-            const usersResponse = await axiosInstance.get('/api/funcionarios/');
+            const usersResponse = await axiosInstance.get('/api/user-company-access/');
             setUsers(usersResponse.data);
-            setSelectedUser(usersResponse.data.find(u => u.id === selectedUser.id));
+            setSelectedUser(usersResponse.data.find(u => u.user_id === selectedUser.user_id));
         } catch (err) {
             setError('Erro ao salvar associações: ' + (err.response?.data?.error || 'Erro desconhecido'));
         } finally {
@@ -105,10 +104,10 @@ const UserCompanyAccessManager = () => {
         try {
             await axiosInstance.post('/api/user-company-access/remove/', { user_id: userId, empresa_id: empresaId });
             alert('Acesso removido com sucesso');
-            const usersResponse = await axiosInstance.get('/api/funcionarios/');
+            const usersResponse = await axiosInstance.get('/api/user-company-access/');
             setUsers(usersResponse.data);
             if (selectedUser) {
-                setSelectedUser(usersResponse.data.find(u => u.id === selectedUser.id));
+                setSelectedUser(usersResponse.data.find(u => u.user_id === selectedUser.user_id));
             }
         } catch (err) {
             setError('Erro ao remover acesso: ' + (err.response?.data?.error || 'Erro desconhecido'));
@@ -134,7 +133,6 @@ const UserCompanyAccessManager = () => {
     return (
         <div className="p-6 md:p-8 animate-fade-in">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-8">Gerenciamento de Acesso a Empresas</h1>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -147,9 +145,12 @@ const UserCompanyAccessManager = () => {
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                         {users.map(user => (
                             <button
-                                key={user.id}
-                                onClick={() => setSelectedUser(user)}
-                                className={`w-full text-left p-3 rounded-md flex items-center space-x-3 ${selectedUser?.id === user.id ? 'bg-indigo-50 dark:bg-indigo-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                key={user.user_id}
+                                onClick={() => {
+                                    setSelectedUser(user);
+                                    setSelectedEmpresas(user.empresas.map(e => e.id));
+                                }}
+                                className={`w-full text-left p-3 rounded-md flex items-center space-x-3 ${selectedUser?.user_id === user.user_id ? 'bg-indigo-50 dark:bg-indigo-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                             >
                                 <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-sm font-bold">
                                     {user.username.charAt(0).toUpperCase()}
@@ -162,7 +163,6 @@ const UserCompanyAccessManager = () => {
                         ))}
                     </div>
                 </motion.div>
-
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -203,7 +203,7 @@ const UserCompanyAccessManager = () => {
                                         <li key={empresa.id} className="flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
                                             <span className="text-gray-800 dark:text-gray-200">{empresa.nome} ({empresa.cnpj})</span>
                                             <button
-                                                onClick={() => handleRemove(selectedUser.id, empresa.id)}
+                                                onClick={() => handleRemove(selectedUser.user_id, empresa.id)}
                                                 className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                                                 title="Remover acesso"
                                             >
