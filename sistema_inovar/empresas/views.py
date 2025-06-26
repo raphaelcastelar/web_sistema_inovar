@@ -119,9 +119,11 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_superuser:
-            return Empresa.objects.exclude(id__isnull=True).exclude(id='')
-        return Empresa.objects.filter(user_accesses__user=user).distinct()
+        # Administradores (is_staff=True) veem todas as empresas
+        if user.is_staff:
+            return Empresa.objects.all()
+        # Funcionários não administradores veem apenas empresas associadas
+        return Empresa.objects.filter(usercompanyaccess__user=user)
 
 class UserCompanyAccessViewSet(viewsets.ViewSet):
     permission_classes = [IsAdminPermission]
