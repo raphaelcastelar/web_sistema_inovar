@@ -10,16 +10,14 @@ const UserCompanyAccessManager = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [assignUserId, setAssignUserId] = useState('');
-    const [assignEmpresaId, setAssignEmpresaId] = useState('');
+    const [selectedEmpresas, setSelectedEmpresas] = useState([]); // Novo estado para empresas selecionadas
     const [isAdmin, setIsAdmin] = useState(null);
 
     useEffect(() => {
-        // Verifica se o usuário é administrador
         const checkAdmin = async () => {
             try {
-                const response = await axiosInstance.get('/api/current-user/'); // Endpoint para obter dados do usuário logado
-                setIsAdmin(response.data.is_superuser);
+                const response = await axiosInstance.get('/api/current-user/');
+                setIsAdmin(response.data.is_staff || response.data.is_superuser);
             } catch (err) {
                 setError('Erro ao verificar permissões');
                 setIsAdmin(false);
@@ -30,16 +28,17 @@ const UserCompanyAccessManager = () => {
 
     useEffect(() => {
         if (isAdmin === false) return;
-        // Carrega usuários e empresas
         const fetchData = async () => {
             setLoading(true);
             try {
                 const [usersResponse, empresasResponse] = await Promise.all([
-                    axiosInstance.get('/api/user-company-access/'),
+                    axiosInstance.get('/api/funcionarios/'), // Ajustado para endpoint correto
                     axiosInstance.get('/api/empresas/')
                 ]);
                 setUsers(usersResponse.data);
                 setEmpresas(empresasResponse.data);
+                // Marcar todas as empresas por padrão
+                setSelectedEmpresas(empresasResponse.data.map(empresa => empresa.id));
                 if (usersResponse.data.length > 0) {
                     setSelectedUser(usersResponse.data[0]);
                 }
@@ -52,39 +51,64 @@ const UserCompanyAccessManager = () => {
         fetchData();
     }, [isAdmin]);
 
-    const handleAssign = async (e) => {
-        e.preventDefault();
-        if (!assignUserId || !assignEmpresaId) {
-            setError('Selecione um usuário e uma empresa');
-            return;
+    useEffect(() => {
+        if (selectedUser) {
+            // Carregar associações do usuário selecionado
+            const fetchUserAccess = async () => {
+                try {
+                    const response = await axiosInstance.get(`/api/user-company-access/?user_id=${selectedUser.id}`);
+                    const userEmpresas = response.data.map(access => access.empresa_id);
+                    setSelectedEmpresas(userEmpresas.length > 0 ? userEmpresas : empresas.map(empresa => empresa.id));
+                } catch (err) {
+                    setError('Erro ao carregar associações');
+                }
+            };
+            fetchUserAccess();
         }
+    }, [selectedUser, empresas]);
+
+    const handleEmpresaToggle = (empresaId) => {
+        setSelectedEmpresas(prev =>
+            prev.includes(empresaId)
+                ? prev.filter(id => id !== empresaId)
+                : [...prev, empresaId]
+        );
+    };
+
+    const handleSave = async (e) => {
+        e.preventDefault();
         try {
-            const response = await axiosInstance.post('/api/user-company-access/assign/', {
-                user_id: assignUserId,
-                empresa_id: assignEmpresaId
-            });
-            alert(response.data.message);
-            const usersResponse = await axiosInstance.get('/api/user-company-access/');
+            setLoading(true);
+            // Remover associações existentes
+            await axiosInstance.delete(`/api/user-company-access/?user_id=${selectedUser.id}`);
+            // Adicionar novas associações
+            const promises = selectedEmpresas.map(empresaId =>
+                axiosInstance.post('/api/user-company-access/assign/', {
+                    user_id: selectedUser.id,
+                    empresa_id: empresaId
+                })
+            );
+            await Promise.all(promises);
+            alert('Associações salvas com sucesso');
+            const usersResponse = await axiosInstance.get('/api/funcionarios/');
             setUsers(usersResponse.data);
-            if (selectedUser) {
-                setSelectedUser(usersResponse.data.find(u => u.user_id === selectedUser.user_id));
-            }
-            setAssignUserId('');
-            setAssignEmpresaId('');
+            setSelectedUser(usersResponse.data.find(u => u.id === selectedUser.id));
         } catch (err) {
-            setError('Erro ao conceder acesso: ' + (err.response?.data?.error || 'Erro desconhecido'));
+            setError('Erro ao salvar associações: ' + (err.response?.data?.error || 'Erro desconhecido'));
+        } finally {
+            setLoading(false);
         }
     };
 
     const handleRemove = async (userId, empresaId) => {
         if (!window.confirm('Tem certeza que deseja remover este acesso?')) return;
         try {
-            const response = await axiosInstance.post('/api/user-company-access/remove/', { user_id: userId, empresa_id: empresaId });
-            alert(response.data.message);
-            const usersResponse = await axiosInstance.get('/api/user-company-access/');
+            await axiosInstance.post('/api/user-company-access/remove/', { user_id: userId, empresa_id: empresaId });
+            alert('Acesso removido com sucesso');
+            const usersResponse = await axiosInstance.get('/api/funcionarios/');
             setUsers(usersResponse.data);
             if (selectedUser) {
-                setSelectedUser(usersResponse.data.find(u => u.user_id === selectedUser.user_id));
+                setSelectedUser(usersResponse.data.find(u => u.id === selectedUser.id));
             }
         } catch (err) {
             setError('Erro ao remover acesso: ' + (err.response?.data?.error || 'Erro desconhecido'));
@@ -123,9 +147,9 @@ const UserCompanyAccessManager = () => {
                     <div className="space-y-2 max-h-96 overflow-y-auto">
                         {users.map(user => (
                             <button
-                                key={user.user_id}
+                                key={user.id}
                                 onClick={() => setSelectedUser(user)}
-                                className={`w-full text-left p-3 rounded-md flex items-center space-x-3 ${selectedUser?.user_id === user.user_id ? 'bg-indigo-50 dark:bg-indigo-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                className={`w-full text-left p-3 rounded-md flex items-center space-x-3 ${selectedUser?.id === user.id ? 'bg-indigo-50 dark:bg-indigo-900/50' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                             >
                                 <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-sm font-bold">
                                     {user.username.charAt(0).toUpperCase()}
@@ -149,7 +173,29 @@ const UserCompanyAccessManager = () => {
                             <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center">
                                 <BuildingOffice2Icon className="h-6 w-6 mr-2" /> Empresas de {selectedUser.username}
                             </h2>
-                            <ul className="space-y-2 mb-6">
+                            <form onSubmit={handleSave} className="space-y-4">
+                                <div className="space-y-2">
+                                    {empresas.map(empresa => (
+                                        <div key={empresa.id} className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedEmpresas.includes(empresa.id)}
+                                                onChange={() => handleEmpresaToggle(empresa.id)}
+                                                className="mr-2"
+                                            />
+                                            <label className="text-gray-800 dark:text-gray-200">{empresa.nome} ({empresa.cnpj})</label>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button
+                                    type="submit"
+                                    className="w-full p-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center justify-center space-x-2"
+                                >
+                                    <CheckIcon className="h-5 w-5" />
+                                    <span>Salvar Associações</span>
+                                </button>
+                            </form>
+                            <ul className="space-y-2 mt-6">
                                 {selectedUser.empresas.length === 0 ? (
                                     <p className="text-gray-500 dark:text-gray-400">Nenhuma empresa associada</p>
                                 ) : (
@@ -157,7 +203,7 @@ const UserCompanyAccessManager = () => {
                                         <li key={empresa.id} className="flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
                                             <span className="text-gray-800 dark:text-gray-200">{empresa.nome} ({empresa.cnpj})</span>
                                             <button
-                                                onClick={() => handleRemove(selectedUser.user_id, empresa.id)}
+                                                onClick={() => handleRemove(selectedUser.id, empresa.id)}
                                                 className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
                                                 title="Remover acesso"
                                             >
@@ -167,42 +213,6 @@ const UserCompanyAccessManager = () => {
                                     ))
                                 )}
                             </ul>
-
-                            <form onSubmit={handleAssign} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Usuário</label>
-                                    <select
-                                        value={assignUserId}
-                                        onChange={(e) => setAssignUserId(e.target.value)}
-                                        className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500"
-                                    >
-                                        <option value="">Selecione um usuário</option>
-                                        {users.map(user => (
-                                            <option key={user.user_id} value={user.user_id}>{user.username}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Empresa</label>
-                                    <select
-                                        value={assignEmpresaId}
-                                        onChange={(e) => setAssignEmpresaId(e.target.value)}
-                                        className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500"
-                                    >
-                                        <option value="">Selecione uma empresa</option>
-                                        {empresas.map(empresa => (
-                                            <option key={empresa.id} value={empresa.id}>{empresa.nome} ({empresa.cnpj})</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <button
-                                    type="submit"
-                                    className="w-full p-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center justify-center space-x-2"
-                                >
-                                    <CheckIcon className="h-5 w-5" />
-                                    <span>Conceder Acesso</span>
-                                </button>
-                            </form>
                         </>
                     ) : (
                         <p className="text-gray-500 dark:text-gray-400">Selecione um usuário para gerenciar acessos</p>

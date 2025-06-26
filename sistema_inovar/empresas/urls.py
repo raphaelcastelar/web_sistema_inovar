@@ -1,5 +1,9 @@
 # sistema_inovar/empresas/urls.py
 from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import EmpresaViewSet, UserCompanyAccessViewSet, CurrentUserView
+
 from .views import (
     enviar_email, 
     enviar_documentos_whatsapp_api,
@@ -22,4 +26,8 @@ urlpatterns = [
     path('dashboard-summary/', dashboard_summary_api, name='dashboard_summary_api'),
     path('gerenciamento-simples/', gerenciamento_simples_api, name='gerenciamento_simples'),
     path('empresas/<int:empresa_id>/toggle-monitoramento-simples/', toggle_monitoramento_simples, name='toggle_monitoramento_simples'),
+    path('', include(router.urls)),
+    path('current-user/', CurrentUserView.as_view(), name='current-user'),
+    path('user-company-access/assign/', UserCompanyAccessAssignView.as_view(), name='user-company-access-assign'),
+    path('user-company-access/remove/', UserCompanyAccessRemoveView.as_view(), name='user-company-access-remove'),
 ]
