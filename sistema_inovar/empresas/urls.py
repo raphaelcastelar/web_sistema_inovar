@@ -1,4 +1,5 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from .views import (
     enviar_email, 
     enviar_documentos_whatsapp_api,
@@ -10,13 +11,10 @@ from .views import (
     gerenciamento_simples_api,
     toggle_monitoramento_simples,
     CurrentUserView,
-    UserCompanyAccessAssignView,
-    UserCompanyAccessRemoveView,
-    UserCompanyAccessViewSet
+    UserCompanyAccessViewSet,
 )
-from rest_framework.routers import DefaultRouter
 
-# Router apenas para rotas específicas de empresas
+# Router apenas para rotas específicas
 router = DefaultRouter()
 router.register(r'user-company-access', UserCompanyAccessViewSet, basename='user-company-access')
 
@@ -31,7 +29,5 @@ urlpatterns = [
     path('gerenciamento-simples/', gerenciamento_simples_api, name='gerenciamento_simples'),
     path('empresas/<int:empresa_id>/toggle-monitoramento-simples/', toggle_monitoramento_simples, name='toggle_monitoramento_simples'),
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
-    path('user-company-access/assign/', UserCompanyAccessAssignView.as_view(), name='user-company-access-assign'),
-    path('user-company-access/remove/', UserCompanyAccessRemoveView.as_view(), name='user-company-access-remove'),
-    path('', include(router.urls)),
+    path('', include(router.urls)),  # Inclui as rotas do router (ex.: /user-company-access/, /user-company-access/assign/, /user-company-access/remove/)
 ]
