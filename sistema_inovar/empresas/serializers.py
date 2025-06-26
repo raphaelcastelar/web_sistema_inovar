@@ -100,7 +100,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         model = Funcionario
         # Incluímos os campos mais importantes. Não inclua o hash da senha (o campo 'password' do modelo)
         # diretamente aqui para leitura, pois é um dado sensível.
-        fields = ['id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_staff', 'is_superuser', 'theme']
+        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'is_staff', 'is_superuser', 'theme']
         # Podemos definir campos como somente leitura se quisermos
         # read_only_fields = ['id', 'date_joined', 'last_login']
 
