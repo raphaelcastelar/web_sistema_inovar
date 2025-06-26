@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from django.http import HttpResponse
 from .views import (
     enviar_email, 
     enviar_documentos_whatsapp_api,
@@ -18,6 +19,37 @@ from .views import (
 router = DefaultRouter()
 router.register(r'user-company-access', UserCompanyAccessViewSet, basename='user-company-access')
 
+def test_api_view(request):
+    return HttpResponse("""
+    <html>
+    <body>
+        <h1>Testar /api/current-user/</h1>
+        <input type="text" id="token" placeholder="Cole o token JWT aqui" style="width: 500px;">
+        <button onclick="testEndpoint()">Testar</button>
+        <pre id="response"></pre>
+        <script>
+            async function testEndpoint() {
+                const token = document.getElementById('token').value;
+                const responseElement = document.getElementById('response');
+                try {
+                    const response = await fetch('http://127.0.0.1:8000/api/current-user/', {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const data = await response.json();
+                    responseElement.textContent = JSON.stringify(data, null, 2);
+                } catch (error) {
+                    responseElement.textContent = 'Erro: ' + error.message;
+                }
+            }
+        </script>
+    </body>
+    </html>
+    """)
+
 urlpatterns = [
     path('enviar-email/', enviar_email, name='enviar_email'),
     path('enviar-documentos-whatsapp/', enviar_documentos_whatsapp_api, name='enviar_documentos_whatsapp'),
@@ -29,5 +61,6 @@ urlpatterns = [
     path('gerenciamento-simples/', gerenciamento_simples_api, name='gerenciamento_simples'),
     path('empresas/<int:empresa_id>/toggle-monitoramento-simples/', toggle_monitoramento_simples, name='toggle_monitoramento_simples'),
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
+    path('test-api/', test_api_view, name='test-api'),
     path('', include(router.urls)),  # Inclui as rotas do router (ex.: /user-company-access/, /user-company-access/assign/, /user-company-access/remove/)
 ]
