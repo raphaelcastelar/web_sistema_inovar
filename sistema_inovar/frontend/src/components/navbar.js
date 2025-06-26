@@ -7,14 +7,31 @@ import {
     DocumentArrowDownIcon,
     DocumentMagnifyingGlassIcon,
     ArrowLeftOnRectangleIcon,
-    BuildingOfficeIcon
+    BuildingOfficeIcon,
+    UserCircleIcon
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 import ThemeToggle from './ThemeToggle';
+import axiosInstance from '../api/axiosInstance';
 
 const Navbar = () => {
     const location = useLocation();
     const navigate = useNavigate();
+    const [isAdmin, setIsAdmin] = useState(null);
+
+    // Verificar se o usuário é administrador
+    useEffect(() => {
+        const checkAdmin = async () => {
+            try {
+                const response = await axiosInstance.get('/api/current-user/');
+                setIsAdmin(response.data.is_staff || response.data.is_superuser);
+            } catch (err) {
+                console.error('Erro ao verificar permissões:', err);
+                setIsAdmin(false);
+            }
+        };
+        checkAdmin();
+    }, []);
 
     const handleLogout = () => {
         localStorage.removeItem('authTokens');
@@ -23,9 +40,7 @@ const Navbar = () => {
     };
 
     return (
-        // Container principal fixo com flexbox em coluna
         <div className="fixed left-0 top-0 h-full w-56 bg-gradient-to-b from-indigo-900 to-gray-800 shadow-xl flex flex-col">
-            
             {/* Seção do Logo (topo) */}
             <div className="flex-shrink-0 flex justify-center py-8">
                 <img
@@ -39,8 +54,6 @@ const Navbar = () => {
             <nav className="flex-grow w-full flex flex-col space-y-2 px-2">
                 <Link
                     to="/"
-                    // --- CORREÇÃO AQUI ---
-                    // Mudado de .startsWith('/') para uma comparação exata === '/'
                     className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
                         location.pathname === '/' ? 'bg-indigo-800 text-white' : ''
                     }`}
@@ -68,6 +81,18 @@ const Navbar = () => {
                     <UserGroupIcon className="h-6 w-6" />
                     <span className="text-base font-medium">Usuários</span>
                 </Link>
+
+                {isAdmin && (
+                    <Link
+                        to="/admin/user-company-access"
+                        className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
+                            location.pathname.startsWith('/admin/user-company-access') ? 'bg-indigo-800 text-white' : ''
+                        }`}
+                    >
+                        <UserCircleIcon className="h-6 w-6" />
+                        <span className="text-base font-medium">Acesso a Empresas</span>
+                    </Link>
+                )}
                 
                 <Link
                     to="/historico-whatsapp"
