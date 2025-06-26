@@ -252,16 +252,11 @@ class FuncionarioViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminUser]
 
 class CurrentUserView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        return Response({
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'is_superuser': user.is_superuser
-        })
+        serializer = FuncionarioSerializer(request.user)
+        return Response(serializer.data)
 
 @api_view(['POST'])
 def enviar_email(request):
