@@ -18,7 +18,7 @@ class Empresa(models.Model):
     cnpj = models.CharField(max_length=18, unique=True, null=False)
     email = models.CharField(max_length=255, null=False)
     telefone = models.CharField(max_length=15, null=True, blank=False)
-    monitorar_simples = models.BooleanField(default=True)
+    monitorar_simples = models.BooleanField(default=False)
 
     def __str__(self):
         return self.nome
