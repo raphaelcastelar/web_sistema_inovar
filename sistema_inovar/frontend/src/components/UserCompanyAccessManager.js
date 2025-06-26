@@ -42,8 +42,7 @@ const UserCompanyAccessManager = () => {
                 setEmpresas(empresasResponse.data);
                 if (usersResponse.data.length > 0) {
                     setSelectedUser(usersResponse.data[0]);
-                    // Marcar todas as empresas por padrão
-                    setSelectedEmpresas(empresasResponse.data.map(empresa => empresa.id));
+                    setSelectedEmpresas(empresasResponse.data.map(e => e.id));
                 }
             } catch (err) {
                 setError('Erro ao carregar dados: ' + (err.response?.data?.detail || 'Erro desconhecido'));
@@ -70,7 +69,6 @@ const UserCompanyAccessManager = () => {
         }
         try {
             setLoading(true);
-            // Remover associações existentes
             await Promise.all(
                 selectedUser.empresas.map(empresa =>
                     axiosInstance.post('/api/user-company-access/remove/', {
@@ -79,7 +77,6 @@ const UserCompanyAccessManager = () => {
                     })
                 )
             );
-            // Adicionar novas associações
             await Promise.all(
                 selectedEmpresas.map(empresaId =>
                     axiosInstance.post('/api/user-company-access/assign/', {

@@ -8,8 +8,13 @@ from django.conf import settings
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado
 from django.contrib.auth.models import AbstractUser, User
+from django.contrib.auth import get_user_model
 
 logger = logging.getLogger(__name__)
+
+
+
+UserModel = get_user_model()
 
 # --- Sua classe Empresa aqui ---
 class Empresa(models.Model):
@@ -248,13 +253,13 @@ class ObrigacaoMensal(models.Model):
         return f"{self.get_tipo_display()} - {self.empresa.nome} - {self.periodo_apuracao.strftime('%m/%Y')}"
     
 class UserCompanyAccess(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(UserModel, on_delete=models.CASCADE, related_name='usercompanyaccess')
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(UserModel, on_delete=models.SET_NULL, null=True, related_name='created_accesses')
 
     class Meta:
-        verbose_name = 'User Company Access'
-        verbose_name_plural = 'User Company Accesses'
+        unique_together = ('user', 'empresa')
 
     def __str__(self):
         return f"{self.user.username} - {self.empresa.nome}"

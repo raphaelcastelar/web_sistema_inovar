@@ -17,6 +17,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import OuterRef, Subquery, CharField
 from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import api_view, permission_classes
@@ -109,6 +110,8 @@ MODEL_CONFIG_MAP_SYNC = {
     },
 }
 
+UserModel = get_user_model()
+
 class IsAdminPermission(permissions.BasePermission):
     def has_permission(self, request, view):
         return request.user and request.user.is_superuser
@@ -129,7 +132,7 @@ class UserCompanyAccessViewSet(viewsets.ViewSet):
     permission_classes = [IsAdminPermission]
 
     def list(self, request):
-        users = User.objects.filter(is_superuser=False)
+        users = UserModel.objects.filter(is_superuser=False)
         data = []
         for user in users:
             accesses = UserCompanyAccess.objects.filter(user=user)
@@ -150,13 +153,13 @@ class UserCompanyAccessViewSet(viewsets.ViewSet):
         user_id = request.data.get('user_id')
         empresa_id = request.data.get('empresa_id')
         try:
-            user = User.objects.get(id=user_id, is_superuser=False)
+            user = UserModel.objects.get(id=user_id, is_superuser=False)
             empresa = Empresa.objects.get(id=empresa_id)
             access, created = UserCompanyAccess.objects.get_or_create(user=user, empresa=empresa)
             if created:
                 return Response({'message': f'Acesso concedido para {user.username} à {empresa.nome}'}, status=status.HTTP_201_CREATED)
             return Response({'message': 'Acesso já existe'}, status=status.HTTP_200_OK)
-        except (User.DoesNotExist, Empresa.DoesNotExist):
+        except (UserModel.DoesNotExist, Empresa.DoesNotExist):
             return Response({'error': 'Usuário ou empresa não encontrado'}, status=status.HTTP_404_NOT_FOUND)
 
     @action(detail=False, methods=['post'])
