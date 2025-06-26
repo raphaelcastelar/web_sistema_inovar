@@ -10,7 +10,7 @@ from rest_framework_simplejwt.views import (
 )
 
 router = routers.DefaultRouter()
-router.register(r'empresas', EmpresaViewSet)
+router.register(r'empresas', EmpresaViewSet, basename='empresas')
 router.register(r'user-company-access', UserCompanyAccessViewSet, basename='user-company-access')
 router.register(r'documentos-constitutivos', DocumentosConstitutivosViewSet)
 router.register(r'xml', XMLViewSet)
