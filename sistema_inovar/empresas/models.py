@@ -6,7 +6,7 @@ from django.db import models
 from django.utils import timezone
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, User
 
 logger = logging.getLogger(__name__)
 
@@ -245,3 +245,14 @@ class ObrigacaoMensal(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.empresa.nome} - {self.periodo_apuracao.strftime('%m/%Y')}"
+    
+class UserCompanyAccess(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='company_accesses')
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='user_accesses')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'empresa')  # Garante que um usuário não tenha acesso duplicado à mesma empresa
+
+    def __str__(self):
+        return f"{self.user.username} - {self.empresa.nome}"

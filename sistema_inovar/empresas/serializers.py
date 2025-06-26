@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, UserCompanyAccess
 import re
 
 
@@ -141,3 +141,13 @@ class FuncionarioSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+    
+class EmpresaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Empresa
+        fields = ['id', 'nome', 'cnpj', 'email']
+
+class UserCompanyAccessSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserCompanyAccess
+        fields = ['user', 'empresa']

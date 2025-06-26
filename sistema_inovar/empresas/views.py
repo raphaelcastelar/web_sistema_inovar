@@ -16,21 +16,26 @@ from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import OuterRef, Subquery, CharField
+from django.contrib.auth.models import User
 
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.decorators import action
+from rest_framework.views import APIView
+
 from django_filters.rest_framework import DjangoFilterBackend 
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal
+    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess
 )
 from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
-    HistoricoEnviosSerializer, FuncionarioSerializer
+    HistoricoEnviosSerializer, FuncionarioSerializer, UserCompanyAccessSerializer
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
@@ -41,7 +46,6 @@ from .serpro_service import (
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
-
 
 logger = logging.getLogger(__name__)
 
@@ -75,25 +79,25 @@ MODEL_CONFIG_MAP = {
 MODEL_CONFIG_MAP_SYNC = {
     'documentos_constitutivos': {
         'model': DocumentosConstitutivos, 'serializer': DocumentosConstitutivosSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa', # Campo no modelo do documento que guarda o nome da empresa
-        'company_attr_in_empresa_model': 'nome', # Atributo no modelo Empresa para filtro (geralmente nome ou cnpj)
+        'company_field_name_in_doc_model': 'nome_empresa',
+        'company_attr_in_empresa_model': 'nome',
         'fs_folder_name': 'DOCUMENTOS CONSTITUTIVOS', 'has_year_month': False
     },
     'departamento_pessoal': {
         'model': DepartamentoPessoal, 'serializer': DepartamentoPessoalSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
+        'company_field_name_in_doc_model': 'nome_empresa',
         'company_attr_in_empresa_model': 'nome', 
         'fs_folder_name': 'DEPARTAMENTO PESSOAL', 'has_year_month': True
     },
     'simples_nacional': {
         'model': SimplesNacional, 'serializer': SimplesNacionalSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
+        'company_field_name_in_doc_model': 'nome_empresa',
         'company_attr_in_empresa_model': 'nome',
         'fs_folder_name': 'SIMPLES NACIONAL', 'has_year_month': True
     },
     'xml': {
         'model': XML, 'serializer': XMLSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
+        'company_field_name_in_doc_model': 'nome_empresa',
         'company_attr_in_empresa_model': 'nome',
         'fs_folder_name': 'XML', 'has_year_month': True
     },
@@ -105,13 +109,67 @@ MODEL_CONFIG_MAP_SYNC = {
     },
 }
 
+class IsAdminPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.user and request.user.is_superuser
+
 class EmpresaViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    queryset = Empresa.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
     serializer_class = EmpresaSerializer
 
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Empresa.objects.exclude(id__isnull=True).exclude(id='')
+        return Empresa.objects.filter(user_accesses__user=user).distinct()
+
+class UserCompanyAccessViewSet(viewsets.ViewSet):
+    permission_classes = [IsAdminPermission]
+
+    def list(self, request):
+        users = User.objects.filter(is_superuser=False)
+        data = []
+        for user in users:
+            accesses = UserCompanyAccess.objects.filter(user=user)
+            data.append({
+                'user_id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'empresas': [{
+                    'id': access.empresa.id,
+                    'nome': access.empresa.nome,
+                    'cnpj': access.empresa.cnpj
+                } for access in accesses]
+            })
+        return Response(data)
+
+    @action(detail=False, methods=['post'])
+    def assign(self, request):
+        user_id = request.data.get('user_id')
+        empresa_id = request.data.get('empresa_id')
+        try:
+            user = User.objects.get(id=user_id, is_superuser=False)
+            empresa = Empresa.objects.get(id=empresa_id)
+            access, created = UserCompanyAccess.objects.get_or_create(user=user, empresa=empresa)
+            if created:
+                return Response({'message': f'Acesso concedido para {user.username} à {empresa.nome}'}, status=status.HTTP_201_CREATED)
+            return Response({'message': 'Acesso já existe'}, status=status.HTTP_200_OK)
+        except (User.DoesNotExist, Empresa.DoesNotExist):
+            return Response({'error': 'Usuário ou empresa não encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['post'])
+    def remove(self, request):
+        user_id = request.data.get('user_id')
+        empresa_id = request.data.get('empresa_id')
+        try:
+            access = UserCompanyAccess.objects.get(user_id=user_id, empresa_id=empresa_id)
+            access.delete()
+            return Response({'message': 'Acesso removido com sucesso'}, status=status.HTTP_200_OK)
+        except UserCompanyAccess.DoesNotExist:
+            return Response({'error': 'Acesso não encontrado'}, status=status.HTTP_404_NOT_FOUND)
+
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
-    queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base
+    queryset = DocumentosConstitutivos.objects.all()
     serializer_class = DocumentosConstitutivosSerializer
 
     def get_queryset(self):
@@ -125,7 +183,7 @@ class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
         return super().get_queryset()
 
 class DepartamentoPessoalViewSet(viewsets.ModelViewSet):
-    queryset = DepartamentoPessoal.objects.all()  # Defina o queryset base
+    queryset = DepartamentoPessoal.objects.all()
     serializer_class = DepartamentoPessoalSerializer
 
     def get_queryset(self):
@@ -139,7 +197,7 @@ class DepartamentoPessoalViewSet(viewsets.ModelViewSet):
         return super().get_queryset()
 
 class XMLViewSet(viewsets.ModelViewSet):
-    queryset = XML.objects.all()  # Defina o queryset base
+    queryset = XML.objects.all()
     serializer_class = XMLSerializer
 
     def get_queryset(self):
@@ -153,7 +211,7 @@ class XMLViewSet(viewsets.ModelViewSet):
         return super().get_queryset()
 
 class SimplesNacionalViewSet(viewsets.ModelViewSet):
-    queryset = SimplesNacional.objects.all()  # Defina o queryset base
+    queryset = SimplesNacional.objects.all()
     serializer_class = SimplesNacionalSerializer
 
     def get_queryset(self):
@@ -179,25 +237,29 @@ class OutrosViewSet(viewsets.ModelViewSet):
             except Empresa.DoesNotExist:
                 return Outros.objects.none()
         return super().get_queryset()
-    
-class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = HistoricoEnvios.objects.all()
-    serializer_class = HistoricoEnviosSerializer
 
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HistoricoEnvios.objects.all()
     serializer_class = HistoricoEnviosSerializer
-    filter_backends = [DjangoFilterBackend] # Adicione esta linha
-    filterset_class = HistoricoEnviosFilter   # Adicione esta linha
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = HistoricoEnviosFilter
 
 class FuncionarioViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para visualizar, criar, editar e deletar funcionários.
-    Apenas usuários administradores (is_staff=True) podem acessar.
-    """
     queryset = Funcionario.objects.all().order_by('first_name')
     serializer_class = FuncionarioSerializer
-    permission_classes = [IsAdminUser] # Apenas administradores podem gerenciar usuários
+    permission_classes = [IsAdminUser]
+
+class CurrentUserView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'is_superuser': user.is_superuser
+        })
 
 @api_view(['POST'])
 def enviar_email(request):

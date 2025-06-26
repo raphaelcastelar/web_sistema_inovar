@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from empresas.views import EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet, DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet
+from empresas.views import EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet, DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet, UserCompanyAccessViewSet, CurrentUserView
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import (
@@ -11,6 +11,7 @@ from rest_framework_simplejwt.views import (
 
 router = routers.DefaultRouter()
 router.register(r'empresas', EmpresaViewSet)
+router.register(r'user-company-access', UserCompanyAccessViewSet, basename='user-company-access')
 router.register(r'documentos-constitutivos', DocumentosConstitutivosViewSet)
 router.register(r'xml', XMLViewSet)
 router.register(r'departamento-pessoal', DepartamentoPessoalViewSet)
@@ -25,4 +26,6 @@ urlpatterns = [
     path('api/', include('empresas.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('', include(router.urls)),
+    path('current-user/', CurrentUserView.as_view(), name='current-user'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

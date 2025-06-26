@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
@@ -13,8 +13,6 @@ import {
 } from '@heroicons/react/24/outline';
 
 const SERVER_FILE_URL_BASE = 'http://192.168.196.162:8000';
-
-// --- CONFIGURAÇÕES E FUNÇÕES AUXILIARES (DO SEU CÓDIGO ORIGINAL) ---
 
 const pastaConfig = {
     'documentos_constitutivos': { label: 'Doc. Constitutivos' },
@@ -55,7 +53,6 @@ const groupFilesByYearAndMonth = (files) => {
     return result;
 };
 
-// --- SUB-COMPONENTE ACORDEÃO ESTILIZADO ---
 const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection }) => {
     const [activeYear, setActiveYear] = useState(null);
     const [activeMonthKey, setActiveMonthKey] = useState(null);
@@ -104,10 +101,9 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection }) => {
     );
 };
 
-// --- COMPONENTE PRINCIPAL DA PÁGINA ---
 const PastaManager = () => {
-    // --- ESTADO DO COMPONENTE ---
     const { empresaId } = useParams();
+    const navigate = useNavigate();
     const [pastas, setPastas] = useState([]);
     const [selectedPasta, setSelectedPasta] = useState(null);
     const [empresaNome, setEmpresaNome] = useState('');
@@ -120,6 +116,33 @@ const PastaManager = () => {
     const [isRefreshingPasta, setIsRefreshingPasta] = useState(false);
     const [targetUploadYear, setTargetUploadYear] = useState('');
     const [targetUploadMonth, setTargetUploadMonth] = useState('');
+    const [isAuthorized, setIsAuthorized] = useState(null);
+
+    // Verifica se o usuário tem acesso à empresa
+    useEffect(() => {
+        if (!empresaId || empresaId === 'undefined' || isNaN(parseInt(empresaId))) {
+            setError('ID da empresa inválido. Redirecionando...');
+            setTimeout(() => navigate('/empresas'), 2000);
+            return;
+        }
+        const checkAuthorization = async () => {
+            try {
+                const response = await axiosInstance.get('/api/current-user/');
+                if (response.data.is_superuser) {
+                    setIsAuthorized(true);
+                } else {
+                    // Verifica se o usuário tem acesso à empresa
+                    const empresasResponse = await axiosInstance.get('/api/empresas/');
+                    const hasAccess = empresasResponse.data.some(emp => emp.id === parseInt(empresaId));
+                    setIsAuthorized(hasAccess);
+                }
+            } catch (err) {
+                setError('Erro ao verificar permissões');
+                setIsAuthorized(false);
+            }
+        };
+        checkAuthorization();
+    }, [empresaId, navigate]);
 
     const yearOptions = useMemo(() => {
         const currentYear = new Date().getFullYear();
@@ -128,31 +151,46 @@ const PastaManager = () => {
         return years.sort((a, b) => b - a);
     }, []);
 
-    // --- LÓGICA DE DADOS E API ---
     const fetchData = useCallback(() => {
+        if (!isAuthorized || !empresaId || empresaId === 'undefined' || isNaN(parseInt(empresaId))) return;
         setLoading(true);
+        setError(null);
         axiosInstance.get(`/api/empresas/${empresaId}/`).then(response => {
             setEmpresaNome(response.data.nome);
             setEmpresaCnpj(response.data.cnpj);
+        }).catch(err => {
+            setError('Erro ao carregar dados da empresa: ' + (err.response?.data?.detail || 'Erro desconhecido'));
         });
         const promises = pastaTypes.map(tipo => {
             const endpoint = tipo.replace(/_/g, '-');
             return axiosInstance.get(`/api/${endpoint}/`, { params: { empresa_id: empresaId } })
                 .then(response => ({ tipo, data: response.data }))
-                .catch(() => ({ tipo, data: [] }));
+                .catch(err => {
+                    console.error(`Erro ao carregar ${tipo}:`, err);
+                    return { tipo, data: [] };
+                });
         });
         Promise.all(promises).then(results => {
             const arquivosData = {};
             results.forEach(({ tipo, data }) => { arquivosData[tipo] = data; });
             setArquivos(arquivosData);
             setLoading(false);
+        }).catch(err => {
+            setError('Erro ao carregar arquivos: ' + (err.response?.data?.detail || 'Erro desconhecido'));
         });
-    }, [empresaId]);
+    }, [empresaId, isAuthorized]);
 
     useEffect(() => {
-        setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
-        fetchData();
-    }, [fetchData]);
+        if (isAuthorized === false) {
+            setError('Acesso não autorizado. Redirecionando...');
+            setTimeout(() => navigate('/empresas'), 2000);
+            return;
+        }
+        if (isAuthorized) {
+            setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
+            fetchData();
+        }
+    }, [fetchData, isAuthorized, navigate]);
 
     const onDrop = useCallback((acceptedFiles, pastaTipo) => {
         if (!empresaNome || !empresaCnpj) { alert('Aguarde os dados da empresa carregarem.'); return; }
@@ -165,8 +203,6 @@ const PastaManager = () => {
             formData.append('cnpj_empresa', empresaCnpj);
             formData.append('nome_empresa', empresaNome);
             formData.append('tipo_documento', pastaTipo.replace(/_/g, '-'));
-            
-            // Lógica para usar o mês/ano selecionado ou o atual
             if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(pastaTipo)) {
                 const anoParaSalvar = targetUploadYear || new Date().getFullYear().toString();
                 const mesParaSalvar = targetUploadMonth || (new Date().getMonth() + 1).toString().padStart(2, '0');
@@ -184,14 +220,12 @@ const PastaManager = () => {
             .catch(err => { setError(err.response?.data?.detail || err.message || 'Erro no upload.'); })
             .finally(() => setUploading(false));
     }, [empresaNome, empresaCnpj, targetUploadYear, targetUploadMonth, fetchData]);
-    
-    // Hook do Dropzone funcional
+
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop: acceptedFiles => { if (selectedPasta) onDrop(acceptedFiles, selectedPasta.tipo) },
         noKeyboard: true,
     });
-    
-    // --- HANDLERS DE INTERAÇÃO COM LÓGICA COMPLETA ---
+
     const toggleFileSelection = (fileId) => setSelectedFiles(prev => prev.includes(fileId) ? prev.filter(id => id !== fileId) : [...prev, fileId]);
     const handlePastaClick = (pasta) => {
         setSelectedPasta(pasta); 
@@ -224,7 +258,7 @@ const PastaManager = () => {
             .catch(err => alert(`Erro: ${err.response?.data?.error || 'Falha ao enviar email.'}`))
             .finally(() => setLoading(false));
     };
-    
+
     const handleWhatsAppClick = () => {
         if (selectedFiles.length === 0) { alert('Selecione ao menos um arquivo.'); return; }
         setLoading(true);
@@ -240,7 +274,16 @@ const PastaManager = () => {
             .finally(() => setLoading(false));
     };
 
-    // --- RENDERIZAÇÃO DO COMPONENTE ---
+    if (isAuthorized === null) {
+        return <p className="text-center text-gray-500 dark:text-gray-400 mt-10">Verificando permissões...</p>;
+    }
+
+    if (error) return (
+        <div className="p-6 md:p-8">
+            <div className="text-center py-10 text-red-500 dark:text-red-400">{error}</div>
+        </div>
+    );
+
     return (
         <div className="p-6 md:p-8">
             <div className="mb-8">
