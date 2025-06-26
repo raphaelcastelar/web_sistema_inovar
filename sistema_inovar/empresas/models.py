@@ -89,7 +89,11 @@ class Funcionario(AbstractUser):
     )
     cargo = models.CharField(max_length=100, null=True, blank=True)
     # ramal = models.CharField(max_length=10, null=True, blank=True)
-
+    empresas_gerenciadas = models.ManyToManyField(
+        'Empresa', 
+        blank=True, 
+        related_name='gerenciada_por'
+    )
     def __str__(self):
         return self.get_full_name() or self.username
 

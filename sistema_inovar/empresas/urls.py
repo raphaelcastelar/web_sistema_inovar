@@ -10,6 +10,8 @@ from .views import (
     dashboard_summary_api,
     gerenciamento_simples_api,
     toggle_monitoramento_simples,
+    gerenciamento_atribuicao_data,
+    salvar_atribuicoes,
 
 )
 urlpatterns = [
@@ -22,4 +24,6 @@ urlpatterns = [
     path('dashboard-summary/', dashboard_summary_api, name='dashboard_summary_api'),
     path('gerenciamento-simples/', gerenciamento_simples_api, name='gerenciamento_simples'),
     path('empresas/<int:empresa_id>/toggle-monitoramento-simples/', toggle_monitoramento_simples, name='toggle_monitoramento_simples'),
+    path('gerenciamento-atribuicao-data/', gerenciamento_atribuicao_data, name='gerenciamento_atribuicao_data'),
+path('salvar-atribuicoes/', salvar_atribuicoes, name='salvar_atribuicoes'),
 ]

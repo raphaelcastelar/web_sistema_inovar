@@ -1,0 +1,154 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import axiosInstance from '../api/axiosInstance';
+import { motion } from 'framer-motion';
+import { CheckIcon, UserCircleIcon } from '@heroicons/react/24/solid';
+import { InformationCircleIcon } from '@heroicons/react/24/outline';
+
+const GerenciarAtribuicoesPage = () => {
+    const [funcionarios, setFuncionarios] = useState([]);
+    const [empresas, setEmpresas] = useState([]);
+    const [selectedFuncionario, setSelectedFuncionario] = useState(null);
+    const [assignedCompanyIds, setAssignedCompanyIds] = useState(new Set());
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+
+    const fetchData = useCallback(() => {
+        setLoading(true);
+        axiosInstance.get('/api/gerenciamento-atribuicao-data/')
+            .then(response => {
+                setFuncionarios(response.data.funcionarios);
+                setEmpresas(response.data.empresas);
+            })
+            .catch(() => setError('Não foi possível carregar os dados.'))
+            .finally(() => setLoading(false));
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    const handleFuncionarioSelect = (funcionario) => {
+        setSelectedFuncionario(funcionario);
+        setAssignedCompanyIds(new Set(funcionario.empresas_gerenciadas));
+    };
+
+    const handleCompanyToggle = (companyId) => {
+        const newAssignedIds = new Set(assignedCompanyIds);
+        if (newAssignedIds.has(companyId)) {
+            newAssignedIds.delete(companyId);
+        } else {
+            newAssignedIds.add(companyId);
+        }
+        setAssignedCompanyIds(newAssignedIds);
+    };
+
+    const handleSaveChanges = () => {
+        if (!selectedFuncionario) return;
+        setSaving(true);
+        axiosInstance.post('/api/salvar-atribuicoes/', {
+            funcionario_id: selectedFuncionario.id,
+            ids_empresas: Array.from(assignedCompanyIds)
+        })
+        .then(() => {
+            alert('Atribuições salvas com sucesso!');
+            fetchData(); // Recarrega os dados para garantir consistência
+        })
+        .catch(() => alert('Falha ao salvar as atribuições.'))
+        .finally(() => setSaving(false));
+    };
+    
+    // --- NOVAS FUNÇÕES PARA FACILITAR A SELEÇÃO ---
+    const handleSelectAll = () => {
+        const allCompanyIds = empresas.map(e => e.id);
+        setAssignedCompanyIds(new Set(allCompanyIds));
+    };
+    
+    const handleClearAll = () => {
+        setAssignedCompanyIds(new Set());
+    };
+
+
+    if (loading) return <p className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando...</p>;
+    if (error) return <p className="p-8 text-center text-red-500">{error}</p>;
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 md:p-8">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-2">Atribuição de Empresas</h1>
+            <p className="text-gray-500 dark:text-gray-400 mb-8">Selecione um funcionário para definir quais empresas ele pode gerenciar.</p>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Coluna de Funcionários */}
+                <div className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+                    <h2 className="text-xl font-semibold text-gray-800 dark:text-white p-2">Funcionários</h2>
+                    <ul className="space-y-1 mt-4 max-h-[70vh] overflow-y-auto">
+                        {funcionarios.map(func => (
+                            <li key={func.id}>
+                                <button
+                                    onClick={() => handleFuncionarioSelect(func)}
+                                    className={`w-full text-left p-3 rounded-lg flex items-center space-x-3 transition-colors ${selectedFuncionario?.id === func.id ? 'bg-indigo-600 text-white shadow' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                >
+                                    <UserCircleIcon className={`h-8 w-8 flex-shrink-0 ${selectedFuncionario?.id === func.id ? 'text-indigo-200' : 'text-gray-400'}`} />
+                                    <div>
+                                        <p className="font-semibold">{func.first_name} {func.last_name}</p>
+                                        <p className={`text-xs ${selectedFuncionario?.id === func.id ? 'text-indigo-200' : 'text-gray-500'}`}>@{func.username}</p>
+                                    </div>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+
+                {/* Coluna de Empresas */}
+                <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+                    {!selectedFuncionario ? (
+                        <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 p-10">
+                            <InformationCircleIcon className="h-16 w-16 mb-4 text-gray-300 dark:text-gray-600"/>
+                            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Nenhum Funcionário Selecionado</h3>
+                            <p>Selecione um funcionário à esquerda para ver e editar as empresas que ele gerencia.</p>
+                        </div>
+                    ) : (
+                        <div>
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                                    Empresas para <span className="text-indigo-600 dark:text-indigo-400">{selectedFuncionario.first_name}</span>
+                                </h2>
+                                {/* --- BOTÕES DE AÇÃO ADICIONADOS --- */}
+                                <div className="flex gap-2">
+                                    <button onClick={handleSelectAll} className="px-3 py-1 text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Selecionar Todas</button>
+                                    <button onClick={handleClearAll} className="px-3 py-1 text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Limpar Seleção</button>
+                                </div>
+                            </div>
+                            <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-2 border-t border-b border-gray-200 dark:border-gray-700 py-4">
+                                {empresas.map(empresa => (
+                                    <label key={empresa.id} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex items-center justify-between cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/40">
+                                        <div>
+                                            <p className="font-medium text-gray-900 dark:text-gray-100">{empresa.nome}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">{empresa.cnpj}</p>
+                                        </div>
+                                        <div className={`w-6 h-6 flex items-center justify-center rounded-md border-2 transition-all ${assignedCompanyIds.has(empresa.id) ? 'bg-indigo-600 border-indigo-600' : 'bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500'}`}>
+                                            {assignedCompanyIds.has(empresa.id) && <CheckIcon className="h-4 w-4 text-white"/>}
+                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            checked={assignedCompanyIds.has(empresa.id)}
+                                            onChange={() => handleCompanyToggle(empresa.id)}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                ))}
+                            </div>
+                            <div className="mt-6 flex justify-end">
+                                <button onClick={handleSaveChanges} disabled={saving} className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                                    {saving ? 'Salvando...' : 'Salvar Alterações'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+export default GerenciarAtribuicoesPage;

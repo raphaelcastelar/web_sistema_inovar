@@ -796,3 +796,43 @@ def toggle_monitoramento_simples(request, empresa_id):
         return Response({'message': 'Status de monitoramento atualizado com sucesso.', 'novo_status': empresa.monitorar_simples})
     except Empresa.DoesNotExist:
         return Response({'error': 'Empresa não encontrada.'}, status=404)
+    
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def gerenciamento_atribuicao_data(request):
+    """
+    Retorna todos os dados necessários para a página de gerenciamento:
+    - Lista de todos os funcionários (com as empresas que eles já gerenciam)
+    - Lista de todas as empresas
+    """
+    funcionarios = Funcionario.objects.prefetch_related('empresas_gerenciadas').all()
+    empresas = Empresa.objects.all()
+
+    funcionarios_serializer = FuncionarioSerializer(funcionarios, many=True)
+    empresas_serializer = EmpresaSerializer(empresas, many=True)
+
+    data = {
+        'funcionarios': funcionarios_serializer.data,
+        'empresas': empresas_serializer.data
+    }
+    return Response(data)
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def salvar_atribuicoes(request):
+    """
+    Salva as atribuições de empresas para um funcionário específico.
+    """
+    funcionario_id = request.data.get('funcionario_id')
+    ids_empresas = request.data.get('ids_empresas', [])
+
+    if not funcionario_id:
+        return Response({'error': 'ID do funcionário é obrigatório.'}, status=400)
+
+    try:
+        funcionario = Funcionario.objects.get(id=funcionario_id)
+        # O método .set() lida com adicionar e remover de forma inteligente
+        funcionario.empresas_gerenciadas.set(ids_empresas)
+        return Response({'message': 'Atribuições salvas com sucesso!'})
+    except Funcionario.DoesNotExist:
+        return Response({'error': 'Funcionário não encontrado.'}, status=404)

@@ -60,6 +60,16 @@ const Navbar = () => {
                 </Link>
 
                 <Link
+                    to="/empresas"
+                    className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
+                        location.pathname.startsWith('/gerenciar-empresas') ? 'bg-indigo-800 text-white' : ''
+                    }`}
+                >
+                    <BuildingOfficeIcon className="h-6 w-6" />
+                    <span className="text-base font-medium">Gerenciar Empresas</span>
+                </Link>
+
+                <Link
                     to="/gerenciar-usuarios"
                     className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
                         location.pathname.startsWith('/gerenciar-usuarios') ? 'bg-indigo-800 text-white' : ''
