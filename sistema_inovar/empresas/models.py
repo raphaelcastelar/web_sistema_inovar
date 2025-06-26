@@ -4,6 +4,7 @@ import re # Para sanitizar nomes de pastas/arquivos
 import unidecode # Para remover acentos de nomes de pastas/arquivos (pip install unidecode)
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado
 from django.contrib.auth.models import AbstractUser, User
@@ -247,12 +248,13 @@ class ObrigacaoMensal(models.Model):
         return f"{self.get_tipo_display()} - {self.empresa.nome} - {self.periodo_apuracao.strftime('%m/%Y')}"
     
 class UserCompanyAccess(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='company_accesses')
-    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='user_accesses')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'empresa')  # Garante que um usuário não tenha acesso duplicado à mesma empresa
+        verbose_name = 'User Company Access'
+        verbose_name_plural = 'User Company Accesses'
 
     def __str__(self):
         return f"{self.user.username} - {self.empresa.nome}"
