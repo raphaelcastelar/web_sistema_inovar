@@ -19,8 +19,16 @@ const GerenciarAtribuicoesPage = () => {
             .then(response => {
                 setFuncionarios(response.data.funcionarios);
                 setEmpresas(response.data.empresas);
+                // Reset selection when data is fetched
+                setSelectedFuncionario(null);
+                setAssignedCompanyIds(new Set());
             })
-            .catch(() => setError('Não foi possível carregar os dados.'))
+            .catch(err => {
+                console.error("Erro ao carregar dados:", err.response?.data || err.message);
+                setError(err.response?.status === 403 
+                    ? "Você não tem permissão para acessar esta página." 
+                    : `Não foi possível carregar os dados: ${err.response?.data?.detail || err.message}`);
+            })
             .finally(() => setLoading(false));
     }, []);
 
@@ -30,6 +38,7 @@ const GerenciarAtribuicoesPage = () => {
 
     const handleFuncionarioSelect = (funcionario) => {
         setSelectedFuncionario(funcionario);
+        // Only include companies already assigned to the employee
         setAssignedCompanyIds(new Set(funcionario.empresas_gerenciadas));
     };
 
@@ -54,20 +63,21 @@ const GerenciarAtribuicoesPage = () => {
             alert('Atribuições salvas com sucesso!');
             fetchData(); // Recarrega os dados para garantir consistência
         })
-        .catch(() => alert('Falha ao salvar as atribuições.'))
+        .catch(err => {
+            console.error("Erro ao salvar atribuições:", err.response?.data || err.message);
+            alert(`Falha ao salvar as atribuições: ${err.response?.data?.error || err.message}`);
+        })
         .finally(() => setSaving(false));
     };
-    
-    // --- NOVAS FUNÇÕES PARA FACILITAR A SELEÇÃO ---
+
     const handleSelectAll = () => {
         const allCompanyIds = empresas.map(e => e.id);
         setAssignedCompanyIds(new Set(allCompanyIds));
     };
-    
+
     const handleClearAll = () => {
         setAssignedCompanyIds(new Set());
     };
-
 
     if (loading) return <p className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando...</p>;
     if (error) return <p className="p-8 text-center text-red-500">{error}</p>;
@@ -113,7 +123,6 @@ const GerenciarAtribuicoesPage = () => {
                                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
                                     Empresas para <span className="text-indigo-600 dark:text-indigo-400">{selectedFuncionario.first_name}</span>
                                 </h2>
-                                {/* --- BOTÕES DE AÇÃO ADICIONADOS --- */}
                                 <div className="flex gap-2">
                                     <button onClick={handleSelectAll} className="px-3 py-1 text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Selecionar Todas</button>
                                     <button onClick={handleClearAll} className="px-3 py-1 text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Limpar Seleção</button>

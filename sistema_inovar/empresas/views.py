@@ -106,9 +106,19 @@ MODEL_CONFIG_MAP_SYNC = {
 }
 
 class EmpresaViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    queryset = Empresa.objects.all()
     serializer_class = EmpresaSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        try:
+            user = self.request.user
+            if user.is_staff or user.is_superuser:
+                return Empresa.objects.all()
+            # Filter companies based on UserCompanyAccess for non-admins
+            return Empresa.objects.filter(usercompanyaccess__user=user)
+        except Exception as e:
+            logger.error(f"Error in EmpresaViewSet.get_queryset: {str(e)}")
+            raise
 
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
     queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base
