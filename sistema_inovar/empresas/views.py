@@ -803,7 +803,7 @@ def toggle_monitoramento_simples(request, empresa_id):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def gerenciamento_atribuicao_data(request):
-    funcionarios = Funcionario.objects.all()
+    funcionarios = Funcionario.objects.prefetch_related('empresas_gerenciadas').all()
     empresas = Empresa.objects.all()
     funcionario_data = [
         {
@@ -811,7 +811,7 @@ def gerenciamento_atribuicao_data(request):
             'first_name': f.first_name,
             'last_name': f.last_name,
             'username': f.username,
-            'empresas_gerenciadas': [access.empresa.id for access in f.usercompanyaccess.all()]
+            'empresas_gerenciadas': [empresa.id for empresa in f.empresas_gerenciadas.all()]
         } for f in funcionarios
     ]
     empresas_serializer = EmpresaSerializer(empresas, many=True)
@@ -831,9 +831,8 @@ def salvar_atribuicoes(request):
 
     try:
         funcionario = Funcionario.objects.get(id=funcionario_id)
-        # Remove existing assignments
+        # Sincronizar UserCompanyAccess
         UserCompanyAccess.objects.filter(user=funcionario).delete()
-        # Add new assignments
         for empresa_id in ids_empresas:
             empresa = Empresa.objects.get(id=empresa_id)
             UserCompanyAccess.objects.create(
@@ -841,6 +840,8 @@ def salvar_atribuicoes(request):
                 empresa=empresa,
                 created_by=request.user
             )
+        # Sincronizar empresas_gerenciadas
+        funcionario.empresas_gerenciadas.set(ids_empresas)
         return Response({'message': 'Atribuições salvas com sucesso!'})
     except Funcionario.DoesNotExist:
         return Response({'error': 'Funcionário não encontrado.'}, status=404)
