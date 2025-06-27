@@ -250,10 +250,3 @@ class ObrigacaoMensal(models.Model):
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.empresa.nome} - {self.periodo_apuracao.strftime('%m/%Y')}"
 
-class UserCompanyAccess(models.Model):
-    user = models.ForeignKey(Funcionario, on_delete=models.CASCADE, related_name='usercompanyaccess')
-    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='usercompanyaccess')
-    created_at = models.DateTimeField(auto_now_add=True)
-    created_by = models.ForeignKey(Funcionario, null=True, on_delete=models.SET_NULL, related_name='created_accesses')
-    class Meta:
-        unique_together = ('user', 'empresa')
