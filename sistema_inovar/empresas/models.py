@@ -94,6 +94,9 @@ class Funcionario(AbstractUser):
         blank=True, 
         related_name='gerenciada_por'
     )
+    class Meta:
+        verbose_name = 'Funcionário'
+        verbose_name_plural = 'Funcionários'
     def __str__(self):
         return self.get_full_name() or self.username
 

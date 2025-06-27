@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.models import User
 from .models import (
     Empresa, 
     Funcionario, 
@@ -12,32 +13,35 @@ from .models import (
     HistoricoEnvios
 )
 
-# --- Configuração para o modelo customizado de Usuário (Funcionario) ---
+@admin.register(Funcionario)
 class FuncionarioAdmin(UserAdmin):
-    # Adiciona seus campos customizados à tela de edição do usuário no admin
+    # Adiciona seus campos customizados ('theme' e 'empresas_gerenciadas') à tela de edição
     fieldsets = UserAdmin.fieldsets + (
-        ('Campos Personalizados', {'fields': ('theme',)}),
+        ('Configurações Pessoais', {'fields': ('theme',)}),
         ('Gerenciamento de Empresas', {'fields': ('empresas_gerenciadas',)}),
     )
-    # Adiciona campos ao list_display se quiser vê-los na lista de usuários
-    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff')
+    # Adiciona colunas extras na lista de funcionários
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'is_superuser')
+    filter_horizontal = ('empresas_gerenciadas',)
 
+    # --- LINHA ADICIONADA PARA A CORREÇÃO ---
+    # Define os campos pelos quais o admin pode buscar um funcionário.
+    # Isso habilita o 'autocomplete_fields' em outros modelos.
+    search_fields = ('username', 'first_name', 'last_name', 'email')
 
-# --- Configuração para o modelo Empresa ---
+# --- Configurações para os outros modelos (sem alterações) ---
 @admin.register(Empresa)
 class EmpresaAdmin(admin.ModelAdmin):
     list_display = ('nome', 'cnpj', 'email', 'telefone', 'monitorar_simples')
     search_fields = ('nome', 'cnpj')
     list_filter = ('monitorar_simples',)
 
-
-# --- Configuração para o modelo de Obrigações ---
 @admin.register(ObrigacaoMensal)
 class ObrigacaoMensalAdmin(admin.ModelAdmin):
-    list_display = ('empresa', 'tipo', 'periodo_apuracao', 'status', 'data_vencimento', 'responsavel_envio')
+    list_display = ('empresa', 'tipo', 'periodo_apuracao', 'status', 'data_vencimento')
     search_fields = ('empresa__nome', 'empresa__cnpj')
     list_filter = ('status', 'tipo', 'periodo_apuracao')
-    autocomplete_fields = ['empresa', 'responsavel_envio'] # Facilita a busca
+    autocomplete_fields = ['empresa', 'responsavel_envio']
 
 
 # --- Configuração para os modelos de Documentos ---
@@ -81,4 +85,7 @@ class HistoricoEnviosAdmin(admin.ModelAdmin):
 
 # --- Registro final do modelo Funcionario ---
 # Modelos registrados com o decorador @admin.register não precisam ser registrados aqui
-admin.site.register(Funcionario, FuncionarioAdmin)
+
+# 2. Registra o seu modelo Funcionario com a configuração personalizada
+
+
