@@ -189,10 +189,6 @@ class OutrosViewSet(viewsets.ModelViewSet):
             except Empresa.DoesNotExist:
                 return Outros.objects.none()
         return super().get_queryset()
-    
-class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = HistoricoEnvios.objects.all()
-    serializer_class = HistoricoEnviosSerializer
 
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HistoricoEnvios.objects.all()
