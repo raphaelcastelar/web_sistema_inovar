@@ -849,3 +849,13 @@ def salvar_atribuicoes(request):
     except Exception as e:
         logger.error(f"Error in salvar_atribuicoes: {str(e)}")
         return Response({'error': f'Erro ao salvar atribuições: {str(e)}'}, status=500)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    try:
+        serializer = FuncionarioSerializer(request.user)
+        return Response(serializer.data)
+    except Exception as e:
+        logger.error(f"Error in current_user: {str(e)}")
+        return Response({'error': f'Erro ao obter dados do usuário: {str(e)}'}, status=500)
