@@ -9,7 +9,7 @@ import unidecode
 import logging
 import datetime # Necessário para obter o ano atual e formatar meses
 
-from .models import Empresa
+from .models import Empresa, Funcionario
 from.utils import gerar_nome_pasta_empresa_padronizado
 
 logger = logging.getLogger(__name__)
@@ -117,3 +117,24 @@ def deletar_pasta_empresa_handler(sender, instance, **kwargs):
             f"Erro ao tentar deletar a pasta para a empresa '{instance.nome}' (ID: {instance.id}). "
             f"Caminho: {company_folder_path if 'company_folder_path' in locals() else 'não determinado'}. Erro: {e}"
         )
+
+@receiver(post_save, sender=Funcionario)
+def assign_all_companies_to_new_user(sender, instance, created, **kwargs):
+    """
+    Quando um NOVO funcionário é criado, atribui TODAS as empresas existentes a ele.
+    """
+    if created and not instance.is_superuser:
+        todas_as_empresas = Empresa.objects.all()
+        instance.empresas_gerenciadas.set(todas_as_empresas)
+        print(f"Todas as empresas foram atribuídas ao novo funcionário: {instance.username}")
+
+@receiver(post_save, sender=Empresa)
+def assign_new_company_to_all_users(sender, instance, created, **kwargs):
+    """
+    Quando uma NOVA empresa é criada, atribui ela a TODOS os funcionários existentes.
+    """
+    if created:
+        todos_os_funcionarios = Funcionario.objects.filter(is_superuser=False)
+        for funcionario in todos_os_funcionarios:
+            funcionario.empresas_gerenciadas.add(instance)
+        print(f"A nova empresa {instance.nome} foi atribuída a todos os funcionários.")

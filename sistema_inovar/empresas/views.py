@@ -25,7 +25,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal
+    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess
 )
 from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
@@ -106,9 +106,19 @@ MODEL_CONFIG_MAP_SYNC = {
 }
 
 class EmpresaViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
-    queryset = Empresa.objects.all()
     serializer_class = EmpresaSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        try:
+            user = self.request.user
+            if user.is_staff or user.is_superuser:
+                return Empresa.objects.all()
+            # Filter companies based on UserCompanyAccess for non-admins
+            return Empresa.objects.filter(usercompanyaccess__user=user)
+        except Exception as e:
+            logger.error(f"Error in EmpresaViewSet.get_queryset: {str(e)}")
+            raise
 
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
     queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base
@@ -179,10 +189,6 @@ class OutrosViewSet(viewsets.ModelViewSet):
             except Empresa.DoesNotExist:
                 return Outros.objects.none()
         return super().get_queryset()
-    
-class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = HistoricoEnvios.objects.all()
-    serializer_class = HistoricoEnviosSerializer
 
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HistoricoEnvios.objects.all()
@@ -191,13 +197,10 @@ class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = HistoricoEnviosFilter   # Adicione esta linha
 
 class FuncionarioViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para visualizar, criar, editar e deletar funcionários.
-    Apenas usuários administradores (is_staff=True) podem acessar.
-    """
-    queryset = Funcionario.objects.all().order_by('first_name')
+   
+    queryset = Funcionario.objects.prefetch_related('empresas_gerenciadas').all().order_by('first_name')
     serializer_class = FuncionarioSerializer
-    permission_classes = [IsAdminUser] # Apenas administradores podem gerenciar usuários
+    permission_classes = [IsAdminUser]
 
 @api_view(['POST'])
 def enviar_email(request):
@@ -796,3 +799,64 @@ def toggle_monitoramento_simples(request, empresa_id):
         return Response({'message': 'Status de monitoramento atualizado com sucesso.', 'novo_status': empresa.monitorar_simples})
     except Empresa.DoesNotExist:
         return Response({'error': 'Empresa não encontrada.'}, status=404)
+    
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def gerenciamento_atribuicao_data(request):
+    funcionarios = Funcionario.objects.prefetch_related('empresas_gerenciadas').all()
+    empresas = Empresa.objects.all()
+    funcionario_data = [
+        {
+            'id': f.id,
+            'first_name': f.first_name,
+            'last_name': f.last_name,
+            'username': f.username,
+            'empresas_gerenciadas': [empresa.id for empresa in f.empresas_gerenciadas.all()]
+        } for f in funcionarios
+    ]
+    empresas_serializer = EmpresaSerializer(empresas, many=True)
+    return Response({
+        'funcionarios': funcionario_data,
+        'empresas': empresas_serializer.data
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def salvar_atribuicoes(request):
+    funcionario_id = request.data.get('funcionario_id')
+    ids_empresas = request.data.get('ids_empresas', [])
+
+    if not funcionario_id:
+        return Response({'error': 'ID do funcionário é obrigatório.'}, status=400)
+
+    try:
+        funcionario = Funcionario.objects.get(id=funcionario_id)
+        # Sincronizar UserCompanyAccess
+        UserCompanyAccess.objects.filter(user=funcionario).delete()
+        for empresa_id in ids_empresas:
+            empresa = Empresa.objects.get(id=empresa_id)
+            UserCompanyAccess.objects.create(
+                user=funcionario,
+                empresa=empresa,
+                created_by=request.user
+            )
+        # Sincronizar empresas_gerenciadas
+        funcionario.empresas_gerenciadas.set(ids_empresas)
+        return Response({'message': 'Atribuições salvas com sucesso!'})
+    except Funcionario.DoesNotExist:
+        return Response({'error': 'Funcionário não encontrado.'}, status=404)
+    except Empresa.DoesNotExist:
+        return Response({'error': 'Uma ou mais empresas não encontradas.'}, status=404)
+    except Exception as e:
+        logger.error(f"Error in salvar_atribuicoes: {str(e)}")
+        return Response({'error': f'Erro ao salvar atribuições: {str(e)}'}, status=500)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_user(request):
+    try:
+        serializer = FuncionarioSerializer(request.user)
+        return Response(serializer.data)
+    except Exception as e:
+        logger.error(f"Error in current_user: {str(e)}")
+        return Response({'error': f'Erro ao obter dados do usuário: {str(e)}'}, status=500)

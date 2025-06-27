@@ -19,6 +19,7 @@ import FuncionarioForm from './components/FuncionarioForm';
 import GerarDasPage from './components/GerarDasPage';
 import ConsultarExtratoPage from './components/ConsultarExtratoPage';
 import GerenciamentoSimplesPage from './components/GerenciamentoSimplesPage';
+import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
 
 import './App.css';
 
@@ -37,7 +38,8 @@ function App() {
             <Route path="/empresas/cadastrar" element={<EmpresaForm />} />
             <Route path="/empresas/editar/:empresaId" element={<EmpresaForm />} />
             <Route path="/empresas/:empresaId/pastas" element={<PastaManager />} />
-            
+            <Route path="/gerenciar-empresas" element={<GerenciarAtribuicoesPage />} />
+
             <Route path="/gerenciar-usuarios" element={<FuncionarioList />} />
             <Route path="/gerenciar-usuarios/novo" element={<FuncionarioForm />} />
             <Route path="/gerenciar-usuarios/editar/:funcionarioId" element={<FuncionarioForm />} />
