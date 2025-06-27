@@ -252,3 +252,4 @@ class ObrigacaoMensal(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.empresa.nome} - {self.periodo_apuracao.strftime('%m/%Y')}"
+
