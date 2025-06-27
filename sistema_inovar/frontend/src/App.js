@@ -20,6 +20,7 @@ import GerarDasPage from './components/GerarDasPage';
 import ConsultarExtratoPage from './components/ConsultarExtratoPage';
 import GerenciamentoSimplesPage from './components/GerenciamentoSimplesPage';
 import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
+import DeclararDASPage from './components/DeclararDASPage';
 
 import './App.css';
 
@@ -48,6 +49,7 @@ function App() {
             <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
             <Route path="/gerar-das" element={<GerarDasPage />} />
             <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
+            <Route path="/declarar-das" element={<DeclararDASPage />} />
             
             {/* Rota padrão para usuários logados */}
             <Route path="/" element={<EmpresaList />} />

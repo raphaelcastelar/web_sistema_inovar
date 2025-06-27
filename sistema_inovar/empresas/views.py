@@ -860,3 +860,64 @@ def current_user(request):
     except Exception as e:
         logger.error(f"Error in current_user: {str(e)}")
         return Response({'error': f'Erro ao obter dados do usuário: {str(e)}'}, status=500)
+    
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def declarar_das_api(request):
+    """
+    API para declarar o DAS de uma empresa para um período específico.
+    Expects: {"empresa_id": int, "periodo_apuracao": "YYYYMM", "dados_declaracao": {...}}
+    """
+    empresa_id = request.data.get('empresa_id')
+    periodo_apuracao = request.data.get('periodo_apuracao')
+    dados_declaracao = request.data.get('dados_declaracao')
+
+    if not all([empresa_id, periodo_apuracao, dados_declaracao]):
+        return Response({'error': 'Campos empresa_id, periodo_apuracao e dados_declaracao são obrigatórios.'}, status=400)
+
+    try:
+        empresa = Empresa.objects.get(id=empresa_id)
+        # Verificar permissões
+        user = request.user
+        if not (user.is_staff or user.is_superuser or empresa.usercompanyaccess.filter(user=user).exists()):
+            return Response({'error': 'Você não tem permissão para declarar o DAS desta empresa.'}, status=403)
+
+        # Formatar periodo_apuracao para o modelo (converte "YYYYMM" para DateField)
+        ano = int(periodo_apuracao[:4])
+        mes = int(periodo_apuracao[4:])
+        periodo_apuracao_date = timezone.datetime(ano, mes, 1).date()
+
+        # Chamar a API Serpro
+        result = declarar_das_serpro(empresa.cnpj, periodo_apuracao, dados_declaracao)
+        if not result['sucesso']:
+            return Response({'error': result['erro'], 'detalhes': result.get('detalhes', '')}, status=400)
+
+        # Atualizar ou criar ObrigacaoMensal
+        obrigacao, created = ObrigacaoMensal.objects.get_or_create(
+            empresa=empresa,
+            tipo='simples_nacional',
+            periodo_apuracao=periodo_apuracao_date,
+            defaults={
+                'status': 'declarado',
+                'data_envio': timezone.now(),
+                'responsavel_envio': user,
+                'numero_declaracao': result['detalhes'].get('numeroDeclaracao', '')
+            }
+        )
+        if not created:
+            obrigacao.status = 'declarado'
+            obrigacao.data_envio = timezone.now()
+            obrigacao.responsavel_envio = user
+            obrigacao.numero_declaracao = result['detalhes'].get('numeroDeclaracao', '')
+            obrigacao.save()
+
+        return Response({
+            'message': 'DAS declarado com sucesso.',
+            'detalhes': result['detalhes']
+        })
+
+    except Empresa.DoesNotExist:
+        return Response({'error': 'Empresa não encontrada.'}, status=404)
+    except Exception as e:
+        logger.error(f"Erro ao declarar DAS: {str(e)}")
+        return Response({'error': f'Erro ao declarar DAS: {str(e)}'}, status=500)

@@ -8,7 +8,8 @@ import {
     DocumentMagnifyingGlassIcon,
     ArrowLeftOnRectangleIcon,
     BuildingOfficeIcon,
-    Cog6ToothIcon // Ícone para "Gerenciar"
+    Cog6ToothIcon,
+    DocumentCheckIcon // Novo ícone para "Declarar DAS"
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 import ThemeToggle from './ThemeToggle';
@@ -22,9 +23,7 @@ const Navbar = () => {
         navigate('/login');
     };
 
-    // Helper para criar os links e evitar repetição de código
     const NavLink = ({ to, icon: Icon, text }) => {
-        // Lógica de destaque corrigida para funcionar com a rota raiz "/"
         const isActive = (to === "/") 
             ? location.pathname === "/" 
             : location.pathname.startsWith(to);
@@ -44,7 +43,6 @@ const Navbar = () => {
 
     return (
         <div className="fixed left-0 top-0 h-full w-56 bg-gradient-to-b from-indigo-900 to-gray-800 shadow-xl flex flex-col">
-            
             <div className="flex-shrink-0 flex justify-center py-8">
                 <img
                     src={LogoContabilidade}
@@ -57,17 +55,15 @@ const Navbar = () => {
                 <NavLink to="/" icon={HomeIcon} text="Início" />
                 <NavLink to="/empresas" icon={BuildingOfficeIcon} text="Empresas" />
                 <NavLink to="/gerenciar-usuarios" icon={UserGroupIcon} text="Usuários" />
-                
-                {/* --- NOVO LINK CORRIGIDO AQUI --- */}
                 <NavLink to="/gerenciar-empresas" icon={Cog6ToothIcon} text="Gerenciar Empresas" />
                 
-                {/* Divisor para agrupar visualmente os serviços */}
                 <div className="px-4 pt-4 pb-2">
                     <span className="text-xs font-semibold text-indigo-400 uppercase">Serviços</span>
                 </div>
                 
                 <NavLink to="/gerar-das" icon={DocumentArrowDownIcon} text="Gerar DAS" />
                 <NavLink to="/consultar-extrato" icon={DocumentMagnifyingGlassIcon} text="Consultar Extrato" />
+                <NavLink to="/declarar-das" icon={DocumentCheckIcon} text="Declarar DAS" /> {/* Novo link */}
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
             </nav>
 

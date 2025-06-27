@@ -10,7 +10,6 @@ from django.contrib.auth.models import AbstractUser
 
 logger = logging.getLogger(__name__)
 
-# --- Sua classe Empresa aqui ---
 class Empresa(models.Model):
     id = models.AutoField(primary_key=True)
     nome = models.CharField(max_length=100, null=False)
@@ -91,7 +90,6 @@ def simples_nacional_upload_path(instance, filename):
 def xml_upload_path(instance, filename):
     return timed_folder_upload_path(instance, filename, 'XML')
 
-# --- Atualize seus modelos para usar as novas funções upload_to ---
 
 class Funcionario(AbstractUser):
     THEME_CHOICES = [
@@ -256,36 +254,29 @@ class ObrigacaoMensal(models.Model):
         ('pendente', 'Pendente'),
         ('enviado', 'Enviado ao Cliente'),
         ('nao_aplicavel', 'Não Aplicável (Sem Débito)'),
+        ('declarado', 'Declarado'),  # Novo status
     ]
     TIPO_OBRIGACAO_CHOICES = [
         ('simples_nacional', 'Simples Nacional (DAS)'),
-        # Você pode adicionar outras no futuro, como 'esocial', 'dctfweb', etc.
     ]
-
     id = models.AutoField(primary_key=True)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='obrigacoes')
     tipo = models.CharField(max_length=50, choices=TIPO_OBRIGACAO_CHOICES)
-    periodo_apuracao = models.DateField() # Armazena o 1º dia do mês de referência (ex: 2025-05-01)
-    
-    # --- CAMPO FALTANTE ADICIONADO AQUI ---
-    data_vencimento = models.DateField(null=True, blank=True) # Define a data limite para a entrega
-    
+    periodo_apuracao = models.DateField()
+    data_vencimento = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
     data_envio = models.DateTimeField(null=True, blank=True)
     responsavel_envio = models.ForeignKey('Funcionario', on_delete=models.SET_NULL, null=True, blank=True)
+    numero_declaracao = models.CharField(max_length=255, null=True, blank=True)  # Novo campo
 
     class Meta:
         unique_together = ('empresa', 'tipo', 'periodo_apuracao')
         ordering = ['-periodo_apuracao', 'data_vencimento']
 
     def save(self, *args, **kwargs):
-        # Lógica automática para definir o vencimento do Simples Nacional para o dia 20 do mês seguinte
         if self.tipo == 'simples_nacional' and not self.data_vencimento:
-            # Pega o primeiro dia do mês de apuração
             primeiro_dia = self.periodo_apuracao
-            # Adiciona um mês
             primeiro_dia_mes_seguinte = (primeiro_dia.replace(day=1) + timezone.timedelta(days=32)).replace(day=1)
-            # Define o vencimento para o dia 20
             self.data_vencimento = primeiro_dia_mes_seguinte.replace(day=20)
         super().save(*args, **kwargs)
 
