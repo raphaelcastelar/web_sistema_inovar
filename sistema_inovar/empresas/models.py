@@ -21,6 +21,24 @@ class Empresa(models.Model):
 
     def __str__(self):
         return self.nome
+    
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding  # Verifica se é uma nova empresa
+        super().save(*args, **kwargs)  # Salva a empresa primeiro
+        if is_new:
+            # Atribuir a nova empresa a todos os funcionários
+            from .models import Funcionario, UserCompanyAccess
+            funcionarios = Funcionario.objects.all()
+            for funcionario in funcionarios:
+                # Adicionar ao UserCompanyAccess
+                UserCompanyAccess.objects.get_or_create(
+                    user=funcionario,
+                    empresa=self,
+                    defaults={'created_by': None}
+                )
+                # Adicionar ao empresas_gerenciadas
+                funcionario.empresas_gerenciadas.add(self)
+            logger.info(f"Empresa {self.nome} criada e atribuída a todos os funcionários.")
 
 def get_document_company_folder_name_for_upload(document_instance):
     """
@@ -80,25 +98,46 @@ class Funcionario(AbstractUser):
         ('light', 'Claro'),
         ('dark', 'Escuro'),
     ]
-    # O AbstractUser já inclui: username, password, email, first_name, last_name, etc.
-    # Você pode adicionar campos extras aqui se precisar, por exemplo:
     theme = models.CharField(
         max_length=10, 
         choices=THEME_CHOICES, 
-        default='light' # Define 'Claro' como o padrão para novos usuários
+        default='light'
     )
     cargo = models.CharField(max_length=100, null=True, blank=True)
-    # ramal = models.CharField(max_length=10, null=True, blank=True)
     empresas_gerenciadas = models.ManyToManyField(
         'Empresa', 
         blank=True, 
         related_name='gerenciada_por'
     )
+
     class Meta:
         verbose_name = 'Funcionário'
         verbose_name_plural = 'Funcionários'
+
     def __str__(self):
         return self.get_full_name() or self.username
+
+    @property
+    def usercompanyaccess(self):
+        return UserCompanyAccess.objects.filter(user=self)
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding  # Verifica se é um novo funcionário
+        super().save(*args, **kwargs)  # Salva o funcionário primeiro
+        if is_new:
+            # Atribuir todas as empresas existentes ao novo funcionário
+            from .models import Empresa, UserCompanyAccess
+            empresas = Empresa.objects.all()
+            for empresa in empresas:
+                # Adicionar ao UserCompanyAccess
+                UserCompanyAccess.objects.get_or_create(
+                    user=self,
+                    empresa=empresa,
+                    defaults={'created_by': None}
+                )
+                # Adicionar ao empresas_gerenciadas
+                self.empresas_gerenciadas.add(empresa)
+            logger.info(f"Funcionário {self.username} criado e atribuído a todas as empresas.")
 
 class DocumentosConstitutivos(models.Model):
     id = models.AutoField(primary_key=True)
