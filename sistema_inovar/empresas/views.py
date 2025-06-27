@@ -191,13 +191,10 @@ class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = HistoricoEnviosFilter   # Adicione esta linha
 
 class FuncionarioViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet para visualizar, criar, editar e deletar funcionários.
-    Apenas usuários administradores (is_staff=True) podem acessar.
-    """
-    queryset = Funcionario.objects.all().order_by('first_name')
+   
+    queryset = Funcionario.objects.prefetch_related('empresas_gerenciadas').all().order_by('first_name')
     serializer_class = FuncionarioSerializer
-    permission_classes = [IsAdminUser] # Apenas administradores podem gerenciar usuários
+    permission_classes = [IsAdminUser]
 
 @api_view(['POST'])
 def enviar_email(request):
