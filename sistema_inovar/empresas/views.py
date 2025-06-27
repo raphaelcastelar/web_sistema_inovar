@@ -25,7 +25,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal
+    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess
 )
 from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
@@ -803,29 +803,26 @@ def toggle_monitoramento_simples(request, empresa_id):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def gerenciamento_atribuicao_data(request):
-    """
-    Retorna todos os dados necessários para a página de gerenciamento:
-    - Lista de todos os funcionários (com as empresas que eles já gerenciam)
-    - Lista de todas as empresas
-    """
-    funcionarios = Funcionario.objects.prefetch_related('empresas_gerenciadas').all()
+    funcionarios = Funcionario.objects.all()
     empresas = Empresa.objects.all()
-
-    funcionarios_serializer = FuncionarioSerializer(funcionarios, many=True)
+    funcionario_data = [
+        {
+            'id': f.id,
+            'first_name': f.first_name,
+            'last_name': f.last_name,
+            'username': f.username,
+            'empresas_gerenciadas': [access.empresa.id for access in f.usercompanyaccess.all()]
+        } for f in funcionarios
+    ]
     empresas_serializer = EmpresaSerializer(empresas, many=True)
-
-    data = {
-        'funcionarios': funcionarios_serializer.data,
+    return Response({
+        'funcionarios': funcionario_data,
         'empresas': empresas_serializer.data
-    }
-    return Response(data)
+    })
 
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
 def salvar_atribuicoes(request):
-    """
-    Salva as atribuições de empresas para um funcionário específico.
-    """
     funcionario_id = request.data.get('funcionario_id')
     ids_empresas = request.data.get('ids_empresas', [])
 
@@ -834,8 +831,21 @@ def salvar_atribuicoes(request):
 
     try:
         funcionario = Funcionario.objects.get(id=funcionario_id)
-        # O método .set() lida com adicionar e remover de forma inteligente
-        funcionario.empresas_gerenciadas.set(ids_empresas)
+        # Remove existing assignments
+        UserCompanyAccess.objects.filter(user=funcionario).delete()
+        # Add new assignments
+        for empresa_id in ids_empresas:
+            empresa = Empresa.objects.get(id=empresa_id)
+            UserCompanyAccess.objects.create(
+                user=funcionario,
+                empresa=empresa,
+                created_by=request.user
+            )
         return Response({'message': 'Atribuições salvas com sucesso!'})
     except Funcionario.DoesNotExist:
         return Response({'error': 'Funcionário não encontrado.'}, status=404)
+    except Empresa.DoesNotExist:
+        return Response({'error': 'Uma ou mais empresas não encontradas.'}, status=404)
+    except Exception as e:
+        logger.error(f"Error in salvar_atribuicoes: {str(e)}")
+        return Response({'error': f'Erro ao salvar atribuições: {str(e)}'}, status=500)
