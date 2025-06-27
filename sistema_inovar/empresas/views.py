@@ -37,7 +37,8 @@ from .serpro_service import (
     gerar_das_serpro, 
     obter_dados_extrato_serpro, 
     obter_extrato_pdf_serpro,
-    orquestrar_consulta_extrato
+    orquestrar_consulta_extrato,
+    declarar_das_serpro
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message

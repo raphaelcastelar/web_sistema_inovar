@@ -1,5 +1,6 @@
+// frontend/src/components/DeclararDASPage.js
 import React, { useState, useEffect } from 'react';
-import axiosInstance from '../utils/axiosInstance';
+import axiosInstance from '../api/axiosInstance'; // Corrigido o caminho do import
 
 const DeclararDASPage = () => {
   const [empresas, setEmpresas] = useState([]);
@@ -58,14 +59,13 @@ const DeclararDASPage = () => {
     setSuccess(null);
 
     try {
-      // Atualizar cnpjCompleto e pa com base nos inputs
       const payload = {
         empresa_id: empresaId,
-        periodo_apuracao,
+        periodo_apuracao: periodoApuracao, // Corrigido de periodo_apuracao para periodoApuracao
         dados_declaracao: {
           ...dadosDeclaracao,
           cnpjCompleto: empresas.find(e => e.id === parseInt(empresaId))?.cnpj || '',
-          pa: parseInt(periodo_apuracao.replace(/\D/g, ''))  // Converte "YYYY-MM" ou "YYYYMM" para inteiro
+          pa: parseInt(periodoApuracao.replace(/\D/g, '')) // Corrigido de periodo_apuracao para periodoApuracao
         }
       };
       const response = await axiosInstance.post('/api/declarar-das/', payload);
@@ -117,7 +117,6 @@ const DeclararDASPage = () => {
             })}
           />
         </div>
-        {/* Adicione mais campos conforme necessário para preencher dados_declaracao */}
         <button type="submit" disabled={loading}>Declarar DAS</button>
       </form>
     </div>

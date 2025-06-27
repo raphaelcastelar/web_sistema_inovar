@@ -25,5 +25,5 @@ urlpatterns = [
     path('gerenciamento-simples/', gerenciamento_simples_api, name='gerenciamento_simples'),
     path('empresas/<int:empresa_id>/toggle-monitoramento-simples/', toggle_monitoramento_simples, name='toggle_monitoramento_simples'),
     path('gerenciamento-atribuicao-data/', gerenciamento_atribuicao_data, name='gerenciamento_atribuicao_data'),
-path('salvar-atribuicoes/', salvar_atribuicoes, name='salvar_atribuicoes'),
+    path('salvar-atribuicoes/', salvar_atribuicoes, name='salvar_atribuicoes'),
 ]
