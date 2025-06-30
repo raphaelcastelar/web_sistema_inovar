@@ -27,5 +27,4 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/current-user/', current_user, name='current-user'),
     path('api/declarar-das/', declarar_das_api, name='declarar-das'),
-    path('api/consultar-declaracoes/', consultar_declaracoes_api, name='consultar_declaracoes_api'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

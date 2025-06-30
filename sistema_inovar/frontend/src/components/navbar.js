@@ -64,7 +64,6 @@ const Navbar = () => {
                 <NavLink to="/gerar-das" icon={DocumentArrowDownIcon} text="Gerar DAS" />
                 <NavLink to="/consultar-extrato" icon={DocumentMagnifyingGlassIcon} text="Consultar Extrato" />
                 <NavLink to="/declarar-das" icon={DocumentCheckIcon} text="Declarar DAS" />
-                <NavLink to="/consultar-declaracoes" icon={DocumentMagnifyingGlassIcon} text="Consultar Declarações" />
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
             </nav>
 
