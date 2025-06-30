@@ -43,7 +43,6 @@ from .serpro_service import (
     obter_extrato_pdf_serpro,
     orquestrar_consulta_extrato,
     declarar_das_serpro,
-    consultar_declaracoes_serpro,
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
@@ -928,52 +927,3 @@ def declarar_das_api(request):
         logger.error(f"Erro ao declarar DAS: {str(e)}")
         return Response({'error': f'Erro ao declarar DAS: {str(e)}'}, status=500)
     
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def consultar_declaracoes_api(request):
-    try:
-        empresa_id = request.data.get('empresa_id')
-        ano_calendario = request.data.get('ano_calendario')
-        
-        if not empresa_id or not ano_calendario:
-            return Response({'error': 'empresa_id e ano_calendario são obrigatórios'}, status=400)
-
-        empresa = Empresa.objects.filter(id=empresa_id, usercompanyaccess__user=request.user).first()
-        if not empresa:
-            logger.error(f"Empresa não encontrada ou acesso negado: ID {empresa_id}, Usuário {request.user.username}")
-            return Response({'error': 'Empresa não encontrada ou acesso negado'}, status=404)
-
-        cnpj_limpo = re.sub(r'\D', '', empresa.cnpj)
-        if len(cnpj_limpo) != 14 or not cnpj_limpo.isdigit():
-            logger.error(f"CNPJ inválido: {cnpj_limpo}")
-            return Response({'error': f'CNPJ inválido: {empresa.cnpj}'}, status=400)
-
-        resultado = consultar_declaracoes_serpro(cnpj_limpo, ano_calendario)
-        
-        if not resultado.get("sucesso"):
-            logger.error(f"Falha na consulta de declarações: {resultado.get('erro')}")
-            return Response({'error': resultado.get('erro'), 'detalhes': resultado.get('detalhes', '')}, status=400)
-
-        declaracoes = resultado.get('declaracoes', [])
-        mensagem = resultado.get('mensagem', 'Consulta realizada com sucesso')
-        if not declaracoes:
-            mensagem = 'Nenhuma transmissão encontrada para o período informado.'
-
-        for declaracao in declaracoes:
-            periodo_apuracao = parse_date(declaracao.get('periodo_apuracao', f'{ano_calendario}-01-01'))
-            numero_declaracao = declaracao.get('numero_declaracao')
-            
-            ObrigacaoMensal.objects.update_or_create(
-                empresa=empresa,
-                tipo='simples_nacional',
-                periodo_apuracao=periodo_apuracao,
-                defaults={'status': 'consultado', 'numero_declaracao': numero_declaracao}
-            )
-
-        logger.info(f"Consulta bem-sucedida: CNPJ {cnpj_limpo}, ano {ano_calendario}")
-        return Response({'message': mensagem, 'declaracoes': declaracoes})
-
-    except Exception as e:
-        logger.error(f"Erro ao consultar declarações: {str(e)}", exc_info=True)
-        return Response({'error': f'Erro ao consultar declarações: {str(e)}'}, status=500)

@@ -21,7 +21,6 @@ import ConsultarExtratoPage from './components/ConsultarExtratoPage';
 import GerenciamentoSimplesPage from './components/GerenciamentoSimplesPage';
 import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
 import DeclararDASPage from './components/DeclararDASPage';
-import ConsultarDeclaracoesPage from './components/ConsultarDeclaracoesPage';
 
 import './App.css';
 
@@ -51,7 +50,6 @@ function App() {
             <Route path="/gerar-das" element={<GerarDasPage />} />
             <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
             <Route path="/declarar-das" element={<DeclararDASPage />} />
-            <Route path="/consultar-declaracoes" element={<ConsultarDeclaracoesPage />} />
             
             {/* Rota padrão para usuários logados */}
             <Route path="/" element={<EmpresaList />} />

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from empresas.views import EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet, DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet, current_user, declarar_das_api, consultar_declaracoes_api
+from empresas.views import EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet, DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet, current_user, declarar_das_api
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import (
