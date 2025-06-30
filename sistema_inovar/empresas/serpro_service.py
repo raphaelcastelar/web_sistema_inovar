@@ -473,3 +473,75 @@ def declarar_das_serpro(cnpj_empresa, periodo_apuracao, dados_declaracao):
     except Exception as e:
         logger.error(f"Erro ao processar resposta da declaração: {e}")
         return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
+    
+def consultar_declaracoes_serpro(cnpj_empresa, ano_calendario):
+    """
+    Chama a API Serpro para consultar declarações usando o serviço CONSDECLARACAO13.
+    
+    Args:
+        cnpj_empresa (str): CNPJ da empresa (sem formatação, ex: "00000000000100").
+        ano_calendario (str): Ano de apuração no formato "YYYY".
+    
+    Returns:
+        dict: {"sucesso": bool, "declaracoes": list, "mensagem": str (opcional), "detalhes": dict/str (opcional)}
+    """
+    tokens = get_serpro_token()
+    if not tokens:
+        return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
+
+    url = f"{GATEWAY_URL}/Consultar"
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'],
+        "Content-Type": "application/json",
+        "Accept": "text/plain"
+    }
+    cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
+    payload = {
+        "contratante": {"numero": cnpj_contratante, "tipo": 2},
+        "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+        "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+        "pedidoDados": {
+            "idSistema": "PGDASD",
+            "idServico": "CONSDECLARACAO13",
+            "versaoSistema": "1.0",
+            "dados": json.dumps({"anoCalendario": ano_calendario})
+        }
+    }
+    logger.info(f"Enviando payload para consultar declarações: {json.dumps(payload, indent=2)}")
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, cert=(settings.SERPRO_CERT_PUBLIC_PATH, settings.SERPRO_CERT_PRIVATE_KEY_PATH))
+        
+        if response.status_code == 401:
+            logger.warning("Token expirado (401). Renovando...")
+            cache.delete(SERPRO_TOKEN_CACHE_KEY)
+            tokens = get_serpro_token()
+            if not tokens:
+                return {"sucesso": False, "erro": "Falha ao renovar token."}
+            headers["Authorization"] = f"Bearer {tokens['access_token']}"
+            headers["jwt_token"] = tokens['jwt_token']
+            response = requests.post(url, json=payload, headers=headers, cert=(settings.SERPRO_CERT_PUBLIC_PATH, settings.SERPRO_CERT_PRIVATE_KEY_PATH))
+
+        response.raise_for_status()
+        response_data = response.json()
+        logger.info(f"Resposta da consulta de declarações recebida.")
+
+        if not any(msg.get('codigo') == '[Sucesso-PGDASD]' for msg in response_data.get('mensagens', [])):
+            return {"sucesso": False, "erro": "API Serpro indicou falha ao consultar declarações.", "detalhes": response_data}
+
+        dados_str = response_data.get('dados')
+        if not dados_str:
+            return {"sucesso": False, "erro": "Campo 'dados' não encontrado na resposta.", "detalhes": response_data}
+
+        dados = json.loads(dados_str)
+        declaracoes = dados.get('declaracoes', [])
+        return {"sucesso": True, "declaracoes": declaracoes, "mensagem": "Consulta de declarações realizada com sucesso."}
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro na requisição para consultar declarações: {e}")
+        detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
+        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
+    except Exception as e:
+        logger.error(f"Erro ao processar resposta da consulta: {e}")
+        return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}

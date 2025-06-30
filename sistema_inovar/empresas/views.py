@@ -42,7 +42,8 @@ from .serpro_service import (
     obter_dados_extrato_serpro, 
     obter_extrato_pdf_serpro,
     orquestrar_consulta_extrato,
-    declarar_das_serpro
+    declarar_das_serpro,
+    consultar_declaracoes_serpro,
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
@@ -943,54 +944,15 @@ def consultar_declaracoes_api(request):
             logger.error(f"Empresa não encontrada ou acesso negado: ID {empresa_id}, Usuário {request.user.username}")
             return Response({'error': 'Empresa não encontrada ou acesso negado'}, status=404)
 
-        # Obter token da API Serpro
-        auth_str = base64.b64encode(f"{settings.SERPRO_CONSUMER_KEY}:{settings.SERPRO_CONSUMER_SECRET}".encode()).decode()
-        headers_token = {
-            'Authorization': f'Basic {auth_str}',
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
-        data_token = {'grant_type': 'client_credentials'}
-        logger.info(f"Requisitando token da Serpro: {settings.SERPRO_TOKEN_URL}")
-        response_token = requests.post(settings.SERPRO_TOKEN_URL, headers=headers_token, data=data_token, verify=False)
+        # Chama a função do serviço
+        resultado = consultar_declaracoes_serpro(empresa.cnpj, ano_calendario)
+        
+        if not resultado.get("sucesso"):
+            logger.error(f"Falha na consulta de declarações: {resultado.get('erro')}")
+            return Response({'error': resultado.get('erro'), 'detalhes': resultado.get('detalhes', '')}, status=400)
 
-        if response_token.status_code != 200:
-            logger.error(f"Erro ao obter token da Serpro: {response_token.status_code} - {response_token.text}")
-            return Response({'error': f'Erro ao obter token da Serpro: {response_token.text}'}, status=response_token.status_code)
-
-        token_data = response_token.json()
-        token = token_data.get('access_token')
-        if not token:
-            logger.error(f"Token não encontrado na resposta: {token_data}")
-            return Response({'error': 'Falha ao obter token da Serpro'}, status=500)
-
-        # Configurar payload para a API Serpro
-        payload = {
-            "contratante": {"numero": empresa.cnpj, "tipo": 2},
-            "autorPedidoDados": {"numero": empresa.cnpj, "tipo": 2},
-            "contribuinte": {"numero": empresa.cnpj, "tipo": 2},
-            "pedidoDados": {
-                "idSistema": "PGDASD",
-                "idServico": "CONSDECLARACAO13",
-                "versaoSistema": "1.0",
-                "dados": f'{{ "anoCalendario": "{ano_calendario}" }}'
-            }
-        }
-
-        # Fazer requisição à API Serpro
-        headers_api = {
-            'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json',
-            'Accept': 'text/plain'
-        }
-        logger.info(f"Consultando API Serpro: {settings.SERPRO_API_URL}")
-        response = requests.post(settings.SERPRO_API_URL, json=payload, headers=headers_api, verify=False)
-
-        if response.status_code != 200:
-            logger.error(f"Erro na API Serpro: {response.status_code} - {response.text}")
-            return Response({'error': f'Erro na API Serpro: {response.text}'}, status=response.status_code)
-
-        # Processar resposta
-        declaracoes = response.json().get('declaracoes', [])
+        # Processa as declarações retornadas
+        declaracoes = resultado.get('declaracoes', [])
         for declaracao in declaracoes:
             periodo_apuracao = parse_date(declaracao.get('periodo_apuracao', f'{ano_calendario}-01-01'))
             numero_declaracao = declaracao.get('numero_declaracao')
