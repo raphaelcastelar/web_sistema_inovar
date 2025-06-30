@@ -6,6 +6,7 @@ import datetime
 import unidecode
 import logging
 import requests
+import base64
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -932,7 +933,7 @@ def declarar_das_api(request):
 def consultar_declaracoes_api(request):
     try:
         empresa_id = request.data.get('empresa_id')
-        ano_calendario = request.data.get('ano_calendario')  # Ex.: "2018"
+        ano_calendario = request.data.get('ano_calendario')
         
         if not empresa_id or not ano_calendario:
             return Response({'error': 'empresa_id e ano_calendario são obrigatórios'}, status=400)
@@ -940,7 +941,28 @@ def consultar_declaracoes_api(request):
         # Verificar se a empresa existe e o usuário tem acesso
         empresa = Empresa.objects.filter(id=empresa_id, usercompanyaccess__user=request.user).first()
         if not empresa:
+            logger.error(f"Empresa não encontrada ou acesso negado: ID {empresa_id}, Usuário {request.user.username}")
             return Response({'error': 'Empresa não encontrada ou acesso negado'}, status=404)
+
+        # Obter token da API Serpro
+        auth_str = base64.b64encode(f"{settings.SERPRO_CONSUMER_KEY}:{settings.SERPRO_CONSUMER_SECRET}".encode()).decode()
+        headers_token = {
+            'Authorization': f'Basic {auth_str}',
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        data_token = {
+            'grant_type': 'client_credentials'
+        }
+        response_token = requests.post(settings.SERPRO_TOKEN_URL, headers=headers_token, data=data_token, verify=False)
+
+        if response_token.status_code != 200:
+            logger.error(f"Erro ao obter token da Serpro: {response_token.status_code} - {response_token.text}")
+            return Response({'error': f'Erro ao obter token da Serpro: {response_token.text}'}, status=response_token.status_code)
+
+        token = response_token.json().get('access_token')
+        if not token:
+            logger.error("Token não encontrado na resposta da Serpro")
+            return Response({'error': 'Falha ao obter token da Serpro'}, status=500)
 
         # Configurar payload para a API Serpro
         payload = {
@@ -965,24 +987,20 @@ def consultar_declaracoes_api(request):
         }
 
         # Fazer requisição à API Serpro
-        headers = {
-            'Authorization': f'Bearer {settings.SERPRO_API_TOKEN}',
+        headers_api = {
+            'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json',
             'Accept': 'text/plain'
         }
-        response = requests.post(
-            'https://gateway.apiserpro.serpro.gov.br/integra-contador-trial/v1/Consultar',
-            json=payload,
-            headers=headers
-        )
+        response = requests.post(settings.SERPRO_API_URL, json=payload, headers=headers_api, verify=False)
 
         if response.status_code != 200:
             logger.error(f"Erro na API Serpro: {response.status_code} - {response.text}")
             return Response({'error': f'Erro na API Serpro: {response.text}'}, status=response.status_code)
 
         # Processar resposta (assumindo que retorna uma lista de declarações)
-        declaracoes = response.json()  # Ajuste conforme a estrutura real da resposta
-        for declaracao in declaracoes.get('declaracoes', []):
+        declaracoes = response.json().get('declaracoes', [])
+        for declaracao in declaracoes:
             periodo_apuracao = parse_date(declaracao.get('periodo_apuracao', f'{ano_calendario}-01-01'))
             numero_declaracao = declaracao.get('numero_declaracao')
             
