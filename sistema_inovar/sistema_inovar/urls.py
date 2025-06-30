@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from empresas.views import EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet, DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet, current_user, declarar_das_api
+from empresas.views import EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet, DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet, current_user, declarar_das_api, consultar_declaracoes_api
 from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework_simplejwt.views import (
@@ -27,4 +27,5 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/current-user/', current_user, name='current-user'),
     path('api/declarar-das/', declarar_das_api, name='declarar-das'),
+    path('api/consultar-declaracoes/', consultar_declaracoes_api, name='consultar_declaracoes_api'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

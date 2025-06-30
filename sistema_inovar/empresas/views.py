@@ -5,6 +5,8 @@ import re
 import datetime
 import unidecode
 import logging
+import requests
+
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
@@ -14,6 +16,7 @@ from email.utils import formatdate
 from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from datetime import timedelta
 from django.db.models import OuterRef, Subquery, CharField
 
@@ -922,3 +925,84 @@ def declarar_das_api(request):
     except Exception as e:
         logger.error(f"Erro ao declarar DAS: {str(e)}")
         return Response({'error': f'Erro ao declarar DAS: {str(e)}'}, status=500)
+    
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def consultar_declaracoes_api(request):
+    try:
+        empresa_id = request.data.get('empresa_id')
+        ano_calendario = request.data.get('ano_calendario')  # Ex.: "2018"
+        
+        if not empresa_id or not ano_calendario:
+            return Response({'error': 'empresa_id e ano_calendario são obrigatórios'}, status=400)
+
+        # Verificar se a empresa existe e o usuário tem acesso
+        empresa = Empresa.objects.filter(id=empresa_id, usercompanyaccess__user=request.user).first()
+        if not empresa:
+            return Response({'error': 'Empresa não encontrada ou acesso negado'}, status=404)
+
+        # Configurar payload para a API Serpro
+        payload = {
+            "contratante": {
+                "numero": empresa.cnpj,
+                "tipo": 2
+            },
+            "autorPedidoDados": {
+                "numero": empresa.cnpj,
+                "tipo": 2
+            },
+            "contribuinte": {
+                "numero": empresa.cnpj,
+                "tipo": 2
+            },
+            "pedidoDados": {
+                "idSistema": "PGDASD",
+                "idServico": "CONSDECLARACAO13",
+                "versaoSistema": "1.0",
+                "dados": f'{{ "anoCalendario": "{ano_calendario}" }}'
+            }
+        }
+
+        # Fazer requisição à API Serpro
+        headers = {
+            'Authorization': f'Bearer {settings.SERPRO_API_TOKEN}',
+            'Content-Type': 'application/json',
+            'Accept': 'text/plain'
+        }
+        response = requests.post(
+            'https://gateway.apiserpro.serpro.gov.br/integra-contador-trial/v1/Consultar',
+            json=payload,
+            headers=headers
+        )
+
+        if response.status_code != 200:
+            logger.error(f"Erro na API Serpro: {response.status_code} - {response.text}")
+            return Response({'error': f'Erro na API Serpro: {response.text}'}, status=response.status_code)
+
+        # Processar resposta (assumindo que retorna uma lista de declarações)
+        declaracoes = response.json()  # Ajuste conforme a estrutura real da resposta
+        for declaracao in declaracoes.get('declaracoes', []):
+            periodo_apuracao = parse_date(declaracao.get('periodo_apuracao', f'{ano_calendario}-01-01'))
+            numero_declaracao = declaracao.get('numero_declaracao')
+            
+            # Atualizar ou criar registro em ObrigacaoMensal
+            ObrigacaoMensal.objects.update_or_create(
+                empresa=empresa,
+                tipo='simples_nacional',
+                periodo_apuracao=periodo_apuracao,
+                defaults={
+                    'status': 'consultado',
+                    'numero_declaracao': numero_declaracao
+                }
+            )
+
+        logger.info(f"Consulta de declarações bem-sucedida para CNPJ {empresa.cnpj}, ano {ano_calendario}")
+        return Response({
+            'message': 'Consulta realizada com sucesso',
+            'declaracoes': declaracoes
+        })
+
+    except Exception as e:
+        logger.error(f"Erro ao consultar declarações: {str(e)}", exc_info=True)
+        return Response({'error': f'Erro ao consultar declarações: {str(e)}'}, status=500)

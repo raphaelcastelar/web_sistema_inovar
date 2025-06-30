@@ -254,7 +254,8 @@ class ObrigacaoMensal(models.Model):
         ('pendente', 'Pendente'),
         ('enviado', 'Enviado ao Cliente'),
         ('nao_aplicavel', 'Não Aplicável (Sem Débito)'),
-        ('declarado', 'Declarado'),  # Novo status
+        ('declarado', 'Declarado'),
+        ('consultado', 'Consultado'),
     ]
     TIPO_OBRIGACAO_CHOICES = [
         ('simples_nacional', 'Simples Nacional (DAS)'),
