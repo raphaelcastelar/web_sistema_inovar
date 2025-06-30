@@ -12,6 +12,7 @@ from .views import (
     toggle_monitoramento_simples,
     gerenciamento_atribuicao_data,
     salvar_atribuicoes,
+    consultar_declaracoes_api,
 
 )
 urlpatterns = [
@@ -26,4 +27,5 @@ urlpatterns = [
     path('empresas/<int:empresa_id>/toggle-monitoramento-simples/', toggle_monitoramento_simples, name='toggle_monitoramento_simples'),
     path('gerenciamento-atribuicao-data/', gerenciamento_atribuicao_data, name='gerenciamento_atribuicao_data'),
     path('salvar-atribuicoes/', salvar_atribuicoes, name='salvar_atribuicoes'),
+    path('api/consultar-declaracoes/', consultar_declaracoes_api, name='consultar_declaracoes_api'),
 ]
