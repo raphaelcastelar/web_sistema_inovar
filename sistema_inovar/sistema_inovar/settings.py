@@ -180,7 +180,7 @@ try:
     SERPRO_CONSUMER_SECRET = config('SERPRO_CONSUMER_SECRET')
     SERPRO_CERT_PASSWORD = config('SERPRO_CERT_PASSWORD')
 
-    SERPRO_TOKEN_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1/'
+    SERSERPRO_TOKEN_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1/token'
     SERPRO_API_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador-trial/v1/Consultar'
 
     MEU_ESCRITORIO_CNPJ = config('MEU_ESCRITORIO_CNPJ')

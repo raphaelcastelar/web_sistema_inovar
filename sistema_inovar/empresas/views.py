@@ -938,7 +938,6 @@ def consultar_declaracoes_api(request):
         if not empresa_id or not ano_calendario:
             return Response({'error': 'empresa_id e ano_calendario são obrigatórios'}, status=400)
 
-        # Verificar se a empresa existe e o usuário tem acesso
         empresa = Empresa.objects.filter(id=empresa_id, usercompanyaccess__user=request.user).first()
         if not empresa:
             logger.error(f"Empresa não encontrada ou acesso negado: ID {empresa_id}, Usuário {request.user.username}")
@@ -950,34 +949,25 @@ def consultar_declaracoes_api(request):
             'Authorization': f'Basic {auth_str}',
             'Content-Type': 'application/x-www-form-urlencoded'
         }
-        data_token = {
-            'grant_type': 'client_credentials'
-        }
+        data_token = {'grant_type': 'client_credentials'}
+        logger.info(f"Requisitando token da Serpro: {settings.SERPRO_TOKEN_URL}")
         response_token = requests.post(settings.SERPRO_TOKEN_URL, headers=headers_token, data=data_token, verify=False)
 
         if response_token.status_code != 200:
             logger.error(f"Erro ao obter token da Serpro: {response_token.status_code} - {response_token.text}")
             return Response({'error': f'Erro ao obter token da Serpro: {response_token.text}'}, status=response_token.status_code)
 
-        token = response_token.json().get('access_token')
+        token_data = response_token.json()
+        token = token_data.get('access_token')
         if not token:
-            logger.error("Token não encontrado na resposta da Serpro")
+            logger.error(f"Token não encontrado na resposta: {token_data}")
             return Response({'error': 'Falha ao obter token da Serpro'}, status=500)
 
         # Configurar payload para a API Serpro
         payload = {
-            "contratante": {
-                "numero": empresa.cnpj,
-                "tipo": 2
-            },
-            "autorPedidoDados": {
-                "numero": empresa.cnpj,
-                "tipo": 2
-            },
-            "contribuinte": {
-                "numero": empresa.cnpj,
-                "tipo": 2
-            },
+            "contratante": {"numero": empresa.cnpj, "tipo": 2},
+            "autorPedidoDados": {"numero": empresa.cnpj, "tipo": 2},
+            "contribuinte": {"numero": empresa.cnpj, "tipo": 2},
             "pedidoDados": {
                 "idSistema": "PGDASD",
                 "idServico": "CONSDECLARACAO13",
@@ -992,34 +982,28 @@ def consultar_declaracoes_api(request):
             'Content-Type': 'application/json',
             'Accept': 'text/plain'
         }
+        logger.info(f"Consultando API Serpro: {settings.SERPRO_API_URL}")
         response = requests.post(settings.SERPRO_API_URL, json=payload, headers=headers_api, verify=False)
 
         if response.status_code != 200:
             logger.error(f"Erro na API Serpro: {response.status_code} - {response.text}")
             return Response({'error': f'Erro na API Serpro: {response.text}'}, status=response.status_code)
 
-        # Processar resposta (assumindo que retorna uma lista de declarações)
+        # Processar resposta
         declaracoes = response.json().get('declaracoes', [])
         for declaracao in declaracoes:
             periodo_apuracao = parse_date(declaracao.get('periodo_apuracao', f'{ano_calendario}-01-01'))
             numero_declaracao = declaracao.get('numero_declaracao')
             
-            # Atualizar ou criar registro em ObrigacaoMensal
             ObrigacaoMensal.objects.update_or_create(
                 empresa=empresa,
                 tipo='simples_nacional',
                 periodo_apuracao=periodo_apuracao,
-                defaults={
-                    'status': 'consultado',
-                    'numero_declaracao': numero_declaracao
-                }
+                defaults={'status': 'consultado', 'numero_declaracao': numero_declaracao}
             )
 
-        logger.info(f"Consulta de declarações bem-sucedida para CNPJ {empresa.cnpj}, ano {ano_calendario}")
-        return Response({
-            'message': 'Consulta realizada com sucesso',
-            'declaracoes': declaracoes
-        })
+        logger.info(f"Consulta bem-sucedida: CNPJ {empresa.cnpj}, ano {ano_calendario}")
+        return Response({'message': 'Consulta realizada com sucesso', 'declaracoes': declaracoes})
 
     except Exception as e:
         logger.error(f"Erro ao consultar declarações: {str(e)}", exc_info=True)
