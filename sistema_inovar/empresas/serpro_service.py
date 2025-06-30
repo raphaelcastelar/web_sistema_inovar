@@ -475,16 +475,6 @@ def declarar_das_serpro(cnpj_empresa, periodo_apuracao, dados_declaracao):
         return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
     
 def consultar_declaracoes_serpro(cnpj_empresa, ano_calendario):
-    """
-    Chama a API Serpro para consultar declarações usando o serviço CONSDECLARACAO13.
-    
-    Args:
-        cnpj_empresa (str): CNPJ da empresa (sem formatação, ex: "00000000000100").
-        ano_calendario (str): Ano de apuração no formato "YYYY".
-    
-    Returns:
-        dict: {"sucesso": bool, "declaracoes": list, "mensagem": str (opcional), "detalhes": dict/str (opcional)}
-    """
     tokens = get_serpro_token()
     if not tokens:
         return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
@@ -525,14 +515,23 @@ def consultar_declaracoes_serpro(cnpj_empresa, ano_calendario):
 
         response.raise_for_status()
         response_data = response.json()
-        logger.info(f"Resposta da consulta de declarações recebida.")
+        logger.info(f"Resposta da consulta de declarações recebida: {json.dumps(response_data, indent=2)}")
 
-        if not any(msg.get('codigo') == '[Sucesso-PGDASD]' for msg in response_data.get('mensagens', [])):
+        mensagens = response_data.get('mensagens', [])
+        # Tratar aviso de ausência de dados como sucesso
+        if any(msg.get('codigo') == '[Aviso-PGDASD-MSG_ISN_027]' for msg in mensagens):
+            logger.info(f"Nenhuma declaração encontrada para CNPJ {cnpj_empresa} e ano {ano_calendario}")
+            return {"sucesso": True, "declaracoes": [], "mensagem": "Nenhuma declaração encontrada para o período."}
+
+        # Verificar sucesso padrão
+        if not any(msg.get('codigo') == '[Sucesso-PGDASD]' for msg in mensagens):
+            logger.error(f"Falha na consulta: {json.dumps(response_data, indent=2)}")
             return {"sucesso": False, "erro": "API Serpro indicou falha ao consultar declarações.", "detalhes": response_data}
 
         dados_str = response_data.get('dados')
         if not dados_str:
-            return {"sucesso": False, "erro": "Campo 'dados' não encontrado na resposta.", "detalhes": response_data}
+            logger.info(f"Campo 'dados' vazio ou não encontrado: {json.dumps(response_data, indent=2)}")
+            return {"sucesso": True, "declaracoes": [], "mensagem": "Nenhuma declaração encontrada para o período."}
 
         dados = json.loads(dados_str)
         declaracoes = dados.get('declaracoes', [])
@@ -541,6 +540,7 @@ def consultar_declaracoes_serpro(cnpj_empresa, ano_calendario):
     except requests.exceptions.RequestException as e:
         logger.error(f"Erro na requisição para consultar declarações: {e}")
         detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
+        logger.error(f"Detalhes do erro: {detalhes_erro}")
         return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
     except Exception as e:
         logger.error(f"Erro ao processar resposta da consulta: {e}")
