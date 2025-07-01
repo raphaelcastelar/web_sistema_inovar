@@ -1,7 +1,9 @@
 from rest_framework import serializers
 from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario
 import re
+import logging
 
+logger = logging.getLogger(__name__)
 
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -92,52 +94,54 @@ class HistoricoEnviosSerializer(serializers.ModelSerializer):
         fields = '__all__'
         
 class FuncionarioSerializer(serializers.ModelSerializer):
-    # Definimos a senha como um campo que só pode ser escrito (não será enviado de volta na API)
-    # e não é obrigatório para atualização (para não forçar a troca de senha toda vez).
     password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
+    
+    CARGO_CHOICES = [
+        ('pessoal', 'Departamento Pessoal'),
+        ('fiscal', 'Departamento Fiscal'),
+        ('admin', 'Administrador'),
+    ]
 
     class Meta:
         model = Funcionario
-        # Incluímos os campos mais importantes. Não inclua o hash da senha (o campo 'password' do modelo)
-        # diretamente aqui para leitura, pois é um dado sensível.
-        fields = ['id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_active', 'is_staff','is_superuser', 'theme', 'cargo']
-        # Podemos definir campos como somente leitura se quisermos
-        # read_only_fields = ['id', 'date_joined', 'last_login']
+        fields = ['id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_active', 'is_staff', 'is_superuser', 'theme', 'cargo']
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def validate_cargo(self, value):
+        if not value:  # Se cargo for vazio ou None, define um padrão
+            return 'pessoal'
+        if value not in dict(self.CARGO_CHOICES).keys():
+            raise serializers.ValidationError("Cargo inválido. Escolha entre: 'pessoal', 'fiscal' ou 'admin'.")
+        return value
 
     def create(self, validated_data):
-        """
-        Cria um novo funcionário com a senha corretamente hasheada.
-        """
         user = Funcionario.objects.create_user(
             username=validated_data['username'],
             email=validated_data.get('email', ''),
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
-            # Usa a senha fornecida no payload para criar o hash
-            password=validated_data['password'] 
+            password=validated_data['password']
         )
-        # Define outros campos que podem ter sido passados
         user.is_active = validated_data.get('is_active', True)
         user.is_staff = validated_data.get('is_staff', False)
+        user.cargo = validated_data.get('cargo', 'pessoal')  # Garante valor padrão
+        user.theme = validated_data.get('theme', 'light')
         user.save()
         return user
 
     def update(self, instance, validated_data):
-        """
-        Atualiza um funcionário. Se uma nova senha for fornecida, ela é hasheada.
-        """
-        # Atualiza os campos normais
+        logger.info(f"Dados validados recebidos: {validated_data}")  # Log para depuração
         instance.username = validated_data.get('username', instance.username)
         instance.email = validated_data.get('email', instance.email)
         instance.first_name = validated_data.get('first_name', instance.first_name)
         instance.last_name = validated_data.get('last_name', instance.last_name)
         instance.is_active = validated_data.get('is_active', instance.is_active)
         instance.is_staff = validated_data.get('is_staff', instance.is_staff)
-
-        # Verifica se uma nova senha foi fornecida no payload da requisição
+        instance.cargo = validated_data.get('cargo', instance.cargo or 'pessoal')
+        instance.theme = validated_data.get('theme', instance.theme or 'light')
         password = validated_data.get('password')
         if password:
-            instance.set_password(password) # Usa set_password para hashear corretamente
-
+            instance.set_password(password)
         instance.save()
+        logger.info(f"Usuário salvo com cargo: {instance.cargo}")  # Log para depuração
         return instance

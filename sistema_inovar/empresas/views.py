@@ -202,10 +202,22 @@ class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = HistoricoEnviosFilter   # Adicione esta linha
 
 class FuncionarioViewSet(viewsets.ModelViewSet):
-   
     queryset = Funcionario.objects.prefetch_related('empresas_gerenciadas').all().order_by('first_name')
     serializer_class = FuncionarioSerializer
     permission_classes = [IsAdminUser]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            instance.groups.clear()  # Limpa grupos
+            instance.user_permissions.clear()  # Limpa permissões específicas
+            instance.empresas_gerenciadas.clear()  # Limpa empresas gerenciadas
+            instance.usercompanyaccess.all().delete()  # Limpa acessos
+            self.perform_destroy(instance)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            logger.error(f"Erro ao excluir funcionário: {str(e)}")
+            return Response({'error': f'Erro ao excluir usuário: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
 def enviar_email(request):
