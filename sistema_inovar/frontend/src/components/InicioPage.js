@@ -46,8 +46,9 @@ const InicioPage = () => {
         const dashboardResponse = await axiosInstance.get('/api/dashboard-summary/');
         setData(dashboardResponse.data);
 
-        // Buscar todas as empresas
-        const empresasResponse = await axiosInstance.get('/api/empresas/'); // Removido is_selected=true
+        // Buscar empresas atribuídas ao usuário
+        const empresasResponse = await axiosInstance.get('/api/empresas/');
+        console.log('Resposta do /api/empresas/:', empresasResponse.data); // Log para depuração
         setEmpresasSelecionadas(empresasResponse.data);
 
         // Buscar função do usuário
@@ -122,8 +123,9 @@ const InicioPage = () => {
 
   const isDepartamentoPessoal = userCargo === 'pessoal';
   const isDepartamentoFiscal = userCargo === 'fiscal';
+  const isAdministrador = userCargo === 'admin';
 
-  console.log('Função do usuário (userCargo):', userCargo, 'isDepartamentoFiscal:', isDepartamentoFiscal);
+  console.log('Função do usuário (userCargo):', userCargo, 'isAdministrador:', isAdministrador);
 
   return (
     <motion.div
@@ -166,7 +168,7 @@ const InicioPage = () => {
           className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 min-h-[600px]"
         >
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
-            Empresas
+            Empresas Atribuídas
           </h2>
           <div className="overflow-y-auto max-h-[540px]">
             {empresasSelecionadas.length > 0 ? (
@@ -179,7 +181,7 @@ const InicioPage = () => {
                     <th className="p-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 w-2/5">
                       CNPJ
                     </th>
-                    {isDepartamentoPessoal && (
+                    {(isDepartamentoPessoal || isAdministrador) && (
                       <>
                         <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
                           INSS
@@ -195,26 +197,10 @@ const InicioPage = () => {
                         </th>
                       </>
                     )}
-                    {isDepartamentoFiscal && (
+                    {(isDepartamentoFiscal || isAdministrador) && (
                       <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/5">
                         Simples Nacional
                       </th>
-                    )}
-                    {!isDepartamentoPessoal && !isDepartamentoFiscal && (
-                      <>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          INSS
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          FGTS
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          Folha
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          Honorário
-                        </th>
-                      </>
                     )}
                   </tr>
                 </thead>
@@ -239,7 +225,7 @@ const InicioPage = () => {
                       <td className="p-2 text-sm text-gray-600 dark:text-gray-300">
                         {empresa.cnpj}
                       </td>
-                      {isDepartamentoPessoal && (
+                      {(isDepartamentoPessoal || isAdministrador) && (
                         <>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
@@ -271,7 +257,7 @@ const InicioPage = () => {
                           </td>
                         </>
                       )}
-                      {isDepartamentoFiscal && (
+                      {(isDepartamentoFiscal || isAdministrador) && (
                         <td className="p-2 text-center">
                           <CheckCircleIcon
                             className={`h-5 w-5 mx-auto ${
@@ -280,45 +266,13 @@ const InicioPage = () => {
                           />
                         </td>
                       )}
-                      {!isDepartamentoPessoal && !isDepartamentoFiscal && (
-                        <>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto ${
-                                empresa.inss ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
-                              }`}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto ${
-                                empresa.fgts ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
-                              }`}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto ${
-                                empresa.folha ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
-                              }`}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto ${
-                                empresa.honorario ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
-                              }`}
-                            />
-                          </td>
-                        </>
-                      )}
                     </motion.tr>
                   ))}
                 </tbody>
               </table>
             ) : (
               <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                Nenhuma empresa cadastrada.
+                Nenhuma empresa atribuída a este usuário.
               </p>
             )}
           </div>

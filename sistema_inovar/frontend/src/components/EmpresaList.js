@@ -41,7 +41,7 @@ const EmpresaList = () => {
         const fetchEmpresas = async () => {
             setLoading(true);
             try {
-                const response = await axiosInstance.get('/api/empresas/'); // Removido filtro is_selected=true
+                const response = await axiosInstance.get('/api/empresas/?all=true');
                 setEmpresas(response.data);
             } catch (err) {
                 console.error('Erro ao carregar empresas:', err.response?.data || err.message);

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'inss', 'fgts', 'folha', 'honorario', 'simples_nacional']
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'inss', 'fgts', 'folha', 'honorario', 'simples_nacional', 'monitorar_simples']
         
     def validate_telefone(self, value):
         """
@@ -95,7 +95,8 @@ class HistoricoEnviosSerializer(serializers.ModelSerializer):
         
 class FuncionarioSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})
-    
+    empresas_gerenciadas = serializers.PrimaryKeyRelatedField(many=True, queryset=Empresa.objects.all(), required=False)
+
     CARGO_CHOICES = [
         ('pessoal', 'Departamento Pessoal'),
         ('fiscal', 'Departamento Fiscal'),
@@ -104,7 +105,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Funcionario
-        fields = ['id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_active', 'is_staff', 'is_superuser', 'theme', 'cargo']
+        fields = ['id', 'username', 'password', 'first_name', 'last_name', 'email', 'is_active', 'is_staff', 'is_superuser', 'theme', 'cargo', 'empresas_gerenciadas']
         extra_kwargs = {'password': {'write_only': True}}
 
     def validate_cargo(self, value):
@@ -115,6 +116,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        empresas_gerenciadas = validated_data.pop('empresas_gerenciadas', [])
         user = Funcionario.objects.create_user(
             username=validated_data['username'],
             email=validated_data.get('email', ''),
@@ -126,11 +128,13 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         user.is_staff = validated_data.get('is_staff', False)
         user.cargo = validated_data.get('cargo', 'pessoal')
         user.theme = validated_data.get('theme', 'light')
+        user.empresas_gerenciadas.set(empresas_gerenciadas)
         user.save()
         return user
 
     def update(self, instance, validated_data):
         logger.info(f"Dados validados recebidos: {validated_data}")
+        empresas_gerenciadas = validated_data.pop('empresas_gerenciadas', None)
         instance.username = validated_data.get('username', instance.username)
         instance.email = validated_data.get('email', instance.email)
         instance.first_name = validated_data.get('first_name', instance.first_name)
@@ -142,6 +146,8 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         password = validated_data.get('password')
         if password:
             instance.set_password(password)
+        if empresas_gerenciadas is not None:
+            instance.empresas_gerenciadas.set(empresas_gerenciadas)
         instance.save()
         logger.info(f"Usuário salvo com cargo: {instance.cargo}")
         return instance

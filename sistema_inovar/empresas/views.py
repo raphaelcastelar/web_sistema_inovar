@@ -115,6 +115,16 @@ class EmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Check for 'all' query parameter to bypass filtering
+        if self.request.query_params.get('all') == 'true':
+            return queryset
+        # Apply filtering for non-admin users
+        if not self.request.user.is_staff and not self.request.user.is_superuser:
+            queryset = queryset.filter(gerenciada_por=self.request.user)
+        return queryset
+
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAdminUser()]
@@ -213,10 +223,10 @@ class FuncionarioViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         try:
-            instance.groups.clear()  # Limpa grupos
-            instance.user_permissions.clear()  # Limpa permissões específicas
-            instance.empresas_gerenciadas.clear()  # Limpa empresas gerenciadas
-            instance.usercompanyaccess.all().delete()  # Limpa acessos
+            instance.groups.clear()
+            instance.user_permissions.clear()
+            instance.empresas_gerenciadas.clear()
+            instance.usercompanyaccess.all().delete()
             self.perform_destroy(instance)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
@@ -824,59 +834,40 @@ def toggle_monitoramento_simples(request, empresa_id):
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def gerenciamento_atribuicao_data(request):
-    funcionarios = Funcionario.objects.prefetch_related('empresas_gerenciadas').all()
-    empresas = Empresa.objects.all()
-    funcionario_data = [
-        {
-            'id': f.id,
-            'first_name': f.first_name,
-            'last_name': f.last_name,
-            'username': f.username,
-            'empresas_gerenciadas': [empresa.id for empresa in f.empresas_gerenciadas.all()]
-        } for f in funcionarios
-    ]
-    empresas_serializer = EmpresaSerializer(empresas, many=True)
-    return Response({
-        'funcionarios': funcionario_data,
-        'empresas': empresas_serializer.data
-    })
+    try:
+        funcionarios = Funcionario.objects.all().order_by('first_name')
+        empresas = Empresa.objects.all().order_by('nome')
+        data = {
+            'funcionarios': FuncionarioSerializer(funcionarios, many=True).data,
+            'empresas': EmpresaSerializer(empresas, many=True).data
+        }
+        return Response(data)
+    except Exception as e:
+        logger.error(f"Erro ao obter dados de atribuição: {str(e)}")
+        return Response({'error': f'Erro ao obter dados: {str(e)}'}, status=500)
 
 @api_view(['POST'])
 @permission_classes([IsAdminUser])
 def salvar_atribuicoes(request):
-    funcionario_id = request.data.get('funcionario_id')
-    ids_empresas = request.data.get('ids_empresas', [])
-
-    if not funcionario_id:
-        return Response({'error': 'ID do funcionário é obrigatório.'}, status=400)
-
     try:
+        funcionario_id = request.data.get('funcionario_id')
+        ids_empresas = request.data.get('ids_empresas', [])
         funcionario = Funcionario.objects.get(id=funcionario_id)
-        # Sincronizar UserCompanyAccess
-        UserCompanyAccess.objects.filter(user=funcionario).delete()
-        for empresa_id in ids_empresas:
-            empresa = Empresa.objects.get(id=empresa_id)
-            UserCompanyAccess.objects.create(
-                user=funcionario,
-                empresa=empresa,
-                created_by=request.user
-            )
-        # Sincronizar empresas_gerenciadas
         funcionario.empresas_gerenciadas.set(ids_empresas)
-        return Response({'message': 'Atribuições salvas com sucesso!'})
+        return Response({'message': 'Atribuições salvas com sucesso'}, status=200)
     except Funcionario.DoesNotExist:
-        return Response({'error': 'Funcionário não encontrado.'}, status=404)
-    except Empresa.DoesNotExist:
-        return Response({'error': 'Uma ou mais empresas não encontradas.'}, status=404)
+        logger.error(f"Funcionário {funcionario_id} não encontrado")
+        return Response({'error': 'Funcionário não encontrado'}, status=404)
     except Exception as e:
-        logger.error(f"Error in salvar_atribuicoes: {str(e)}")
-        return Response({'error': f'Erro ao salvar atribuições: {str(e)}'}, status=500)
+        logger.error(f"Erro ao salvar atribuições: {str(e)}")
+        return Response({'error': f'Erro ao salvar atribuições: {str(e)}'}, status=400)
     
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def current_user(request):
     try:
         serializer = FuncionarioSerializer(request.user)
+        logger.info(f"Dados do usuário atual: {serializer.data}")
         return Response(serializer.data)
     except Exception as e:
         logger.error(f"Error in current_user: {str(e)}")

@@ -21,6 +21,8 @@ class Empresa(models.Model):
     fgts = models.BooleanField(default=False)
     folha = models.BooleanField(default=False)
     honorario = models.BooleanField(default=False)
+    monitorar_simples = models.BooleanField(default=True)
+    
 
     def __str__(self):
         return self.nome
