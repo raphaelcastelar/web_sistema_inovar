@@ -18,7 +18,7 @@ const FuncionarioForm = () => {
         is_active: true,
         is_staff: false,
         theme: 'light',
-        cargo: '', // Alterado de 'role' para 'cargo'
+        cargo: '',
     });
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
@@ -29,7 +29,7 @@ const FuncionarioForm = () => {
             axiosInstance.get(`/api/funcionarios/${funcionarioId}/`)
                 .then(response => {
                     const { password, ...userData } = response.data;
-                    setFormData({ ...userData, cargo: userData.cargo || 'pessoal' }); // Alterado de 'role' para 'cargo'
+                    setFormData({ ...userData, cargo: userData.cargo || 'pessoal' });
                 })
                 .catch(err => {
                     console.error("Erro ao carregar usuário:", err);
@@ -51,7 +51,7 @@ const FuncionarioForm = () => {
         e.preventDefault();
         setLoading(true);
         setErrors({});
-        console.log('Dados enviados:', formData); // Log para depuração
+        console.log('Dados enviados:', formData);
 
         const payload = { ...formData };
         if (isEditing && !payload.password) {
@@ -84,7 +84,7 @@ const FuncionarioForm = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="p-6 md:p-8"
+            className="p-6 md:p-8 animate-fade-in"
         >
             <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-8 text-center">
@@ -92,8 +92,8 @@ const FuncionarioForm = () => {
                 </h1>
                 
                 {errors.general && (
-                    <div className="bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-md relative mb-6 flex items-center gap-3" role="alert">
-                        <InformationCircleIcon className="h-6 w-6"/>
+                    <div className="bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 px-4 py-3 rounded-md mb-6 flex items-center gap-3" role="alert">
+                        <InformationCircleIcon className="h-6 w-6 text-red-700 dark:text-red-400"/>
                         <span className="block sm:inline">{errors.general}</span>
                     </div>
                 )}
@@ -108,9 +108,9 @@ const FuncionarioForm = () => {
                                 id="first_name" 
                                 value={formData.first_name} 
                                 onChange={handleChange} 
-                                className="mt-1 w-full p-3 bg-gray-100 dark:bg-gray-700 rounded-md border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
+                                className="mt-1 w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                             />
-                            {errors.first_name && <p className="text-red-500 text-xs mt-1">{errors.first_name}</p>}
+                            {errors.first_name && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.first_name}</p>}
                         </div>
                         <div>
                             <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sobrenome</label>
@@ -120,15 +120,15 @@ const FuncionarioForm = () => {
                                 id="last_name" 
                                 value={formData.last_name} 
                                 onChange={handleChange} 
-                                className="mt-1 w-full p-3 bg-gray-100 dark:bg-gray-700 rounded-md border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
+                                className="mt-1 w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                             />
-                            {errors.last_name && <p className="text-red-500 text-xs mt-1">{errors.last_name}</p>}
+                            {errors.last_name && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.last_name}</p>}
                         </div>
                     </div>
 
                     <div className="relative">
                         <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nome de Usuário (para login)</label>
-                        <UserIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3"/>
+                        <UserIcon className="h-5 w-5 text-gray-400 dark:text-gray-300 absolute top-10 left-3"/>
                         <input 
                             type="text" 
                             name="username" 
@@ -136,14 +136,14 @@ const FuncionarioForm = () => {
                             value={formData.username} 
                             onChange={handleChange} 
                             required 
-                            className="mt-1 w-full p-3 pl-10 bg-gray-100 dark:bg-gray-700 rounded-md border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
+                            className="mt-1 w-full p-3 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                         />
-                        {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username}</p>}
+                        {errors.username && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.username}</p>}
                     </div>
 
                     <div className="relative">
                         <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-                        <EnvelopeIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3"/>
+                        <EnvelopeIcon className="h-5 w-5 text-gray-400 dark:text-gray-300 absolute top-10 left-3"/>
                         <input 
                             type="email" 
                             name="email" 
@@ -151,14 +151,14 @@ const FuncionarioForm = () => {
                             value={formData.email} 
                             onChange={handleChange} 
                             required 
-                            className="mt-1 w-full p-3 pl-10 bg-gray-100 dark:bg-gray-700 rounded-md border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
+                            className="mt-1 w-full p-3 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                         />
-                        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+                        {errors.email && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.email}</p>}
                     </div>
                     
                     <div className="relative">
                         <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Senha</label>
-                        <LockClosedIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3"/>
+                        <LockClosedIcon className="h-5 w-5 text-gray-400 dark:text-gray-300 absolute top-10 left-3"/>
                         <input 
                             type="password" 
                             name="password" 
@@ -167,32 +167,32 @@ const FuncionarioForm = () => {
                             onChange={handleChange} 
                             placeholder={isEditing ? "Deixe em branco para não alterar" : "Senha obrigatória"} 
                             required={!isEditing} 
-                            className="mt-1 w-full p-3 pl-10 bg-gray-100 dark:bg-gray-700 rounded-md border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
+                            className="mt-1 w-full p-3 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                         />
-                        {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
+                        {errors.password && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.password}</p>}
                     </div>
 
                     <div className="relative">
                         <label htmlFor="cargo" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Função</label>
-                        <UserGroupIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3"/>
+                        <UserGroupIcon className="h-5 w-5 text-gray-400 dark:text-gray-300 absolute top-10 left-3"/>
                         <select
                             name="cargo"
                             id="cargo"
                             value={formData.cargo}
                             onChange={handleChange}
                             required
-                            className="mt-1 w-full p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
+                            className="mt-1 w-full p-3 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                         >
                             <option value="" disabled>Selecione uma função</option>
                             <option value="pessoal">Departamento Pessoal</option>
                             <option value="fiscal">Departamento Fiscal</option>
                             <option value="admin">Administrador</option>
                         </select>
-                        {errors.cargo && <p className="text-red-500 text-xs mt-1">{errors.cargo}</p>}
+                        {errors.cargo && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.cargo}</p>}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-                        <label htmlFor="is_active" className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/60 rounded-lg cursor-pointer">
+                        <label htmlFor="is_active" className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg cursor-pointer">
                             <span className="font-medium text-gray-900 dark:text-gray-100">Usuário Ativo</span>
                             <div className="relative">
                                 <input 
@@ -206,7 +206,7 @@ const FuncionarioForm = () => {
                                 <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                             </div>
                         </label>
-                        <label htmlFor="is_staff" className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/60 rounded-lg cursor-pointer">
+                        <label htmlFor="is_staff" className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg cursor-pointer">
                             <span className="font-medium text-gray-900 dark:text-gray-100">Acesso de Administrador</span>
                             <div className="relative">
                                 <input 
@@ -226,14 +226,14 @@ const FuncionarioForm = () => {
                         <button 
                             type="button" 
                             onClick={() => navigate('/gerenciar-usuarios')} 
-                            className="px-6 py-3 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors" 
+                            className="px-6 py-3 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
                             disabled={loading}
                         >
                             Cancelar
                         </button>
                         <button 
                             type="submit" 
-                            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-800 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed" 
+                            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-800 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" 
                             disabled={loading}
                         >
                             {loading ? 'Salvando...' : (isEditing ? 'Atualizar Usuário' : 'Criar Usuário')}
