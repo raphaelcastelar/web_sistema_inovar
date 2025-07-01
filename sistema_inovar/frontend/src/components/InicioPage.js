@@ -26,7 +26,7 @@ const StatCard = ({ icon: Icon, title, value, color }) => (
     </div>
     <div>
       <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-      <p className="text-2xl font-bold text-gray-900 dark:text-white">{value ?? '...'}</p>
+      <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{value ?? '...'}</p>
     </div>
   </motion.div>
 );
@@ -48,7 +48,7 @@ const InicioPage = () => {
 
         // Buscar empresas atribuídas ao usuário
         const empresasResponse = await axiosInstance.get('/api/empresas/');
-        console.log('Resposta do /api/empresas/:', empresasResponse.data); // Log para depuração
+        console.log('Resposta do /api/empresas/:', empresasResponse.data);
         setEmpresasSelecionadas(empresasResponse.data);
 
         // Buscar função do usuário
@@ -81,9 +81,7 @@ const InicioPage = () => {
         {
           data: data?.chart_data?.data || [],
           backgroundColor: ['#22c55e', '#ef4444', '#64748b'],
-          borderColor: document.documentElement.classList.contains('dark')
-            ? '#1f2937'
-            : '#ffffff',
+          borderColor: ['#ffffff', '#ffffff', '#ffffff'], // Borda fixa para maior clareza
           borderWidth: 4,
         },
       ],
@@ -95,13 +93,32 @@ const InicioPage = () => {
         legend: {
           position: 'bottom',
           labels: {
-            color: document.documentElement.classList.contains('dark') ? 'white' : '#374151',
+            color: 'rgb(55, 65, 81)', // text-gray-700
+            usePointStyle: true,
+            font: {
+              size: 14,
+            },
+            padding: 20,
           },
         },
       },
       cutout: '70%',
     },
   };
+
+  // Ajusta a cor da legenda para o modo escuro
+  useEffect(() => {
+    const updateChartColors = () => {
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      ChartJS.overrides.doughnut.plugins.legend.labels.color = isDarkMode ? '#e5e7eb' : '#374151'; // text-gray-200 (dark) e text-gray-700 (light)
+      ChartJS.getChart('doughnut-chart')?.update();
+    };
+
+    updateChartColors();
+    const observer = new MutationObserver(updateChartColors);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
 
   if (loading) {
     return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando Dashboard...</div>;
@@ -132,7 +149,7 @@ const InicioPage = () => {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="p-6 md:p-8"
+      className="p-6 md:p-8 animate-fade-in"
     >
       <motion.h1
         variants={itemVariants}
@@ -167,7 +184,7 @@ const InicioPage = () => {
           variants={itemVariants}
           className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 min-h-[600px]"
         >
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
             Empresas Atribuídas
           </h2>
           <div className="overflow-y-auto max-h-[540px]">
@@ -283,18 +300,18 @@ const InicioPage = () => {
             variants={itemVariants}
             className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
           >
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 text-center">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 text-center">
               Status Simples ({data.chart_data.periodo})
             </h2>
             <div className="h-64 relative">
-              <Doughnut data={chartConfig.data} options={chartConfig.options} />
+              <Doughnut id="doughnut-chart" data={chartConfig.data} options={chartConfig.options} />
             </div>
           </motion.div>
           <motion.div
             variants={itemVariants}
             className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
           >
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
               Acesso Rápido
             </h2>
             <div className="space-y-3">
@@ -303,14 +320,14 @@ const InicioPage = () => {
                 className="w-full flex justify-between items-center p-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <span>Gerar Guia DAS</span>
-                <ArrowRightIcon className="h-5 w-5 text-gray-400" />
+                <ArrowRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-300" />
               </Link>
               <Link
                 to="/consultar-extrato"
                 className="w-full flex justify-between items-center p-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
                 <span>Consultar Extrato</span>
-                <ArrowRightIcon className="h-5 w-5 text-gray-400" />
+                <ArrowRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-300" />
               </Link>
             </div>
           </motion.div>
