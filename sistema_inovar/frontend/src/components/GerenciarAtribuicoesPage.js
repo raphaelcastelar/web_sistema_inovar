@@ -80,10 +80,10 @@ const GerenciarAtribuicoesPage = () => {
     };
 
     if (loading) return <p className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando...</p>;
-    if (error) return <p className="p-8 text-center text-red-500">{error}</p>;
+    if (error) return <p className="p-8 text-center text-red-500 dark:text-red-400">{error}</p>;
 
     return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 md:p-8">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 md:p-8 animate-fade-in">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-2">Atribuição de Empresas</h1>
             <p className="text-gray-500 dark:text-gray-400 mb-8">Selecione um funcionário para definir quais empresas ele pode gerenciar.</p>
             
@@ -96,12 +96,22 @@ const GerenciarAtribuicoesPage = () => {
                             <li key={func.id}>
                                 <button
                                     onClick={() => handleFuncionarioSelect(func)}
-                                    className={`w-full text-left p-3 rounded-lg flex items-center space-x-3 transition-colors ${selectedFuncionario?.id === func.id ? 'bg-indigo-600 text-white shadow' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                    className={`w-full text-left p-3 rounded-lg flex items-center space-x-3 transition-colors ${
+                                        selectedFuncionario?.id === func.id 
+                                            ? 'bg-indigo-600 text-white shadow-md' 
+                                            : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100'
+                                    }`}
                                 >
-                                    <UserCircleIcon className={`h-8 w-8 flex-shrink-0 ${selectedFuncionario?.id === func.id ? 'text-indigo-200' : 'text-gray-400'}`} />
+                                    <UserCircleIcon className={`h-8 w-8 flex-shrink-0 ${
+                                        selectedFuncionario?.id === func.id ? 'text-indigo-200' : 'text-gray-400 dark:text-gray-300'
+                                    }`} />
                                     <div>
-                                        <p className="font-semibold">{func.first_name} {func.last_name}</p>
-                                        <p className={`text-xs ${selectedFuncionario?.id === func.id ? 'text-indigo-200' : 'text-gray-500'}`}>@{func.username}</p>
+                                        <p className={`font-semibold ${
+                                            selectedFuncionario?.id === func.id ? 'text-white' : 'text-gray-900 dark:text-gray-100'
+                                        }`}>{func.first_name} {func.last_name}</p>
+                                        <p className={`text-xs ${
+                                            selectedFuncionario?.id === func.id ? 'text-indigo-200' : 'text-gray-500 dark:text-gray-400'
+                                        }`}>@{func.username}</p>
                                     </div>
                                 </button>
                             </li>
@@ -114,8 +124,8 @@ const GerenciarAtribuicoesPage = () => {
                     {!selectedFuncionario ? (
                         <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 p-10">
                             <InformationCircleIcon className="h-16 w-16 mb-4 text-gray-300 dark:text-gray-600"/>
-                            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">Nenhum Funcionário Selecionado</h3>
-                            <p>Selecione um funcionário à esquerda para ver e editar as empresas que ele gerencia.</p>
+                            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Nenhum Funcionário Selecionado</h3>
+                            <p className="text-gray-500 dark:text-gray-400">Selecione um funcionário à esquerda para ver e editar as empresas que ele gerencia.</p>
                         </div>
                     ) : (
                         <div>
@@ -124,18 +134,35 @@ const GerenciarAtribuicoesPage = () => {
                                     Empresas para <span className="text-indigo-600 dark:text-indigo-400">{selectedFuncionario.first_name}</span>
                                 </h2>
                                 <div className="flex gap-2">
-                                    <button onClick={handleSelectAll} className="px-3 py-1 text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Selecionar Todas</button>
-                                    <button onClick={handleClearAll} className="px-3 py-1 text-xs font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500">Limpar Seleção</button>
+                                    <button 
+                                        onClick={handleSelectAll} 
+                                        className="px-4 py-2 text-sm font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                                    >
+                                        Selecionar Todas
+                                    </button>
+                                    <button 
+                                        onClick={handleClearAll} 
+                                        className="px-4 py-2 text-sm font-medium bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                                    >
+                                        Limpar Seleção
+                                    </button>
                                 </div>
                             </div>
                             <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-2 border-t border-b border-gray-200 dark:border-gray-700 py-4">
                                 {empresas.map(empresa => (
-                                    <label key={empresa.id} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex items-center justify-between cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/40">
+                                    <label 
+                                        key={empresa.id} 
+                                        className={`p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg flex items-center justify-between cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-900/40 transition-colors`}
+                                    >
                                         <div>
                                             <p className="font-medium text-gray-900 dark:text-gray-100">{empresa.nome}</p>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">{empresa.cnpj}</p>
                                         </div>
-                                        <div className={`w-6 h-6 flex items-center justify-center rounded-md border-2 transition-all ${assignedCompanyIds.has(empresa.id) ? 'bg-indigo-600 border-indigo-600' : 'bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500'}`}>
+                                        <div className={`w-6 h-6 flex items-center justify-center rounded-md border-2 transition-all ${
+                                            assignedCompanyIds.has(empresa.id) 
+                                                ? 'bg-indigo-600 border-indigo-600' 
+                                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                                        }`}>
                                             {assignedCompanyIds.has(empresa.id) && <CheckIcon className="h-4 w-4 text-white"/>}
                                         </div>
                                         <input
@@ -148,7 +175,11 @@ const GerenciarAtribuicoesPage = () => {
                                 ))}
                             </div>
                             <div className="mt-6 flex justify-end">
-                                <button onClick={handleSaveChanges} disabled={saving} className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                                <button 
+                                    onClick={handleSaveChanges} 
+                                    disabled={saving} 
+                                    className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-800 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
                                     {saving ? 'Salvando...' : 'Salvar Alterações'}
                                 </button>
                             </div>
