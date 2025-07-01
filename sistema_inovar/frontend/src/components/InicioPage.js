@@ -35,7 +35,7 @@ const StatCard = ({ icon: Icon, title, value, color }) => (
 const InicioPage = () => {
   const [data, setData] = useState(null);
   const [empresasSelecionadas, setEmpresasSelecionadas] = useState([]);
-  const [userCargo, setUserCargo] = useState('admin'); // Alterado de userRole para userCargo
+  const [userCargo, setUserCargo] = useState('admin');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -46,18 +46,18 @@ const InicioPage = () => {
         const dashboardResponse = await axiosInstance.get('/api/dashboard-summary/');
         setData(dashboardResponse.data);
 
-        // Buscar empresas selecionadas
-        const empresasResponse = await axiosInstance.get('/api/empresas/?is_selected=true');
+        // Buscar todas as empresas
+        const empresasResponse = await axiosInstance.get('/api/empresas/'); // Removido is_selected=true
         setEmpresasSelecionadas(empresasResponse.data);
 
         // Buscar função do usuário
         try {
           const userResponse = await axiosInstance.get('/api/current-user/');
-          console.log('Resposta do /api/current-user/:', userResponse.data); // Log para depuração
-          setUserCargo(userResponse.data.cargo || 'admin'); // Alterado de role para cargo
+          console.log('Resposta do /api/current-user/:', userResponse.data);
+          setUserCargo(userResponse.data.cargo || 'admin');
         } catch (userErr) {
           console.error('Erro ao buscar função do usuário:', userErr);
-          setUserCargo('admin'); // Fallback para garantir tabela padrão
+          setUserCargo('admin');
         }
       } catch (err) {
         const errorMessage =
@@ -120,10 +120,10 @@ const InicioPage = () => {
   };
   const itemVariants = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
-  const isDepartamentoPessoal = userCargo === 'pessoal'; // Alterado de userRole para userCargo
-  const isDepartamentoFiscal = userCargo === 'fiscal'; // Alterado de userRole para userCargo
+  const isDepartamentoPessoal = userCargo === 'pessoal';
+  const isDepartamentoFiscal = userCargo === 'fiscal';
 
-  console.log('Função do usuário (userCargo):', userCargo, 'isDepartamentoFiscal:', isDepartamentoFiscal); // Log para depuração
+  console.log('Função do usuário (userCargo):', userCargo, 'isDepartamentoFiscal:', isDepartamentoFiscal);
 
   return (
     <motion.div
@@ -166,7 +166,7 @@ const InicioPage = () => {
           className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 min-h-[600px]"
         >
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
-            Empresas Selecionadas
+            Empresas
           </h2>
           <div className="overflow-y-auto max-h-[540px]">
             {empresasSelecionadas.length > 0 ? (
@@ -318,7 +318,7 @@ const InicioPage = () => {
               </table>
             ) : (
               <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                Nenhuma empresa selecionada pelo administrador.
+                Nenhuma empresa cadastrada.
               </p>
             )}
           </div>
