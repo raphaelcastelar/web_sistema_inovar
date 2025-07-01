@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone']
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'is_active', 'inss', 'fgts', 'folha', 'honorario', 'simples_nacional']
         
     def validate_telefone(self, value):
         """
@@ -108,7 +108,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         extra_kwargs = {'password': {'write_only': True}}
 
     def validate_cargo(self, value):
-        if not value:  # Se cargo for vazio ou None, define um padrão
+        if not value:
             return 'pessoal'
         if value not in dict(self.CARGO_CHOICES).keys():
             raise serializers.ValidationError("Cargo inválido. Escolha entre: 'pessoal', 'fiscal' ou 'admin'.")
@@ -124,13 +124,13 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         )
         user.is_active = validated_data.get('is_active', True)
         user.is_staff = validated_data.get('is_staff', False)
-        user.cargo = validated_data.get('cargo', 'pessoal')  # Garante valor padrão
+        user.cargo = validated_data.get('cargo', 'pessoal')
         user.theme = validated_data.get('theme', 'light')
         user.save()
         return user
 
     def update(self, instance, validated_data):
-        logger.info(f"Dados validados recebidos: {validated_data}")  # Log para depuração
+        logger.info(f"Dados validados recebidos: {validated_data}")
         instance.username = validated_data.get('username', instance.username)
         instance.email = validated_data.get('email', instance.email)
         instance.first_name = validated_data.get('first_name', instance.first_name)
@@ -143,5 +143,5 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         if password:
             instance.set_password(password)
         instance.save()
-        logger.info(f"Usuário salvo com cargo: {instance.cargo}")  # Log para depuração
+        logger.info(f"Usuário salvo com cargo: {instance.cargo}")
         return instance

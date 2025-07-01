@@ -111,19 +111,23 @@ MODEL_CONFIG_MAP_SYNC = {
 }
 
 class EmpresaViewSet(viewsets.ModelViewSet):
+    queryset = Empresa.objects.all().order_by('nome')
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
         try:
-            user = self.request.user
-            if user.is_staff or user.is_superuser:
-                return Empresa.objects.all()
-            # Filter companies based on UserCompanyAccess for non-admins
-            return Empresa.objects.filter(usercompanyaccess__user=user)
+            self.perform_destroy(instance)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
-            logger.error(f"Error in EmpresaViewSet.get_queryset: {str(e)}")
-            raise
+            logger.error(f"Erro ao excluir empresa: {str(e)}")
+            return Response({'error': f'Erro ao excluir empresa: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
     queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base
