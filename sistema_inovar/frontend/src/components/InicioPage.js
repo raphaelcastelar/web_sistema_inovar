@@ -8,7 +8,7 @@ import {
   ExclamationTriangleIcon,
   ArrowRightIcon,
   CheckCircleIcon,
-  ShareIcon,
+  PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -77,7 +77,6 @@ const InicioPage = () => {
 
   // Função para gerar e enviar DAS via WhatsApp
   const handleGerarEEnviarDas = async (empresa) => {
-    const periodo = new Date().toISOString().slice(0, 7).replace('-', ''); // YYYYMM do mês atual
     setEmpresaStatus((prev) => ({
       ...prev,
       [empresa.id]: { loading: true, error: '', success: '' },
@@ -86,15 +85,15 @@ const InicioPage = () => {
     try {
       const response = await axiosInstance.post('/api/serpro/gerar-e-enviar-das/', {
         cnpj: empresa.cnpj.replace(/\D/g, ''),
-        periodo,
       });
 
+      const periodo = response.data.mensagem.match(/\d{2}\/\d{4}/)[0]; // Extrair período da mensagem
       setEmpresaStatus((prev) => ({
         ...prev,
         [empresa.id]: {
           loading: false,
           error: '',
-          success: `DAS de ${periodo.slice(4, 6)}/${periodo.slice(0, 4)} enviado com sucesso para ${empresa.nome}!`,
+          success: `DAS de ${periodo} enviado com sucesso para ${empresa.nome}!`,
         },
       }));
 
@@ -358,7 +357,7 @@ const InicioPage = () => {
                                 ></path>
                               </svg>
                             ) : (
-                              <ShareIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
+                              <PaperAirplaneIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
                             )}
                           </button>
                           {empresaStatus[empresa.id]?.success && (
