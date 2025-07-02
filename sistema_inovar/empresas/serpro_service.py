@@ -1,10 +1,14 @@
-# empresas/serpro_service.py
 import requests
 import base64
 import json
+import os
+import tempfile
 from django.conf import settings
 from django.core.cache import cache
+from empresas.models import Empresa
+from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 import logging
+
 
 logger = logging.getLogger(__name__)
 
@@ -496,4 +500,80 @@ def declarar_das_serpro(cnpj_empresa, periodo_apuracao, dados_declaracao):
     except Exception as e:
         logger.error(f"Erro ao processar resposta da declaração: {e}")
         return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
+
+def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
+    """
+    Gera o DAS para o mês anterior ao atual e envia automaticamente via WhatsApp.
+    """
+    from datetime import datetime
+    from dateutil.relativedelta import relativedelta
+    import logging
+    import os
+    import tempfile
+    from empresas.models import Empresa
+    from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Sempre usar o mês anterior ao atual
+        data_mes_anterior = datetime.now().replace(day=1) - relativedelta(months=1)
+        periodo_apuracao = data_mes_anterior.strftime('%Y%m')
+        logger.info(f"Período de apuração definido como mês anterior: {periodo_apuracao}")
+
+        # Normalizar CNPJ
+        cnpj_empresa_clean = ''.join(filter(str.isdigit, cnpj_empresa))
+        cnpj_empresa_formatted = (
+            f"{cnpj_empresa_clean[:2]}.{cnpj_empresa_clean[2:5]}.{cnpj_empresa_clean[5:8]}/"
+            f"{cnpj_empresa_clean[8:12]}-{cnpj_empresa_clean[12:]}"
+        )
+        logger.info(f"Buscando empresa com CNPJ: {cnpj_empresa_formatted}")
+
+        empresa = Empresa.objects.get(cnpj=cnpj_empresa_formatted)
+        if not empresa.telefone:
+            return {"sucesso": False, "erro": f"A empresa {empresa.nome} não possui número de telefone cadastrado."}
+
+        telefone = empresa.telefone
+        if not telefone.startswith('+'):
+            telefone = f'+{telefone}'
+        logger.info(f"Número de telefone normalizado: {telefone}")
+
+        das_result = gerar_das_serpro(cnpj_empresa_clean, periodo_apuracao)
+        if not das_result["sucesso"]:
+            return das_result
+
+        pdf_content = das_result["pdf_content"]
+        filename = das_result["filename"]
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            temp_file.write(pdf_content)
+            temp_file_path = temp_file.name
+
+        try:
+            media_id, _ = upload_media_to_whatsapp(temp_file_path, filename)
+            if not media_id:
+                return {"sucesso": False, "erro": "Falha ao fazer upload do PDF para o WhatsApp."}
+
+            message_id, error = send_whatsapp_document_template_message(
+                recipient_number=telefone,
+                document_media_id=media_id,
+                document_filename=filename,
+                company_name_for_template=empresa.nome,
+                template_name="enviar_sn"
+            )
+
+            if not message_id:
+                return {"sucesso": False, "erro": f"Falha ao enviar o DAS via WhatsApp: {error}"}
+
+            logger.info(f"DAS gerado e enviado com sucesso para {empresa.nome} ({cnpj_empresa_formatted}) via WhatsApp.")
+            return {"sucesso": True, "mensagem": f"DAS de {periodo_apuracao[4:6]}/{periodo_apuracao[:4]} enviado com sucesso para {empresa.nome}."}
+        finally:
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+    except Empresa.DoesNotExist:
+        logger.error(f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada.")
+        return {"sucesso": False, "erro": f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada."}
+    except Exception as e:
+        logger.error(f"Erro ao gerar e enviar DAS: {e}")
+        return {"sucesso": False, "erro": "Erro ao processar a geração e envio do DAS via WhatsApp."}
+
     

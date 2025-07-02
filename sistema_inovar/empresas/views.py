@@ -7,6 +7,9 @@ import unidecode
 import logging
 import requests
 import base64
+import logging
+import json
+
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -20,12 +23,17 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from datetime import timedelta
 from django.db.models import OuterRef, Subquery, CharField
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
+
+from empresas.serpro_service import gerar_e_enviar_das
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
@@ -933,4 +941,23 @@ def declarar_das_api(request):
     except Exception as e:
         logger.error(f"Erro ao declarar DAS: {str(e)}")
         return Response({'error': f'Erro ao declarar DAS: {str(e)}'}, status=500)
+    
+@csrf_exempt
+def gerar_e_enviar_das_view(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            cnpj = data.get('cnpj')
+            periodo = data.get('periodo')
+            if not cnpj or not periodo:
+                return JsonResponse({'error': 'CNPJ e período são obrigatórios.'}, status=400)
+            result = gerar_e_enviar_das(cnpj, periodo)
+            if result['sucesso']:
+                return JsonResponse({'message': result['mensagem']}, status=200)
+            else:
+                return JsonResponse({'error': result['erro']}, status=400)
+        except Exception as e:
+            logger.error(f"Erro ao processar gerar_e_enviar_das: {e}")
+            return JsonResponse({'error': 'Erro interno ao processar a requisição.'}, status=500)
+    return JsonResponse({'error': 'Método não permitido.'}, status=405)
     
