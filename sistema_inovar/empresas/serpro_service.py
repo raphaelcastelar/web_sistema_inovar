@@ -332,7 +332,7 @@ def obter_numero_declaracao_original(tokens, cnpj_empresa, periodo_apuracao):
                 return numero_declaracao, None
     return None, "Declaração original não encontrada para este período."
 
-def obter_extrato_pdf_serpro(cnpj_empresa, numero_das): # REMOVIDO 'tokens' dos parâmetros
+def obter_extrato_pdf_serpro(cnpj_empresa, numero_das):
     """
     Chama o serviço CONSEXTRATO16 para obter o PDF de um extrato de DAS existente.
     Agora, esta função é responsável por obter o token.
@@ -397,3 +397,80 @@ def obter_extrato_pdf_serpro(cnpj_empresa, numero_das): # REMOVIDO 'tokens' dos 
         logger.error(f"Erro no processo de obtenção do PDF do extrato: {e}")
         detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
         return {"sucesso": False, "erro": "Erro de comunicação ou resposta inválida da API Serpro ao buscar PDF.", "detalhes": detalhes_erro}
+    
+def declarar_das_serpro(cnpj_empresa, periodo_apuracao, dados_declaracao):
+    """
+    Chama a API Serpro para declarar o DAS usando o serviço TRANSDECLARACAO11.
+    
+    Args:
+        cnpj_empresa (str): CNPJ da empresa (sem formatação, ex: "00000000000100").
+        periodo_apuracao (str): Período de apuração no formato "YYYYMM".
+        dados_declaracao (dict): Dados da declaração conforme a documentação da API.
+    
+    Returns:
+        dict: {"sucesso": bool, "mensagem": str, "detalhes": dict/str (opcional)}
+    """
+    tokens = get_serpro_token()
+    if not tokens:
+        return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
+
+    url = f"{GATEWAY_URL}/Declarar"
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'],
+        "Content-Type": "application/json",
+        "accept": "text/plain"
+    }
+    
+    cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
+    payload = {
+        "contratante": {"numero": cnpj_contratante, "tipo": 2},
+        "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+        "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+        "pedidoDados": {
+            "idSistema": "PGDASD",
+            "idServico": "TRANSDECLARACAO11",
+            "versaoSistema": "1.0",
+            "dados": json.dumps(dados_declaracao)
+        }
+    }
+
+    logger.info(f"Enviando payload para DECLARAR DAS: {json.dumps(payload, indent=2)}")
+
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        
+        if response.status_code == 401:
+            logger.warning("Token expirado (401). Renovando...")
+            cache.delete(SERPRO_TOKEN_CACHE_KEY)
+            tokens = get_serpro_token()
+            if not tokens:
+                return {"sucesso": False, "erro": "Falha ao renovar token."}
+            headers["Authorization"] = f"Bearer {tokens['access_token']}"
+            headers["jwt_token"] = tokens['jwt_token']
+            response = requests.post(url, json=payload, headers=headers)
+
+        response.raise_for_status()
+        response_data = response.json()
+        logger.info(f"Resposta da declaração do DAS: {response_data}")
+
+        mensagens = response_data.get('mensagens', [])
+        if not any('sucesso' in msg.get('texto', '').lower() for msg in mensagens):
+            error_message = mensagens[0].get('texto') if mensagens else "Erro não especificado pela API."
+            return {"sucesso": False, "erro": error_message, "detalhes": response_data}
+
+        dados_str = response_data.get('dados')
+        if not dados_str:
+            return {"sucesso": False, "erro": "Nenhum dado retornado pela API."}
+
+        dados = json.loads(dados_str)
+        return {"sucesso": True, "mensagem": "Declaração do DAS realizada com sucesso.", "detalhes": dados}
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro na requisição para declarar DAS: {e}")
+        detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
+        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
+    except Exception as e:
+        logger.error(f"Erro ao processar resposta da declaração: {e}")
+        return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
+    

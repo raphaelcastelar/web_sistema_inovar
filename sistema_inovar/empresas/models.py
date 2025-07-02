@@ -10,14 +10,19 @@ from django.contrib.auth.models import AbstractUser
 
 logger = logging.getLogger(__name__)
 
-# --- Sua classe Empresa aqui ---
 class Empresa(models.Model):
     id = models.AutoField(primary_key=True)
     nome = models.CharField(max_length=100, null=False)
     cnpj = models.CharField(max_length=18, unique=True, null=False)
     email = models.CharField(max_length=255, null=False)
     telefone = models.CharField(max_length=15, null=True, blank=False)
+    simples_nacional = models.BooleanField(default=False)
+    inss = models.BooleanField(default=False)
+    fgts = models.BooleanField(default=False)
+    folha = models.BooleanField(default=False)
+    honorario = models.BooleanField(default=False)
     monitorar_simples = models.BooleanField(default=True)
+    
 
     def __str__(self):
         return self.nome
@@ -91,22 +96,22 @@ def simples_nacional_upload_path(instance, filename):
 def xml_upload_path(instance, filename):
     return timed_folder_upload_path(instance, filename, 'XML')
 
-# --- Atualize seus modelos para usar as novas funções upload_to ---
 
 class Funcionario(AbstractUser):
     THEME_CHOICES = [
         ('light', 'Claro'),
         ('dark', 'Escuro'),
     ]
-    theme = models.CharField(
-        max_length=10, 
-        choices=THEME_CHOICES, 
-        default='light'
-    )
-    cargo = models.CharField(max_length=100, null=True, blank=True)
+    CARGO_CHOICES = [
+        ('pessoal', 'Departamento Pessoal'),
+        ('fiscal', 'Departamento Fiscal'),
+        ('admin', 'Administrador'),
+    ]
+    theme = models.CharField(max_length=10, choices=THEME_CHOICES, default='light')
+    cargo = models.CharField(max_length=100, choices=CARGO_CHOICES, default='pessoal', blank=True)
     empresas_gerenciadas = models.ManyToManyField(
-        'Empresa', 
-        blank=True, 
+        'Empresa',
+        blank=True,
         related_name='gerenciada_por'
     )
 
@@ -117,25 +122,20 @@ class Funcionario(AbstractUser):
     def __str__(self):
         return self.get_full_name() or self.username
 
-    @property
-    def usercompanyaccess(self):
-        return UserCompanyAccess.objects.filter(user=self)
-
     def save(self, *args, **kwargs):
-        is_new = self._state.adding  # Verifica se é um novo funcionário
-        super().save(*args, **kwargs)  # Salva o funcionário primeiro
+        is_new = self._state.adding
+        if not self.cargo:  # Garante que cargo não seja null
+            self.cargo = 'pessoal'
+        super().save(*args, **kwargs)
         if is_new:
-            # Atribuir todas as empresas existentes ao novo funcionário
             from .models import Empresa, UserCompanyAccess
             empresas = Empresa.objects.all()
             for empresa in empresas:
-                # Adicionar ao UserCompanyAccess
                 UserCompanyAccess.objects.get_or_create(
                     user=self,
                     empresa=empresa,
                     defaults={'created_by': None}
                 )
-                # Adicionar ao empresas_gerenciadas
                 self.empresas_gerenciadas.add(empresa)
             logger.info(f"Funcionário {self.username} criado e atribuído a todas as empresas.")
 
@@ -256,36 +256,30 @@ class ObrigacaoMensal(models.Model):
         ('pendente', 'Pendente'),
         ('enviado', 'Enviado ao Cliente'),
         ('nao_aplicavel', 'Não Aplicável (Sem Débito)'),
+        ('declarado', 'Declarado'),
+        ('consultado', 'Consultado'),
     ]
     TIPO_OBRIGACAO_CHOICES = [
         ('simples_nacional', 'Simples Nacional (DAS)'),
-        # Você pode adicionar outras no futuro, como 'esocial', 'dctfweb', etc.
     ]
-
     id = models.AutoField(primary_key=True)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='obrigacoes')
     tipo = models.CharField(max_length=50, choices=TIPO_OBRIGACAO_CHOICES)
-    periodo_apuracao = models.DateField() # Armazena o 1º dia do mês de referência (ex: 2025-05-01)
-    
-    # --- CAMPO FALTANTE ADICIONADO AQUI ---
-    data_vencimento = models.DateField(null=True, blank=True) # Define a data limite para a entrega
-    
+    periodo_apuracao = models.DateField()
+    data_vencimento = models.DateField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
     data_envio = models.DateTimeField(null=True, blank=True)
     responsavel_envio = models.ForeignKey('Funcionario', on_delete=models.SET_NULL, null=True, blank=True)
+    numero_declaracao = models.CharField(max_length=255, null=True, blank=True)  # Novo campo
 
     class Meta:
         unique_together = ('empresa', 'tipo', 'periodo_apuracao')
         ordering = ['-periodo_apuracao', 'data_vencimento']
 
     def save(self, *args, **kwargs):
-        # Lógica automática para definir o vencimento do Simples Nacional para o dia 20 do mês seguinte
         if self.tipo == 'simples_nacional' and not self.data_vencimento:
-            # Pega o primeiro dia do mês de apuração
             primeiro_dia = self.periodo_apuracao
-            # Adiciona um mês
             primeiro_dia_mes_seguinte = (primeiro_dia.replace(day=1) + timezone.timedelta(days=32)).replace(day=1)
-            # Define o vencimento para o dia 20
             self.data_vencimento = primeiro_dia_mes_seguinte.replace(day=20)
         super().save(*args, **kwargs)
 

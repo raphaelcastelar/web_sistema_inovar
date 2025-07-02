@@ -37,11 +37,11 @@ const EmpresaList = () => {
             }
         };
 
-        // Fetch companies
+        // Fetch all companies
         const fetchEmpresas = async () => {
             setLoading(true);
             try {
-                const response = await axiosInstance.get('/api/empresas/');
+                const response = await axiosInstance.get('/api/empresas/?all=true');
                 setEmpresas(response.data);
             } catch (err) {
                 console.error('Erro ao carregar empresas:', err.response?.data || err.message);
@@ -137,7 +137,7 @@ const EmpresaList = () => {
                     <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400"/>
                     <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">Nenhuma empresa encontrada</h3>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {search ? 'Tente refinar sua busca ou ' : 'Você não tem acesso a nenhuma empresa.'}
+                        {search ? 'Tente refinar sua busca ou ' : 'Nenhuma empresa cadastrada.'}
                         {isAdmin && !search && <Link to="/empresas/cadastrar" className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">cadastre a primeira</Link>}
                     </p>
                 </div>
