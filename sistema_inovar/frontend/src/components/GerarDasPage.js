@@ -4,7 +4,8 @@ import {
     DocumentArrowDownIcon, 
     CalendarDaysIcon, 
     UsersIcon,
-    InformationCircleIcon
+    InformationCircleIcon,
+    CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 
@@ -20,7 +21,7 @@ const GerarDasPage = () => {
     const yearOptions = useMemo(() => {
         const currentYear = new Date().getFullYear();
         const years = [];
-        for (let i = -4; i <= 2; i++) { // 4 anos passados, atual e 2 futuros
+        for (let i = -4; i <= 2; i++) {
             years.push(currentYear - i);
         }
         return years.sort((a, b) => b - a);
@@ -126,7 +127,7 @@ const GerarDasPage = () => {
                             id="empresa-select"
                             value={selectedEmpresaId}
                             onChange={(e) => setSelectedEmpresaId(e.target.value)}
-                            className="w-full p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                         >
                             <option value="">Selecione uma empresa...</option>
                             {empresas.map(emp => (
@@ -145,7 +146,7 @@ const GerarDasPage = () => {
                                 id="month-select"
                                 value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="w-full p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                             >
                                 {monthOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
                             </select>
@@ -153,7 +154,7 @@ const GerarDasPage = () => {
                                 id="year-select"
                                 value={selectedYear}
                                 onChange={(e) => setSelectedYear(e.target.value)}
-                                className="w-full p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                             >
                                 {yearOptions.map(year => (<option key={year} value={year}>{year}</option>))}
                             </select>
@@ -183,16 +184,16 @@ const GerarDasPage = () => {
                         </button>
                     </div>
 
-                    {/* Feedback para o usuário */}
                     {error && 
-                        <div className="p-3 mt-4 text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg flex items-center gap-3">
-                            <InformationCircleIcon className="h-5 w-5"/>
+                        <div className="p-3 mt-4 text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-lg flex items-center gap-3">
+                            <InformationCircleIcon className="h-5 w-5 text-red-700 dark:text-red-400"/>
                             <span>{error}</span>
                         </div>
                     }
                     {successMessage &&
-                        <div className="p-3 mt-4 text-green-700 dark:text-green-200 bg-green-100 dark:bg-green-800/50 border border-green-300 dark:border-green-600 rounded-lg">
-                           {successMessage}
+                        <div className="p-3 mt-4 text-green-700 dark:text-green-200 bg-green-100 dark:bg-green-800/50 border border-green-300 dark:border-green-600 rounded-lg flex items-center gap-3">
+                            <CheckCircleIcon className="h-5 w-5 text-green-700 dark:text-green-200"/>
+                            <span>{successMessage}</span>
                         </div>
                     }
                 </motion.div>

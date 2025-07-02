@@ -181,26 +181,30 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
         response.raise_for_status()
 
         response_data = response.json()
-        logger.info(f"Resposta da API Serpro: {response_data}")
+        logger.info(f"Resposta da API Serpro: {json.dumps(response_data, indent=2)}")
 
         mensagens = response_data.get('mensagens', [])
         dados_str = response_data.get('dados')
 
         # Verifica se há mensagem de "sem valor devido" ou sucesso
         if any('MSG_E0139' in msg.get('codigo', '') for msg in mensagens):
-            # Mesmo sem débitos, o e-CAC gera um PDF. Vamos assumir que 'dados' contém o PDF em Base64.
+            # Mesmo sem débitos, o e-CAC gera um PDF. A resposta contém uma lista.
             if not dados_str:
                 return {"sucesso": False, "erro": "Nenhum dado retornado pela API para o período informado."}
             
             dados = json.loads(dados_str)
-            pdf_base64 = dados.get('pdf') or dados.get('extrato', {}).get('pdf')
-            if not pdf_base64:
-                return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
-            
-            pdf_content = base64.b64decode(pdf_base64)
-            filename = dados.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
-            logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao} (sem débitos).")
-            return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
+            if isinstance(dados, list) and len(dados) > 0:
+                dados_item = dados[0]  # Extrai o primeiro item da lista
+                pdf_base64 = dados_item.get('pdf') or dados_item.get('extrato', {}).get('pdf')
+                if not pdf_base64:
+                    return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
+                
+                pdf_content = base64.b64decode(pdf_base64)
+                filename = dados_item.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
+                logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao} (sem débitos).")
+                return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
+            else:
+                return {"sucesso": False, "erro": "Formato de dados inválido: lista vazia ou formato inesperado."}
 
         # Verifica se há sucesso na resposta
         if not any('sucesso' in msg.get('texto', '').lower() for msg in mensagens):
@@ -212,14 +216,18 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
             return {"sucesso": False, "erro": "Nenhum dado retornado pela API."}
         
         dados = json.loads(dados_str)
-        pdf_base64 = dados.get('pdf') or dados.get('extrato', {}).get('pdf')
-        if not pdf_base64:
-            return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
-        
-        pdf_content = base64.b64decode(pdf_base64)
-        filename = dados.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
-        logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao}.")
-        return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
+        if isinstance(dados, list) and len(dados) > 0:
+            dados_item = dados[0]  # Extrai o primeiro item da lista
+            pdf_base64 = dados_item.get('pdf') or dados_item.get('extrato', {}).get('pdf')
+            if not pdf_base64:
+                return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
+            
+            pdf_content = base64.b64decode(pdf_base64)
+            filename = dados_item.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
+            logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao}.")
+            return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
+        else:
+            return {"sucesso": False, "erro": "Formato de dados inválido: lista vazia ou formato inesperado."}
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Erro na requisição para gerar DAS: {e}")
