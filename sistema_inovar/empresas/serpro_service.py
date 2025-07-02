@@ -135,14 +135,13 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
 
 def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     """
-    Chama a API Integra Contador usando o serviço GERARDASCOBRANCA17
-    para obter o PDF da guia de pagamento do DAS diretamente.
+    Chama a API Serpro usando o serviço GERARDAS12 para gerar o DAS de um período específico,
+    retornando o PDF mesmo sem débitos, conforme comportamento do e-CAC.
     """
     tokens = get_serpro_token()
     if not tokens:
         return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
 
-    # O endpoint para este serviço é /Emitir, como mostra a documentação que você encontrou.
     url = f"{GATEWAY_URL}/Emitir"
     headers = {
         "Authorization": f"Bearer {tokens['access_token']}",
@@ -152,67 +151,83 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     
     cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
     
-    # O payload agora usa o idServico correto e o periodoApuracao nos dados
     payload = {
         "contratante": {"numero": cnpj_contratante, "tipo": 2},
         "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
         "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
         "pedidoDados": {
             "idSistema": "PGDASD",
-            "idServico": "GERARDASCOBRANCA17", # <-- O SERVIÇO CORRETO!
+            "idServico": "GERARDAS12",
             "versaoSistema": "1.0",
-            "dados": json.dumps({"periodoApuracao": periodo_apuracao}) # Envia o período de apuração
+            "dados": json.dumps({"periodoApuracao": periodo_apuracao})
         }
     }
 
-    logger.info(f"Enviando payload para GERAR DAS COBRANÇA: {json.dumps(payload, indent=2)}")
+    logger.info(f"Enviando payload para GERAR DAS: {json.dumps(payload, indent=2)}")
 
     try:
         response = requests.post(url, json=payload, headers=headers)
         
-        # Lógica para tentar novamente se o token expirou
         if response.status_code == 401:
             logger.warning("Token expirado (401). Renovando e tentando novamente.")
             cache.delete(SERPRO_TOKEN_CACHE_KEY)
             tokens = get_serpro_token()
-            if not tokens: return {"sucesso": False, "erro": "Falha ao renovar token."}
+            if not tokens:
+                return {"sucesso": False, "erro": "Falha ao renovar token."}
             headers["Authorization"] = f"Bearer {tokens['access_token']}"
             headers["jwt_token"] = tokens['jwt_token']
             response = requests.post(url, json=payload, headers=headers)
 
         response.raise_for_status()
 
-        # Verifica se a resposta é um PDF diretamente
-        if 'application/pdf' in response.headers.get('Content-Type', ''):
-            logger.info(f"PDF da guia de pagamento DAS obtido com sucesso para {cnpj_empresa} / {periodo_apuracao}.")
-            return {
-                "sucesso": True, 
-                "pdf_content": response.content, 
-                "filename": f"DAS-Cobranca_{cnpj_empresa}_{periodo_apuracao}.pdf"
-            }
-        else:
-            # Se não for um PDF, pode ser um JSON com os dados (incluindo Base64) ou um erro.
-            # Vamos adicionar a lógica para tratar o caso de JSON com Base64 que vimos antes.
-            logger.warning(f"Resposta não foi PDF direto. Tentando extrair de JSON... Content-Type: {response.headers.get('Content-Type', '')}")
-            response_data = response.json()
-            dados_str = response_data.get('dados')
-            if dados_str:
-                dados = json.loads(dados_str)
-                # Tentando encontrar o PDF em Base64 em campos comuns
-                pdf_base64_string = dados.get('pdf') or dados.get('extrato', {}).get('pdf') or dados.get('conteudoRecibo')
-                if pdf_base64_string:
-                    pdf_content_bytes = base64.b64decode(pdf_base64_string)
-                    nome_arquivo = dados.get('extrato', {}).get('nomeArquivo', f"DAS-Cobranca_{cnpj_empresa}_{periodo_apuracao}.pdf")
-                    logger.info(f"PDF do DAS decodificado com sucesso a partir de Base64.")
-                    return {"sucesso": True, "pdf_content": pdf_content_bytes, "filename": nome_arquivo}
+        response_data = response.json()
+        logger.info(f"Resposta da API Serpro: {response_data}")
+
+        mensagens = response_data.get('mensagens', [])
+        dados_str = response_data.get('dados')
+
+        # Verifica se há mensagem de "sem valor devido" ou sucesso
+        if any('MSG_E0139' in msg.get('codigo', '') for msg in mensagens):
+            # Mesmo sem débitos, o e-CAC gera um PDF. Vamos assumir que 'dados' contém o PDF em Base64.
+            if not dados_str:
+                return {"sucesso": False, "erro": "Nenhum dado retornado pela API para o período informado."}
             
-            logger.error(f"Resposta inesperada ao gerar DAS Cobrança: {response.text}")
-            return {"sucesso": False, "erro": "Resposta inesperada da API Serpro.", "detalhes": response_data}
+            dados = json.loads(dados_str)
+            pdf_base64 = dados.get('pdf') or dados.get('extrato', {}).get('pdf')
+            if not pdf_base64:
+                return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
+            
+            pdf_content = base64.b64decode(pdf_base64)
+            filename = dados.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
+            logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao} (sem débitos).")
+            return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
+
+        # Verifica se há sucesso na resposta
+        if not any('sucesso' in msg.get('texto', '').lower() for msg in mensagens):
+            error_message = mensagens[0].get('texto', 'Erro não especificado pela API.')
+            return {"sucesso": False, "erro": error_message}
+
+        # Caso de sucesso com débitos
+        if not dados_str:
+            return {"sucesso": False, "erro": "Nenhum dado retornado pela API."}
+        
+        dados = json.loads(dados_str)
+        pdf_base64 = dados.get('pdf') or dados.get('extrato', {}).get('pdf')
+        if not pdf_base64:
+            return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
+        
+        pdf_content = base64.b64decode(pdf_base64)
+        filename = dados.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
+        logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao}.")
+        return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Erro na requisição para gerar DAS Cobrança: {e}")
+        logger.error(f"Erro na requisição para gerar DAS: {e}")
         detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
         return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
+    except Exception as e:
+        logger.error(f"Erro ao processar resposta da API: {e}")
+        return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
     
 def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
     """
