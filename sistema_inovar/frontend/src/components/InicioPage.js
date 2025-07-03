@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { motion } from 'framer-motion';
 import {
@@ -41,6 +41,13 @@ const InicioPage = () => {
   const [error, setError] = useState('');
   const [empresaStatus, setEmpresaStatus] = useState({});
   const [checkboxState, setCheckboxState] = useState({});
+  const navigate = useNavigate();
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+  };
+  const itemVariants = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -87,6 +94,7 @@ const InicioPage = () => {
   // Função para resetar checkboxes e coletar pendências
   useEffect(() => {
     const checkResetDate = () => {
+      console.log('Verificando reset de checkboxes...');
       const today = new Date();
       const day = today.getDate();
       const pendencias = [];
@@ -125,24 +133,29 @@ const InicioPage = () => {
       });
 
       // Atualizar estado dos checkboxes
-      setCheckboxState(updatedCheckboxState);
+      if (JSON.stringify(updatedCheckboxState) !== JSON.stringify(checkboxState)) {
+        setCheckboxState(updatedCheckboxState);
+      }
 
       // Enviar pendências para o backend
       if (pendencias.length > 0) {
+        console.log('Enviando pendências:', pendencias);
         axiosInstance.post('/api/pendencias/', { pendencias }).catch((err) => {
           console.error('Erro ao enviar pendências:', err);
         });
       }
     };
 
-    // Verificar reset todos os dias
+    // Executar imediatamente ao carregar
+    checkResetDate();
+    // Verificar reset apenas uma vez por dia
     const interval = setInterval(checkResetDate, 24 * 60 * 60 * 1000); // 24 horas
-    checkResetDate(); // Executar imediatamente ao carregar
     return () => clearInterval(interval);
   }, [checkboxState, empresasSelecionadas, userCargo]);
 
   // Função para atualizar checkbox
   const handleCheckboxChange = async (empresaId, field) => {
+    console.log(`Clicado ${field} para empresa ${empresaId}`);
     const newState = {
       ...checkboxState,
       [empresaId]: {
@@ -165,6 +178,7 @@ const InicioPage = () => {
 
   // Função para gerar e enviar DAS via WhatsApp
   const handleGerarEEnviarDas = async (empresa) => {
+    console.log(`Gerando e enviando DAS para empresa ${empresa.id}`);
     setEmpresaStatus((prev) => ({
       ...prev,
       [empresa.id]: { loading: true, error: '', success: '' },
@@ -203,6 +217,67 @@ const InicioPage = () => {
       }));
     }
   };
+
+  // Configuração do Gráfico
+  const chartConfig = {
+    data: {
+      labels: data?.chart_data?.labels || ['Concluído', 'Pendente', 'Vencido'],
+      datasets: [
+        {
+          data: data?.chart_data?.data || [0, 0, 0],
+          backgroundColor: ['#22c55e', '#ef4444', '#64748b'],
+          borderColor: ['#ffffff', '#ffffff', '#ffffff'],
+          borderWidth: 4,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: 'rgb(55, 65, 81)',
+            usePointStyle: true,
+            font: { size: 14 },
+            padding: 20,
+          },
+        },
+      },
+      cutout: '70%',
+    },
+  };
+
+  // Ajusta a cor da legenda para o modo escuro
+  useEffect(() => {
+    const updateChartColors = () => {
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      ChartJS.overrides.doughnut.plugins.legend.labels.color = isDarkMode ? '#e5e7eb' : '#374151';
+      ChartJS.getChart('doughnut-chart')?.update();
+    };
+
+    updateChartColors();
+    const observer = new MutationObserver(updateChartColors);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  if (loading) {
+    return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando Dashboard...</div>;
+  }
+
+  if (error) {
+    return <div className="p-8 text-center text-red-500 dark:text-red-400">{error}</div>;
+  }
+
+  if (!data) {
+    return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Nenhum dado disponível para o dashboard.</div>;
+  }
+
+  const isDepartamentoPessoal = userCargo === 'pessoal';
+  const isDepartamentoFiscal = userCargo === 'fiscal';
+  const isAdministrador = userCargo === 'admin';
 
   return (
     <motion.div
@@ -299,6 +374,7 @@ const InicioPage = () => {
                           <Link
                             to={`/consultar-declaracoes?empresa_id=${empresa.id}`}
                             className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                            onClick={() => console.log(`Navegando para /consultar-declaracoes?empresa_id=${empresa.id}`)}
                           >
                             {empresa.nome}
                           </Link>
@@ -310,46 +386,46 @@ const InicioPage = () => {
                       {(isDepartamentoPessoal || isAdministrador) && (
                         <>
                           <td className="p-2 text-center">
-                            <input
-                              type="checkbox"
-                              checked={checkboxState[empresa.id]?.inss || false}
-                              onChange={() => handleCheckboxChange(empresa.id, 'inss')}
-                              className="h-5 w-5 text-green-500 focus:ring-indigo-500 border-gray-300 rounded"
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.inss ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                              onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'inss')}
                             />
                           </td>
                           <td className="p-2 text-center">
-                            <input
-                              type="checkbox"
-                              checked={checkboxState[empresa.id]?.fgts || false}
-                              onChange={() => handleCheckboxChange(empresa.id, 'fgts')}
-                              className="h-5 w-5 text-green-500 focus:ring-indigo-500 border-gray-300 rounded"
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.fgts ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                              onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'fgts')}
                             />
                           </td>
                           <td className="p-2 text-center">
-                            <input
-                              type="checkbox"
-                              checked={checkboxState[empresa.id]?.folha || false}
-                              onChange={() => handleCheckboxChange(empresa.id, 'folha')}
-                              className="h-5 w-5 text-green-500 focus:ring-indigo-500 border-gray-300 rounded"
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.folha ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                              onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'folha')}
                             />
                           </td>
                           <td className="p-2 text-center">
-                            <input
-                              type="checkbox"
-                              checked={checkboxState[empresa.id]?.honorario || false}
-                              onChange={() => handleCheckboxChange(empresa.id, 'honorario')}
-                              className="h-5 w-5 text-green-500 focus:ring-indigo-500 border-gray-300 rounded"
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.honorario ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                              onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'honorario')}
                             />
                           </td>
                         </>
                       )}
                       {(isDepartamentoFiscal || isAdministrador) && (
                         <td className="p-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={checkboxState[empresa.id]?.simples_nacional || false}
-                            onChange={() => handleCheckboxChange(empresa.id, 'simples_nacional')}
-                            className="h-5 w-5 text-green-500 focus:ring-indigo-500 border-gray-300 rounded"
+                          <CheckCircleIcon
+                            className={`h-5 w-5 mx-auto cursor-pointer ${
+                              checkboxState[empresa.id]?.simples_nacional ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                            }`}
+                            onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'simples_nacional')}
                           />
                         </td>
                       )}
@@ -416,7 +492,7 @@ const InicioPage = () => {
             className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
           >
             <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 text-center">
-              Status Simples ({data.chart_data.periodo})
+              Status Simples ({data?.chart_data?.periodo || 'N/A'})
             </h2>
             <div className="h-64 relative">
               <Doughnut id="doughnut-chart" data={chartConfig.data} options={chartConfig.options} />
@@ -433,6 +509,7 @@ const InicioPage = () => {
               <Link
                 to="/gerar-das"
                 className="w-full flex justify-between items-center p-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                onClick={() => console.log('Navegando para /gerar-das')}
               >
                 <span>Gerar Guia DAS</span>
                 <ArrowRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-300" />
@@ -440,6 +517,7 @@ const InicioPage = () => {
               <Link
                 to="/consultar-extrato"
                 className="w-full flex justify-between items-center p-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                onClick={() => console.log('Navegando para /consultar-extrato')}
               >
                 <span>Consultar Extrato</span>
                 <ArrowRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-300" />
@@ -447,6 +525,7 @@ const InicioPage = () => {
               <Link
                 to="/pendencias"
                 className="w-full flex justify-between items-center p-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                onClick={() => console.log('Navegando para /pendencias')}
               >
                 <span>Ver Pendências</span>
                 <ArrowRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-300" />

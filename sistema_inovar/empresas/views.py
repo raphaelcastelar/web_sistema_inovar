@@ -148,6 +148,17 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             logger.error(f"Erro ao excluir empresa: {str(e)}")
             return Response({'error': f'Erro ao excluir empresa: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
+    def patch(self, request, *args, **kwargs):
+        empresa_id = kwargs.get('pk')
+        try:
+            empresa = Empresa.objects.get(id=empresa_id)
+            serializer = self.get_serializer(empresa, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Empresa.DoesNotExist:
+            return Response({"error": f"Empresa com ID {empresa_id} não encontrada."}, status=status.HTTP_404_NOT_FOUND)
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
     queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base
     serializer_class = DocumentosConstitutivosSerializer
