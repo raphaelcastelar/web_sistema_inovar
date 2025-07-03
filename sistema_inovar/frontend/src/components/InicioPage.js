@@ -9,6 +9,7 @@ import {
   ArrowRightIcon,
   CheckCircleIcon,
   PaperAirplaneIcon,
+  BellIcon,
 } from '@heroicons/react/24/outline';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -35,6 +36,41 @@ const StatCard = ({ icon: Icon, title, value, color, subtitle }) => (
   </motion.div>
 );
 
+// Componente para o Dropdown de Notificações
+const NotificationDropdown = ({ notifications, markAsRead, clearNotifications }) => (
+  <div className="absolute top-12 right-0 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+    <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+      <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Notificações</h3>
+      {notifications.length > 0 && (
+        <button
+          onClick={clearNotifications}
+          className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+        >
+          Limpar todas
+        </button>
+      )}
+    </div>
+    <div className="max-h-64 overflow-y-auto">
+      {notifications.length === 0 ? (
+        <p className="p-4 text-gray-500 dark:text-gray-400 text-center">Nenhuma notificação</p>
+      ) : (
+        notifications.map((notification) => (
+          <div
+            key={notification.id}
+            className={`p-4 border-b border-gray-200 dark:border-gray-700 ${
+              notification.read ? 'bg-gray-50 dark:bg-gray-700' : 'bg-white dark:bg-gray-800'
+            }`}
+            onClick={() => markAsRead(notification.id)}
+          >
+            <p className="text-sm text-gray-800 dark:text-gray-200">{notification.message}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{notification.timestamp}</p>
+          </div>
+        ))
+      )}
+    </div>
+  </div>
+);
+
 // Componente Principal da Página
 const InicioPage = () => {
   const [data, setData] = useState(null);
@@ -46,6 +82,8 @@ const InicioPage = () => {
   const [checkboxState, setCheckboxState] = useState({});
   const [tarefasPendentes, setTarefasPendentes] = useState(0);
   const [diasVencimento, setDiasVencimento] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const navigate = useNavigate();
 
   const containerVariants = {
@@ -53,6 +91,42 @@ const InicioPage = () => {
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
   };
   const itemVariants = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } };
+
+  // Simulação de notificações (substituir por integração com backend no futuro)
+  useEffect(() => {
+    const sampleNotifications = [
+      {
+        id: 1,
+        message: 'Administrador adicionou a empresa "Nova Empresa Ltda".',
+        timestamp: new Date().toLocaleString(),
+        read: false,
+      },
+      {
+        id: 2,
+        message: 'Administrador alterou informações da empresa "Empresa XYZ".',
+        timestamp: new Date(Date.now() - 3600000).toLocaleString(),
+        read: false,
+      },
+    ];
+    setNotifications(sampleNotifications);
+  }, []);
+
+  // Marcar notificação como lida
+  const markAsRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((notif) =>
+        notif.id === id ? { ...notif, read: true } : notif
+      )
+    );
+  };
+
+  // Limpar todas as notificações
+  const clearNotifications = () => {
+    setNotifications([]);
+  };
+
+  // Contador de notificações não lidas
+  const unreadCount = notifications.filter((notif) => !notif.read).length;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -98,7 +172,6 @@ const InicioPage = () => {
 
   // Calcular tarefas pendentes e dias até vencimento
   useEffect(() => {
-    // Calcular tarefas pendentes do usuário
     let pendentes = 0;
     Object.keys(checkboxState).forEach((empresaId) => {
       const checks = checkboxState[empresaId];
@@ -114,16 +187,14 @@ const InicioPage = () => {
     });
     setTarefasPendentes(pendentes);
 
-    // Calcular dias até vencimento
     const today = new Date();
     const day = today.getDate();
     const month = today.getMonth();
     const year = today.getFullYear();
-    let targetDay = userCargo === 'fiscal' ? 25 : 15; // Fiscal: dia 25, Pessoal/Admin: dia 15
+    let targetDay = userCargo === 'fiscal' ? 25 : 15;
     let targetDate = new Date(year, month, targetDay);
 
     if (day > targetDay) {
-      // Se passou o dia de vencimento, calcular para o próximo mês
       targetDate = new Date(year, month + 1, targetDay);
     }
 
@@ -146,7 +217,6 @@ const InicioPage = () => {
         const empresa = empresasSelecionadas.find((e) => e.id === parseInt(empresaId));
         if (!empresa) return;
 
-        // Reset para departamento pessoal (dia 15)
         if ((userCargo === 'pessoal' || userCargo === 'admin') && day === 15) {
           if (!checkboxState[empresaId].inss) pendencias.push({ empresa, tipo: 'INSS' });
           if (!checkboxState[empresaId].fgts) pendencias.push({ empresa, tipo: 'FGTS' });
@@ -161,7 +231,6 @@ const InicioPage = () => {
           };
         }
 
-        // Reset para departamento fiscal (dia 25)
         if ((userCargo === 'fiscal' || userCargo === 'admin') && day === 25) {
           if (!checkboxState[empresaId].simples_nacional) {
             pendencias.push({ empresa, tipo: 'Simples Nacional' });
@@ -173,12 +242,10 @@ const InicioPage = () => {
         }
       });
 
-      // Atualizar estado dos checkboxes
       if (JSON.stringify(updatedCheckboxState) !== JSON.stringify(checkboxState)) {
         setCheckboxState(updatedCheckboxState);
       }
 
-      // Enviar pendências para o backend
       if (pendencias.length > 0) {
         console.log('Enviando pendências:', pendencias);
         axiosInstance.post('/api/pendencias/', { pendencias }).catch((err) => {
@@ -188,7 +255,7 @@ const InicioPage = () => {
     };
 
     checkResetDate();
-    const interval = setInterval(checkResetDate, 24 * 60 * 60 * 1000); // 24 horas
+    const interval = setInterval(checkResetDate, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [checkboxState, empresasSelecionadas, userCargo]);
 
@@ -203,7 +270,7 @@ const InicioPage = () => {
       },
     };
     setCheckboxState(newState);
-  
+
     try {
       await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
         [field]: newState[empresaId][field],
@@ -255,7 +322,7 @@ const InicioPage = () => {
       setEmpresaStatus((prev) => ({
         ...prev,
         [empresa.id]: { loading: false, error: errorMessage, success: '' },
-      }));
+      }))
     }
   };
 
@@ -320,7 +387,6 @@ const InicioPage = () => {
   const isDepartamentoFiscal = userCargo === 'fiscal';
   const isAdministrador = userCargo === 'admin';
 
-  // Configuração dinâmica para o card de Dias até Vencimento
   const vencimentoColor = diasVencimento <= 3 ? 'bg-red-500' : 'bg-orange-500';
   const vencimentoIcon = diasVencimento <= 3 ? ExclamationTriangleIcon : ClockIcon;
   const vencimentoSubtitle =
@@ -333,8 +399,31 @@ const InicioPage = () => {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="p-6 md:p-8 animate-fade-in"
+      className="p-6 md:p-8 animate-fade-in relative"
     >
+      {/* Botão de Notificações */}
+      <div className="absolute top-4 right-4">
+        <button
+          onClick={() => setShowNotifications(!showNotifications)}
+          className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+          title="Notificações"
+        >
+          <BellIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+          {unreadCount > 0 && (
+            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+              {unreadCount}
+            </span>
+          )}
+        </button>
+        {showNotifications && (
+          <NotificationDropdown
+            notifications={notifications}
+            markAsRead={markAsRead}
+            clearNotifications={clearNotifications}
+          />
+        )}
+      </div>
+
       <motion.h1
         variants={itemVariants}
         className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-8"
@@ -443,10 +532,11 @@ const InicioPage = () => {
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
                               }`}
-                              onClick={() =>
-                                !empresaStatus[empresa.id]?.loading &&
-                                handleCheckboxChange(empresa.id, 'inss')
-                              }
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'inss');
+                                }
+                              }}
                             />
                           </td>
                           <td className="p-2 text-center">
@@ -456,10 +546,11 @@ const InicioPage = () => {
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
                               }`}
-                              onClick={() =>
-                                !empresaStatus[empresa.id]?.loading &&
-                                handleCheckboxChange(empresa.id, 'fgts')
-                              }
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'fgts');
+                                }
+                              }}
                             />
                           </td>
                           <td className="p-2 text-center">
@@ -469,10 +560,11 @@ const InicioPage = () => {
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
                               }`}
-                              onClick={() =>
-                                !empresaStatus[empresa.id]?.loading &&
-                                handleCheckboxChange(empresa.id, 'folha')
-                              }
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'folha');
+                                }
+                              }}
                             />
                           </td>
                           <td className="p-2 text-center">
@@ -482,10 +574,11 @@ const InicioPage = () => {
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
                               }`}
-                              onClick={() =>
-                                !empresaStatus[empresa.id]?.loading &&
-                                handleCheckboxChange(empresa.id, 'honorario')
-                              }
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'honorario');
+                                }
+                              }}
                             />
                           </td>
                         </>
@@ -497,11 +590,12 @@ const InicioPage = () => {
                               checkboxState[empresa.id]?.simples_nacional
                                 ? 'text-green-500'
                                 : 'text-gray-300 dark:text-gray-600'
-                            }`}
-                            onClick={() =>
-                              !empresaStatus[empresa.id]?.loading &&
-                              handleCheckboxChange(empresa.id, 'simples_nacional')
-                            }
+                              }`}
+                            onClick={() => {
+                              if (!empresaStatus[empresa.id]?.loading) {
+                                handleCheckboxChange(empresa.id, 'simples_nacional');
+                              }
+                            }}
                           />
                         </td>
                       )}
@@ -509,7 +603,7 @@ const InicioPage = () => {
                         <td className="p-2 text-center">
                           <button
                             onClick={() => handleGerarEEnviarDas(empresa)}
-                            disabled={empresaStatus[empresa.id]?.loading}
+                            disabled={empresaStatus[empresa.id]?.loading || false}
                             className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Gerar e enviar DAS via WhatsApp"
                           >
@@ -527,12 +621,12 @@ const InicioPage = () => {
                                   r="10"
                                   stroke="currentColor"
                                   strokeWidth="4"
-                                ></circle>
+                                />
                                 <path
                                   className="opacity-75"
                                   fill="currentColor"
                                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                ></path>
+                                />
                               </svg>
                             ) : (
                               <PaperAirplaneIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
