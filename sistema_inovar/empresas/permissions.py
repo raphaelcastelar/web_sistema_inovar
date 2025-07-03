@@ -1,19 +1,40 @@
 from rest_framework.permissions import BasePermission
 from .models import Empresa
 
-class IsPessoalOrAdmin(BasePermission):
+class IsPessoalOrFiscalOrAdmin(BasePermission):
     def has_object_permission(self, request, view, obj):
-        # Permite todos os métodos para admins
+        print(f"Usuário: {request.user.username}, Cargo: {request.user.cargo}, Empresas Gerenciadas: {[e.id for e in request.user.empresas_gerenciadas.all()]}")
+        print(f"Empresa ID: {obj.id}, Método: {request.method}, Dados: {request.data}")
+        
+        # Allow all methods for admins
         if request.user.is_staff or request.user.is_superuser:
+            print("Permissão concedida: Usuário é admin")
             return True
-        # Para usuários com cargo 'pessoal', permite GET e PATCH em empresas gerenciadas
-        if request.user.cargo == 'pessoal' and obj in request.user.empresas_gerenciadas.all():
+        
+        # Check if the company is managed by the user
+        if obj in request.user.empresas_gerenciadas.all():
             if request.method == 'PATCH':
-                # Verifica se apenas campos permitidos estão sendo atualizados
-                allowed_fields = {'inss', 'fgts', 'folha', 'honorario'}
                 requested_fields = set(request.data.keys())
-                if requested_fields.issubset(allowed_fields):
+                
+                # Define allowed fields per role
+                allowed_fields_pessoal = {'inss', 'fgts', 'folha', 'honorario'}
+                allowed_fields_fiscal = {'simples_nacional'}
+                
+                # Allow 'pessoal' users to update their fields
+                if request.user.cargo == 'pessoal' and requested_fields.issubset(allowed_fields_pessoal):
+                    print("Permissão concedida: Usuário 'pessoal' atualizando campos permitidos")
                     return True
+                
+                # Allow 'fiscal' users to update their fields
+                if request.user.cargo == 'fiscal' and requested_fields.issubset(allowed_fields_fiscal):
+                    print("Permissão concedida: Usuário 'fiscal' atualizando campos permitidos")
+                    return True
+                
+                print(f"Permissão negada: Campos solicitados {requested_fields} não estão permitidos para o cargo {request.user.cargo}")
             elif request.method == 'GET':
-                return True
+                if request.user.cargo in ['pessoal', 'fiscal']:
+                    print(f"Permissão concedida: Usuário '{request.user.cargo}' acessando GET")
+                    return True
+        
+        print("Permissão negada")
         return False

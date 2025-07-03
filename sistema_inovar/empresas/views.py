@@ -35,7 +35,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.views import APIView
 
 from empresas.serpro_service import gerar_e_enviar_das
-from .permissions import IsPessoalOrAdmin
+from .permissions import IsPessoalOrFiscalOrAdmin
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
@@ -137,7 +137,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         if self.action in ['create', 'update', 'destroy']:
             return [IsAdminUser()]
         elif self.action == 'partial_update':
-            return [IsAuthenticated(), IsPessoalOrAdmin()]  # Corrigido: instanciar IsAuthenticated
+            return [IsAuthenticated(), IsPessoalOrFiscalOrAdmin()]  # Updated permission class
         return [IsAuthenticated()]
 
     def destroy(self, request, *args, **kwargs):
