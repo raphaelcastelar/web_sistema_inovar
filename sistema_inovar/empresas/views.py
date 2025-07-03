@@ -39,12 +39,13 @@ from .permissions import IsPessoalOrFiscalOrAdmin
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia
+    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notification
+
 )
 from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
-    HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer
+    HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificationSerializer
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
@@ -161,6 +162,29 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Empresa.DoesNotExist:
             return Response({"error": f"Empresa com ID {empresa_id} não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+        
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        empresa = serializer.instance
+        Notification.objects.create(
+            user=request.user,
+            message=f'Administrador adicionou a empresa "{empresa.nome}".'
+        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_queryset().get(pk=kwargs.get('pk'))
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        Notification.objects.create(
+            user=request.user,
+            message=f'Administrador alterou informações da empresa "{instance.nome}".'
+        )
+        return Response(serializer.data)
         
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
     queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base
@@ -284,6 +308,14 @@ class PendenciaAPIView(APIView):
                 )
         
         return Response(created_pendencias, status=status.HTTP_201_CREATED)
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by('-timestamp')
 
 @api_view(['POST'])
 def enviar_email(request):

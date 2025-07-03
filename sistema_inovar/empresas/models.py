@@ -6,7 +6,8 @@ from django.db import models
 from django.utils import timezone
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, User
+
 
 logger = logging.getLogger(__name__)
 
@@ -311,3 +312,12 @@ class Pendencia(models.Model):
 
     def __str__(self):
         return f"{self.empresa.nome} - {self.tipo}"
+    
+class Notification(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    message = models.CharField(max_length=255)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.message} ({self.timestamp})"

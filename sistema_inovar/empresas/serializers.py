@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notification
 import re
 import logging
 
@@ -158,3 +158,8 @@ class PendenciaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pendencia
         fields = ['id', 'empresa', 'tipo', 'data_criacao']
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'message', 'timestamp', 'read']
