@@ -17,7 +17,7 @@ import { Doughnut } from 'react-chartjs-2';
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 // Sub-componente para os Cards de Estatísticas
-const StatCard = ({ icon: Icon, title, value, color }) => (
+const StatCard = ({ icon: Icon, title, value, color, subtitle }) => (
   <motion.div
     variants={{ hidden: { scale: 0.8, opacity: 0 }, visible: { scale: 1, opacity: 1 } }}
     className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex items-center space-x-4"
@@ -28,6 +28,9 @@ const StatCard = ({ icon: Icon, title, value, color }) => (
     <div>
       <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
       <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{value ?? '...'}</p>
+      {subtitle && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{subtitle}</p>
+      )}
     </div>
   </motion.div>
 );
@@ -41,6 +44,8 @@ const InicioPage = () => {
   const [error, setError] = useState('');
   const [empresaStatus, setEmpresaStatus] = useState({});
   const [checkboxState, setCheckboxState] = useState({});
+  const [tarefasPendentes, setTarefasPendentes] = useState(0);
+  const [diasVencimento, setDiasVencimento] = useState(null);
   const navigate = useNavigate();
 
   const containerVariants = {
@@ -58,7 +63,7 @@ const InicioPage = () => {
         const empresasResponse = await axiosInstance.get('/api/empresas/');
         setEmpresasSelecionadas(empresasResponse.data);
 
-        // Inicializar estado dos checkboxes com base nos dados das empresas
+        // Inicializar estado dos checkboxes
         const initialCheckboxState = {};
         empresasResponse.data.forEach((empresa) => {
           initialCheckboxState[empresa.id] = {
@@ -90,6 +95,42 @@ const InicioPage = () => {
 
     fetchData();
   }, []);
+
+  // Calcular tarefas pendentes e dias até vencimento
+  useEffect(() => {
+    // Calcular tarefas pendentes do usuário
+    let pendentes = 0;
+    Object.keys(checkboxState).forEach((empresaId) => {
+      const checks = checkboxState[empresaId];
+      if (userCargo === 'pessoal' || userCargo === 'admin') {
+        if (!checks.inss) pendentes++;
+        if (!checks.fgts) pendentes++;
+        if (!checks.folha) pendentes++;
+        if (!checks.honorario) pendentes++;
+      }
+      if (userCargo === 'fiscal' || userCargo === 'admin') {
+        if (!checks.simples_nacional) pendentes++;
+      }
+    });
+    setTarefasPendentes(pendentes);
+
+    // Calcular dias até vencimento
+    const today = new Date();
+    const day = today.getDate();
+    const month = today.getMonth();
+    const year = today.getFullYear();
+    let targetDay = userCargo === 'fiscal' ? 25 : 15; // Fiscal: dia 25, Pessoal/Admin: dia 15
+    let targetDate = new Date(year, month, targetDay);
+
+    if (day > targetDay) {
+      // Se passou o dia de vencimento, calcular para o próximo mês
+      targetDate = new Date(year, month + 1, targetDay);
+    }
+
+    const timeDiff = targetDate - today;
+    const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+    setDiasVencimento(daysRemaining);
+  }, [checkboxState, userCargo]);
 
   // Função para resetar checkboxes e coletar pendências
   useEffect(() => {
@@ -146,9 +187,7 @@ const InicioPage = () => {
       }
     };
 
-    // Executar imediatamente ao carregar
     checkResetDate();
-    // Verificar reset apenas uma vez por dia
     const interval = setInterval(checkResetDate, 24 * 60 * 60 * 1000); // 24 horas
     return () => clearInterval(interval);
   }, [checkboxState, empresasSelecionadas, userCargo]);
@@ -164,15 +203,18 @@ const InicioPage = () => {
       },
     };
     setCheckboxState(newState);
-
-    // Atualizar no backend
+  
     try {
       await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
         [field]: newState[empresaId][field],
       });
     } catch (err) {
       console.error(`Erro ao atualizar ${field} para empresa ${empresaId}:`, err);
-      setError(`Erro ao atualizar ${field} para a empresa.`);
+      setError(
+        err.response?.status === 403
+          ? `Permissão negada para atualizar ${field}. Contate o administrador.`
+          : `Erro ao atualizar ${field} para a empresa.`
+      );
     }
   };
 
@@ -199,7 +241,6 @@ const InicioPage = () => {
         },
       }));
 
-      // Marcar Simples Nacional como concluído
       handleCheckboxChange(empresa.id, 'simples_nacional');
 
       setTimeout(() => {
@@ -279,6 +320,14 @@ const InicioPage = () => {
   const isDepartamentoFiscal = userCargo === 'fiscal';
   const isAdministrador = userCargo === 'admin';
 
+  // Configuração dinâmica para o card de Dias até Vencimento
+  const vencimentoColor = diasVencimento <= 3 ? 'bg-red-500' : 'bg-orange-500';
+  const vencimentoIcon = diasVencimento <= 3 ? ExclamationTriangleIcon : ClockIcon;
+  const vencimentoSubtitle =
+    diasVencimento > 7
+      ? 'Nenhum vencimento próximo'
+      : `Vencimento em ${isDepartamentoFiscal ? '25' : '15'}/${new Date().getMonth() + (diasVencimento > 7 ? 2 : 1)}`;
+
   return (
     <motion.div
       initial="hidden"
@@ -302,15 +351,17 @@ const InicioPage = () => {
         />
         <StatCard
           icon={ClockIcon}
-          title="Tarefas Pendentes (Total)"
-          value={data.kpis.tarefas_pendentes}
+          title="Tarefas Pendentes"
+          value={tarefasPendentes}
           color="bg-yellow-500"
+          subtitle={tarefasPendentes === 0 ? 'Todas as tarefas concluídas!' : 'Complete suas tarefas!'}
         />
         <StatCard
-          icon={ExclamationTriangleIcon}
-          title="Vencendo em 7 dias"
-          value={data.kpis.vencendo_em_7_dias}
-          color="bg-red-500"
+          icon={vencimentoIcon}
+          title="Dias até Vencimento"
+          value={diasVencimento >= 0 ? diasVencimento : '...'}
+          color={vencimentoColor}
+          subtitle={vencimentoSubtitle}
         />
       </div>
 
@@ -388,33 +439,53 @@ const InicioPage = () => {
                           <td className="p-2 text-center">
                             <CheckCircleIcon
                               className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.inss ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                                checkboxState[empresa.id]?.inss
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
                               }`}
-                              onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'inss')}
+                              onClick={() =>
+                                !empresaStatus[empresa.id]?.loading &&
+                                handleCheckboxChange(empresa.id, 'inss')
+                              }
                             />
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
                               className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.fgts ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                                checkboxState[empresa.id]?.fgts
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
                               }`}
-                              onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'fgts')}
+                              onClick={() =>
+                                !empresaStatus[empresa.id]?.loading &&
+                                handleCheckboxChange(empresa.id, 'fgts')
+                              }
                             />
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
                               className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.folha ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                                checkboxState[empresa.id]?.folha
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
                               }`}
-                              onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'folha')}
+                              onClick={() =>
+                                !empresaStatus[empresa.id]?.loading &&
+                                handleCheckboxChange(empresa.id, 'folha')
+                              }
                             />
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
                               className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.honorario ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                                checkboxState[empresa.id]?.honorario
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
                               }`}
-                              onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'honorario')}
+                              onClick={() =>
+                                !empresaStatus[empresa.id]?.loading &&
+                                handleCheckboxChange(empresa.id, 'honorario')
+                              }
                             />
                           </td>
                         </>
@@ -423,9 +494,14 @@ const InicioPage = () => {
                         <td className="p-2 text-center">
                           <CheckCircleIcon
                             className={`h-5 w-5 mx-auto cursor-pointer ${
-                              checkboxState[empresa.id]?.simples_nacional ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'
+                              checkboxState[empresa.id]?.simples_nacional
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
                             }`}
-                            onClick={() => !empresaStatus[empresa.id]?.loading && handleCheckboxChange(empresa.id, 'simples_nacional')}
+                            onClick={() =>
+                              !empresaStatus[empresa.id]?.loading &&
+                              handleCheckboxChange(empresa.id, 'simples_nacional')
+                            }
                           />
                         </td>
                       )}

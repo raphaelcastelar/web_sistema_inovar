@@ -35,6 +35,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.views import APIView
 
 from empresas.serpro_service import gerar_e_enviar_das
+from .permissions import IsPessoalOrAdmin
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
@@ -126,17 +127,17 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # Check for 'all' query parameter to bypass filtering
         if self.request.query_params.get('all') == 'true':
             return queryset
-        # Apply filtering for non-admin users
         if not self.request.user.is_staff and not self.request.user.is_superuser:
             queryset = queryset.filter(gerenciada_por=self.request.user)
         return queryset
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['create', 'update', 'destroy']:
             return [IsAdminUser()]
+        elif self.action == 'partial_update':
+            return [IsAuthenticated(), IsPessoalOrAdmin()]  # Corrigido: instanciar IsAuthenticated
         return [IsAuthenticated()]
 
     def destroy(self, request, *args, **kwargs):
@@ -152,6 +153,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         empresa_id = kwargs.get('pk')
         try:
             empresa = Empresa.objects.get(id=empresa_id)
+            self.check_object_permissions(request, empresa)
             serializer = self.get_serializer(empresa, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -159,6 +161,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Empresa.DoesNotExist:
             return Response({"error": f"Empresa com ID {empresa_id} não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+        
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
     queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base
     serializer_class = DocumentosConstitutivosSerializer
