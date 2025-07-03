@@ -15,6 +15,7 @@ from .views import (
     gerar_e_enviar_das_view,
 
 )
+from empresas.views import PendenciaAPIView
 urlpatterns = [
     path('enviar-email/', enviar_email, name='enviar_email'),
     path('enviar-documentos-whatsapp/', enviar_documentos_whatsapp_api, name='enviar_documentos_whatsapp'),
@@ -28,4 +29,5 @@ urlpatterns = [
     path('gerenciamento-atribuicao-data/', gerenciamento_atribuicao_data, name='gerenciamento_atribuicao_data'),
     path('salvar-atribuicoes/', salvar_atribuicoes, name='salvar_atribuicoes'),
     path('gerar-e-enviar-das/', gerar_e_enviar_das_view, name='gerar_e_enviar_das'),
+    path('pendencias/', PendenciaAPIView.as_view(), name='pendencias'),
 ]

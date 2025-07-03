@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia
 import re
 import logging
 
@@ -151,3 +151,10 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         instance.save()
         logger.info(f"Usuário salvo com cargo: {instance.cargo}")
         return instance
+    
+class PendenciaSerializer(serializers.ModelSerializer):
+    empresa = EmpresaSerializer(read_only=True)
+    
+    class Meta:
+        model = Pendencia
+        fields = ['id', 'empresa', 'tipo', 'data_criacao']

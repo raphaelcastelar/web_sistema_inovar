@@ -32,17 +32,18 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
+from rest_framework.views import APIView
 
 from empresas.serpro_service import gerar_e_enviar_das
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess
+    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia
 )
 from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
-    HistoricoEnviosSerializer, FuncionarioSerializer
+    HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
@@ -240,6 +241,35 @@ class FuncionarioViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Erro ao excluir funcionário: {str(e)}")
             return Response({'error': f'Erro ao excluir usuário: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+        
+class PendenciaAPIView(APIView):
+    def get(self, request):
+        pendencias = Pendencia.objects.all()
+        serializer = PendenciaSerializer(pendencias, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        pendencias_data = request.data.get('pendencias', [])
+        created_pendencias = []
+        
+        for pendencia_data in pendencias_data:
+            empresa_id = pendencia_data.get('empresa', {}).get('id')
+            tipo = pendencia_data.get('tipo')
+            
+            try:
+                empresa = Empresa.objects.get(id=empresa_id)
+                pendencia = Pendencia.objects.create(
+                    empresa=empresa,
+                    tipo=tipo
+                )
+                created_pendencias.append(PendenciaSerializer(pendencia).data)
+            except Empresa.DoesNotExist:
+                return Response(
+                    {"error": f"Empresa com ID {empresa_id} não encontrada."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        return Response(created_pendencias, status=status.HTTP_201_CREATED)
 
 @api_view(['POST'])
 def enviar_email(request):

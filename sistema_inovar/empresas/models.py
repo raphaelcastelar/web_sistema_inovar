@@ -293,3 +293,21 @@ class UserCompanyAccess(models.Model):
     created_by = models.ForeignKey(Funcionario, null=True, on_delete=models.SET_NULL, related_name='created_accesses')
     class Meta:
         unique_together = ('user', 'empresa')
+
+class Pendencia(models.Model):
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='pendencias')
+    tipo = models.CharField(max_length=50, choices=[
+        ('INSS', 'INSS'),
+        ('FGTS', 'FGTS'),
+        ('Folha', 'Folha'),
+        ('Honorário', 'Honorário'),
+        ('Simples Nacional', 'Simples Nacional'),
+    ])
+    data_criacao = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Pendência'
+        verbose_name_plural = 'Pendências'
+
+    def __str__(self):
+        return f"{self.empresa.nome} - {self.tipo}"
