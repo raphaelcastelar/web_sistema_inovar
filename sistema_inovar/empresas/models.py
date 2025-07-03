@@ -6,7 +6,8 @@ from django.db import models
 from django.utils import timezone
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado
-from django.contrib.auth.models import AbstractUser, User
+from django.contrib.auth.models import AbstractUser
+from django.conf import settings
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ class Empresa(models.Model):
     folha = models.BooleanField(default=False)
     honorario = models.BooleanField(default=False)
     monitorar_simples = models.BooleanField(default=True)
+    usuarios = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='empresas')
     
 
     def __str__(self):
@@ -314,10 +316,10 @@ class Pendencia(models.Model):
         return f"{self.empresa.nome} - {self.tipo}"
     
 class Notification(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    message = models.CharField(max_length=255)
-    timestamp = models.DateTimeField(auto_now_add=True)
-    read = models.BooleanField(default=False)
+       user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+       message = models.CharField(max_length=255)
+       timestamp = models.DateTimeField(auto_now_add=True)
+       read = models.BooleanField(default=False)
 
-    def __str__(self):
-        return f"{self.message} ({self.timestamp})"
+       def __str__(self):
+           return f"{self.message} ({self.timestamp})"

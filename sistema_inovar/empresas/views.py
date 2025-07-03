@@ -142,13 +142,24 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        try:
-            self.perform_destroy(instance)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Exception as e:
-            logger.error(f"Erro ao excluir empresa: {str(e)}")
-            return Response({'error': f'Erro ao excluir empresa: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+        instance = self.get_queryset().get(pk=kwargs.get('pk'))
+        empresa_nome = instance.nome  # Armazenar o nome antes da exclusão
+
+        # Obter funcionários associados via UserCompanyAccess antes de excluir
+        users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
+        logger.info(f"Excluindo empresa '{empresa_nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
+
+        # Excluir a empresa
+        self.perform_destroy(instance)
+
+        # Criar notificações para exclusão
+        for user in users_to_notify:
+            Notification.objects.create(
+                user=user,
+                message=f'Administrador excluiu a empresa "{empresa_nome}".'
+            )
+        logger.info(f"Notificações criadas para exclusão da empresa '{empresa_nome}'.")
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, *args, **kwargs):
         empresa_id = kwargs.get('pk')
@@ -168,10 +179,16 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         empresa = serializer.instance
-        Notification.objects.create(
-            user=request.user,
-            message=f'Administrador adicionou a empresa "{empresa.nome}".'
-        )
+
+        # Obter funcionários associados via UserCompanyAccess
+        users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=empresa)
+        logger.info(f"Criando empresa '{empresa.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
+        for user in users_to_notify:
+            Notification.objects.create(
+                user=user,
+                message=f'Administrador adicionou a empresa "{empresa.nome}".'
+            )
+        logger.info(f"Notificações criadas para empresa '{empresa.nome}'.")
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def update(self, request, *args, **kwargs):
@@ -180,10 +197,16 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        Notification.objects.create(
-            user=request.user,
-            message=f'Administrador alterou informações da empresa "{instance.nome}".'
-        )
+
+        # Obter funcionários associados via UserCompanyAccess
+        users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
+        logger.info(f"Atualizando empresa '{instance.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
+        for user in users_to_notify:
+            Notification.objects.create(
+                user=user,
+                message=f'Administrador alterou informações da empresa "{instance.nome}".'
+            )
+        logger.info(f"Notificações criadas para atualização da empresa '{instance.nome}'.")
         return Response(serializer.data)
         
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
