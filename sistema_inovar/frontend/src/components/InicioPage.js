@@ -244,6 +244,69 @@ const InicioPage = () => {
     setDiasVencimento(daysRemaining);
   }, [checkboxState, userCargo]);
 
+  // Função para atualizar checkbox
+  const handleCheckboxChange = async (empresaId, field) => {
+    console.log(`Clicado ${field} para empresa ${empresaId}`);
+    const newState = {
+      ...checkboxState,
+      [empresaId]: {
+        ...checkboxState[empresaId],
+        [field]: !checkboxState[empresaId][field],
+      },
+    };
+    setCheckboxState(newState);
+
+    try {
+      await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
+        [field]: newState[empresaId][field],
+      });
+      // Atualizar o gráfico após a mudança no checkbox
+      await fetchChartData();
+    } catch (err) {
+      console.error(`Erro ao atualizar ${field} para empresa ${empresaId}:`, err);
+      setError(
+        err.response?.status === 403
+          ? `Permissão negada para atualizar ${field}. Contate o administrador.`
+          : `Erro ao atualizar ${field} para a empresa.`
+      );
+    }
+  };
+
+  // Função para gerar e enviar DAS via WhatsApp
+  const handleGerarEEnviarDas = async (empresa) => {
+    console.log(`Gerando e enviando DAS para empresa ${empresa.id}`);
+    setEmpresaStatus((prev) => ({
+      ...prev,
+      [empresa.id]: { loading: true, error: '', success: '' },
+    }));
+
+    try {
+      const response = await axiosInstance.post('/api/serpro/gerar-e-enviar-das/', {
+        cnpj: empresa.cnpj.replace(/\D/g, ''),
+      });
+
+      const periodo = response.data.mensagem.match(/\d{2}\/\d{4}/)[0];
+      setEmpresaStatus((prev) => ({
+        ...prev,
+        [empresa.id]: {
+          loading: false,
+          error: '',
+          success: `DAS de ${periodo} enviado com sucesso para ${empresa.nome}!`,
+        },
+      }));
+
+      // Atualizar o checkbox simples_nacional e o gráfico
+      await handleCheckboxChange(empresa.id, 'simples_nacional');
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.erro || 'Erro ao gerar e enviar o DAS via WhatsApp.';
+      setEmpresaStatus((prev) => ({
+        ...prev,
+        [empresa.id]: { loading: false, error: errorMessage, success: '' },
+      }))
+    }
+  };
+
   // Função para resetar checkboxes e coletar pendências
   useEffect(() => {
     const checkResetDate = () => {
@@ -299,73 +362,6 @@ const InicioPage = () => {
     const interval = setInterval(checkResetDate, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [checkboxState, empresasSelecionadas, userCargo]);
-
-  // Função para atualizar checkbox
-  const handleCheckboxChange = async (empresaId, field) => {
-    console.log(`Clicado ${field} para empresa ${empresaId}`);
-    const newState = {
-      ...checkboxState,
-      [empresaId]: {
-        ...checkboxState[empresaId],
-        [field]: !checkboxState[empresaId][field],
-      },
-    };
-    setCheckboxState(newState);
-
-    try {
-      await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
-        [field]: newState[empresaId][field],
-      });
-    } catch (err) {
-      console.error(`Erro ao atualizar ${field} para empresa ${empresaId}:`, err);
-      setError(
-        err.response?.status === 403
-          ? `Permissão negada para atualizar ${field}. Contate o administrador.`
-          : `Erro ao atualizar ${field} para a empresa.`
-      );
-    }
-  };
-
-  // Função para gerar e enviar DAS via WhatsApp
-  const handleGerarEEnviarDas = async (empresa) => {
-    console.log(`Gerando e enviando DAS para empresa ${empresa.id}`);
-    setEmpresaStatus((prev) => ({
-      ...prev,
-      [empresa.id]: { loading: true, error: '', success: '' },
-    }));
-
-    try {
-      const response = await axiosInstance.post('/api/serpro/gerar-e-enviar-das/', {
-        cnpj: empresa.cnpj.replace(/\D/g, ''),
-      });
-
-      const periodo = response.data.mensagem.match(/\d{2}\/\d{4}/)[0];
-      setEmpresaStatus((prev) => ({
-        ...prev,
-        [empresa.id]: {
-          loading: false,
-          error: '',
-          success: `DAS de ${periodo} enviado com sucesso para ${empresa.nome}!`,
-        },
-      }));
-
-      handleCheckboxChange(empresa.id, 'simples_nacional');
-
-      setTimeout(() => {
-        setEmpresaStatus((prev) => ({
-          ...prev,
-          [empresa.id]: { loading: false, error: '', success: '' },
-        }));
-      }, 5000);
-    } catch (err) {
-      const errorMessage =
-        err.response?.data?.erro || 'Erro ao gerar e enviar o DAS via WhatsApp.';
-      setEmpresaStatus((prev) => ({
-        ...prev,
-        [empresa.id]: { loading: false, error: errorMessage, success: '' },
-      }));
-    }
-  };
 
   // Configuração do Gráfico de Pizza
   const chartOptions = {
@@ -617,7 +613,7 @@ const InicioPage = () => {
                               checkboxState[empresa.id]?.simples_nacional
                                 ? 'text-green-500'
                                 : 'text-gray-300 dark:text-gray-600'
-                            }`}
+                              }`}
                             onClick={() => {
                               if (!empresaStatus[empresa.id]?.loading) {
                                 handleCheckboxChange(empresa.id, 'simples_nacional');
