@@ -1071,75 +1071,125 @@ def gerar_e_enviar_das_view(request):
         return JsonResponse(result, status=200)
     return JsonResponse(result, status=400)
 
-
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def dashboard_pie_chart(request):
+    user = request.user
+    logger.info(f"Usuário {user.username} solicitou dados do gráfico de pizza. Cargo: {user.cargo}")
+
     try:
-        user = request.user
-        if not user.is_authenticated:
-            logger.error("Usuário não autenticado.")
-            return Response({"error": "Usuário não autenticado."}, status=status.HTTP_401_UNAUTHORIZED)
-
-        try:
-            cargo = user.cargo if hasattr(user, 'cargo') else 'admin'
-        except AttributeError:
-            logger.error(f"Modelo User não possui campo 'cargo' para usuário {user.username}. Usando 'admin' como fallback.")
-            cargo = 'admin'
-        logger.info(f"Gerando dados do gráfico de pizza para usuário {user.username} com cargo {cargo}")
-
-        # Get companies the user has access to
         empresas = Empresa.objects.filter(usercompanyaccess__user=user)
         logger.info(f"Empresas encontradas para usuário {user.username}: {empresas.count()}")
 
-        if not empresas.exists():
-            logger.info(f"Nenhuma empresa associada ao usuário {user.username}")
-            return Response({"labels": [], "values": []}, status=status.HTTP_200_OK)
+        if user.cargo == 'pessoal':
+            pendentes = sum(
+                1 for empresa in empresas
+                for field in ['inss', 'fgts', 'folha', 'honorario']
+                if not getattr(empresa, field, False)
+            )
+            concluidas = sum(
+                1 for empresa in empresas
+                for field in ['inss', 'fgts', 'folha', 'honorario']
+                if getattr(empresa, field, False)
+            )
+            labels = ['Pendentes', 'Concluídas']
+            values = [pendentes, concluidas]
+        elif user.cargo == 'fiscal':
+            pendentes = sum(
+                1 for empresa in empresas
+                if not empresa.simples_nacional and empresa.monitorar_simples
+            )
+            concluidas = sum(
+                1 for empresa in empresas
+                if empresa.simples_nacional and empresa.monitorar_simples
+            )
+            labels = ['Pendentes', 'Concluídas']
+            values = [pendentes, concluidas]
+        else:  # admin
+            pendentes_pessoal = sum(
+                1 for empresa in empresas
+                for field in ['inss', 'fgts', 'folha', 'honorario']
+                if not getattr(empresa, field, False)
+            )
+            concluidas_pessoal = sum(
+                1 for empresa in empresas
+                for field in ['inss', 'fgts', 'folha', 'honorario']
+                if getattr(empresa, field, False)
+            )
+            pendentes_fiscal = sum(
+                1 for empresa in empresas
+                if not empresa.simples_nacional and empresa.monitorar_simples
+            )
+            concluidas_fiscal = sum(
+                1 for empresa in empresas
+                if empresa.simples_nacional and empresa.monitorar_simples
+            )
+            labels = ['Pendentes Pessoal', 'Pendentes Fiscal', 'Concluídas Pessoal', 'Concluídas Fiscal']
+            values = [pendentes_pessoal, pendentes_fiscal, concluidas_pessoal, concluidas_fiscal]
 
-        data = {"labels": [], "values": []}
+        logger.info(f"Dados do gráfico para {user.username}: labels={labels}, values={values}")
+        return Response({'labels': labels, 'values': values}, status=status.HTTP_200_OK)
 
-        if cargo == 'pessoal':
-            pendentes_inss = empresas.filter(inss=False).count()
-            pendentes_fgts = empresas.filter(fgts=False).count()
-            pendentes_folha = empresas.filter(folha=False).count()
-            pendentes_honorario = empresas.filter(honorario=False).count()
-            concluidas_inss = empresas.filter(inss=True).count()
-            concluidas_fgts = empresas.filter(fgts=True).count()
-            concluidas_folha = empresas.filter(folha=True).count()
-            concluidas_honorario = empresas.filter(honorario=True).count()
-            pendentes_total = pendentes_inss + pendentes_fgts + pendentes_folha + pendentes_honorario
-            concluidas_total = concluidas_inss + concluidas_fgts + concluidas_folha + concluidas_honorario
-            data["labels"] = ["Pendentes", "Concluídas"]
-            data["values"] = [pendentes_total, concluidas_total]
-            logger.info(f"Dados para Departamento Pessoal: Pendentes={pendentes_total}, Concluídas={concluidas_total}")
-        elif cargo == 'fiscal':
-            pendentes = empresas.filter(simples_nacional=False, monitorar_simples=True).count()
-            concluidas = empresas.filter(simples_nacional=True, monitorar_simples=True).count()
-            data["labels"] = ["Pendentes", "Concluídas"]
-            data["values"] = [pendentes, concluidas]
-            logger.info(f"Dados para Departamento Fiscal: Pendentes={pendentes}, Concluídas={concluidas}")
-        elif cargo == 'admin':
-            pendentes_inss = empresas.filter(inss=False).count()
-            pendentes_fgts = empresas.filter(fgts=False).count()
-            pendentes_folha = empresas.filter(folha=False).count()
-            pendentes_honorario = empresas.filter(honorario=False).count()
-            pendentes_fiscal = empresas.filter(simples_nacional=False, monitorar_simples=True).count()
-            concluidas_inss = empresas.filter(inss=True).count()
-            concluidas_fgts = empresas.filter(fgts=True).count()
-            concluidas_folha = empresas.filter(folha=True).count()
-            concluidas_honorario = empresas.filter(honorario=True).count()
-            concluidas_fiscal = empresas.filter(simples_nacional=True, monitorar_simples=True).count()
-            pendentes_pessoal = pendentes_inss + pendentes_fgts + pendentes_folha + pendentes_honorario
-            concluidas_pessoal = concluidas_inss + concluidas_fgts + concluidas_folha + concluidas_honorario
-            data["labels"] = ["Pendentes Pessoal", "Pendentes Fiscal", "Concluídas Pessoal", "Concluídas Fiscal"]
-            data["values"] = [pendentes_pessoal, pendentes_fiscal, concluidas_pessoal, concluidas_fiscal]
-            logger.info(f"Dados para Administrador: Pendentes Pessoal={pendentes_pessoal}, Pendentes Fiscal={pendentes_fiscal}, "
-                        f"Concluídas Pessoal={concluidas_pessoal}, Concluídas Fiscal={concluidas_fiscal}")
-        else:
-            logger.error(f"Cargo inválido: {cargo}")
-            return Response({"error": "Cargo inválido."}, status=status.HTTP_400_BAD_REQUEST)
-
-        return Response(data, status=status.HTTP_200_OK)
     except Exception as e:
-        logger.error(f"Erro ao gerar dados do gráfico de pizza: {str(e)}")
-        return Response({"error": f"Erro interno ao gerar dados do gráfico: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"Erro ao processar dados do gráfico para {user.username}: {str(e)}")
+        return Response(
+            {'error': 'Erro ao processar dados do gráfico de pizza.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
     
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_summary(request):
+    user = request.user
+    try:
+        empresas = Empresa.objects.filter(usercompanyaccess__user=user)
+        total_empresas = empresas.count()
+        hoje = timezone.now().date()
+        dia = hoje.day
+        mes = hoje.month
+        ano = hoje.year
+
+        if user.cargo == 'fiscal':
+            vencimento_dia = 25
+        else:
+            vencimento_dia = 15
+
+        data_vencimento = datetime(ano, mes, vencimento_dia).date()
+        if dia > vencimento_dia:
+            if mes == 12:
+                mes = 1
+                ano += 1
+            else:
+                mes += 1
+            data_vencimento = datetime(ano, mes, vencimento_dia).date()
+
+        dias_ate_vencimento = (data_vencimento - hoje).days
+
+        pendentes = 0
+        if user.cargo == 'pessoal' or user.cargo == 'admin':
+            for empresa in empresas:
+                if not empresa.inss:
+                    pendentes += 1
+                if not empresa.fgts:
+                    pendentes += 1
+                if not empresa.folha:
+                    pendentes += 1
+                if not empresa.honorario:
+                    pendentes += 1
+        if user.cargo == 'fiscal' or user.cargo == 'admin':
+            for empresa in empresas:
+                if not empresa.simples_nacional and empresa.monitorar_simples:
+                    pendentes += 1
+
+        return Response({
+            'total_empresas': total_empresas,
+            'tarefas_pendentes': pendentes,
+            'dias_ate_vencimento': dias_ate_vencimento
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"Erro ao processar resumo do dashboard para {user.username}: {str(e)}")
+        return Response(
+            {'error': 'Erro ao processar resumo do dashboard.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

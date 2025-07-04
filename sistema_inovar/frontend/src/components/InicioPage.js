@@ -10,7 +10,7 @@ import {
   CheckCircleIcon,
   PaperAirplaneIcon,
   BellIcon,
-  RefreshIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -76,7 +76,7 @@ const NotificationDropdown = ({ notifications, markAsRead, clearNotifications })
 const InicioPage = () => {
   const [data, setData] = useState(null);
   const [empresasSelecionadas, setEmpresasSelecionadas] = useState([]);
-  const [userCargo, setUserCargo] = useState('admin');
+  const [userCargo, setUserCargo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [empresaStatus, setEmpresaStatus] = useState({});
@@ -123,6 +123,9 @@ const InicioPage = () => {
         };
       });
       setCheckboxState(initialCheckboxState);
+
+      const userResponse = await axiosInstance.get('/api/current-user/');
+      setUserCargo(userResponse.data.cargo || 'admin');
     } catch (err) {
       const errorMessage =
         err.response?.data?.error || 'Não foi possível carregar os dados do dashboard.';
@@ -147,8 +150,9 @@ const InicioPage = () => {
   const fetchChartData = async () => {
     try {
       const response = await axiosInstance.get('/api/dashboard/pie-chart/');
+      console.log('Resposta do backend /api/dashboard/pie-chart/:', response.data);
       const newChartData = {
-        labels: userCargo === 'admin' ? response.data.labels : ['Pendentes', 'Concluídas'],
+        labels: response.data.labels,
         datasets: [{
           data: response.data.values,
           backgroundColor: userCargo === 'admin' 
@@ -160,7 +164,6 @@ const InicioPage = () => {
       };
       setChartData(newChartData);
       setChartKey(prev => prev + 1);
-      console.log('Dados do gráfico recebidos:', response.data);
     } catch (error) {
       console.error('Erro ao buscar dados do gráfico:', error);
       setError('Erro ao carregar dados do gráfico de pizza.');
@@ -206,6 +209,8 @@ const InicioPage = () => {
 
   // Calcular tarefas pendentes e dias até vencimento
   useEffect(() => {
+    if (!userCargo) return;
+
     let pendentes = 0;
     Object.keys(checkboxState).forEach((empresaId) => {
       const checks = checkboxState[empresaId];
@@ -220,6 +225,7 @@ const InicioPage = () => {
       }
     });
     setTarefasPendentes(pendentes);
+    console.log('Tarefas pendentes calculadas:', pendentes);
 
     const today = new Date();
     const day = today.getDate();
@@ -254,7 +260,7 @@ const InicioPage = () => {
         [field]: newState[empresaId][field],
       });
       console.log(`PATCH /api/empresas/${empresaId}/ response:`, response.data);
-      await fetchChartData();
+      await fetchChartData(); // Recarrega os dados do gráfico após a atualização
     } catch (err) {
       console.error(`Erro ao atualizar ${field} para empresa ${empresaId}:`, err);
       setError(
@@ -262,6 +268,8 @@ const InicioPage = () => {
           ? `Permissão negada para atualizar ${field}. Contate o administrador.`
           : `Erro ao atualizar ${field} para a empresa.`
       );
+      // Reverte o estado se houver erro
+      setCheckboxState(checkboxState);
     }
   };
 
@@ -278,7 +286,7 @@ const InicioPage = () => {
         cnpj: empresa.cnpj.replace(/\D/g, ''),
       });
 
-      const periodo = response.data.mensagem.match(/\d{2}\/\d{4}/)[0];
+      const periodo = response.data.mensagem.match(/\d{2}\/\d{4}/)?.[0] || 'período desconhecido';
       setEmpresaStatus((prev) => ({
         ...prev,
         [empresa.id]: {
@@ -302,13 +310,21 @@ const InicioPage = () => {
   // Função para recarregar empresas e gráfico
   const handleRefresh = async () => {
     setLoading(true);
-    await fetchData();
-    await fetchChartData();
-    setLoading(false);
+    try {
+      await fetchData();
+      await fetchChartData();
+    } catch (err) {
+      console.error('Erro ao recarregar dados:', err);
+      setError('Erro ao recarregar dados do dashboard.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Função para resetar checkboxes e coletar pendências
   useEffect(() => {
+    if (!userCargo) return;
+
     const checkResetDate = () => {
       console.log('Verificando reset de checkboxes...');
       const today = new Date();
@@ -348,6 +364,7 @@ const InicioPage = () => {
 
       if (JSON.stringify(updatedCheckboxState) !== JSON.stringify(checkboxState)) {
         setCheckboxState(updatedCheckboxState);
+        fetchChartData(); // Atualiza o gráfico após reset
       }
 
       if (pendencias.length > 0) {
@@ -398,7 +415,7 @@ const InicioPage = () => {
     return () => observer.disconnect();
   }, []);
 
-  if (loading) {
+  if (loading || !userCargo) {
     return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando Dashboard...</div>;
   }
 
@@ -430,7 +447,7 @@ const InicioPage = () => {
           className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
           title="Recarregar dados"
         >
-          <RefreshIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+          <ArrowPathIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
         </button>
         <button
           onClick={() => setShowNotifications(!showNotifications)}
@@ -502,7 +519,7 @@ const InicioPage = () => {
                     <th className="p-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 w-2/5">
                       CNPJ
                     </th>
-                    {(isDepartamentoPessoal || isAdministrador) && (
+                    {isDepartamentoPessoal && (
                       <>
                         <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
                           INSS
@@ -518,15 +535,37 @@ const InicioPage = () => {
                         </th>
                       </>
                     )}
-                    {(isDepartamentoFiscal || isAdministrador) && (
+                    {isDepartamentoFiscal && (
                       <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/5">
                         Simples Nacional
                       </th>
                     )}
-                    {(isDepartamentoFiscal || isAdministrador) && (
+                    {isDepartamentoFiscal && (
                       <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
                         Enviar DAS
                       </th>
+                    )}
+                    {isAdministrador && (
+                      <>
+                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
+                          INSS
+                        </th>
+                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
+                          FGTS
+                        </th>
+                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
+                          Folha
+                        </th>
+                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
+                          Honorário
+                        </th>
+                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
+                          Simples Nacional
+                        </th>
+                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
+                          Enviar DAS
+                        </th>
+                      </>
                     )}
                   </tr>
                 </thead>
@@ -552,7 +591,7 @@ const InicioPage = () => {
                       <td className="p-2 text-sm text-gray-600 dark:text-gray-300">
                         {empresa.cnpj}
                       </td>
-                      {(isDepartamentoPessoal || isAdministrador) && (
+                      {isDepartamentoPessoal && (
                         <>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
@@ -612,66 +651,183 @@ const InicioPage = () => {
                           </td>
                         </>
                       )}
-                      {(isDepartamentoFiscal || isAdministrador) && (
-                        <td className="p-2 text-center">
-                          <CheckCircleIcon
-                            className={`h-5 w-5 mx-auto cursor-pointer ${
-                              checkboxState[empresa.id]?.simples_nacional
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
+                      {isDepartamentoFiscal && (
+                        <>
+                          <td className="p-2 text-center">
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.simples_nacional
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
                               }`}
-                            onClick={() => {
-                              if (!empresaStatus[empresa.id]?.loading) {
-                                handleCheckboxChange(empresa.id, 'simples_nacional');
-                              }
-                            }}
-                          />
-                        </td>
-                      )}
-                      {(isDepartamentoFiscal || isAdministrador) && (
-                        <td className="p-2 text-center">
-                          <button
-                            onClick={() => handleGerarEEnviarDas(empresa)}
-                            disabled={empresaStatus[empresa.id]?.loading || false}
-                            className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Gerar e enviar DAS via WhatsApp"
-                          >
-                            {empresaStatus[empresa.id]?.loading ? (
-                              <svg
-                                className="animate-spin h-5 w-5 text-indigo-500 dark:text-indigo-400 mx-auto"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 24 24"
-                              >
-                                <circle
-                                  className="opacity-25"
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                />
-                                <path
-                                  className="opacity-75"
-                                  fill="currentColor"
-                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                />
-                              </svg>
-                            ) : (
-                              <PaperAirplaneIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'simples_nacional');
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            <button
+                              onClick={() => handleGerarEEnviarDas(empresa)}
+                              disabled={empresaStatus[empresa.id]?.loading || false}
+                              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Gerar e enviar DAS via WhatsApp"
+                            >
+                              {empresaStatus[empresa.id]?.loading ? (
+                                <svg
+                                  className="animate-spin h-5 w-5 text-indigo-500 dark:text-indigo-400 mx-auto"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                  />
+                                  <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                  />
+                                </svg>
+                              ) : (
+                                <PaperAirplaneIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
+                              )}
+                            </button>
+                            {empresaStatus[empresa.id]?.success && (
+                              <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                                {empresaStatus[empresa.id].success}
+                              </div>
                             )}
-                          </button>
-                          {empresaStatus[empresa.id]?.success && (
-                            <div className="mt-1 text-xs text-green-600 dark:text-green-400">
-                              {empresaStatus[empresa.id].success}
-                            </div>
-                          )}
-                          {empresaStatus[empresa.id]?.error && (
-                            <div className="mt-1 text-xs text-red-600 dark:text-red-400">
-                              {empresaStatus[empresa.id].error}
-                            </div>
-                          )}
-                        </td>
+                            {empresaStatus[empresa.id]?.error && (
+                              <div className="mt-1 text-xs text-red-600 dark:text-red-400">
+                                {empresaStatus[empresa.id].error}
+                              </div>
+                            )}
+                          </td>
+                        </>
+                      )}
+                      {isAdministrador && (
+                        <>
+                          <td className="p-2 text-center">
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.inss
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'inss');
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.fgts
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'fgts');
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.folha
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'folha');
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.honorario
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'honorario');
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            <CheckCircleIcon
+                              className={`h-5 w-5 mx-auto cursor-pointer ${
+                                checkboxState[empresa.id]?.simples_nacional
+                                  ? 'text-green-500'
+                                  : 'text-gray-300 dark:text-gray-600'
+                              }`}
+                              onClick={() => {
+                                if (!empresaStatus[empresa.id]?.loading) {
+                                  handleCheckboxChange(empresa.id, 'simples_nacional');
+                                }
+                              }}
+                            />
+                          </td>
+                          <td className="p-2 text-center">
+                            <button
+                              onClick={() => handleGerarEEnviarDas(empresa)}
+                              disabled={empresaStatus[empresa.id]?.loading || false}
+                              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="Gerar e enviar DAS via WhatsApp"
+                            >
+                              {empresaStatus[empresa.id]?.loading ? (
+                                <svg
+                                  className="animate-spin h-5 w-5 text-indigo-500 dark:text-indigo-400 mx-auto"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                  />
+                                  <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                  />
+                                </svg>
+                              ) : (
+                                <PaperAirplaneIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
+                              )}
+                            </button>
+                            {empresaStatus[empresa.id]?.success && (
+                              <div className="mt-1 text-xs text-green-600 dark:text-green-400">
+                                {empresaStatus[empresa.id].success}
+                              </div>
+                            )}
+                            {empresaStatus[empresa.id]?.error && (
+                              <div className="mt-1 text-xs text-red-600 dark:text-red-400">
+                                {empresaStatus[empresa.id].error}
+                              </div>
+                            )}
+                          </td>
+                        </>
                       )}
                     </motion.tr>
                   ))}
