@@ -13,6 +13,7 @@ from .views import (
     gerenciamento_atribuicao_data,
     salvar_atribuicoes,
     gerar_e_enviar_das_view,
+    dashboard_pie_chart,
 
 )
 from empresas.views import PendenciaAPIView
@@ -30,4 +31,5 @@ urlpatterns = [
     path('salvar-atribuicoes/', salvar_atribuicoes, name='salvar_atribuicoes'),
     path('gerar-e-enviar-das/', gerar_e_enviar_das_view, name='gerar_e_enviar_das'),
     path('pendencias/', PendenciaAPIView.as_view(), name='pendencias'),
+    path('api/dashboard/pie-chart/', dashboard_pie_chart, name='dashboard_pie_chart'),
 ]
