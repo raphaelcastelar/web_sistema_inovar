@@ -3,14 +3,22 @@ import base64
 import json
 import os
 import tempfile
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.cache import cache
 from empresas.models import Empresa
 from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 import logging
+from empresas.models import Empresa, Notification, UserCompanyAccess
+from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
+from django.contrib.auth import get_user_model
+from rest_framework.response import Response
+from rest_framework import status
 
 
 logger = logging.getLogger(__name__)
+Funcionario = get_user_model()
 
 AUTH_URL = 'https://autenticacao.sapi.serpro.gov.br/authenticate'
 GATEWAY_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1'
@@ -503,34 +511,37 @@ def declarar_das_serpro(cnpj_empresa, periodo_apuracao, dados_declaracao):
 
 def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
     """
-    Gera o DAS para o mês anterior ao atual e envia automaticamente via WhatsApp.
+    Gera o DAS para o mês anterior ao atual, envia automaticamente via WhatsApp,
+    marca o campo simples_nacional da empresa como True e cria notificações.
     """
-    from datetime import datetime
-    from dateutil.relativedelta import relativedelta
-    import logging
-    import os
-    import tempfile
-    from empresas.models import Empresa
-    from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
-
-    logger = logging.getLogger(__name__)
-
     try:
-        # Sempre usar o mês anterior ao atual
-        data_mes_anterior = datetime.now().replace(day=1) - relativedelta(months=1)
-        periodo_apuracao = data_mes_anterior.strftime('%Y%m')
-        logger.info(f"Período de apuração definido como mês anterior: {periodo_apuracao}")
+        # Validar CNPJ
+        if not cnpj_empresa:
+            logger.error("CNPJ não fornecido.")
+            return {"sucesso": False, "erro": "CNPJ é obrigatório."}
 
         # Normalizar CNPJ
         cnpj_empresa_clean = ''.join(filter(str.isdigit, cnpj_empresa))
+        if len(cnpj_empresa_clean) != 14:
+            logger.error(f"CNPJ inválido: {cnpj_empresa_clean}")
+            return {"sucesso": False, "erro": "CNPJ inválido. Deve conter 14 dígitos."}
+        
         cnpj_empresa_formatted = (
             f"{cnpj_empresa_clean[:2]}.{cnpj_empresa_clean[2:5]}.{cnpj_empresa_clean[5:8]}/"
             f"{cnpj_empresa_clean[8:12]}-{cnpj_empresa_clean[12:]}"
         )
         logger.info(f"Buscando empresa com CNPJ: {cnpj_empresa_formatted}")
 
-        empresa = Empresa.objects.get(cnpj=cnpj_empresa_formatted)
+        # Buscar empresa
+        try:
+            empresa = Empresa.objects.get(cnpj=cnpj_empresa_formatted)
+        except Empresa.DoesNotExist:
+            logger.error(f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada.")
+            return {"sucesso": False, "erro": f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada."}
+
+        # Validar telefone
         if not empresa.telefone:
+            logger.error(f"A empresa {empresa.nome} não possui número de telefone cadastrado.")
             return {"sucesso": False, "erro": f"A empresa {empresa.nome} não possui número de telefone cadastrado."}
 
         telefone = empresa.telefone
@@ -538,12 +549,29 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
             telefone = f'+{telefone}'
         logger.info(f"Número de telefone normalizado: {telefone}")
 
+        # Definir período de apuração (mês anterior)
+        if not periodo_apuracao:
+            data_mes_anterior = datetime.now().replace(day=1) - relativedelta(months=1)
+            periodo_apuracao = data_mes_anterior.strftime('%m/%Y')  # Formato MM/YYYY
+            periodo_apuracao_alt = data_mes_anterior.strftime('%Y%m')  # Formato YYYYMM para compatibilidade
+            logger.info(f"Período de apuração definido como mês anterior: {periodo_apuracao}")
+        else:
+            periodo_apuracao_alt = ''.join(filter(str.isdigit, periodo_apuracao))  # Para compatibilidade com YYYYMM
+            logger.info(f"Período de apuração fornecido: {periodo_apuracao}")
+
+        # Tentar gerar DAS com formato MM/YYYY, depois com YYYYMM se necessário
         das_result = gerar_das_serpro(cnpj_empresa_clean, periodo_apuracao)
         if not das_result["sucesso"]:
-            return das_result
+            logger.info(f"Tentando formato alternativo de período: {periodo_apuracao_alt}")
+            das_result = gerar_das_serpro(cnpj_empresa_clean, periodo_apuracao_alt)
+            if not das_result["sucesso"]:
+                logger.error(f"Falha ao gerar DAS: {das_result['erro']}")
+                return das_result
 
         pdf_content = das_result["pdf_content"]
         filename = das_result["filename"]
+
+        # Processar o arquivo PDF
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
             temp_file.write(pdf_content)
             temp_file_path = temp_file.name
@@ -551,6 +579,7 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
         try:
             media_id, _ = upload_media_to_whatsapp(temp_file_path, filename)
             if not media_id:
+                logger.error("Falha ao fazer upload do PDF para o WhatsApp.")
                 return {"sucesso": False, "erro": "Falha ao fazer upload do PDF para o WhatsApp."}
 
             message_id, error = send_whatsapp_document_template_message(
@@ -562,18 +591,32 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
             )
 
             if not message_id:
+                logger.error(f"Falha ao enviar o DAS via WhatsApp: {error}")
                 return {"sucesso": False, "erro": f"Falha ao enviar o DAS via WhatsApp: {error}"}
 
+            # Marcar simples_nacional como True
+            empresa.simples_nacional = True
+            empresa.save()
+            logger.info(f"Campo simples_nacional marcado como True para a empresa {empresa.nome}.")
+
+            # Criar notificação para todos os funcionários associados
+            users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=empresa)
+            logger.info(f"Enviando DAS para '{empresa.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
+            for user in users_to_notify:
+                Notification.objects.create(
+                    user=user,
+                    message=f"DAS de {periodo_apuracao} enviado para a empresa '{empresa.nome}'."
+                )
+            logger.info(f"Notificações criadas para envio do DAS da empresa '{empresa.nome}'.")
+
             logger.info(f"DAS gerado e enviado com sucesso para {empresa.nome} ({cnpj_empresa_formatted}) via WhatsApp.")
-            return {"sucesso": True, "mensagem": f"DAS de {periodo_apuracao[4:6]}/{periodo_apuracao[:4]} enviado com sucesso para {empresa.nome}."}
+            return {"sucesso": True, "mensagem": f"DAS de {periodo_apuracao} enviado com sucesso para {empresa.nome}."}
         finally:
             if os.path.exists(temp_file_path):
                 os.unlink(temp_file_path)
-    except Empresa.DoesNotExist:
-        logger.error(f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada.")
-        return {"sucesso": False, "erro": f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada."}
     except Exception as e:
         logger.error(f"Erro ao gerar e enviar DAS: {e}")
         return {"sucesso": False, "erro": "Erro ao processar a geração e envio do DAS via WhatsApp."}
+
 
     

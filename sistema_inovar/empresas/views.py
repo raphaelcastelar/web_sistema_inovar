@@ -1043,20 +1043,31 @@ def declarar_das_api(request):
     
 @csrf_exempt
 def gerar_e_enviar_das_view(request):
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            cnpj = data.get('cnpj')
-            periodo = data.get('periodo')
-            if not cnpj or not periodo:
-                return JsonResponse({'error': 'CNPJ e período são obrigatórios.'}, status=400)
-            result = gerar_e_enviar_das(cnpj, periodo)
-            if result['sucesso']:
-                return JsonResponse({'message': result['mensagem']}, status=200)
-            else:
-                return JsonResponse({'error': result['erro']}, status=400)
-        except Exception as e:
-            logger.error(f"Erro ao processar gerar_e_enviar_das: {e}")
-            return JsonResponse({'error': 'Erro interno ao processar a requisição.'}, status=500)
-    return JsonResponse({'error': 'Método não permitido.'}, status=405)
+    """
+    View to handle DAS generation and sending via WhatsApp.
+    """
+    if request.method != 'POST':
+        logger.error("Método não permitido. Apenas POST é aceito.")
+        return JsonResponse({"sucesso": False, "erro": "Método não permitido."}, status=405)
+
+    try:
+        # Parse JSON data from request.body
+        data = json.loads(request.body)
+        cnpj_empresa = data.get('cnpj')
+        periodo_apuracao = data.get('periodo_apuracao')
+    except json.JSONDecodeError:
+        logger.error("Corpo da requisição não é um JSON válido.")
+        return JsonResponse({"sucesso": False, "erro": "Corpo da requisição não é um JSON válido."}, status=400)
+    except Exception as e:
+        logger.error(f"Erro ao processar dados da requisição: {e}")
+        return JsonResponse({"sucesso": False, "erro": "Erro ao processar dados da requisição."}, status=400)
+
+    if not cnpj_empresa:
+        logger.error("CNPJ não fornecido na requisição.")
+        return JsonResponse({"sucesso": False, "erro": "CNPJ é obrigatório."}, status=400)
+
+    result = gerar_e_enviar_das(cnpj_empresa, periodo_apuracao)
+    if result["sucesso"]:
+        return JsonResponse(result, status=200)
+    return JsonResponse(result, status=400)
     
