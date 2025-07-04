@@ -1074,16 +1074,12 @@ def gerar_e_enviar_das_view(request):
 
 @api_view(['GET'])
 def dashboard_pie_chart(request):
-    """
-    Returns data for a pie chart based on the user's role.
-    """
     try:
         user = request.user
         if not user.is_authenticated:
             logger.error("Usuário não autenticado.")
             return Response({"error": "Usuário não autenticado."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Verificar se o campo 'cargo' existe
         try:
             cargo = user.cargo if hasattr(user, 'cargo') else 'admin'
         except AttributeError:
@@ -1094,14 +1090,14 @@ def dashboard_pie_chart(request):
         # Get companies the user has access to
         empresas = Empresa.objects.filter(usercompanyaccess__user=user)
         logger.info(f"Empresas encontradas para usuário {user.username}: {empresas.count()}")
+
         if not empresas.exists():
             logger.info(f"Nenhuma empresa associada ao usuário {user.username}")
             return Response({"labels": [], "values": []}, status=status.HTTP_200_OK)
 
-        data = {"labels": ["Pendentes", "Concluídas"], "values": [0, 0]}
+        data = {"labels": [], "values": []}
 
         if cargo == 'pessoal':
-            # Departamento Pessoal: Usar campos inss, fgts, folha, honorario de Empresa
             pendentes_inss = empresas.filter(inss=False).count()
             pendentes_fgts = empresas.filter(fgts=False).count()
             pendentes_folha = empresas.filter(folha=False).count()
@@ -1112,16 +1108,16 @@ def dashboard_pie_chart(request):
             concluidas_honorario = empresas.filter(honorario=True).count()
             pendentes_total = pendentes_inss + pendentes_fgts + pendentes_folha + pendentes_honorario
             concluidas_total = concluidas_inss + concluidas_fgts + concluidas_folha + concluidas_honorario
+            data["labels"] = ["Pendentes", "Concluídas"]
             data["values"] = [pendentes_total, concluidas_total]
             logger.info(f"Dados para Departamento Pessoal: Pendentes={pendentes_total}, Concluídas={concluidas_total}")
         elif cargo == 'fiscal':
-            # Departamento Fiscal: Simples Nacional pending vs. completed
             pendentes = empresas.filter(simples_nacional=False, monitorar_simples=True).count()
             concluidas = empresas.filter(simples_nacional=True, monitorar_simples=True).count()
+            data["labels"] = ["Pendentes", "Concluídas"]
             data["values"] = [pendentes, concluidas]
             logger.info(f"Dados para Departamento Fiscal: Pendentes={pendentes}, Concluídas={concluidas}")
         elif cargo == 'admin':
-            # Administrador: All pending tasks (personnel + fiscal)
             pendentes_inss = empresas.filter(inss=False).count()
             pendentes_fgts = empresas.filter(fgts=False).count()
             pendentes_folha = empresas.filter(folha=False).count()
