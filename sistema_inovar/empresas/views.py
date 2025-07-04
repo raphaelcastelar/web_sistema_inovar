@@ -1083,11 +1083,17 @@ def dashboard_pie_chart(request):
             logger.error("Usuário não autenticado.")
             return Response({"error": "Usuário não autenticado."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        cargo = getattr(user, 'cargo', 'admin')  # Fallback para 'admin' se cargo não existir
+        # Verificar se o campo 'cargo' existe
+        try:
+            cargo = user.cargo if hasattr(user, 'cargo') else 'admin'
+        except AttributeError:
+            logger.error(f"Modelo User não possui campo 'cargo' para usuário {user.username}. Usando 'admin' como fallback.")
+            cargo = 'admin'
         logger.info(f"Gerando dados do gráfico de pizza para usuário {user.username} com cargo {cargo}")
 
         # Get companies the user has access to
         empresas = Empresa.objects.filter(usercompanyaccess__user=user)
+        logger.info(f"Empresas encontradas para usuário {user.username}: {empresas.count()}")
         if not empresas.exists():
             logger.info(f"Nenhuma empresa associada ao usuário {user.username}")
             return Response({"labels": [], "values": []}, status=status.HTTP_200_OK)
@@ -1095,11 +1101,19 @@ def dashboard_pie_chart(request):
         data = {"labels": ["Pendentes", "Concluídas"], "values": [0, 0]}
 
         if cargo == 'pessoal':
-            # Departamento Pessoal: Pending vs. completed tasks
-            pendentes = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=False).count()
-            concluidas = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=True).count()
-            data["values"] = [pendentes, concluidas]
-            logger.info(f"Dados para Departamento Pessoal: Pendentes={pendentes}, Concluídas={concluidas}")
+            # Departamento Pessoal: Usar campos inss, fgts, folha, honorario de Empresa
+            pendentes_inss = empresas.filter(inss=False).count()
+            pendentes_fgts = empresas.filter(fgts=False).count()
+            pendentes_folha = empresas.filter(folha=False).count()
+            pendentes_honorario = empresas.filter(honorario=False).count()
+            concluidas_inss = empresas.filter(inss=True).count()
+            concluidas_fgts = empresas.filter(fgts=True).count()
+            concluidas_folha = empresas.filter(folha=True).count()
+            concluidas_honorario = empresas.filter(honorario=True).count()
+            pendentes_total = pendentes_inss + pendentes_fgts + pendentes_folha + pendentes_honorario
+            concluidas_total = concluidas_inss + concluidas_fgts + concluidas_folha + concluidas_honorario
+            data["values"] = [pendentes_total, concluidas_total]
+            logger.info(f"Dados para Departamento Pessoal: Pendentes={pendentes_total}, Concluídas={concluidas_total}")
         elif cargo == 'fiscal':
             # Departamento Fiscal: Simples Nacional pending vs. completed
             pendentes = empresas.filter(simples_nacional=False, monitorar_simples=True).count()
@@ -1108,10 +1122,18 @@ def dashboard_pie_chart(request):
             logger.info(f"Dados para Departamento Fiscal: Pendentes={pendentes}, Concluídas={concluidas}")
         elif cargo == 'admin':
             # Administrador: All pending tasks (personnel + fiscal)
-            pendentes_pessoal = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=False).count()
+            pendentes_inss = empresas.filter(inss=False).count()
+            pendentes_fgts = empresas.filter(fgts=False).count()
+            pendentes_folha = empresas.filter(folha=False).count()
+            pendentes_honorario = empresas.filter(honorario=False).count()
             pendentes_fiscal = empresas.filter(simples_nacional=False, monitorar_simples=True).count()
-            concluidas_pessoal = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=True).count()
+            concluidas_inss = empresas.filter(inss=True).count()
+            concluidas_fgts = empresas.filter(fgts=True).count()
+            concluidas_folha = empresas.filter(folha=True).count()
+            concluidas_honorario = empresas.filter(honorario=True).count()
             concluidas_fiscal = empresas.filter(simples_nacional=True, monitorar_simples=True).count()
+            pendentes_pessoal = pendentes_inss + pendentes_fgts + pendentes_folha + pendentes_honorario
+            concluidas_pessoal = concluidas_inss + concluidas_fgts + concluidas_folha + concluidas_honorario
             data["labels"] = ["Pendentes Pessoal", "Pendentes Fiscal", "Concluídas Pessoal", "Concluídas Fiscal"]
             data["values"] = [pendentes_pessoal, pendentes_fiscal, concluidas_pessoal, concluidas_fiscal]
             logger.info(f"Dados para Administrador: Pendentes Pessoal={pendentes_pessoal}, Pendentes Fiscal={pendentes_fiscal}, "
