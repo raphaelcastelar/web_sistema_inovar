@@ -10,6 +10,7 @@ import {
   CheckCircleIcon,
   PaperAirplaneIcon,
   BellIcon,
+  RefreshIcon,
 } from '@heroicons/react/24/outline';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
@@ -88,12 +89,12 @@ const InicioPage = () => {
     labels: [],
     datasets: [{
       data: [],
-      backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'],
-      borderColor: ['#fff', '#fff', '#fff', '#fff'],
+      backgroundColor: ['#FF6384', '#36A2EB'],
+      borderColor: ['#fff', '#fff'],
       borderWidth: 1,
     }],
   });
-  const [chartKey, setChartKey] = useState(0); // Added to force chart re-render
+  const [chartKey, setChartKey] = useState(0);
   const navigate = useNavigate();
 
   const containerVariants = {
@@ -101,6 +102,36 @@ const InicioPage = () => {
     visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
   };
   const itemVariants = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } };
+
+  // Função para buscar dados do dashboard
+  const fetchData = async () => {
+    try {
+      const dashboardResponse = await axiosInstance.get('/api/dashboard-summary/');
+      setData(dashboardResponse.data);
+
+      const empresasResponse = await axiosInstance.get('/api/empresas/');
+      setEmpresasSelecionadas(empresasResponse.data);
+
+      const initialCheckboxState = {};
+      empresasResponse.data.forEach((empresa) => {
+        initialCheckboxState[empresa.id] = {
+          inss: empresa.inss || false,
+          fgts: empresa.fgts || false,
+          folha: empresa.folha || false,
+          honorario: empresa.honorario || false,
+          simples_nacional: empresa.simples_nacional || false,
+        };
+      });
+      setCheckboxState(initialCheckboxState);
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.error || 'Não foi possível carregar os dados do dashboard.';
+      setError(errorMessage);
+      console.error('Erro ao carregar dados:', err.response || err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Buscar notificações do backend
   const fetchNotifications = async () => {
@@ -117,7 +148,7 @@ const InicioPage = () => {
     try {
       const response = await axiosInstance.get('/api/dashboard/pie-chart/');
       const newChartData = {
-        labels: response.data.labels,
+        labels: userCargo === 'admin' ? response.data.labels : ['Pendentes', 'Concluídas'],
         datasets: [{
           data: response.data.values,
           backgroundColor: userCargo === 'admin' 
@@ -128,7 +159,7 @@ const InicioPage = () => {
         }],
       };
       setChartData(newChartData);
-      setChartKey(prev => prev + 1); // Increment key to force re-render
+      setChartKey(prev => prev + 1);
       console.log('Dados do gráfico recebidos:', response.data);
     } catch (error) {
       console.error('Erro ao buscar dados do gráfico:', error);
@@ -137,6 +168,7 @@ const InicioPage = () => {
   };
 
   useEffect(() => {
+    fetchData();
     fetchNotifications();
     fetchChartData();
     const interval = setInterval(() => {
@@ -171,47 +203,6 @@ const InicioPage = () => {
   };
 
   const unreadCount = notifications.filter((notif) => !notif.read).length;
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const dashboardResponse = await axiosInstance.get('/api/dashboard-summary/');
-        setData(dashboardResponse.data);
-
-        const empresasResponse = await axiosInstance.get('/api/empresas/');
-        setEmpresasSelecionadas(empresasResponse.data);
-
-        const initialCheckboxState = {};
-        empresasResponse.data.forEach((empresa) => {
-          initialCheckboxState[empresa.id] = {
-            inss: empresa.inss || false,
-            fgts: empresa.fgts || false,
-            folha: empresa.folha || false,
-            honorario: empresa.honorario || false,
-            simples_nacional: empresa.simples_nacional || false,
-          };
-        });
-        setCheckboxState(initialCheckboxState);
-
-        try {
-          const userResponse = await axiosInstance.get('/api/current-user/');
-          setUserCargo(userResponse.data.cargo || 'admin');
-        } catch (userErr) {
-          console.error('Erro ao buscar função do usuário:', userErr);
-          setUserCargo('admin');
-        }
-      } catch (err) {
-        const errorMessage =
-          err.response?.data?.error || 'Não foi possível carregar os dados do dashboard.';
-        setError(errorMessage);
-        console.error('Erro ao carregar dados:', err.response || err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
 
   // Calcular tarefas pendentes e dias até vencimento
   useEffect(() => {
@@ -306,6 +297,14 @@ const InicioPage = () => {
         [empresa.id]: { loading: false, error: errorMessage, success: '' },
       }))
     }
+  };
+
+  // Função para recarregar empresas e gráfico
+  const handleRefresh = async () => {
+    setLoading(true);
+    await fetchData();
+    await fetchChartData();
+    setLoading(false);
   };
 
   // Função para resetar checkboxes e coletar pendências
@@ -425,7 +424,14 @@ const InicioPage = () => {
       variants={containerVariants}
       className="p-6 md:p-8 animate-fade-in relative"
     >
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 flex space-x-2">
+        <button
+          onClick={handleRefresh}
+          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+          title="Recarregar dados"
+        >
+          <RefreshIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+        </button>
         <button
           onClick={() => setShowNotifications(!showNotifications)}
           className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
@@ -458,7 +464,7 @@ const InicioPage = () => {
         <StatCard
           icon={UsersIcon}
           title="Total de Clientes"
-          value={data?.kpis?.total_clientes}
+          value={empresasSelecionadas.length}
           color="bg-blue-500"
         />
         <StatCard
@@ -635,7 +641,7 @@ const InicioPage = () => {
                                 className="animate-spin h-5 w-5 text-indigo-500 dark:text-indigo-400 mx-auto"
                                 xmlns="http://www.w3.org/2000/svg"
                                 fill="none"
-                                viewBox="0 0 24 24"
+                                viewBox="0 24 24"
                               >
                                 <circle
                                   className="opacity-25"
