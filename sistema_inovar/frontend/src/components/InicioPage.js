@@ -93,6 +93,7 @@ const InicioPage = () => {
       borderWidth: 1,
     }],
   });
+  const [chartKey, setChartKey] = useState(0); // Added to force chart re-render
   const navigate = useNavigate();
 
   const containerVariants = {
@@ -115,15 +116,19 @@ const InicioPage = () => {
   const fetchChartData = async () => {
     try {
       const response = await axiosInstance.get('/api/dashboard/pie-chart/');
-      setChartData({
+      const newChartData = {
         labels: response.data.labels,
         datasets: [{
           data: response.data.values,
-          backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'],
+          backgroundColor: userCargo === 'admin' 
+            ? ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
+            : ['#FF6384', '#36A2EB'],
           borderColor: ['#fff', '#fff', '#fff', '#fff'],
           borderWidth: 1,
         }],
-      });
+      };
+      setChartData(newChartData);
+      setChartKey(prev => prev + 1); // Increment key to force re-render
       console.log('Dados do gráfico recebidos:', response.data);
     } catch (error) {
       console.error('Erro ao buscar dados do gráfico:', error);
@@ -134,7 +139,6 @@ const InicioPage = () => {
   useEffect(() => {
     fetchNotifications();
     fetchChartData();
-    // Atualizar notificações e gráfico a cada 30 segundos
     const interval = setInterval(() => {
       fetchNotifications();
       fetchChartData();
@@ -166,7 +170,6 @@ const InicioPage = () => {
     }
   };
 
-  // Contador de notificações não lidas
   const unreadCount = notifications.filter((notif) => !notif.read).length;
 
   useEffect(() => {
@@ -178,7 +181,6 @@ const InicioPage = () => {
         const empresasResponse = await axiosInstance.get('/api/empresas/');
         setEmpresasSelecionadas(empresasResponse.data);
 
-        // Inicializar estado dos checkboxes
         const initialCheckboxState = {};
         empresasResponse.data.forEach((empresa) => {
           initialCheckboxState[empresa.id] = {
@@ -257,10 +259,10 @@ const InicioPage = () => {
     setCheckboxState(newState);
 
     try {
-      await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
+      const response = await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
         [field]: newState[empresaId][field],
       });
-      // Atualizar o gráfico após a mudança no checkbox
+      console.log(`PATCH /api/empresas/${empresaId}/ response:`, response.data);
       await fetchChartData();
     } catch (err) {
       console.error(`Erro ao atualizar ${field} para empresa ${empresaId}:`, err);
@@ -295,7 +297,6 @@ const InicioPage = () => {
         },
       }));
 
-      // Atualizar o checkbox simples_nacional e o gráfico
       await handleCheckboxChange(empresa.id, 'simples_nacional');
     } catch (err) {
       const errorMessage =
@@ -424,7 +425,6 @@ const InicioPage = () => {
       variants={containerVariants}
       className="p-6 md:p-8 animate-fade-in relative"
     >
-      {/* Botão de Notificações */}
       <div className="absolute top-4 right-4">
         <button
           onClick={() => setShowNotifications(!showNotifications)}
@@ -688,7 +688,7 @@ const InicioPage = () => {
               Status das Tarefas
             </h2>
             <div className="h-64 relative">
-              <Doughnut id="doughnut-chart" data={chartData} options={chartOptions} />
+              <Doughnut key={chartKey} id="doughnut-chart" data={chartData} options={chartOptions} />
             </div>
           </motion.div>
           <motion.div
