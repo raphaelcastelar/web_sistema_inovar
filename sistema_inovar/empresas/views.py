@@ -1077,43 +1077,51 @@ def dashboard_pie_chart(request):
     """
     Returns data for a pie chart based on the user's role.
     """
-    user = request.user
-    if not user.is_authenticated:
-        logger.error("Usuário não autenticado.")
-        return Response({"error": "Usuário não autenticado."}, status=status.HTTP_401_UNAUTHORIZED)
+    try:
+        user = request.user
+        if not user.is_authenticated:
+            logger.error("Usuário não autenticado.")
+            return Response({"error": "Usuário não autenticado."}, status=status.HTTP_401_UNAUTHORIZED)
 
-    cargo = user.cargo
-    logger.info(f"Gerando dados do gráfico de pizza para usuário {user.username} com cargo {cargo}")
+        cargo = getattr(user, 'cargo', 'admin')  # Fallback para 'admin' se cargo não existir
+        logger.info(f"Gerando dados do gráfico de pizza para usuário {user.username} com cargo {cargo}")
 
-    # Get companies the user has access to
-    empresas = Empresa.objects.filter(usercompanyaccess__user=user)
-    data = {"labels": ["Pendentes", "Concluídas"], "values": [0, 0]}
+        # Get companies the user has access to
+        empresas = Empresa.objects.filter(usercompanyaccess__user=user)
+        if not empresas.exists():
+            logger.info(f"Nenhuma empresa associada ao usuário {user.username}")
+            return Response({"labels": [], "values": []}, status=status.HTTP_200_OK)
 
-    if cargo == 'pessoal':
-        # Departamento Pessoal: Pending vs. completed tasks
-        pendentes = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=False).count()
-        concluidas = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=True).count()
-        data["values"] = [pendentes, concluidas]
-        logger.info(f"Dados para Departamento Pessoal: Pendentes={pendentes}, Concluídas={concluidas}")
-    elif cargo == 'fiscal':
-        # Departamento Fiscal: Simples Nacional pending vs. completed
-        pendentes = empresas.filter(simples_nacional=False, monitorar_simples=True).count()
-        concluidas = empresas.filter(simples_nacional=True, monitorar_simples=True).count()
-        data["values"] = [pendentes, concluidas]
-        logger.info(f"Dados para Departamento Fiscal: Pendentes={pendentes}, Concluídas={concluidas}")
-    elif cargo == 'admin':
-        # Administrador: All pending tasks (personnel + fiscal)
-        pendentes_pessoal = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=False).count()
-        pendentes_fiscal = empresas.filter(simples_nacional=False, monitorar_simples=True).count()
-        concluidas_pessoal = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=True).count()
-        concluidas_fiscal = empresas.filter(simples_nacional=True, monitorar_simples=True).count()
-        data["labels"] = ["Pendentes Pessoal", "Pendentes Fiscal", "Concluídas Pessoal", "Concluídas Fiscal"]
-        data["values"] = [pendentes_pessoal, pendentes_fiscal, concluidas_pessoal, concluidas_fiscal]
-        logger.info(f"Dados para Administrador: Pendentes Pessoal={pendentes_pessoal}, Pendentes Fiscal={pendentes_fiscal}, "
-                    f"Concluídas Pessoal={concluidas_pessoal}, Concluídas Fiscal={concluidas_fiscal}")
-    else:
-        logger.error(f"Cargo inválido: {cargo}")
-        return Response({"error": "Cargo inválido."}, status=status.HTTP_400_BAD_REQUEST)
+        data = {"labels": ["Pendentes", "Concluídas"], "values": [0, 0]}
 
-    return Response(data, status=status.HTTP_200_OK)
+        if cargo == 'pessoal':
+            # Departamento Pessoal: Pending vs. completed tasks
+            pendentes = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=False).count()
+            concluidas = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=True).count()
+            data["values"] = [pendentes, concluidas]
+            logger.info(f"Dados para Departamento Pessoal: Pendentes={pendentes}, Concluídas={concluidas}")
+        elif cargo == 'fiscal':
+            # Departamento Fiscal: Simples Nacional pending vs. completed
+            pendentes = empresas.filter(simples_nacional=False, monitorar_simples=True).count()
+            concluidas = empresas.filter(simples_nacional=True, monitorar_simples=True).count()
+            data["values"] = [pendentes, concluidas]
+            logger.info(f"Dados para Departamento Fiscal: Pendentes={pendentes}, Concluídas={concluidas}")
+        elif cargo == 'admin':
+            # Administrador: All pending tasks (personnel + fiscal)
+            pendentes_pessoal = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=False).count()
+            pendentes_fiscal = empresas.filter(simples_nacional=False, monitorar_simples=True).count()
+            concluidas_pessoal = Pendencia.objects.filter(empresa__in=empresas, tipo__in=['folha', 'inss', 'fgts'], concluida=True).count()
+            concluidas_fiscal = empresas.filter(simples_nacional=True, monitorar_simples=True).count()
+            data["labels"] = ["Pendentes Pessoal", "Pendentes Fiscal", "Concluídas Pessoal", "Concluídas Fiscal"]
+            data["values"] = [pendentes_pessoal, pendentes_fiscal, concluidas_pessoal, concluidas_fiscal]
+            logger.info(f"Dados para Administrador: Pendentes Pessoal={pendentes_pessoal}, Pendentes Fiscal={pendentes_fiscal}, "
+                        f"Concluídas Pessoal={concluidas_pessoal}, Concluídas Fiscal={concluidas_fiscal}")
+        else:
+            logger.error(f"Cargo inválido: {cargo}")
+            return Response({"error": "Cargo inválido."}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(data, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Erro ao gerar dados do gráfico de pizza: {str(e)}")
+        return Response({"error": f"Erro interno ao gerar dados do gráfico: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
