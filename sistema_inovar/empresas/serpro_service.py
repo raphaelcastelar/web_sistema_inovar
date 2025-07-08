@@ -1,12 +1,24 @@
-# empresas/serpro_service.py
 import requests
 import base64
 import json
+import os
+import tempfile
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.cache import cache
+from empresas.models import Empresa
+from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 import logging
+from empresas.models import Empresa, Notification, UserCompanyAccess
+from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
+from django.contrib.auth import get_user_model
+from rest_framework.response import Response
+from rest_framework import status
+
 
 logger = logging.getLogger(__name__)
+Funcionario = get_user_model()
 
 AUTH_URL = 'https://autenticacao.sapi.serpro.gov.br/authenticate'
 GATEWAY_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1'
@@ -135,14 +147,13 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
 
 def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     """
-    Chama a API Integra Contador usando o serviço GERARDASCOBRANCA17
-    para obter o PDF da guia de pagamento do DAS diretamente.
+    Chama a API Serpro usando o serviço GERARDAS12 para gerar o DAS de um período específico,
+    retornando o PDF mesmo sem débitos, conforme comportamento do e-CAC.
     """
     tokens = get_serpro_token()
     if not tokens:
         return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
 
-    # O endpoint para este serviço é /Emitir, como mostra a documentação que você encontrou.
     url = f"{GATEWAY_URL}/Emitir"
     headers = {
         "Authorization": f"Bearer {tokens['access_token']}",
@@ -152,67 +163,91 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     
     cnpj_contratante = settings.MEU_ESCRITORIO_CNPJ
     
-    # O payload agora usa o idServico correto e o periodoApuracao nos dados
     payload = {
         "contratante": {"numero": cnpj_contratante, "tipo": 2},
         "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
         "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
         "pedidoDados": {
             "idSistema": "PGDASD",
-            "idServico": "GERARDASCOBRANCA17", # <-- O SERVIÇO CORRETO!
+            "idServico": "GERARDAS12",
             "versaoSistema": "1.0",
-            "dados": json.dumps({"periodoApuracao": periodo_apuracao}) # Envia o período de apuração
+            "dados": json.dumps({"periodoApuracao": periodo_apuracao})
         }
     }
 
-    logger.info(f"Enviando payload para GERAR DAS COBRANÇA: {json.dumps(payload, indent=2)}")
+    logger.info(f"Enviando payload para GERAR DAS: {json.dumps(payload, indent=2)}")
 
     try:
         response = requests.post(url, json=payload, headers=headers)
         
-        # Lógica para tentar novamente se o token expirou
         if response.status_code == 401:
             logger.warning("Token expirado (401). Renovando e tentando novamente.")
             cache.delete(SERPRO_TOKEN_CACHE_KEY)
             tokens = get_serpro_token()
-            if not tokens: return {"sucesso": False, "erro": "Falha ao renovar token."}
+            if not tokens:
+                return {"sucesso": False, "erro": "Falha ao renovar token."}
             headers["Authorization"] = f"Bearer {tokens['access_token']}"
             headers["jwt_token"] = tokens['jwt_token']
             response = requests.post(url, json=payload, headers=headers)
 
         response.raise_for_status()
 
-        # Verifica se a resposta é um PDF diretamente
-        if 'application/pdf' in response.headers.get('Content-Type', ''):
-            logger.info(f"PDF da guia de pagamento DAS obtido com sucesso para {cnpj_empresa} / {periodo_apuracao}.")
-            return {
-                "sucesso": True, 
-                "pdf_content": response.content, 
-                "filename": f"DAS-Cobranca_{cnpj_empresa}_{periodo_apuracao}.pdf"
-            }
-        else:
-            # Se não for um PDF, pode ser um JSON com os dados (incluindo Base64) ou um erro.
-            # Vamos adicionar a lógica para tratar o caso de JSON com Base64 que vimos antes.
-            logger.warning(f"Resposta não foi PDF direto. Tentando extrair de JSON... Content-Type: {response.headers.get('Content-Type', '')}")
-            response_data = response.json()
-            dados_str = response_data.get('dados')
-            if dados_str:
-                dados = json.loads(dados_str)
-                # Tentando encontrar o PDF em Base64 em campos comuns
-                pdf_base64_string = dados.get('pdf') or dados.get('extrato', {}).get('pdf') or dados.get('conteudoRecibo')
-                if pdf_base64_string:
-                    pdf_content_bytes = base64.b64decode(pdf_base64_string)
-                    nome_arquivo = dados.get('extrato', {}).get('nomeArquivo', f"DAS-Cobranca_{cnpj_empresa}_{periodo_apuracao}.pdf")
-                    logger.info(f"PDF do DAS decodificado com sucesso a partir de Base64.")
-                    return {"sucesso": True, "pdf_content": pdf_content_bytes, "filename": nome_arquivo}
+        response_data = response.json()
+        logger.info(f"Resposta da API Serpro: {json.dumps(response_data, indent=2)}")
+
+        mensagens = response_data.get('mensagens', [])
+        dados_str = response_data.get('dados')
+
+        # Verifica se há mensagem de "sem valor devido" ou sucesso
+        if any('MSG_E0139' in msg.get('codigo', '') for msg in mensagens):
+            # Mesmo sem débitos, o e-CAC gera um PDF. A resposta contém uma lista.
+            if not dados_str:
+                return {"sucesso": False, "erro": "Nenhum dado retornado pela API para o período informado."}
             
-            logger.error(f"Resposta inesperada ao gerar DAS Cobrança: {response.text}")
-            return {"sucesso": False, "erro": "Resposta inesperada da API Serpro.", "detalhes": response_data}
+            dados = json.loads(dados_str)
+            if isinstance(dados, list) and len(dados) > 0:
+                dados_item = dados[0]  # Extrai o primeiro item da lista
+                pdf_base64 = dados_item.get('pdf') or dados_item.get('extrato', {}).get('pdf')
+                if not pdf_base64:
+                    return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
+                
+                pdf_content = base64.b64decode(pdf_base64)
+                filename = dados_item.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
+                logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao} (sem débitos).")
+                return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
+            else:
+                return {"sucesso": False, "erro": "Formato de dados inválido: lista vazia ou formato inesperado."}
+
+        # Verifica se há sucesso na resposta
+        if not any('sucesso' in msg.get('texto', '').lower() for msg in mensagens):
+            error_message = mensagens[0].get('texto', 'Erro não especificado pela API.')
+            return {"sucesso": False, "erro": error_message}
+
+        # Caso de sucesso com débitos
+        if not dados_str:
+            return {"sucesso": False, "erro": "Nenhum dado retornado pela API."}
+        
+        dados = json.loads(dados_str)
+        if isinstance(dados, list) and len(dados) > 0:
+            dados_item = dados[0]  # Extrai o primeiro item da lista
+            pdf_base64 = dados_item.get('pdf') or dados_item.get('extrato', {}).get('pdf')
+            if not pdf_base64:
+                return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
+            
+            pdf_content = base64.b64decode(pdf_base64)
+            filename = dados_item.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
+            logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao}.")
+            return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
+        else:
+            return {"sucesso": False, "erro": "Formato de dados inválido: lista vazia ou formato inesperado."}
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Erro na requisição para gerar DAS Cobrança: {e}")
+        logger.error(f"Erro na requisição para gerar DAS: {e}")
         detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
         return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
+    except Exception as e:
+        logger.error(f"Erro ao processar resposta da API: {e}")
+        return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
     
 def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
     """
@@ -473,4 +508,115 @@ def declarar_das_serpro(cnpj_empresa, periodo_apuracao, dados_declaracao):
     except Exception as e:
         logger.error(f"Erro ao processar resposta da declaração: {e}")
         return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
+
+def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
+    """
+    Gera o DAS para o mês anterior ao atual, envia automaticamente via WhatsApp,
+    marca o campo simples_nacional da empresa como True e cria notificações.
+    """
+    try:
+        # Validar CNPJ
+        if not cnpj_empresa:
+            logger.error("CNPJ não fornecido.")
+            return {"sucesso": False, "erro": "CNPJ é obrigatório."}
+
+        # Normalizar CNPJ
+        cnpj_empresa_clean = ''.join(filter(str.isdigit, cnpj_empresa))
+        if len(cnpj_empresa_clean) != 14:
+            logger.error(f"CNPJ inválido: {cnpj_empresa_clean}")
+            return {"sucesso": False, "erro": "CNPJ inválido. Deve conter 14 dígitos."}
+        
+        cnpj_empresa_formatted = (
+            f"{cnpj_empresa_clean[:2]}.{cnpj_empresa_clean[2:5]}.{cnpj_empresa_clean[5:8]}/"
+            f"{cnpj_empresa_clean[8:12]}-{cnpj_empresa_clean[12:]}"
+        )
+        logger.info(f"Buscando empresa com CNPJ: {cnpj_empresa_formatted}")
+
+        # Buscar empresa
+        try:
+            empresa = Empresa.objects.get(cnpj=cnpj_empresa_formatted)
+        except Empresa.DoesNotExist:
+            logger.error(f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada.")
+            return {"sucesso": False, "erro": f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada."}
+
+        # Validar telefone
+        if not empresa.telefone:
+            logger.error(f"A empresa {empresa.nome} não possui número de telefone cadastrado.")
+            return {"sucesso": False, "erro": f"A empresa {empresa.nome} não possui número de telefone cadastrado."}
+
+        telefone = empresa.telefone
+        if not telefone.startswith('+'):
+            telefone = f'+{telefone}'
+        logger.info(f"Número de telefone normalizado: {telefone}")
+
+        # Definir período de apuração (mês anterior)
+        if not periodo_apuracao:
+            data_mes_anterior = datetime.now().replace(day=1) - relativedelta(months=1)
+            periodo_apuracao = data_mes_anterior.strftime('%m/%Y')  # Formato MM/YYYY
+            periodo_apuracao_alt = data_mes_anterior.strftime('%Y%m')  # Formato YYYYMM para compatibilidade
+            logger.info(f"Período de apuração definido como mês anterior: {periodo_apuracao}")
+        else:
+            periodo_apuracao_alt = ''.join(filter(str.isdigit, periodo_apuracao))  # Para compatibilidade com YYYYMM
+            logger.info(f"Período de apuração fornecido: {periodo_apuracao}")
+
+        # Tentar gerar DAS com formato MM/YYYY, depois com YYYYMM se necessário
+        das_result = gerar_das_serpro(cnpj_empresa_clean, periodo_apuracao)
+        if not das_result["sucesso"]:
+            logger.info(f"Tentando formato alternativo de período: {periodo_apuracao_alt}")
+            das_result = gerar_das_serpro(cnpj_empresa_clean, periodo_apuracao_alt)
+            if not das_result["sucesso"]:
+                logger.error(f"Falha ao gerar DAS: {das_result['erro']}")
+                return das_result
+
+        pdf_content = das_result["pdf_content"]
+        filename = das_result["filename"]
+
+        # Processar o arquivo PDF
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            temp_file.write(pdf_content)
+            temp_file_path = temp_file.name
+
+        try:
+            media_id, _ = upload_media_to_whatsapp(temp_file_path, filename)
+            if not media_id:
+                logger.error("Falha ao fazer upload do PDF para o WhatsApp.")
+                return {"sucesso": False, "erro": "Falha ao fazer upload do PDF para o WhatsApp."}
+
+            message_id, error = send_whatsapp_document_template_message(
+                recipient_number=telefone,
+                document_media_id=media_id,
+                document_filename=filename,
+                company_name_for_template=empresa.nome,
+                template_name="enviar_sn"
+            )
+
+            if not message_id:
+                logger.error(f"Falha ao enviar o DAS via WhatsApp: {error}")
+                return {"sucesso": False, "erro": f"Falha ao enviar o DAS via WhatsApp: {error}"}
+
+            # Marcar simples_nacional como True
+            empresa.simples_nacional = True
+            empresa.save()
+            logger.info(f"Campo simples_nacional marcado como True para a empresa {empresa.nome}.")
+
+            # Criar notificação para todos os funcionários associados
+            users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=empresa)
+            logger.info(f"Enviando DAS para '{empresa.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
+            for user in users_to_notify:
+                Notification.objects.create(
+                    user=user,
+                    message=f"DAS de {periodo_apuracao} enviado para a empresa '{empresa.nome}'."
+                )
+            logger.info(f"Notificações criadas para envio do DAS da empresa '{empresa.nome}'.")
+
+            logger.info(f"DAS gerado e enviado com sucesso para {empresa.nome} ({cnpj_empresa_formatted}) via WhatsApp.")
+            return {"sucesso": True, "mensagem": f"DAS de {periodo_apuracao} enviado com sucesso para {empresa.nome}."}
+        finally:
+            if os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+    except Exception as e:
+        logger.error(f"Erro ao gerar e enviar DAS: {e}")
+        return {"sucesso": False, "erro": "Erro ao processar a geração e envio do DAS via WhatsApp."}
+
+
     

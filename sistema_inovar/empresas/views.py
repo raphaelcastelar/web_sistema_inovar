@@ -7,6 +7,9 @@ import unidecode
 import logging
 import requests
 import base64
+import logging
+import json
+
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -20,21 +23,29 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from datetime import timedelta
 from django.db.models import OuterRef, Subquery, CharField
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
+from rest_framework.views import APIView
+
+from empresas.serpro_service import gerar_e_enviar_das
+from .permissions import IsPessoalOrFiscalOrAdmin
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess
+    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notification
+
 )
 from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
-    HistoricoEnviosSerializer, FuncionarioSerializer
+    HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificationSerializer
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
@@ -117,28 +128,87 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # Check for 'all' query parameter to bypass filtering
         if self.request.query_params.get('all') == 'true':
             return queryset
-        # Apply filtering for non-admin users
         if not self.request.user.is_staff and not self.request.user.is_superuser:
             queryset = queryset.filter(gerenciada_por=self.request.user)
         return queryset
 
     def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+        if self.action in ['create', 'update', 'destroy']:
             return [IsAdminUser()]
+        elif self.action == 'partial_update':
+            return [IsAuthenticated(), IsPessoalOrFiscalOrAdmin()]  # Updated permission class
         return [IsAuthenticated()]
 
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        try:
-            self.perform_destroy(instance)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Exception as e:
-            logger.error(f"Erro ao excluir empresa: {str(e)}")
-            return Response({'error': f'Erro ao excluir empresa: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+        instance = self.get_queryset().get(pk=kwargs.get('pk'))
+        empresa_nome = instance.nome  # Armazenar o nome antes da exclusão
 
+        # Obter funcionários associados via UserCompanyAccess antes de excluir
+        users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
+        logger.info(f"Excluindo empresa '{empresa_nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
+
+        # Excluir a empresa
+        self.perform_destroy(instance)
+
+        # Criar notificações para exclusão
+        for user in users_to_notify:
+            Notification.objects.create(
+                user=user,
+                message=f'Administrador excluiu a empresa "{empresa_nome}".'
+            )
+        logger.info(f"Notificações criadas para exclusão da empresa '{empresa_nome}'.")
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def patch(self, request, *args, **kwargs):
+        empresa_id = kwargs.get('pk')
+        try:
+            empresa = Empresa.objects.get(id=empresa_id)
+            self.check_object_permissions(request, empresa)
+            serializer = self.get_serializer(empresa, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Empresa.DoesNotExist:
+            return Response({"error": f"Empresa com ID {empresa_id} não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+        
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        empresa = serializer.instance
+
+        # Obter funcionários associados via UserCompanyAccess
+        users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=empresa)
+        logger.info(f"Criando empresa '{empresa.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
+        for user in users_to_notify:
+            Notification.objects.create(
+                user=user,
+                message=f'Administrador adicionou a empresa "{empresa.nome}".'
+            )
+        logger.info(f"Notificações criadas para empresa '{empresa.nome}'.")
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_queryset().get(pk=kwargs.get('pk'))
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        # Obter funcionários associados via UserCompanyAccess
+        users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
+        logger.info(f"Atualizando empresa '{instance.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
+        for user in users_to_notify:
+            Notification.objects.create(
+                user=user,
+                message=f'Administrador alterou informações da empresa "{instance.nome}".'
+            )
+        logger.info(f"Notificações criadas para atualização da empresa '{instance.nome}'.")
+        return Response(serializer.data)
+        
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
     queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base
     serializer_class = DocumentosConstitutivosSerializer
@@ -232,6 +302,43 @@ class FuncionarioViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Erro ao excluir funcionário: {str(e)}")
             return Response({'error': f'Erro ao excluir usuário: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+        
+class PendenciaAPIView(APIView):
+    def get(self, request):
+        pendencias = Pendencia.objects.all()
+        serializer = PendenciaSerializer(pendencias, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        pendencias_data = request.data.get('pendencias', [])
+        created_pendencias = []
+        
+        for pendencia_data in pendencias_data:
+            empresa_id = pendencia_data.get('empresa', {}).get('id')
+            tipo = pendencia_data.get('tipo')
+            
+            try:
+                empresa = Empresa.objects.get(id=empresa_id)
+                pendencia = Pendencia.objects.create(
+                    empresa=empresa,
+                    tipo=tipo
+                )
+                created_pendencias.append(PendenciaSerializer(pendencia).data)
+            except Empresa.DoesNotExist:
+                return Response(
+                    {"error": f"Empresa com ID {empresa_id} não encontrada."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        return Response(created_pendencias, status=status.HTTP_201_CREATED)
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by('-timestamp')
 
 @api_view(['POST'])
 def enviar_email(request):
@@ -934,3 +1041,155 @@ def declarar_das_api(request):
         logger.error(f"Erro ao declarar DAS: {str(e)}")
         return Response({'error': f'Erro ao declarar DAS: {str(e)}'}, status=500)
     
+@csrf_exempt
+def gerar_e_enviar_das_view(request):
+    """
+    View to handle DAS generation and sending via WhatsApp.
+    """
+    if request.method != 'POST':
+        logger.error("Método não permitido. Apenas POST é aceito.")
+        return JsonResponse({"sucesso": False, "erro": "Método não permitido."}, status=405)
+
+    try:
+        # Parse JSON data from request.body
+        data = json.loads(request.body)
+        cnpj_empresa = data.get('cnpj')
+        periodo_apuracao = data.get('periodo_apuracao')
+    except json.JSONDecodeError:
+        logger.error("Corpo da requisição não é um JSON válido.")
+        return JsonResponse({"sucesso": False, "erro": "Corpo da requisição não é um JSON válido."}, status=400)
+    except Exception as e:
+        logger.error(f"Erro ao processar dados da requisição: {e}")
+        return JsonResponse({"sucesso": False, "erro": "Erro ao processar dados da requisição."}, status=400)
+
+    if not cnpj_empresa:
+        logger.error("CNPJ não fornecido na requisição.")
+        return JsonResponse({"sucesso": False, "erro": "CNPJ é obrigatório."}, status=400)
+
+    result = gerar_e_enviar_das(cnpj_empresa, periodo_apuracao)
+    if result["sucesso"]:
+        return JsonResponse(result, status=200)
+    return JsonResponse(result, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_pie_chart(request):
+    user = request.user
+    logger.info(f"Usuário {user.username} solicitou dados do gráfico de pizza. Cargo: {user.cargo}")
+
+    try:
+        empresas = Empresa.objects.filter(usercompanyaccess__user=user)
+        logger.info(f"Empresas encontradas para usuário {user.username}: {empresas.count()}")
+
+        if user.cargo == 'pessoal':
+            pendentes = sum(
+                1 for empresa in empresas
+                for field in ['inss', 'fgts', 'folha', 'honorario']
+                if not getattr(empresa, field, False)
+            )
+            concluidas = sum(
+                1 for empresa in empresas
+                for field in ['inss', 'fgts', 'folha', 'honorario']
+                if getattr(empresa, field, False)
+            )
+            labels = ['Pendentes', 'Concluídas']
+            values = [pendentes, concluidas]
+        elif user.cargo == 'fiscal':
+            pendentes = sum(
+                1 for empresa in empresas
+                if not empresa.simples_nacional and empresa.monitorar_simples
+            )
+            concluidas = sum(
+                1 for empresa in empresas
+                if empresa.simples_nacional and empresa.monitorar_simples
+            )
+            labels = ['Pendentes', 'Concluídas']
+            values = [pendentes, concluidas]
+        else:  # admin
+            pendentes_pessoal = sum(
+                1 for empresa in empresas
+                for field in ['inss', 'fgts', 'folha', 'honorario']
+                if not getattr(empresa, field, False)
+            )
+            concluidas_pessoal = sum(
+                1 for empresa in empresas
+                for field in ['inss', 'fgts', 'folha', 'honorario']
+                if getattr(empresa, field, False)
+            )
+            pendentes_fiscal = sum(
+                1 for empresa in empresas
+                if not empresa.simples_nacional and empresa.monitorar_simples
+            )
+            concluidas_fiscal = sum(
+                1 for empresa in empresas
+                if empresa.simples_nacional and empresa.monitorar_simples
+            )
+            labels = ['Pendentes Pessoal', 'Pendentes Fiscal', 'Concluídas Pessoal', 'Concluídas Fiscal']
+            values = [pendentes_pessoal, pendentes_fiscal, concluidas_pessoal, concluidas_fiscal]
+
+        logger.info(f"Dados do gráfico para {user.username}: labels={labels}, values={values}")
+        return Response({'labels': labels, 'values': values}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"Erro ao processar dados do gráfico para {user.username}: {str(e)}")
+        return Response(
+            {'error': 'Erro ao processar dados do gráfico de pizza.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_summary(request):
+    user = request.user
+    try:
+        empresas = Empresa.objects.filter(usercompanyaccess__user=user)
+        total_empresas = empresas.count()
+        hoje = timezone.now().date()
+        dia = hoje.day
+        mes = hoje.month
+        ano = hoje.year
+
+        if user.cargo == 'fiscal':
+            vencimento_dia = 25
+        else:
+            vencimento_dia = 15
+
+        data_vencimento = datetime(ano, mes, vencimento_dia).date()
+        if dia > vencimento_dia:
+            if mes == 12:
+                mes = 1
+                ano += 1
+            else:
+                mes += 1
+            data_vencimento = datetime(ano, mes, vencimento_dia).date()
+
+        dias_ate_vencimento = (data_vencimento - hoje).days
+
+        pendentes = 0
+        if user.cargo == 'pessoal' or user.cargo == 'admin':
+            for empresa in empresas:
+                if not empresa.inss:
+                    pendentes += 1
+                if not empresa.fgts:
+                    pendentes += 1
+                if not empresa.folha:
+                    pendentes += 1
+                if not empresa.honorario:
+                    pendentes += 1
+        if user.cargo == 'fiscal' or user.cargo == 'admin':
+            for empresa in empresas:
+                if not empresa.simples_nacional and empresa.monitorar_simples:
+                    pendentes += 1
+
+        return Response({
+            'total_empresas': total_empresas,
+            'tarefas_pendentes': pendentes,
+            'dias_ate_vencimento': dias_ate_vencimento
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"Erro ao processar resumo do dashboard para {user.username}: {str(e)}")
+        return Response(
+            {'error': 'Erro ao processar resumo do dashboard.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

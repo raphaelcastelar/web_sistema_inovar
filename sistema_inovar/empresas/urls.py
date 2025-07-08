@@ -1,7 +1,6 @@
-# sistema_inovar/empresas/urls.py
 from django.urls import path
 from .views import (
-    enviar_email, 
+    enviar_email,
     enviar_documentos_whatsapp_api,
     sincronizar_pasta_empresa_api,
     gerar_das_api,
@@ -12,8 +11,11 @@ from .views import (
     toggle_monitoramento_simples,
     gerenciamento_atribuicao_data,
     salvar_atribuicoes,
-
+    gerar_e_enviar_das_view,
+    dashboard_pie_chart,
+    PendenciaAPIView,
 )
+
 urlpatterns = [
     path('enviar-email/', enviar_email, name='enviar_email'),
     path('enviar-documentos-whatsapp/', enviar_documentos_whatsapp_api, name='enviar_documentos_whatsapp'),
@@ -26,4 +28,7 @@ urlpatterns = [
     path('empresas/<int:empresa_id>/toggle-monitoramento-simples/', toggle_monitoramento_simples, name='toggle_monitoramento_simples'),
     path('gerenciamento-atribuicao-data/', gerenciamento_atribuicao_data, name='gerenciamento_atribuicao_data'),
     path('salvar-atribuicoes/', salvar_atribuicoes, name='salvar_atribuicoes'),
+    path('serpro/gerar-e-enviar-das/', gerar_e_enviar_das_view, name='gerar_e_enviar_das'),
+    path('pendencias/', PendenciaAPIView.as_view(), name='pendencias'),
+    path('dashboard/pie-chart/', dashboard_pie_chart, name='dashboard_pie_chart'),
 ]

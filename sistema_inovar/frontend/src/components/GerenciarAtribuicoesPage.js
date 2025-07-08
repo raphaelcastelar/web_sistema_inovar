@@ -19,9 +19,9 @@ const GerenciarAtribuicoesPage = () => {
             .then(response => {
                 setFuncionarios(response.data.funcionarios);
                 setEmpresas(response.data.empresas);
-                // Reset selection when data is fetched
                 setSelectedFuncionario(null);
                 setAssignedCompanyIds(new Set());
+                console.log('Resposta /api/gerenciamento-atribuicao-data/:', response.data);
             })
             .catch(err => {
                 console.error("Erro ao carregar dados:", err.response?.data || err.message);
@@ -38,8 +38,8 @@ const GerenciarAtribuicoesPage = () => {
 
     const handleFuncionarioSelect = (funcionario) => {
         setSelectedFuncionario(funcionario);
-        // Only include companies already assigned to the employee
         setAssignedCompanyIds(new Set(funcionario.empresas_gerenciadas));
+        console.log('Funcionário selecionado:', funcionario);
     };
 
     const handleCompanyToggle = (companyId) => {
@@ -50,33 +50,46 @@ const GerenciarAtribuicoesPage = () => {
             newAssignedIds.add(companyId);
         }
         setAssignedCompanyIds(newAssignedIds);
+        console.log('Toggling empresa ID:', companyId);
     };
 
     const handleSaveChanges = () => {
-        if (!selectedFuncionario) return;
+        if (!selectedFuncionario) {
+            alert('Selecione um funcionário antes de salvar.');
+            return;
+        }
         setSaving(true);
-        axiosInstance.post('/api/salvar-atribuicoes/', {
+        const payload = {
             funcionario_id: selectedFuncionario.id,
             ids_empresas: Array.from(assignedCompanyIds)
-        })
-        .then(() => {
-            alert('Atribuições salvas com sucesso!');
-            fetchData(); // Recarrega os dados para garantir consistência
-        })
-        .catch(err => {
-            console.error("Erro ao salvar atribuições:", err.response?.data || err.message);
-            alert(`Falha ao salvar as atribuições: ${err.response?.data?.error || err.message}`);
-        })
-        .finally(() => setSaving(false));
+        };
+        console.log('Enviando payload para /api/salvar-atribuicoes/:', payload);
+        axiosInstance.post('/api/salvar-atribuicoes/', payload)
+            .then(response => {
+                console.log('Resposta /api/salvar-atribuicoes/:', response.data);
+                alert('Atribuições salvas com sucesso!');
+                fetchData();
+                // Dispara evento para notificar outras páginas
+                window.dispatchEvent(new CustomEvent('atribuicoesUpdated', {
+                    detail: { funcionario_id: selectedFuncionario.id, ids_empresas: Array.from(assignedCompanyIds) }
+                }));
+            })
+            .catch(err => {
+                console.error("Erro ao salvar atribuições:", err.response?.data || err.message);
+                alert(`Falha ao salvar as atribuições: ${err.response?.data?.error || err.message}`);
+            })
+            .finally(() => setSaving(false));
     };
 
     const handleSelectAll = () => {
         const allCompanyIds = empresas.map(e => e.id);
         setAssignedCompanyIds(new Set(allCompanyIds));
+        console.log('Selecionando todas as empresas');
     };
 
     const handleClearAll = () => {
         setAssignedCompanyIds(new Set());
+        console.log('Limpando seleção de empresas');
     };
 
     if (loading) return <p className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando...</p>;
@@ -88,7 +101,6 @@ const GerenciarAtribuicoesPage = () => {
             <p className="text-gray-500 dark:text-gray-400 mb-8">Selecione um funcionário para definir quais empresas ele pode gerenciar.</p>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Coluna de Funcionários */}
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
                     <h2 className="text-xl font-semibold text-gray-800 dark:text-white p-2">Funcionários</h2>
                     <ul className="space-y-1 mt-4 max-h-[70vh] overflow-y-auto">
@@ -119,7 +131,6 @@ const GerenciarAtribuicoesPage = () => {
                     </ul>
                 </div>
 
-                {/* Coluna de Empresas */}
                 <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
                     {!selectedFuncionario ? (
                         <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 dark:text-gray-400 p-10">

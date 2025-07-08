@@ -9,7 +9,8 @@ import {
     ArrowLeftOnRectangleIcon,
     BuildingOfficeIcon,
     Cog6ToothIcon,
-    DocumentCheckIcon
+    DocumentCheckIcon,
+    ExclamationTriangleIcon // Adicione esta importação
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 import ThemeToggle from './ThemeToggle';
@@ -64,6 +65,7 @@ const Navbar = () => {
                 <NavLink to="/gerar-das" icon={DocumentArrowDownIcon} text="Gerar DAS" />
                 <NavLink to="/consultar-extrato" icon={DocumentMagnifyingGlassIcon} text="Consultar Extrato" />
                 <NavLink to="/declarar-das" icon={DocumentCheckIcon} text="Declarar DAS" />
+                <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" /> {/* Adicione esta linha */}
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
             </nav>
 

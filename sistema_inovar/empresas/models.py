@@ -7,6 +7,8 @@ from django.utils import timezone
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,7 @@ class Empresa(models.Model):
     folha = models.BooleanField(default=False)
     honorario = models.BooleanField(default=False)
     monitorar_simples = models.BooleanField(default=True)
+    usuarios = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='empresas')
     
 
     def __str__(self):
@@ -293,3 +296,30 @@ class UserCompanyAccess(models.Model):
     created_by = models.ForeignKey(Funcionario, null=True, on_delete=models.SET_NULL, related_name='created_accesses')
     class Meta:
         unique_together = ('user', 'empresa')
+
+class Pendencia(models.Model):
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='pendencias')
+    tipo = models.CharField(max_length=50, choices=[
+        ('INSS', 'INSS'),
+        ('FGTS', 'FGTS'),
+        ('Folha', 'Folha'),
+        ('Honorário', 'Honorário'),
+        ('Simples Nacional', 'Simples Nacional'),
+    ])
+    data_criacao = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Pendência'
+        verbose_name_plural = 'Pendências'
+
+    def __str__(self):
+        return f"{self.empresa.nome} - {self.tipo}"
+    
+class Notification(models.Model):
+       user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+       message = models.CharField(max_length=255)
+       timestamp = models.DateTimeField(auto_now_add=True)
+       read = models.BooleanField(default=False)
+
+       def __str__(self):
+           return f"{self.message} ({self.timestamp})"
