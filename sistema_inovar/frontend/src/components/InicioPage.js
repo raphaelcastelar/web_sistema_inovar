@@ -15,10 +15,8 @@ import {
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 
-// Registra os elementos necessários para o gráfico
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-// Sub-componente para os Cards de Estatísticas
 const StatCard = ({ icon: Icon, title, value, color, subtitle }) => (
   <motion.div
     variants={{ hidden: { scale: 0.8, opacity: 0 }, visible: { scale: 1, opacity: 1 } }}
@@ -37,7 +35,6 @@ const StatCard = ({ icon: Icon, title, value, color, subtitle }) => (
   </motion.div>
 );
 
-// Componente para o Dropdown de Notificações
 const NotificationDropdown = ({ notifications, markAsRead, clearNotifications }) => (
   <div className="absolute top-12 right-0 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-50">
     <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
@@ -72,7 +69,6 @@ const NotificationDropdown = ({ notifications, markAsRead, clearNotifications })
   </div>
 );
 
-// Componente Principal da Página
 const InicioPage = () => {
   const [data, setData] = useState(null);
   const [empresasSelecionadas, setEmpresasSelecionadas] = useState([]);
@@ -103,14 +99,15 @@ const InicioPage = () => {
   };
   const itemVariants = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
-  // Função para buscar dados do dashboard
   const fetchData = async () => {
     try {
       const dashboardResponse = await axiosInstance.get('/api/dashboard-summary/');
       setData(dashboardResponse.data);
+      console.log('Resposta /api/dashboard-summary/:', dashboardResponse.data);
 
       const empresasResponse = await axiosInstance.get('/api/empresas/');
       setEmpresasSelecionadas(empresasResponse.data);
+      console.log('Resposta /api/empresas/:', empresasResponse.data);
 
       const initialCheckboxState = {};
       empresasResponse.data.forEach((empresa) => {
@@ -123,9 +120,11 @@ const InicioPage = () => {
         };
       });
       setCheckboxState(initialCheckboxState);
+      console.log('Initial checkboxState:', initialCheckboxState);
 
       const userResponse = await axiosInstance.get('/api/current-user/');
       setUserCargo(userResponse.data.cargo || 'admin');
+      console.log('Resposta /api/current-user/:', userResponse.data);
     } catch (err) {
       const errorMessage =
         err.response?.data?.error || 'Não foi possível carregar os dados do dashboard.';
@@ -136,33 +135,51 @@ const InicioPage = () => {
     }
   };
 
-  // Buscar notificações do backend
   const fetchNotifications = async () => {
     try {
       const response = await axiosInstance.get('/api/notifications/');
       setNotifications(response.data);
+      console.log('Resposta /api/notifications/:', response.data);
     } catch (err) {
       console.error('Erro ao buscar notificações:', err);
     }
   };
 
-  // Buscar dados do gráfico de pizza
   const fetchChartData = async () => {
     try {
-      const response = await axiosInstance.get('/api/dashboard/pie-chart/');
-      console.log('Resposta do backend /api/dashboard/pie-chart/:', response.data);
-      const newChartData = {
-        labels: response.data.labels,
-        datasets: [{
-          data: response.data.values,
-          backgroundColor: userCargo === 'admin' 
-            ? ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
-            : ['#FF6384', '#36A2EB'],
-          borderColor: ['#fff', '#fff', '#fff', '#fff'],
-          borderWidth: 1,
-        }],
-      };
+      let newChartData;
+      if (userCargo === 'admin') {
+        const response = await axiosInstance.get('/api/dashboard/pie-chart/');
+        console.log('Resposta do backend /api/dashboard/pie-chart/:', response.data);
+        newChartData = {
+          labels: response.data.labels,
+          datasets: [{
+            data: response.data.values,
+            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'],
+            borderColor: ['#fff', '#fff', '#fff', '#fff'],
+            borderWidth: 1,
+          }],
+        };
+      } else {
+        const totalTarefas = userCargo === 'pessoal' 
+          ? empresasSelecionadas.length * 4 
+          : empresasSelecionadas.length;
+        newChartData = {
+          labels: userCargo === 'pessoal' 
+            ? ['Tarefas Pendentes', 'Tarefas Concluídas']
+            : ['Simples Nacional Pendente', 'Simples Nacional Concluído'],
+          datasets: [{
+            data: tarefasPendentes === 0 
+              ? [0, totalTarefas] // Garante que o gráfico mostre todas as tarefas concluídas
+              : [tarefasPendentes, totalTarefas - tarefasPendentes],
+            backgroundColor: ['#FF6384', '#36A2EB'],
+            borderColor: ['#fff', '#fff'],
+            borderWidth: 1,
+          }],
+        };
+      }
       setChartData(newChartData);
+      console.log('Novo chartData:', newChartData);
       setChartKey(prev => prev + 1);
     } catch (error) {
       console.error('Erro ao buscar dados do gráfico:', error);
@@ -179,9 +196,18 @@ const InicioPage = () => {
       fetchChartData();
     }, 30000);
     return () => clearInterval(interval);
+  }, [tarefasPendentes]);
+
+  useEffect(() => {
+    const handleAtribuicoesUpdated = (event) => {
+      console.log('Evento atribuicoesUpdated recebido:', event.detail);
+      fetchData();
+      fetchChartData();
+    };
+    window.addEventListener('atribuicoesUpdated', handleAtribuicoesUpdated);
+    return () => window.removeEventListener('atribuicoesUpdated', handleAtribuicoesUpdated);
   }, []);
 
-  // Marcar notificação como lida
   const markAsRead = async (id) => {
     try {
       await axiosInstance.patch(`/api/notifications/${id}/`, { read: true });
@@ -190,16 +216,17 @@ const InicioPage = () => {
           notif.id === id ? { ...notif, read: true } : notif
         )
       );
+      console.log(`Notificação ${id} marcada como lida`);
     } catch (err) {
       console.error('Erro ao marcar notificação como lida:', err);
     }
   };
 
-  // Limpar todas as notificações
   const clearNotifications = async () => {
     try {
       await axiosInstance.delete('/api/notifications/');
       setNotifications([]);
+      console.log('Notificações limpas');
     } catch (err) {
       console.error('Erro ao limpar notificações:', err);
     }
@@ -207,7 +234,6 @@ const InicioPage = () => {
 
   const unreadCount = notifications.filter((notif) => !notif.read).length;
 
-  // Calcular tarefas pendentes e dias até vencimento
   useEffect(() => {
     if (!userCargo) return;
 
@@ -241,9 +267,9 @@ const InicioPage = () => {
     const timeDiff = targetDate - today;
     const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
     setDiasVencimento(daysRemaining);
+    console.log('Dias até vencimento:', daysRemaining);
   }, [checkboxState, userCargo]);
 
-  // Função para atualizar checkbox
   const handleCheckboxChange = async (empresaId, field) => {
     console.log(`Clicado ${field} para empresa ${empresaId}`);
     const newState = {
@@ -254,13 +280,13 @@ const InicioPage = () => {
       },
     };
     setCheckboxState(newState);
+    setChartKey((prev) => prev + 1);
 
     try {
       const response = await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
         [field]: newState[empresaId][field],
       });
       console.log(`PATCH /api/empresas/${empresaId}/ response:`, response.data);
-      await fetchChartData(); // Recarrega os dados do gráfico após a atualização
     } catch (err) {
       console.error(`Erro ao atualizar ${field} para empresa ${empresaId}:`, err);
       setError(
@@ -268,12 +294,10 @@ const InicioPage = () => {
           ? `Permissão negada para atualizar ${field}. Contate o administrador.`
           : `Erro ao atualizar ${field} para a empresa.`
       );
-      // Reverte o estado se houver erro
       setCheckboxState(checkboxState);
     }
   };
 
-  // Função para gerar e enviar DAS via WhatsApp
   const handleGerarEEnviarDas = async (empresa) => {
     console.log(`Gerando e enviando DAS para empresa ${empresa.id}`);
     setEmpresaStatus((prev) => ({
@@ -307,7 +331,6 @@ const InicioPage = () => {
     }
   };
 
-  // Função para recarregar empresas e gráfico
   const handleRefresh = async () => {
     setLoading(true);
     try {
@@ -321,7 +344,6 @@ const InicioPage = () => {
     }
   };
 
-  // Função para resetar checkboxes e coletar pendências
   useEffect(() => {
     if (!userCargo) return;
 
@@ -364,7 +386,7 @@ const InicioPage = () => {
 
       if (JSON.stringify(updatedCheckboxState) !== JSON.stringify(checkboxState)) {
         setCheckboxState(updatedCheckboxState);
-        fetchChartData(); // Atualiza o gráfico após reset
+        fetchChartData();
       }
 
       if (pendencias.length > 0) {
@@ -380,7 +402,6 @@ const InicioPage = () => {
     return () => clearInterval(interval);
   }, [checkboxState, empresasSelecionadas, userCargo]);
 
-  // Configuração do Gráfico de Pizza
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -396,12 +417,18 @@ const InicioPage = () => {
       },
       tooltip: {
         enabled: true,
+        callbacks: {
+          label: (context) => {
+            const label = context.label || '';
+            const value = context.raw || 0;
+            return `${label}: ${value} tarefa(s)`;
+          },
+        },
       },
     },
     cutout: '70%',
   };
 
-  // Ajusta a cor da legenda para o modo escuro
   useEffect(() => {
     const updateChartColors = () => {
       const isDarkMode = document.documentElement.classList.contains('dark');
