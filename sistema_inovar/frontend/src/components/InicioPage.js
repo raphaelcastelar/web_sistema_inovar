@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   UsersIcon,
   ClockIcon,
@@ -35,44 +35,52 @@ const StatCard = ({ icon: Icon, title, value, color, subtitle }) => (
   </motion.div>
 );
 
-const NotificationDropdown = ({ notifications, markAsRead, clearNotifications }) => (
-  <div className="absolute top-12 right-0 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+const NotificationDropdown = ({ notifications, onMarkAsRead, onClearAll }) => (
+  <motion.div
+    initial={{ opacity: 0, y: -10 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -10 }}
+    className="absolute top-14 right-0 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50"
+  >
     <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
       <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Notificações</h3>
       {notifications.length > 0 && (
         <button
-          onClick={clearNotifications}
+          onClick={onClearAll}
           className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
         >
           Limpar todas
         </button>
       )}
     </div>
-    <div className="max-h-64 overflow-y-auto">
+    <div className="max-h-80 overflow-y-auto">
       {notifications.length === 0 ? (
-        <p className="p-4 text-gray-500 dark:text-gray-400 text-center">Nenhuma notificação</p>
+        <p className="p-8 text-gray-500 dark:text-gray-400 text-center">Nenhuma notificação nova.</p>
       ) : (
-        notifications.map((notification) => (
+        notifications.map((n) => (
           <div
-            key={notification.id}
-            className={`p-4 border-b border-gray-200 dark:border-gray-700 ${
-              notification.read ? 'bg-gray-50 dark:bg-gray-700' : 'bg-white dark:bg-gray-800'
+            key={n.id}
+            onClick={() => onMarkAsRead(n.id)}
+            className={`p-4 border-b border-gray-100 dark:border-gray-700 last:border-b-0 cursor-pointer ${
+              !n.lida ? 'bg-indigo-50 dark:bg-indigo-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
             }`}
-            onClick={() => markAsRead(notification.id)}
           >
-            <p className="text-sm text-gray-800 dark:text-gray-200">{notification.message}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{notification.timestamp}</p>
+            <p className={`text-sm ${!n.lida ? 'font-semibold text-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>
+              {n.mensagem}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{new Date(n.timestamp).toLocaleString('pt-BR')}</p>
           </div>
         ))
       )}
     </div>
-  </div>
+  </motion.div>
 );
 
 const InicioPage = () => {
   const [data, setData] = useState(null);
   const [empresasSelecionadas, setEmpresasSelecionadas] = useState([]);
   const [userCargo, setUserCargo] = useState(null);
+  const [isSuperuser, setIsSuperuser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [empresaStatus, setEmpresaStatus] = useState({});
@@ -85,8 +93,8 @@ const InicioPage = () => {
     labels: [],
     datasets: [{
       data: [],
-      backgroundColor: ['#FF6384', '#36A2EB'],
-      borderColor: ['#fff', '#fff'],
+      backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
+      borderColor: ['#fff', '#fff', '#fff', '#fff', '#fff'],
       borderWidth: 1,
     }],
   });
@@ -99,8 +107,14 @@ const InicioPage = () => {
   };
   const itemVariants = { hidden: { y: 20, opacity: 0 }, visible: { y: 0, opacity: 1 } };
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
+      setLoading(true);
+      const userResponse = await axiosInstance.get('/api/current-user/');
+      console.log('Resposta /api/current-user/:', userResponse.data);
+      setUserCargo(userResponse.data.cargo || 'admin');
+      setIsSuperuser(userResponse.data.is_superuser || false);
+
       const dashboardResponse = await axiosInstance.get('/api/dashboard-summary/');
       setData(dashboardResponse.data);
       console.log('Resposta /api/dashboard-summary/:', dashboardResponse.data);
@@ -121,10 +135,6 @@ const InicioPage = () => {
       });
       setCheckboxState(initialCheckboxState);
       console.log('Initial checkboxState:', initialCheckboxState);
-
-      const userResponse = await axiosInstance.get('/api/current-user/');
-      setUserCargo(userResponse.data.cargo || 'admin');
-      console.log('Resposta /api/current-user/:', userResponse.data);
     } catch (err) {
       const errorMessage =
         err.response?.data?.error || 'Não foi possível carregar os dados do dashboard.';
@@ -133,30 +143,61 @@ const InicioPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const response = await axiosInstance.get('/api/notifications/');
-      setNotifications(response.data);
       console.log('Resposta /api/notifications/:', response.data);
+      setNotifications(response.data);
     } catch (err) {
-      console.error('Erro ao buscar notificações:', err);
+      console.error('Erro ao buscar notificações:', err.response?.data || err.message);
     }
-  };
+  }, []);
 
-  const fetchChartData = async () => {
+  const calculateTarefasPendentes = useCallback((checkboxState, empresasSelecionadas) => {
+    let pendentes = 0;
+    Object.keys(checkboxState).forEach((empresaId) => {
+      const checks = checkboxState[empresaId];
+      if (userCargo === 'pessoal' || userCargo === 'admin' || isSuperuser) {
+        if (!checks.inss) pendentes++;
+        if (!checks.fgts) pendentes++;
+        if (!checks.folha) pendentes++;
+        if (!checks.honorario) pendentes++;
+      }
+      if (userCargo === 'fiscal' || userCargo === 'admin' || isSuperuser) {
+        if (!checks.simples_nacional) pendentes++;
+      }
+    });
+    console.log('Tarefas pendentes calculadas:', pendentes);
+    return pendentes;
+  }, [userCargo, isSuperuser]);
+
+  const fetchChartData = useCallback(async () => {
+    if (!userCargo || !empresasSelecionadas.length || !Object.keys(checkboxState).length) {
+      console.log('fetchChartData: Dados insuficientes (userCargo, empresasSelecionadas ou checkboxState não prontos)');
+      return;
+    }
     try {
       let newChartData;
-      if (userCargo === 'admin') {
-        const response = await axiosInstance.get('/api/dashboard/pie-chart/');
-        console.log('Resposta do backend /api/dashboard/pie-chart/:', response.data);
+      if (userCargo === 'admin' || isSuperuser) {
+        // Calcular dados combinados para admin/superusuário
+        const totalEmpresas = empresasSelecionadas.length;
+        const pendentes = calculateTarefasPendentes(checkboxState, empresasSelecionadas);
+        const concluidas = (totalEmpresas * 5) - pendentes; // 5 tarefas por empresa (INSS, FGTS, Folha, Honorário, Simples Nacional)
+
         newChartData = {
-          labels: response.data.labels,
+          labels: ['INSS', 'FGTS', 'Folha', 'Honorário', 'Simples Nacional'],
           datasets: [{
-            data: response.data.values,
-            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'],
-            borderColor: ['#fff', '#fff', '#fff', '#fff'],
+            data: [
+              totalEmpresas - Object.values(checkboxState).filter(c => c.inss).length,
+              totalEmpresas - Object.values(checkboxState).filter(c => c.fgts).length,
+              totalEmpresas - Object.values(checkboxState).filter(c => c.folha).length,
+              totalEmpresas - Object.values(checkboxState).filter(c => c.honorario).length,
+              totalEmpresas - Object.values(checkboxState).filter(c => c.simples_nacional).length,
+            ],
+            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
+            borderColor: ['#fff', '#fff', '#fff', '#fff', '#fff'],
             borderWidth: 1,
           }],
         };
@@ -164,39 +205,56 @@ const InicioPage = () => {
         const totalTarefas = userCargo === 'pessoal' 
           ? empresasSelecionadas.length * 4 
           : empresasSelecionadas.length;
+        const pendentes = calculateTarefasPendentes(checkboxState, empresasSelecionadas);
         newChartData = {
           labels: userCargo === 'pessoal' 
             ? ['Tarefas Pendentes', 'Tarefas Concluídas']
             : ['Simples Nacional Pendente', 'Simples Nacional Concluído'],
           datasets: [{
-            data: tarefasPendentes === 0 
-              ? [0, totalTarefas] // Garante que o gráfico mostre todas as tarefas concluídas
-              : [tarefasPendentes, totalTarefas - tarefasPendentes],
+            data: pendentes === 0 
+              ? [0, totalTarefas]
+              : [pendentes, totalTarefas - pendentes >= 0 ? totalTarefas - pendentes : 0],
             backgroundColor: ['#FF6384', '#36A2EB'],
             borderColor: ['#fff', '#fff'],
             borderWidth: 1,
           }],
         };
       }
-      setChartData(newChartData);
       console.log('Novo chartData:', newChartData);
+      setChartData(newChartData);
       setChartKey(prev => prev + 1);
     } catch (error) {
-      console.error('Erro ao buscar dados do gráfico:', error);
+      console.error('Erro ao buscar dados do gráfico:', error, 'Status:', error.response?.status, 'Data:', error.response?.data);
       setError('Erro ao carregar dados do gráfico de pizza.');
+      setChartData({
+        labels: ['Erro', 'N/A'],
+        datasets: [{
+          data: [1, 0],
+          backgroundColor: ['#FF6384', '#36A2EB'],
+          borderColor: ['#fff', '#fff'],
+          borderWidth: 1,
+        }],
+      });
     }
-  };
+  }, [userCargo, isSuperuser, empresasSelecionadas, checkboxState, calculateTarefasPendentes]);
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!userCargo || !empresasSelecionadas.length || !Object.keys(checkboxState).length) return;
     fetchNotifications();
+    const pendentes = calculateTarefasPendentes(checkboxState, empresasSelecionadas);
+    setTarefasPendentes(pendentes);
     fetchChartData();
     const interval = setInterval(() => {
+      console.log('Atualizando notificações e gráfico...');
       fetchNotifications();
       fetchChartData();
-    }, 30000);
+    }, 60000);
     return () => clearInterval(interval);
-  }, [tarefasPendentes]);
+  }, [fetchNotifications, fetchChartData, userCargo, empresasSelecionadas, checkboxState, calculateTarefasPendentes]);
 
   useEffect(() => {
     const handleAtribuicoesUpdated = (event) => {
@@ -206,17 +264,12 @@ const InicioPage = () => {
     };
     window.addEventListener('atribuicoesUpdated', handleAtribuicoesUpdated);
     return () => window.removeEventListener('atribuicoesUpdated', handleAtribuicoesUpdated);
-  }, []);
+  }, [fetchData, fetchChartData]);
 
   const markAsRead = async (id) => {
     try {
-      await axiosInstance.patch(`/api/notifications/${id}/`, { read: true });
-      setNotifications((prev) =>
-        prev.map((notif) =>
-          notif.id === id ? { ...notif, read: true } : notif
-        )
-      );
-      console.log(`Notificação ${id} marcada como lida`);
+      await axiosInstance.patch(`/api/notifications/${id}/`, { lida: true });
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
     } catch (err) {
       console.error('Erro ao marcar notificação como lida:', err);
     }
@@ -224,34 +277,20 @@ const InicioPage = () => {
 
   const clearNotifications = async () => {
     try {
-      await axiosInstance.delete('/api/notifications/');
-      setNotifications([]);
-      console.log('Notificações limpas');
+      await axiosInstance.post('/api/notifications/marcar_todas_como_lidas/');
+      setNotifications(prev => prev.map(n => ({ ...n, lida: true })));
     } catch (err) {
       console.error('Erro ao limpar notificações:', err);
     }
   };
 
-  const unreadCount = notifications.filter((notif) => !notif.read).length;
+  const unreadCount = notifications.filter((n) => !n.lida).length;
 
   useEffect(() => {
-    if (!userCargo) return;
+    if (!userCargo || !Object.keys(checkboxState).length) return;
 
-    let pendentes = 0;
-    Object.keys(checkboxState).forEach((empresaId) => {
-      const checks = checkboxState[empresaId];
-      if (userCargo === 'pessoal' || userCargo === 'admin') {
-        if (!checks.inss) pendentes++;
-        if (!checks.fgts) pendentes++;
-        if (!checks.folha) pendentes++;
-        if (!checks.honorario) pendentes++;
-      }
-      if (userCargo === 'fiscal' || userCargo === 'admin') {
-        if (!checks.simples_nacional) pendentes++;
-      }
-    });
+    const pendentes = calculateTarefasPendentes(checkboxState, empresasSelecionadas);
     setTarefasPendentes(pendentes);
-    console.log('Tarefas pendentes calculadas:', pendentes);
 
     const today = new Date();
     const day = today.getDate();
@@ -268,7 +307,7 @@ const InicioPage = () => {
     const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
     setDiasVencimento(daysRemaining);
     console.log('Dias até vencimento:', daysRemaining);
-  }, [checkboxState, userCargo]);
+  }, [checkboxState, userCargo, empresasSelecionadas, calculateTarefasPendentes]);
 
   const handleCheckboxChange = async (empresaId, field) => {
     console.log(`Clicado ${field} para empresa ${empresaId}`);
@@ -281,6 +320,8 @@ const InicioPage = () => {
     };
     setCheckboxState(newState);
     setChartKey((prev) => prev + 1);
+    const pendentes = calculateTarefasPendentes(newState, empresasSelecionadas);
+    setTarefasPendentes(pendentes);
 
     try {
       const response = await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
@@ -295,6 +336,7 @@ const InicioPage = () => {
           : `Erro ao atualizar ${field} para a empresa.`
       );
       setCheckboxState(checkboxState);
+      setTarefasPendentes(calculateTarefasPendentes(checkboxState, empresasSelecionadas));
     }
   };
 
@@ -345,7 +387,7 @@ const InicioPage = () => {
   };
 
   useEffect(() => {
-    if (!userCargo) return;
+    if (!userCargo || !Object.keys(checkboxState).length) return;
 
     const checkResetDate = () => {
       console.log('Verificando reset de checkboxes...');
@@ -359,7 +401,7 @@ const InicioPage = () => {
         const empresa = empresasSelecionadas.find((e) => e.id === parseInt(empresaId));
         if (!empresa) return;
 
-        if ((userCargo === 'pessoal' || userCargo === 'admin') && day === 15) {
+        if ((userCargo === 'pessoal' || userCargo === 'admin' || isSuperuser) && day === 15) {
           if (!checkboxState[empresaId].inss) pendencias.push({ empresa, tipo: 'INSS' });
           if (!checkboxState[empresaId].fgts) pendencias.push({ empresa, tipo: 'FGTS' });
           if (!checkboxState[empresaId].folha) pendencias.push({ empresa, tipo: 'Folha' });
@@ -373,7 +415,7 @@ const InicioPage = () => {
           };
         }
 
-        if ((userCargo === 'fiscal' || userCargo === 'admin') && day === 25) {
+        if ((userCargo === 'fiscal' || userCargo === 'admin' || isSuperuser) && day === 25) {
           if (!checkboxState[empresaId].simples_nacional) {
             pendencias.push({ empresa, tipo: 'Simples Nacional' });
           }
@@ -386,6 +428,8 @@ const InicioPage = () => {
 
       if (JSON.stringify(updatedCheckboxState) !== JSON.stringify(checkboxState)) {
         setCheckboxState(updatedCheckboxState);
+        const pendentes = calculateTarefasPendentes(updatedCheckboxState, empresasSelecionadas);
+        setTarefasPendentes(pendentes);
         fetchChartData();
       }
 
@@ -400,7 +444,7 @@ const InicioPage = () => {
     checkResetDate();
     const interval = setInterval(checkResetDate, 24 * 60 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [checkboxState, empresasSelecionadas, userCargo]);
+  }, [checkboxState, empresasSelecionadas, userCargo, isSuperuser, fetchChartData, calculateTarefasPendentes]);
 
   const chartOptions = {
     responsive: true,
@@ -452,7 +496,7 @@ const InicioPage = () => {
 
   const isDepartamentoPessoal = userCargo === 'pessoal';
   const isDepartamentoFiscal = userCargo === 'fiscal';
-  const isAdministrador = userCargo === 'admin';
+  const isAdministrador = userCargo === 'admin' || isSuperuser;
 
   const vencimentoColor = diasVencimento <= 3 ? 'bg-red-500' : 'bg-orange-500';
   const vencimentoIcon = diasVencimento <= 3 ? ExclamationTriangleIcon : ClockIcon;
@@ -468,33 +512,27 @@ const InicioPage = () => {
       variants={containerVariants}
       className="p-6 md:p-8 animate-fade-in relative"
     >
-      <div className="absolute top-4 right-4 flex space-x-2">
-        <button
-          onClick={handleRefresh}
-          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
-          title="Recarregar dados"
-        >
+      <div className="absolute top-6 right-8 flex items-center gap-4 z-20">
+        <button onClick={handleRefresh} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Atualizar Dados">
           <ArrowPathIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
         </button>
-        <button
-          onClick={() => setShowNotifications(!showNotifications)}
-          className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
-          title="Notificações"
-        >
-          <BellIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-          {unreadCount > 0 && (
-            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
-              {unreadCount}
-            </span>
-          )}
-        </button>
-        {showNotifications && (
-          <NotificationDropdown
-            notifications={notifications}
-            markAsRead={markAsRead}
-            clearNotifications={clearNotifications}
-          />
-        )}
+        <div className="relative">
+          <button onClick={() => setShowNotifications(prev => !prev)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Notificações">
+            <BellIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+            {unreadCount > 0 && (
+              <span className="absolute top-0 right-0 block h-3 w-3 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-900" />
+            )}
+          </button>
+          <AnimatePresence>
+            {showNotifications && (
+              <NotificationDropdown
+                notifications={notifications}
+                onMarkAsRead={markAsRead}
+                onClearAll={clearNotifications}
+              />
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       <motion.h1
@@ -877,7 +915,13 @@ const InicioPage = () => {
               Status das Tarefas
             </h2>
             <div className="h-64 relative">
-              <Doughnut key={chartKey} id="doughnut-chart" data={chartData} options={chartOptions} />
+              {chartData.labels.length === 0 || chartData.datasets[0].data.every(val => val === 0) ? (
+                <p className="text-gray-500 dark:text-gray-400 text-center">
+                  Não há dados disponíveis para o gráfico. Verifique as configurações ou entre em contato com o suporte.
+                </p>
+              ) : (
+                <Doughnut key={chartKey} id="doughnut-chart" data={chartData} options={chartOptions} />
+              )}
             </div>
           </motion.div>
           <motion.div
