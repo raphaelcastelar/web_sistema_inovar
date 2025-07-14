@@ -33,19 +33,20 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
 from rest_framework.views import APIView
+from rest_framework.decorators import action
 
 from empresas.serpro_service import gerar_e_enviar_das
 from .permissions import IsPessoalOrFiscalOrAdmin
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notification
+    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao
 
 )
 from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
-    HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificationSerializer
+    HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
@@ -154,7 +155,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
         # Criar notificações para exclusão
         for user in users_to_notify:
-            Notification.objects.create(
+            Notificacao.objects.create(
                 user=user,
                 message=f'Administrador excluiu a empresa "{empresa_nome}".'
             )
@@ -184,7 +185,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=empresa)
         logger.info(f"Criando empresa '{empresa.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
         for user in users_to_notify:
-            Notification.objects.create(
+            Notificacao.objects.create(
                 user=user,
                 message=f'Administrador adicionou a empresa "{empresa.nome}".'
             )
@@ -202,7 +203,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
         logger.info(f"Atualizando empresa '{instance.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
         for user in users_to_notify:
-            Notification.objects.create(
+            Notificacao.objects.create(
                 user=user,
                 message=f'Administrador alterou informações da empresa "{instance.nome}".'
             )
@@ -332,13 +333,22 @@ class PendenciaAPIView(APIView):
         
         return Response(created_pendencias, status=status.HTTP_201_CREATED)
 
-class NotificationViewSet(viewsets.ModelViewSet):
-    queryset = Notification.objects.all()
-    serializer_class = NotificationSerializer
+class NotificacaoViewSet(viewsets.ModelViewSet):
+    serializer_class = NotificacaoSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Notification.objects.filter(user=self.request.user).order_by('-timestamp')
+        """
+        Esta é a correção principal: Esta função garante que o usuário logado
+        veja APENAS as suas próprias notificações.
+        """
+        return self.request.user.notificacoes.all()
+
+    @action(detail=False, methods=['post'])
+    def marcar_todas_como_lidas(self, request):
+        """Ação customizada para marcar todas as notificações como lidas."""
+        request.user.notificacoes.update(lida=True)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(['POST'])
 def enviar_email(request):

@@ -5,7 +5,7 @@ from empresas.views import (
     EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet,
     DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet,
     enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet,
-    current_user, declarar_das_api, gerar_e_enviar_das_view, NotificationViewSet
+    current_user, declarar_das_api, gerar_e_enviar_das_view, NotificacaoViewSet
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -23,7 +23,7 @@ router.register(r'simples-nacional', SimplesNacionalViewSet)
 router.register(r'outros', OutrosViewSet)
 router.register(r'historico-envios', HistoricoEnviosViewSet, basename='historicoenvios')
 router.register(r'funcionarios', FuncionarioViewSet, basename='funcionarios')
-router.register(r'notifications', NotificationViewSet)
+router.register(r'notifications', NotificacaoViewSet, basename='notificacao')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

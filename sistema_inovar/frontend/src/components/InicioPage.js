@@ -147,8 +147,8 @@ const InicioPage = () => {
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const response = await axiosInstance.get('/api/notifications/');
-      console.log('Resposta /api/notifications/:', response.data);
+      const response = await axiosInstance.get('/api/notificacoes/');
+      console.log('Resposta /api/notificacoes/:', response.data);
       setNotifications(response.data);
     } catch (err) {
       console.error('Erro ao buscar notificações:', err.response?.data || err.message);
@@ -268,7 +268,7 @@ const InicioPage = () => {
 
   const markAsRead = async (id) => {
     try {
-      await axiosInstance.patch(`/api/notifications/${id}/`, { lida: true });
+      await axiosInstance.patch(`/api/notificacoes/${id}/`, { lida: true });
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, lida: true } : n));
     } catch (err) {
       console.error('Erro ao marcar notificação como lida:', err);
@@ -277,7 +277,7 @@ const InicioPage = () => {
 
   const clearNotifications = async () => {
     try {
-      await axiosInstance.post('/api/notifications/marcar_todas_como_lidas/');
+      await axiosInstance.post('/api/notificacoes/marcar_todas_como_lidas/');
       setNotifications(prev => prev.map(n => ({ ...n, lida: true })));
     } catch (err) {
       console.error('Erro ao limpar notificações:', err);
@@ -369,7 +369,7 @@ const InicioPage = () => {
       setEmpresaStatus((prev) => ({
         ...prev,
         [empresa.id]: { loading: false, error: errorMessage, success: '' },
-      }))
+      }));
     }
   };
 

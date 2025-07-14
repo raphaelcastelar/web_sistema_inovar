@@ -315,11 +315,15 @@ class Pendencia(models.Model):
     def __str__(self):
         return f"{self.empresa.nome} - {self.tipo}"
     
-class Notification(models.Model):
-       user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-       message = models.CharField(max_length=255)
-       timestamp = models.DateTimeField(auto_now_add=True)
-       read = models.BooleanField(default=False)
+class Notificacao(models.Model):
+    # O destinatário da notificação. related_name permite fazer user.notificacoes.all()
+    destinatario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notificacoes')
+    mensagem = models.CharField(max_length=255)
+    lida = models.BooleanField(default=False)
+    timestamp = models.DateTimeField(auto_now_add=True)
 
-       def __str__(self):
-           return f"{self.message} ({self.timestamp})"
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"Notificação para {self.destinatario.username}: {self.mensagem}"
