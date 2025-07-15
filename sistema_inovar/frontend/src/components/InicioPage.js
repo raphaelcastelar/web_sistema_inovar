@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -98,8 +98,10 @@ const InicioPage = () => {
       borderWidth: 1,
     }],
   });
-  const [chartKey, setChartKey] = useState(0);
+  const [chartLoading, setChartLoading] = useState(false); // Nova flag para controle do gráfico
   const navigate = useNavigate();
+  const isInitialized = useRef(false);
+  const lastClickRef = useRef(0); // Para debounce no clique
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -110,16 +112,16 @@ const InicioPage = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const userResponse = await axiosInstance.get('/api/current-user/');
+      const [userResponse, dashboardResponse, empresasResponse] = await Promise.all([
+        axiosInstance.get('/api/current-user/'),
+        axiosInstance.get('/api/dashboard-summary/'),
+        axiosInstance.get('/api/empresas/'),
+      ]);
       console.log('Resposta /api/current-user/:', userResponse.data);
       setUserCargo(userResponse.data.cargo || 'admin');
       setIsSuperuser(userResponse.data.is_superuser || false);
-
-      const dashboardResponse = await axiosInstance.get('/api/dashboard-summary/');
       setData(dashboardResponse.data);
       console.log('Resposta /api/dashboard-summary/:', dashboardResponse.data);
-
-      const empresasResponse = await axiosInstance.get('/api/empresas/');
       setEmpresasSelecionadas(empresasResponse.data);
       console.log('Resposta /api/empresas/:', empresasResponse.data);
 
@@ -174,17 +176,17 @@ const InicioPage = () => {
   }, [userCargo, isSuperuser]);
 
   const fetchChartData = useCallback(async () => {
-    if (!userCargo || !empresasSelecionadas.length || !Object.keys(checkboxState).length) {
-      console.log('fetchChartData: Dados insuficientes (userCargo, empresasSelecionadas ou checkboxState não prontos)');
+    if (chartLoading || !userCargo || !empresasSelecionadas.length || !Object.keys(checkboxState).length) {
+      console.log('fetchChartData: Carregando ou dados insuficientes, ignorando atualização');
       return;
     }
+    setChartLoading(true);
     try {
       let newChartData;
       if (userCargo === 'admin' || isSuperuser) {
-        // Calcular dados combinados para admin/superusuário
         const totalEmpresas = empresasSelecionadas.length;
         const pendentes = calculateTarefasPendentes(checkboxState, empresasSelecionadas);
-        const concluidas = (totalEmpresas * 5) - pendentes; // 5 tarefas por empresa (INSS, FGTS, Folha, Honorário, Simples Nacional)
+        const concluidas = (totalEmpresas * 5) - pendentes;
 
         newChartData = {
           labels: ['INSS', 'FGTS', 'Folha', 'Honorário', 'Simples Nacional'],
@@ -202,16 +204,14 @@ const InicioPage = () => {
           }],
         };
       } else {
-        const totalTarefas = userCargo === 'pessoal' 
-          ? empresasSelecionadas.length * 4 
-          : empresasSelecionadas.length;
+        const totalTarefas = userCargo === 'pessoal' ? empresasSelecionadas.length * 4 : empresasSelecionadas.length;
         const pendentes = calculateTarefasPendentes(checkboxState, empresasSelecionadas);
         newChartData = {
-          labels: userCargo === 'pessoal' 
+          labels: userCargo === 'pessoal'
             ? ['Tarefas Pendentes', 'Tarefas Concluídas']
             : ['Simples Nacional Pendente', 'Simples Nacional Concluído'],
           datasets: [{
-            data: pendentes === 0 
+            data: pendentes === 0
               ? [0, totalTarefas]
               : [pendentes, totalTarefas - pendentes >= 0 ? totalTarefas - pendentes : 0],
             backgroundColor: ['#FF6384', '#36A2EB'],
@@ -222,7 +222,6 @@ const InicioPage = () => {
       }
       console.log('Novo chartData:', newChartData);
       setChartData(newChartData);
-      setChartKey(prev => prev + 1);
     } catch (error) {
       console.error('Erro ao buscar dados do gráfico:', error, 'Status:', error.response?.status, 'Data:', error.response?.data);
       setError('Erro ao carregar dados do gráfico de pizza.');
@@ -235,11 +234,16 @@ const InicioPage = () => {
           borderWidth: 1,
         }],
       });
+    } finally {
+      setChartLoading(false);
     }
-  }, [userCargo, isSuperuser, empresasSelecionadas, checkboxState, calculateTarefasPendentes]);
+  }, [chartLoading, userCargo, isSuperuser, empresasSelecionadas, checkboxState, calculateTarefasPendentes]);
 
   useEffect(() => {
-    fetchData();
+    if (!isInitialized.current) {
+      fetchData();
+      isInitialized.current = true;
+    }
   }, [fetchData]);
 
   useEffect(() => {
@@ -310,24 +314,34 @@ const InicioPage = () => {
   }, [checkboxState, userCargo, empresasSelecionadas, calculateTarefasPendentes]);
 
   const handleCheckboxChange = async (empresaId, field) => {
+    const now = Date.now();
+    if (now - lastClickRef.current < 500 || empresaStatus[empresaId]?.loading) return; // Debounce e verifica loading
+    lastClickRef.current = now;
+
     console.log(`Clicado ${field} para empresa ${empresaId}`);
+    setEmpresaStatus((prev) => ({
+      ...prev,
+      [empresaId]: { ...prev[empresaId], loading: true, error: '', success: '' },
+    }));
+
+    const currentState = checkboxState[empresaId] || {};
+    const newValue = !currentState[field];
     const newState = {
       ...checkboxState,
-      [empresaId]: {
-        ...checkboxState[empresaId],
-        [field]: !checkboxState[empresaId][field],
-      },
+      [empresaId]: { ...currentState, [field]: newValue },
     };
     setCheckboxState(newState);
-    setChartKey((prev) => prev + 1);
+
     const pendentes = calculateTarefasPendentes(newState, empresasSelecionadas);
     setTarefasPendentes(pendentes);
 
     try {
-      const response = await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
-        [field]: newState[empresaId][field],
-      });
+      const response = await axiosInstance.patch(`/api/empresas/${empresaId}/`, { [field]: newValue });
       console.log(`PATCH /api/empresas/${empresaId}/ response:`, response.data);
+      setCheckboxState((prev) => ({
+        ...prev,
+        [empresaId]: { ...prev[empresaId], [field]: response.data[field] },
+      }));
     } catch (err) {
       console.error(`Erro ao atualizar ${field} para empresa ${empresaId}:`, err);
       setError(
@@ -335,8 +349,16 @@ const InicioPage = () => {
           ? `Permissão negada para atualizar ${field}. Contate o administrador.`
           : `Erro ao atualizar ${field} para a empresa.`
       );
-      setCheckboxState(checkboxState);
+      setCheckboxState((prev) => ({
+        ...prev,
+        [empresaId]: { ...prev[empresaId], [field]: !newValue },
+      }));
       setTarefasPendentes(calculateTarefasPendentes(checkboxState, empresasSelecionadas));
+    } finally {
+      setEmpresaStatus((prev) => ({
+        ...prev,
+        [empresaId]: { ...prev[empresaId], loading: false },
+      }));
     }
   };
 
@@ -394,8 +416,8 @@ const InicioPage = () => {
       const today = new Date();
       const day = today.getDate();
       const pendencias = [];
-
       const updatedCheckboxState = { ...checkboxState };
+      let stateChanged = false;
 
       Object.keys(checkboxState).forEach((empresaId) => {
         const empresa = empresasSelecionadas.find((e) => e.id === parseInt(empresaId));
@@ -413,31 +435,35 @@ const InicioPage = () => {
             folha: false,
             honorario: false,
           };
+          stateChanged = true;
         }
 
         if ((userCargo === 'fiscal' || userCargo === 'admin' || isSuperuser) && day === 25) {
-          if (!checkboxState[empresaId].simples_nacional) {
-            pendencias.push({ empresa, tipo: 'Simples Nacional' });
-          }
+          if (!checkboxState[empresaId].simples_nacional) pendencias.push({ empresa, tipo: 'Simples Nacional' });
           updatedCheckboxState[empresaId] = {
             ...updatedCheckboxState[empresaId],
             simples_nacional: false,
           };
+          stateChanged = true;
         }
       });
 
-      if (JSON.stringify(updatedCheckboxState) !== JSON.stringify(checkboxState)) {
+      const lastChange = lastClickRef.current;
+      const isRecentChange = lastChange && (Date.now() - lastChange < 5000);
+
+      if (stateChanged && !isRecentChange && JSON.stringify(updatedCheckboxState) !== JSON.stringify(checkboxState)) {
         setCheckboxState(updatedCheckboxState);
         const pendentes = calculateTarefasPendentes(updatedCheckboxState, empresasSelecionadas);
         setTarefasPendentes(pendentes);
         fetchChartData();
       }
 
-      if (pendencias.length > 0) {
+      if (pendencias.length > 0 && !isRecentChange) {
         console.log('Enviando pendências:', pendencias);
-        axiosInstance.post('/api/pendencias/', { pendencias }).catch((err) => {
-          console.error('Erro ao enviar pendências:', err);
-        });
+        axiosInstance.post('/api/pendencias/', { pendencias })
+          .catch((err) => {
+            console.error('Erro ao enviar pendências:', err);
+          });
       }
     };
 
@@ -664,7 +690,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.inss
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'inss');
@@ -678,7 +704,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.fgts
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'fgts');
@@ -692,7 +718,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.folha
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'folha');
@@ -706,7 +732,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.honorario
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'honorario');
@@ -724,7 +750,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.simples_nacional
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'simples_nacional');
@@ -785,7 +811,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.inss
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'inss');
@@ -799,7 +825,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.fgts
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'fgts');
@@ -813,7 +839,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.folha
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'folha');
@@ -827,7 +853,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.honorario
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'honorario');
@@ -841,7 +867,7 @@ const InicioPage = () => {
                                 checkboxState[empresa.id]?.simples_nacional
                                   ? 'text-green-500'
                                   : 'text-gray-300 dark:text-gray-600'
-                              }`}
+                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'simples_nacional');
@@ -920,7 +946,7 @@ const InicioPage = () => {
                   Não há dados disponíveis para o gráfico. Verifique as configurações ou entre em contato com o suporte.
                 </p>
               ) : (
-                <Doughnut key={chartKey} id="doughnut-chart" data={chartData} options={chartOptions} />
+                <Doughnut id="doughnut-chart" data={chartData} options={chartOptions} />
               )}
             </div>
           </motion.div>

@@ -10,7 +10,7 @@ from django.core.cache import cache
 from empresas.models import Empresa
 from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 import logging
-from empresas.models import Empresa, Notification, UserCompanyAccess
+from empresas.models import Empresa, Notificacao, UserCompanyAccess
 from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 from django.contrib.auth import get_user_model
 from rest_framework.response import Response
@@ -603,7 +603,7 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
             users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=empresa)
             logger.info(f"Enviando DAS para '{empresa.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
             for user in users_to_notify:
-                Notification.objects.create(
+                Notificacao.objects.create(
                     user=user,
                     message=f"DAS de {periodo_apuracao} enviado para a empresa '{empresa.nome}'."
                 )

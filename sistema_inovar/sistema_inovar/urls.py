@@ -23,7 +23,7 @@ router.register(r'simples-nacional', SimplesNacionalViewSet)
 router.register(r'outros', OutrosViewSet)
 router.register(r'historico-envios', HistoricoEnviosViewSet, basename='historicoenvios')
 router.register(r'funcionarios', FuncionarioViewSet, basename='funcionarios')
-router.register(r'notifications', NotificacaoViewSet, basename='notificacao')
+router.register(r'notificacoes', NotificacaoViewSet, basename='notificacao')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

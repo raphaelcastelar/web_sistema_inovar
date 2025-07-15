@@ -141,21 +141,15 @@ def assign_new_company_to_all_users(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=Empresa)
 def notificar_sobre_mudanca_empresa(sender, instance, created, **kwargs):
-    # Encontra o usuário que fez a alteração (se disponível no contexto, senão fica anônimo)
-    # Em uma aplicação real, passaríamos o 'request.user' para o save. Por enquanto, deixamos genérico.
-    
     if created:
         mensagem = f"Nova empresa cadastrada: {instance.nome}"
     else:
         mensagem = f"Os dados da empresa {instance.nome} foram atualizados."
 
-    # Pega todos os funcionários (exceto superusuários, se quiser) para notificar
     todos_os_funcionarios = Funcionario.objects.filter(is_active=True)
-
     for funcionario in todos_os_funcionarios:
         Notificacao.objects.create(destinatario=funcionario, mensagem=mensagem)
 
-# Este sinal é disparado DEPOIS que uma Empresa é deletada
 @receiver(post_delete, sender=Empresa)
 def notificar_sobre_delete_empresa(sender, instance, **kwargs):
     mensagem = f"A empresa {instance.nome} foi excluída do sistema."
