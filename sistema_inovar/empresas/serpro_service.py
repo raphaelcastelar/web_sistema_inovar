@@ -3,11 +3,12 @@ import base64
 import json
 import os
 import tempfile
+import locale
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core.cache import cache
-from empresas.models import Empresa
+from empresas.models import Empresa, HistoricoEnvios
 from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 import logging
 from empresas.models import Empresa, Notificacao, UserCompanyAccess
@@ -15,6 +16,9 @@ from empresas.whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_docu
 from django.contrib.auth import get_user_model
 from rest_framework.response import Response
 from rest_framework import status
+from datetime import datetime
+from django.utils import timezone
+from django.core.exceptions import ObjectDoesNotExist
 
 
 logger = logging.getLogger(__name__)
@@ -509,11 +513,14 @@ def declarar_das_serpro(cnpj_empresa, periodo_apuracao, dados_declaracao):
         logger.error(f"Erro ao processar resposta da declaração: {e}")
         return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
 
-def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
+def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None, request=None):
     """
     Gera o DAS para o mês anterior ao atual, envia automaticamente via WhatsApp,
-    marca o campo simples_nacional da empresa como True e cria notificações.
+    marca o campo simples_nacional da empresa como True, cria notificações e registra no histórico.
     """
+    # Configurar locale para português do Brasil
+    locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
+
     try:
         # Validar CNPJ
         if not cnpj_empresa:
@@ -535,7 +542,7 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
         # Buscar empresa
         try:
             empresa = Empresa.objects.get(cnpj=cnpj_empresa_formatted)
-        except Empresa.DoesNotExist:
+        except ObjectDoesNotExist:
             logger.error(f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada.")
             return {"sucesso": False, "erro": f"Empresa com CNPJ {cnpj_empresa_formatted} não encontrada."}
 
@@ -554,12 +561,22 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
             data_mes_anterior = datetime.now().replace(day=1) - relativedelta(months=1)
             periodo_apuracao = data_mes_anterior.strftime('%m/%Y')  # Formato MM/YYYY
             periodo_apuracao_alt = data_mes_anterior.strftime('%Y%m')  # Formato YYYYMM para compatibilidade
+            mes_passado = data_mes_anterior.strftime('%B/%Y')  # Ex.: "Junho/2025" em português
             logger.info(f"Período de apuração definido como mês anterior: {periodo_apuracao}")
         else:
             periodo_apuracao_alt = ''.join(filter(str.isdigit, periodo_apuracao))  # Para compatibilidade com YYYYMM
             logger.info(f"Período de apuração fornecido: {periodo_apuracao}")
+            # Calcular mês passado a partir de periodo_apuracao, se fornecido
+            mes_ano = periodo_apuracao.split('/')
+            if len(mes_ano) == 2:
+                data = datetime.strptime(periodo_apuracao, '%m/%Y')
+                data_mes_anterior = data.replace(day=1) - relativedelta(months=1)
+                mes_passado = data_mes_anterior.strftime('%B/%Y')  # Em português
+            else:
+                mes_passado = "Mês não identificado"
 
         # Tentar gerar DAS com formato MM/YYYY, depois com YYYYMM se necessário
+        from .serpro_service import gerar_das_serpro  # Importação local para evitar circular
         das_result = gerar_das_serpro(cnpj_empresa_clean, periodo_apuracao)
         if not das_result["sucesso"]:
             logger.info(f"Tentando formato alternativo de período: {periodo_apuracao_alt}")
@@ -580,6 +597,14 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
             media_id, _ = upload_media_to_whatsapp(temp_file_path, filename)
             if not media_id:
                 logger.error("Falha ao fazer upload do PDF para o WhatsApp.")
+                HistoricoEnvios.objects.create(
+                    remetente=telefone,
+                    arquivo=filename,
+                    status='falha',
+                    data_envio=timezone.now(),
+                    usuario=None,
+                    erro="Falha ao fazer upload do PDF para o WhatsApp."
+                )
                 return {"sucesso": False, "erro": "Falha ao fazer upload do PDF para o WhatsApp."}
 
             message_id, error = send_whatsapp_document_template_message(
@@ -587,11 +612,20 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
                 document_media_id=media_id,
                 document_filename=filename,
                 company_name_for_template=empresa.nome,
+                period_month=mes_passado,
                 template_name="enviar_sn"
             )
 
             if not message_id:
                 logger.error(f"Falha ao enviar o DAS via WhatsApp: {error}")
+                HistoricoEnvios.objects.create(
+                    remetente=telefone,
+                    arquivo=filename,
+                    status='falha',
+                    data_envio=timezone.now(),
+                    usuario=None,
+                    erro=f"Falha ao enviar o DAS via WhatsApp: {error}"
+                )
                 return {"sucesso": False, "erro": f"Falha ao enviar o DAS via WhatsApp: {error}"}
 
             # Marcar simples_nacional como True
@@ -604,18 +638,47 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None):
             logger.info(f"Enviando DAS para '{empresa.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
             for user in users_to_notify:
                 Notificacao.objects.create(
-                    user=user,
-                    message=f"DAS de {periodo_apuracao} enviado para a empresa '{empresa.nome}'."
+                    destinatario=user,
+                    mensagem=f"DAS de {periodo_apuracao} enviado para a empresa '{empresa.nome}'."
                 )
             logger.info(f"Notificações criadas para envio do DAS da empresa '{empresa.nome}'.")
 
-            logger.info(f"DAS gerado e enviado com sucesso para {empresa.nome} ({cnpj_empresa_formatted}) via WhatsApp.")
-            return {"sucesso": True, "mensagem": f"DAS de {periodo_apuracao} enviado com sucesso para {empresa.nome}."}
+            # Registrar no histórico com o usuário autenticado
+            usuario = None
+            if request and hasattr(request, 'user') and not request.user.is_anonymous:
+                try:
+                    usuario = Funcionario.objects.get(id=request.user.id)
+                except ObjectDoesNotExist:
+                    logger.warning(f"Usuário {request.user} não encontrado como Funcionario.")
+            HistoricoEnvios.objects.create(
+                remetente=telefone,
+                arquivo=filename,
+                status='sucesso',
+                message_id=message_id,
+                data_envio=timezone.now(),
+                usuario=usuario
+            )
+            logger.info(f"DAS enviado com sucesso para {empresa.nome} ({cnpj_empresa_formatted}) via WhatsApp. Registro no histórico criado.")
+
+            return {
+                "sucesso": True,
+                "mensagem": f"DAS de {periodo_apuracao} enviado com sucesso para {empresa.nome}.",
+                "filename": filename,
+                "message_id": message_id
+            }
         finally:
             if os.path.exists(temp_file_path):
                 os.unlink(temp_file_path)
     except Exception as e:
         logger.error(f"Erro ao gerar e enviar DAS: {e}")
+        HistoricoEnvios.objects.create(
+            remetente=telefone if 'telefone' in locals() else None,
+            arquivo=filename if 'filename' in locals() else None,
+            status='falha',
+            data_envio=timezone.now(),
+            usuario=None,
+            erro=f"Erro ao processar a geração e envio do DAS via WhatsApp: {str(e)}"
+        )
         return {"sucesso": False, "erro": "Erro ao processar a geração e envio do DAS via WhatsApp."}
 
 

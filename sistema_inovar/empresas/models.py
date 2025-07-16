@@ -245,6 +245,10 @@ class HistoricoEnvios(models.Model):
     # message_id pode ser nulo se o envio falhar antes de ser gerado
     message_id = models.CharField(max_length=255, null=True, blank=True)
 
+    data_envio = models.DateTimeField(default=timezone.now, help_text="Data e hora do envio")
+    usuario = models.ForeignKey(Funcionario, on_delete=models.SET_NULL, null=True, blank=True, related_name='historico_envios', help_text="Usuário que realizou o envio")
+    erro = models.TextField(null=True, blank=True, help_text="Descrição do erro, se aplicável")
+
     class Meta:
         # Define o nome da tabela explicitamente
         db_table = 'historico_envios'

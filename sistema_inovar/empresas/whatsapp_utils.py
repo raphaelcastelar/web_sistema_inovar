@@ -36,31 +36,52 @@ def send_whatsapp_document_template_message(
     document_media_id: str,
     document_filename: str,
     company_name_for_template: str,
+    period_month: str,  # Novo parâmetro para o mês passado
     template_name: str
 ):
-    # ... (código da função send_whatsapp_document_template_message como definido anteriormente) ...
-    # Exemplo:
     api_url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
     headers = {"Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}", "Content-Type": "application/json"}
     payload = {
-        "messaging_product": "whatsapp", "recipient_type": "individual", "to": recipient_number,
-        "type": "template", "template": {
-            "name": template_name, "language": {"code": "pt_BR"},
+        "messaging_product": "whatsapp",
+        "recipient_type": "individual",
+        "to": recipient_number,
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": "pt_BR"},
             "components": [
-                {"type": "header", "parameters": [{"type": "document", "document": {"id": document_media_id, "filename": document_filename}}]},
-                {"type": "body", "parameters": [{"type": "text", "text": document_filename}, {"type": "text", "text": company_name_for_template}]}
-            ]}}
+                {
+                    "type": "header",
+                    "parameters": [
+                        {
+                            "type": "document",
+                            "document": {"id": document_media_id, "filename": document_filename}
+                        }
+                    ]
+                },
+                {
+                    "type": "body",
+                    "parameters": [
+                        {"type": "text", "text": company_name_for_template},  # Primeiro parâmetro: nome da empresa
+                        {"type": "text", "text": period_month}  # Segundo parâmetro: mês passado
+                    ]
+                }
+            ]
+        }
+    }
     logger.info(f"Enviando payload do template: {json.dumps(payload, indent=2, ensure_ascii=False)} para {api_url}")
     try:
         response = requests.post(api_url, json=payload, headers=headers)
         response.raise_for_status()
         response_data = response.json()
         logger.info(f"Resposta do envio do template: {json.dumps(response_data, indent=2, ensure_ascii=False)}")
-        if "messages" in response_data and response_data["messages"]: return response_data["messages"][0].get("id"), None
+        if "messages" in response_data and response_data["messages"]:
+            return response_data["messages"][0].get("id"), None
         return None, "Nenhum message_id na resposta."
     except requests.exceptions.RequestException as e:
         error_message = f"Erro API: {e}"
-        if hasattr(e, 'response') and e.response is not None: error_message += f" - Resposta: {e.response.text}"
+        if hasattr(e, 'response') and e.response is not None:
+            error_message += f" - Resposta: {e.response.text}"
         logger.error(error_message)
         return None, error_message
     except Exception as e:

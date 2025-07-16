@@ -1065,10 +1065,12 @@ def declarar_das_api(request):
         logger.error(f"Erro ao declarar DAS: {str(e)}")
         return Response({'error': f'Erro ao declarar DAS: {str(e)}'}, status=500)
     
-@csrf_exempt
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def gerar_e_enviar_das_view(request):
     """
     View to handle DAS generation and sending via WhatsApp.
+    Requires authentication.
     """
     if request.method != 'POST':
         logger.error("Método não permitido. Apenas POST é aceito.")
@@ -1090,7 +1092,8 @@ def gerar_e_enviar_das_view(request):
         logger.error("CNPJ não fornecido na requisição.")
         return JsonResponse({"sucesso": False, "erro": "CNPJ é obrigatório."}, status=400)
 
-    result = gerar_e_enviar_das(cnpj_empresa, periodo_apuracao)
+    # Passar o request para associar o usuário autenticado ao histórico
+    result = gerar_e_enviar_das(cnpj_empresa, periodo_apuracao, request=request)
     if result["sucesso"]:
         return JsonResponse(result, status=200)
     return JsonResponse(result, status=400)
