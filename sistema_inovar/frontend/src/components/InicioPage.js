@@ -79,6 +79,7 @@ const NotificationDropdown = ({ notifications, onMarkAsRead, onClearAll }) => (
 const InicioPage = () => {
   const [data, setData] = useState(null);
   const [empresasSelecionadas, setEmpresasSelecionadas] = useState([]);
+  const [searchTerm, setSearchTerm] = useState(''); // Novo estado para o termo de pesquisa
   const [userCargo, setUserCargo] = useState(null);
   const [isSuperuser, setIsSuperuser] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -531,6 +532,11 @@ const InicioPage = () => {
       ? 'Nenhum vencimento próximo'
       : `Vencimento em ${isDepartamentoFiscal ? '25' : '15'}/${new Date().getMonth() + (diasVencimento > 7 ? 2 : 1)}`;
 
+  // Filtrar empresas com base no termo de pesquisa
+  const filteredEmpresas = empresasSelecionadas.filter((empresa) =>
+    empresa.nome.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
     <motion.div
       initial="hidden"
@@ -596,11 +602,20 @@ const InicioPage = () => {
           variants={itemVariants}
           className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 min-h-[600px]"
         >
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center justify-between">
             Empresas Atribuídas
+            <div className="relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Pesquisar empresa..."
+                className="w-64 p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
           </h2>
           <div className="overflow-y-auto max-h-[540px]">
-            {empresasSelecionadas.length > 0 ? (
+            {filteredEmpresas.length > 0 ? (
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-indigo-50 dark:bg-indigo-900/50 sticky top-0">
@@ -661,7 +676,7 @@ const InicioPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {empresasSelecionadas.map((empresa) => (
+                  {filteredEmpresas.map((empresa) => (
                     <motion.tr
                       key={empresa.id}
                       variants={itemVariants}
@@ -926,7 +941,7 @@ const InicioPage = () => {
               </table>
             ) : (
               <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                Nenhuma empresa atribuída a este usuário.
+                Nenhuma empresa encontrada ou atribuída a este usuário.
               </p>
             )}
           </div>

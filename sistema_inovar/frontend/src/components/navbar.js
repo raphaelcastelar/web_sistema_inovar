@@ -10,7 +10,7 @@ import {
     BuildingOfficeIcon,
     Cog6ToothIcon,
     DocumentCheckIcon,
-    ExclamationTriangleIcon // Adicione esta importação
+    ExclamationTriangleIcon 
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 import ThemeToggle from './ThemeToggle';
@@ -43,7 +43,7 @@ const Navbar = () => {
     };
 
     return (
-        <div className="fixed left-0 top-0 h-full w-56 bg-gradient-to-b from-indigo-900 to-gray-800 shadow-xl flex flex-col">
+        <div className="fixed left-0 top-0 h-screen w-56 bg-gradient-to-b from-indigo-900 to-gray-800 shadow-xl flex flex-col">
             <div className="flex-shrink-0 flex justify-center py-8">
                 <img
                     src={LogoContabilidade}
@@ -52,7 +52,7 @@ const Navbar = () => {
                 />
             </div>
 
-            <nav className="flex-grow w-full flex flex-col space-y-1 px-2">
+            <nav className="flex-grow w-full flex flex-col space-y-1 px-2 overflow-y-auto">
                 <NavLink to="/" icon={HomeIcon} text="Início" />
                 <NavLink to="/empresas" icon={BuildingOfficeIcon} text="Empresas" />
                 <NavLink to="/gerenciar-usuarios" icon={UserGroupIcon} text="Usuários" />
@@ -65,7 +65,7 @@ const Navbar = () => {
                 <NavLink to="/gerar-das" icon={DocumentArrowDownIcon} text="Gerar DAS" />
                 <NavLink to="/consultar-extrato" icon={DocumentMagnifyingGlassIcon} text="Consultar Extrato" />
                 <NavLink to="/declarar-das" icon={DocumentCheckIcon} text="Declarar DAS" />
-                <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" /> {/* Adicione esta linha */}
+                <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" />
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
             </nav>
 
