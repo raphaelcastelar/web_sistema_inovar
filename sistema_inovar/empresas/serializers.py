@@ -88,10 +88,35 @@ class OutrosSerializer(serializers.ModelSerializer):
         model = Outros
         fields = '__all__'
 
+# serializers.py
 class HistoricoEnviosSerializer(serializers.ModelSerializer):
+    nome_empresa = serializers.CharField(source='empresa.nome', read_only=True)
+
     class Meta:
         model = HistoricoEnvios
         fields = '__all__'
+
+    def create(self, validated_data):
+        remetente = validated_data.get('remetente', '')
+        normalized_remetente = remetente.replace('+', '') if remetente.startswith('+') else remetente
+        validated_data['remetente'] = normalized_remetente
+        empresa = Empresa.objects.filter(telefone=normalized_remetente).first()
+        if empresa and 'empresa' not in validated_data:
+            validated_data['empresa'] = empresa
+        instance = super().create(validated_data)
+        if not instance.empresa_id and empresa:
+            instance.empresa = empresa
+            instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        remetente = validated_data.get('remetente', instance.remetente)
+        normalized_remetente = remetente.replace('+', '') if remetente.startswith('+') else remetente
+        validated_data['remetente'] = normalized_remetente
+        empresa = Empresa.objects.filter(telefone=normalized_remetente).first()
+        if empresa and 'empresa' not in validated_data:
+            validated_data['empresa'] = empresa
+        return super().update(instance, validated_data)
         
 class FuncionarioSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, style={'input_type': 'password'})

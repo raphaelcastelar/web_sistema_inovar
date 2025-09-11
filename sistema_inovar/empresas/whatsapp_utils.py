@@ -5,6 +5,7 @@ import os
 import mimetypes
 from django.conf import settings
 import logging
+from .models import Empresa
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,53 @@ def send_whatsapp_document_template_message(
     recipient_number: str,
     document_media_id: str,
     document_filename: str,
-    company_name_for_template: str,
-    period_month: str,  # Novo parâmetro para o mês passado
-    template_name: str
+    template_name: str,
+    template_params: dict = None  # Parâmetro opcional
 ):
     api_url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
     headers = {"Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}", "Content-Type": "application/json"}
+
+    # Normaliza o número de telefone para remover o '+' se presente
+    normalized_phone = recipient_number.replace('+', '') if recipient_number.startswith('+') else recipient_number
+
+    # Busca o nome da empresa com base no telefone
+    empresa = Empresa.objects.filter(telefone=normalized_phone).first()
+    company_name = empresa.nome if empresa else "Empresa Desconhecida"
+
+    # Mapeamento dinâmico de parâmetros com base no template_name
+    template_configs = {
+        "enviar_sn": {
+            "body_params": [
+                {"type": "text", "text": company_name},  # 1ª variável: Nome da empresa
+                {"type": "text", "text": template_params.get("period_month", "") if template_params else ""}  # 2ª variável: Mês anterior
+            ]
+        },
+        "envio_documento_com_contato": {
+            "body_params": [
+                {"type": "text", "text": document_filename},  # 1ª variável: Nome do arquivo
+                {"type": "text", "text": company_name}       # 2ª variável: Nome da empresa
+            ]
+        },
+        "enviar_dp": {
+            "body_params": [
+                {"type": "text", "text": company_name},  # 1ª variável: Nome da empresa
+                {"type": "text", "text": template_params.get("period_month", "") if template_params else ""}  # 2ª variável: Mês anterior
+            ]
+        }
+    }
+
+    # Usa a configuração específica do template
+    config = template_configs.get(template_name)
+    if not config:
+        logger.error(f"Template '{template_name}' não configurado em template_configs.")
+        return None, f"Template '{template_name}' não suportado."
+
+    body_params = config.get("body_params", [
+        {"type": "text", "text": company_name},
+        {"type": "text", "text": ""}
+    ])
+
+    # Montar o payload do template
     payload = {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
@@ -61,14 +103,12 @@ def send_whatsapp_document_template_message(
                 },
                 {
                     "type": "body",
-                    "parameters": [
-                        {"type": "text", "text": company_name_for_template},  # Primeiro parâmetro: nome da empresa
-                        {"type": "text", "text": period_month}  # Segundo parâmetro: mês passado
-                    ]
+                    "parameters": body_params
                 }
             ]
         }
     }
+
     logger.info(f"Enviando payload do template: {json.dumps(payload, indent=2, ensure_ascii=False)} para {api_url}")
     try:
         response = requests.post(api_url, json=payload, headers=headers)

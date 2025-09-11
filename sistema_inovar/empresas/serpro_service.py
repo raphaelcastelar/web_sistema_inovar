@@ -513,7 +513,7 @@ def declarar_das_serpro(cnpj_empresa, periodo_apuracao, dados_declaracao):
         logger.error(f"Erro ao processar resposta da declaração: {e}")
         return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
 
-def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None, request=None):
+def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None, request=None, template_name="enviar_sn"):
     """
     Gera o DAS para o mês anterior ao atual, envia automaticamente via WhatsApp,
     marca o campo simples_nacional da empresa como True, cria notificações e registra no histórico.
@@ -558,25 +558,26 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None, request=None):
 
         # Definir período de apuração (mês anterior)
         if not periodo_apuracao:
-            data_mes_anterior = datetime.now().replace(day=1) - relativedelta(months=1)
+            data_mes_atual = datetime.now().replace(day=1)
+            data_mes_anterior = data_mes_atual - relativedelta(months=1)
             periodo_apuracao = data_mes_anterior.strftime('%m/%Y')  # Formato MM/YYYY
             periodo_apuracao_alt = data_mes_anterior.strftime('%Y%m')  # Formato YYYYMM para compatibilidade
-            mes_passado = data_mes_anterior.strftime('%B/%Y')  # Ex.: "Junho/2025" em português
+            mes_passado = data_mes_anterior.strftime('%B/%Y')  # Ex.: "Agosto/2025" em português
             logger.info(f"Período de apuração definido como mês anterior: {periodo_apuracao}")
         else:
             periodo_apuracao_alt = ''.join(filter(str.isdigit, periodo_apuracao))  # Para compatibilidade com YYYYMM
             logger.info(f"Período de apuração fornecido: {periodo_apuracao}")
-            # Calcular mês passado a partir de periodo_apuracao, se fornecido
+            # Calcular mês anterior a partir de periodo_apuracao
             mes_ano = periodo_apuracao.split('/')
             if len(mes_ano) == 2:
                 data = datetime.strptime(periodo_apuracao, '%m/%Y')
                 data_mes_anterior = data.replace(day=1) - relativedelta(months=1)
                 mes_passado = data_mes_anterior.strftime('%B/%Y')  # Em português
             else:
-                mes_passado = "Mês não identificado"
+                data_mes_anterior = datetime.now().replace(day=1) - relativedelta(months=1)
+                mes_passado = data_mes_anterior.strftime('%B/%Y')  # Fallback para mês anterior atual
 
         # Tentar gerar DAS com formato MM/YYYY, depois com YYYYMM se necessário
-        from .serpro_service import gerar_das_serpro  # Importação local para evitar circular
         das_result = gerar_das_serpro(cnpj_empresa_clean, periodo_apuracao)
         if not das_result["sucesso"]:
             logger.info(f"Tentando formato alternativo de período: {periodo_apuracao_alt}")
@@ -607,13 +608,16 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None, request=None):
                 )
                 return {"sucesso": False, "erro": "Falha ao fazer upload do PDF para o WhatsApp."}
 
+            # Envia o template com parâmetros dinâmicos
+            template_params = {
+                "period_month": mes_passado  # Para enviar_sn e enviar_dp
+            }
             message_id, error = send_whatsapp_document_template_message(
                 recipient_number=telefone,
                 document_media_id=media_id,
                 document_filename=filename,
-                company_name_for_template=empresa.nome,
-                period_month=mes_passado,
-                template_name="enviar_sn"
+                template_params=template_params,
+                template_name=template_name
             )
 
             if not message_id:

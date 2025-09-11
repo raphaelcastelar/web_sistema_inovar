@@ -17,7 +17,7 @@ class Empresa(models.Model):
     nome = models.CharField(max_length=100, null=False)
     cnpj = models.CharField(max_length=18, unique=True, null=False)
     email = models.CharField(max_length=255, null=False)
-    telefone = models.CharField(max_length=15, null=True, blank=False)
+    telefone = models.CharField(max_length=20, null=True, blank=False)
     simples_nacional = models.BooleanField(default=False)
     inss = models.BooleanField(default=False)
     fgts = models.BooleanField(default=False)
@@ -25,26 +25,22 @@ class Empresa(models.Model):
     honorario = models.BooleanField(default=False)
     monitorar_simples = models.BooleanField(default=True)
     usuarios = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='empresas')
-    
 
     def __str__(self):
         return self.nome
-    
+
     def save(self, *args, **kwargs):
-        is_new = self._state.adding  # Verifica se é uma nova empresa
-        super().save(*args, **kwargs)  # Salva a empresa primeiro
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
         if is_new:
-            # Atribuir a nova empresa a todos os funcionários
             from .models import Funcionario, UserCompanyAccess
             funcionarios = Funcionario.objects.all()
             for funcionario in funcionarios:
-                # Adicionar ao UserCompanyAccess
                 UserCompanyAccess.objects.get_or_create(
                     user=funcionario,
                     empresa=self,
                     defaults={'created_by': None}
                 )
-                # Adicionar ao empresas_gerenciadas
                 funcionario.empresas_gerenciadas.add(self)
             logger.info(f"Empresa {self.nome} criada e atribuída a todos os funcionários.")
 
@@ -237,26 +233,28 @@ class HistoricoEnvios(models.Model):
     ]
 
     id = models.AutoField(primary_key=True)
-    # auto_now_add=True preenche automaticamente com a data e hora da criação
-    data_hora = models.DateTimeField(auto_now_add=True) 
-    remetente = models.CharField(max_length=20) # Número para o qual foi enviado
+    data_hora = models.DateTimeField(auto_now_add=True)
+    remetente = models.CharField(max_length=20)  # Número para o qual foi enviado
     arquivo = models.CharField(max_length=255)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES)
-    # message_id pode ser nulo se o envio falhar antes de ser gerado
     message_id = models.CharField(max_length=255, null=True, blank=True)
-
     data_envio = models.DateTimeField(default=timezone.now, help_text="Data e hora do envio")
     usuario = models.ForeignKey(Funcionario, on_delete=models.SET_NULL, null=True, blank=True, related_name='historico_envios', help_text="Usuário que realizou o envio")
     erro = models.TextField(null=True, blank=True, help_text="Descrição do erro, se aplicável")
+    empresa = models.ForeignKey(Empresa, on_delete=models.SET_NULL, null=True, blank=True, related_name='historico_envios', help_text="Empresa relacionada ao envio")
 
     class Meta:
-        # Define o nome da tabela explicitamente
         db_table = 'historico_envios'
-        # Ordena os resultados mais recentes primeiro por padrão
         ordering = ['-data_hora']
 
     def __str__(self):
         return f"Envio para {self.remetente} em {self.data_hora.strftime('%d/%m/%Y %H:%M')} - Status: {self.status}"
+
+    def save(self, *args, **kwargs):
+        # Normaliza o remetente, removendo o '+' para corresponder ao formato do telefone (ex.: 5528999270687)
+        if self.remetente and self.remetente.startswith('+'):
+            self.remetente = self.remetente.replace('+', '')  # Converte +5528999270687 para 5528999270687
+        super().save(*args, **kwargs)
     
 class ObrigacaoMensal(models.Model):
     STATUS_CHOICES = [
