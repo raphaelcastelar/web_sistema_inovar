@@ -138,7 +138,7 @@ const ConsultarExtratoPage = () => {
     ], []);
 
     useEffect(() => {
-        axiosInstance.get('/api/empresas/')
+        axiosInstance.get('/api/empresas/?all=true')
             .then(response => {
                 setEmpresas(response.data);
             })

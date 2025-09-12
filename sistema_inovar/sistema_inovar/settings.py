@@ -61,15 +61,6 @@ MIDDLEWARE = [
     
 ]
 
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
-    # (Opcional) Você pode definir permissões padrão aqui também
-    # 'DEFAULT_PERMISSION_CLASSES': [
-    #     'rest_framework.permissions.IsAuthenticated',
-    # ]
-}
 
 ROOT_URLCONF = 'sistema_inovar.urls'
 
@@ -123,6 +114,21 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+from datetime import timedelta
+
+# SimpleJWT Configuration (deve vir após REST_FRAMEWORK)
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),  # Mantém o padrão de 5 minutos
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),   # Aumenta para 7 dias
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False,
+}
 
 
 # Internationalization

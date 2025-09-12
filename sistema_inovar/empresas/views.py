@@ -127,7 +127,16 @@ MODEL_CONFIG_MAP_SYNC = {
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all().order_by('nome')
     serializer_class = EmpresaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]  # Permissão padrão para todos os métodos
+
+    def get_permissions(self):
+        if self.action in ['create', 'destroy']:  # Apenas create e destroy exigem admin
+            return [IsAdminUser()]
+        elif self.action == 'partial_update':  # partial_update permite qualquer usuário autenticado
+            return [IsAuthenticated(), IsPessoalOrFiscalOrAdmin()]  # Mantém a lógica existente para partial_update
+        elif self.action == 'update':  # update agora permite qualquer usuário autenticado
+            return [IsAuthenticated()]
+        return [IsAuthenticated()]  # Padrão para list e retrieve
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -137,26 +146,17 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(gerenciada_por=self.request.user)
         return queryset
 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'destroy']:
-            return [IsAdminUser()]
-        elif self.action == 'partial_update':
-            return [IsAuthenticated(), IsPessoalOrFiscalOrAdmin()]
-        return [IsAuthenticated()]
-
     def destroy(self, request, *args, **kwargs):
         try:
             instance = self.get_queryset().get(pk=kwargs.get('pk'))
-            empresa_nome = instance.nome  # Armazenar o nome antes da exclusão
+            empresa_nome = instance.nome
 
             # Obter funcionários associados via UserCompanyAccess antes de excluir
             users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
             logger.info(f"Excluindo empresa '{empresa_nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
 
-            # Excluir a empresa
             self.perform_destroy(instance)
 
-            # Criar notificações para exclusão
             for user in users_to_notify:
                 Notificacao.objects.create(
                     destinatario=user,
@@ -176,13 +176,12 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(instance, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-                # Obter funcionários associados via UserCompanyAccess
                 users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
                 logger.info(f"Atualizando parcialmente empresa '{instance.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
                 for user in users_to_notify:
                     Notificacao.objects.create(
                         destinatario=user,
-                        mensagem=f'Administrador alterou informações da empresa "{instance.nome}".'
+                        mensagem=f'Usuário alterou informações da empresa "{instance.nome}".'
                     )
                 logger.info(f"Notificações criadas para atualização parcial da empresa '{instance.nome}'.")
                 return Response(serializer.data)
@@ -196,7 +195,6 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         self.perform_create(serializer)
         empresa = serializer.instance
 
-        # Obter funcionários associados via UserCompanyAccess
         users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=empresa)
         logger.info(f"Criando empresa '{empresa.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
         for user in users_to_notify:
@@ -214,13 +212,12 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        # Obter funcionários associados via UserCompanyAccess
         users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
         logger.info(f"Atualizando empresa '{instance.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
         for user in users_to_notify:
             Notificacao.objects.create(
                 destinatario=user,
-                mensagem=f'Administrador alterou informações da empresa "{instance.nome}".'
+                mensagem=f'Usuário alterou informações da empresa "{instance.nome}".'
             )
         logger.info(f"Notificações criadas para atualização da empresa '{instance.nome}'.")
         return Response(serializer.data)

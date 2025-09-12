@@ -171,15 +171,13 @@ const EmpresaList = () => {
                                 </div>
                                 
                                 <div className="flex space-x-2 bg-gray-50 dark:bg-gray-700/50 p-3 border-t border-gray-200 dark:border-gray-700">
+                                    <Link to={`/empresas/editar/${empresa.id}`} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors" title="Editar">
+                                        <PencilIcon className="h-5 w-5 mx-auto"/>
+                                    </Link>
                                     {isAdmin && (
-                                        <>
-                                            <Link to={`/empresas/editar/${empresa.id}`} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors" title="Editar">
-                                                <PencilIcon className="h-5 w-5 mx-auto"/>
-                                            </Link>
-                                            <button onClick={() => handleDelete(empresa.id)} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-colors" title="Excluir">
-                                                <TrashIcon className="h-5 w-5 mx-auto" />
-                                            </button>
-                                        </>
+                                        <button onClick={() => handleDelete(empresa.id)} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-colors" title="Excluir">
+                                            <TrashIcon className="h-5 w-5 mx-auto" />
+                                        </button>
                                     )}
                                     <Link to={`/empresas/${empresa.id}/pastas`} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-green-100 dark:hover:bg-green-900/50 hover:text-green-600 dark:hover:text-green-400 rounded-md transition-colors" title="Acessar Pastas">
                                         <FolderIcon className="h-5 w-5 mx-auto" />
