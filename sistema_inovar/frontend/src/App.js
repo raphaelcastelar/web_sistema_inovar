@@ -24,6 +24,7 @@ import DeclararDASPage from './components/DeclararDASPage';
 import PendenciasPage from './components/PendenciasPage';
 
 import './App.css';
+import EmpresaGerenciamento from './components/EmpresaGerenciamento';
 
 function App() {
   return (
@@ -38,9 +39,10 @@ function App() {
             <Route path="/" element={<InicioPage />} />
             <Route path="/empresas" element={<EmpresaList />} />
             <Route path="/empresas/cadastrar" element={<EmpresaForm />} />
+            <Route path="/empresas/gerenciar" element={<EmpresaGerenciamento />} />
             <Route path="/empresas/editar/:empresaId" element={<EmpresaForm />} />
             <Route path="/empresas/:empresaId/pastas" element={<PastaManager />} />
-            <Route path="/gerenciar-empresas" element={<GerenciarAtribuicoesPage />} />
+            <Route path="/gerenciar-atribuicoes" element={<GerenciarAtribuicoesPage />} />
 
             <Route path="/gerenciar-usuarios" element={<FuncionarioList />} />
             <Route path="/gerenciar-usuarios/novo" element={<FuncionarioForm />} />

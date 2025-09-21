@@ -10,6 +10,7 @@ import {
     BuildingOfficeIcon,
     Cog6ToothIcon,
     DocumentCheckIcon,
+    ChartBarIcon,
     ExclamationTriangleIcon 
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
@@ -25,10 +26,18 @@ const Navbar = () => {
     };
 
     const NavLink = ({ to, icon: Icon, text }) => {
-        const isActive = (to === "/") 
-            ? location.pathname === "/" 
-            : location.pathname.startsWith(to);
+        // Verifica se a rota atual é exatamente igual à rota do link
+        const isExactMatch = location.pathname === to;
         
+        // Tratamento especial para "Empresas" e "Gerenciar Empresas"
+        const isEmpresasActive = location.pathname === '/empresas';
+        const isGerenciarActive = location.pathname === '/empresas/gerenciar';
+
+        // Define se o link está ativo com base no texto e na rota
+        const isActive = (text === 'Empresas' && isEmpresasActive) || 
+                        (text === 'Gerenciar Empresas' && isGerenciarActive) || 
+                        (text !== 'Empresas' && text !== 'Gerenciar Empresas' && isExactMatch);
+
         return (
             <Link
                 to={to}
@@ -56,7 +65,8 @@ const Navbar = () => {
                 <NavLink to="/" icon={HomeIcon} text="Início" />
                 <NavLink to="/empresas" icon={BuildingOfficeIcon} text="Empresas" />
                 <NavLink to="/gerenciar-usuarios" icon={UserGroupIcon} text="Usuários" />
-                <NavLink to="/gerenciar-empresas" icon={Cog6ToothIcon} text="Gerenciar Empresas" />
+                <NavLink to="/gerenciar-atribuicoes" icon={Cog6ToothIcon} text="Gerenciar Atribuicoes" />
+                <NavLink to="/empresas/gerenciar" icon={ChartBarIcon} text="Gerenciar Empresas" />
                 
                 <div className="px-4 pt-4 pb-2">
                     <span className="text-xs font-semibold text-indigo-400 uppercase">Serviços</span>

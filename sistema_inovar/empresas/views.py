@@ -127,14 +127,14 @@ MODEL_CONFIG_MAP_SYNC = {
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all().order_by('nome')
     serializer_class = EmpresaSerializer
-    permission_classes = [IsAuthenticated]  # Permissão padrão para todos os métodos
+    permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ['create', 'destroy']:  # Apenas create e destroy exigem admin
+        if self.action in ['create', 'destroy']:  # Apenas create e destroy para admins
             return [IsAdminUser()]
-        elif self.action == 'partial_update':  # partial_update permite qualquer usuário autenticado
-            return [IsAuthenticated(), IsPessoalOrFiscalOrAdmin()]  # Mantém a lógica existente para partial_update
-        elif self.action == 'update':  # update agora permite qualquer usuário autenticado
+        elif self.action == 'partial_update':  # partial_update para todos autenticados
+            return [IsAuthenticated(), IsPessoalOrFiscalOrAdmin()]
+        elif self.action == 'update':  # update para todos autenticados
             return [IsAuthenticated()]
         return [IsAuthenticated()]  # Padrão para list e retrieve
 
@@ -150,13 +150,9 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         try:
             instance = self.get_queryset().get(pk=kwargs.get('pk'))
             empresa_nome = instance.nome
-
-            # Obter funcionários associados via UserCompanyAccess antes de excluir
             users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
             logger.info(f"Excluindo empresa '{empresa_nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
-
             self.perform_destroy(instance)
-
             for user in users_to_notify:
                 Notificacao.objects.create(
                     destinatario=user,
@@ -189,29 +185,12 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         except Empresa.DoesNotExist:
             return Response({"error": f"Empresa com ID {empresa_id} não encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        empresa = serializer.instance
-
-        users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=empresa)
-        logger.info(f"Criando empresa '{empresa.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
-        for user in users_to_notify:
-            Notificacao.objects.create(
-                destinatario=user,
-                mensagem=f'Administrador adicionou a empresa "{empresa.nome}".'
-            )
-        logger.info(f"Notificações criadas para empresa '{empresa.nome}'.")
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_queryset().get(pk=kwargs.get('pk'))
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-
         users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
         logger.info(f"Atualizando empresa '{instance.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
         for user in users_to_notify:

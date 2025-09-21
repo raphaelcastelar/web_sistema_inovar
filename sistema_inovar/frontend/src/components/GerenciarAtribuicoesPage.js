@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { motion } from 'framer-motion';
 import { CheckIcon, UserCircleIcon } from '@heroicons/react/24/solid';
-import { InformationCircleIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { Link } from 'react-router-dom';
 
 const GerenciarAtribuicoesPage = () => {
     const [funcionarios, setFuncionarios] = useState([]);
@@ -12,6 +13,7 @@ const GerenciarAtribuicoesPage = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [isAdmin, setIsAdmin] = useState(null);
 
     const fetchData = useCallback(() => {
         setLoading(true);
@@ -33,16 +35,34 @@ const GerenciarAtribuicoesPage = () => {
     }, []);
 
     useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const response = await axiosInstance.get('/api/current-user/');
+                setIsAdmin(response.data.is_staff || response.data.is_superuser);
+            } catch (err) {
+                console.error('Erro ao verificar permissões:', err.response?.data || err.message);
+                setIsAdmin(false);
+            }
+        };
+        fetchUser();
         fetchData();
     }, [fetchData]);
 
     const handleFuncionarioSelect = (funcionario) => {
+        if (!isAdmin) {
+            setError('Você não tem permissão para gerenciar atribuições.');
+            return;
+        }
         setSelectedFuncionario(funcionario);
         setAssignedCompanyIds(new Set(funcionario.empresas_gerenciadas));
         console.log('Funcionário selecionado:', funcionario);
     };
 
     const handleCompanyToggle = (companyId) => {
+        if (!isAdmin) {
+            setError('Você não tem permissão para gerenciar atribuições.');
+            return;
+        }
         const newAssignedIds = new Set(assignedCompanyIds);
         if (newAssignedIds.has(companyId)) {
             newAssignedIds.delete(companyId);
@@ -54,6 +74,10 @@ const GerenciarAtribuicoesPage = () => {
     };
 
     const handleSaveChanges = () => {
+        if (!isAdmin) {
+            setError('Você não tem permissão para gerenciar atribuições.');
+            return;
+        }
         if (!selectedFuncionario) {
             alert('Selecione um funcionário antes de salvar.');
             return;
@@ -82,17 +106,44 @@ const GerenciarAtribuicoesPage = () => {
     };
 
     const handleSelectAll = () => {
+        if (!isAdmin) {
+            setError('Você não tem permissão para gerenciar atribuições.');
+            return;
+        }
         const allCompanyIds = empresas.map(e => e.id);
         setAssignedCompanyIds(new Set(allCompanyIds));
         console.log('Selecionando todas as empresas');
     };
 
     const handleClearAll = () => {
+        if (!isAdmin) {
+            setError('Você não tem permissão para gerenciar atribuições.');
+            return;
+        }
         setAssignedCompanyIds(new Set());
         console.log('Limpando seleção de empresas');
     };
 
     if (loading) return <p className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando...</p>;
+
+    if (!isAdmin) {
+        return (
+            <div className="p-6 md:p-8 text-center">
+                <ExclamationCircleIcon className="mx-auto h-16 w-16 text-red-500 dark:text-red-400 mt-10" />
+                <h2 className="mt-4 text-xl font-bold text-gray-800 dark:text-indigo-300">Acesso Negado</h2>
+                <p className="mt-2 text-gray-600 dark:text-gray-400">
+                    Você não possui permissões de administrador para acessar esta página. Somente administradores podem gerenciar as atribuições de empresas.
+                </p>
+                <Link
+                    to="/"
+                    className="mt-6 inline-block px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                >
+                    Voltar ao Início
+                </Link>
+            </div>
+        );
+    }
+
     if (error) return <p className="p-8 text-center text-red-500 dark:text-red-400">{error}</p>;
 
     return (
