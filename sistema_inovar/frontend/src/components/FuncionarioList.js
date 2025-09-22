@@ -8,6 +8,7 @@ import {
   TrashIcon,
   UserCircleIcon,
   ShieldCheckIcon,
+  ExclamationCircleIcon,
 } from '@heroicons/react/24/outline';
 
 const FuncionarioList = () => {
@@ -15,6 +16,7 @@ const FuncionarioList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [isAdmin, setIsAdmin] = useState(null);
 
   const fetchFuncionarios = () => {
     setLoading(true);
@@ -35,10 +37,24 @@ const FuncionarioList = () => {
   };
 
   useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await axiosInstance.get('/api/current-user/');
+        setIsAdmin(response.data.is_staff || response.data.is_superuser);
+      } catch (err) {
+        console.error('Erro ao verificar permissões:', err.response?.data || err.message);
+        setIsAdmin(false);
+      }
+    };
+    fetchUser();
     fetchFuncionarios();
   }, []);
 
   const handleDelete = (id, nome) => {
+    if (!isAdmin) {
+      setError('Você não tem permissão para excluir usuários.');
+      return;
+    }
     if (window.confirm(`Tem certeza que deseja excluir o usuário "${nome}"? Esta ação não pode ser desfeita.`)) {
       axiosInstance
         .delete(`/api/funcionarios/${id}/`)
@@ -81,6 +97,25 @@ const FuncionarioList = () => {
   };
 
   if (loading) return <p className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando usuários...</p>;
+
+  if (!isAdmin) {
+    return (
+      <div className="p-6 md:p-8 text-center">
+        <ExclamationCircleIcon className="mx-auto h-16 w-16 text-red-500 dark:text-red-400 mt-10" />
+        <h2 className="mt-4 text-xl font-bold text-gray-800 dark:text-indigo-300">Acesso Negado</h2>
+        <p className="mt-2 text-gray-600 dark:text-gray-400">
+          Você não possui permissões de administrador para acessar esta página. Somente administradores podem gerenciar os usuários.
+        </p>
+        <Link
+          to="/"
+          className="mt-6 inline-block px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+        >
+          Voltar ao Início
+        </Link>
+      </div>
+    );
+  }
+
   if (error) return <p className="p-8 text-center text-red-500">{error}</p>;
 
   return (

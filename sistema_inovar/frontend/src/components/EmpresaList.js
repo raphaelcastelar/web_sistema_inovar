@@ -23,9 +23,9 @@ const EmpresaList = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isAdmin, setIsAdmin] = useState(null);
+    const [activeTab, setActiveTab] = useState('ativadas'); // 'ativadas' ou 'nao-ativadas'
 
     useEffect(() => {
-        // Fetch current user to check admin status
         const fetchUser = async () => {
             try {
                 const response = await axiosInstance.get('/api/current-user/');
@@ -37,7 +37,6 @@ const EmpresaList = () => {
             }
         };
 
-        // Fetch all companies
         const fetchEmpresas = async () => {
             setLoading(true);
             try {
@@ -73,7 +72,9 @@ const EmpresaList = () => {
     const filteredEmpresas = useMemo(() => {
         const lowercasedSearch = search.toLowerCase().trim();
         if (!lowercasedSearch) {
-            return empresas;
+            return activeTab === 'ativadas'
+                ? empresas.filter(empresa => empresa.ativo)
+                : empresas.filter(empresa => !empresa.ativo);
         }
         const searchDigits = search.replace(/\D/g, '');
         return empresas.filter(empresa => {
@@ -84,9 +85,10 @@ const EmpresaList = () => {
                 const cleanedEmpresaCnpj = empresa.cnpj?.replace(/\D/g, '');
                 matchCnpj = cleanedEmpresaCnpj?.includes(searchDigits);
             }
-            return matchNome || matchEmail || matchCnpj;
+            const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
+            return (matchNome || matchEmail || matchCnpj) && isInTab;
         });
-    }, [empresas, search]);
+    }, [empresas, search, activeTab]);
 
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -129,16 +131,46 @@ const EmpresaList = () => {
                             <span className="hidden sm:inline">Nova Empresa</span>
                         </Link>
                     )}
+                    {isAdmin && (
+                        <Link
+                            to="/empresas/gerenciar"
+                            className="p-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition-all duration-300 flex items-center space-x-2 flex-shrink-0"
+                        >
+                            <FolderIcon className="h-6 w-6" />
+                            <span className="hidden sm:inline">Gerenciar Empresas</span>
+                        </Link>
+                    )}
                 </div>
             </div>
-            
+
+            <div className="mb-6">
+                <div className="border-b border-gray-200 dark:border-gray-700">
+                    <nav className="flex space-x-6">
+                        <button
+                            onClick={() => setActiveTab('ativadas')}
+                            className={`py-2 px-4 text-sm font-medium ${activeTab === 'ativadas' ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                        >
+                            Empresas Ativadas
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('nao-ativadas')}
+                            className={`py-2 px-4 text-sm font-medium ${activeTab === 'nao-ativadas' ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                        >
+                            Empresas Não Ativadas
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
             {filteredEmpresas.length === 0 ? (
                 <div className="text-center py-16 px-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
                     <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400"/>
-                    <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">Nenhuma empresa encontrada</h3>
+                    <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">
+                        {activeTab === 'ativadas' ? 'Nenhuma empresa ativada' : 'Nenhuma empresa não ativada'}
+                    </h3>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        {search ? 'Tente refinar sua busca ou ' : 'Nenhuma empresa cadastrada.'}
-                        {isAdmin && !search && <Link to="/empresas/cadastrar" className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">cadastre a primeira</Link>}
+                        {search ? 'Tente refinar sua busca ou ' : activeTab === 'ativadas' ? 'Nenhuma empresa ativada no momento.' : 'Nenhuma empresa desativada no momento.'}
+                        {isAdmin && !search && activeTab === 'ativadas' && <Link to="/empresas/cadastrar" className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">cadastre a primeira</Link>}
                     </p>
                 </div>
             ) : (
@@ -184,7 +216,7 @@ const EmpresaList = () => {
                                     </Link>
                                 </div>
                             </motion.div>
-                        )
+                        );
                     })}
                 </motion.div>
             )}

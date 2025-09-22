@@ -25,6 +25,7 @@ class Empresa(models.Model):
     honorario = models.BooleanField(default=False)
     monitorar_simples = models.BooleanField(default=True)
     usuarios = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='empresas')
+    ativo = models.BooleanField(default=True)
 
     def __str__(self):
         return self.nome
