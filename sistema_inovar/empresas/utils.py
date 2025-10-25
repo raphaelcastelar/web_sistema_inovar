@@ -3,6 +3,9 @@ import re
 import unidecode
 import logging
 import os
+import requests
+from django.conf import settings
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -42,3 +45,21 @@ def sanitize_filename_for_upload(filename):
     if not name_sanitized: # Evita nome de arquivo vazio
         name_sanitized = "arquivo_sem_nome_valido"
     return f"{name_sanitized}{ext}"
+
+def get_bb_access_token():
+    payload = {
+        'grant_type': 'client_credentials',
+        'scope': settings.BB_SCOPE,
+    }
+    headers = {
+        'Authorization': 'Basic ' + base64.b64encode(f"{settings.BB_CLIENT_ID}:{settings.BB_CLIENT_SECRET}".encode()).decode(),
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'developer_application_key': settings.BB_DEVELOPER_APPLICATION_KEY,
+    }
+
+    response = requests.post(settings.BB_OAUTH_URL, data=payload, headers=headers)
+    if response.status_code == 200:
+        return response.json()['access_token']
+    else:
+        logger.error(f"Erro ao obter token do BB: {response.text}")
+        return None

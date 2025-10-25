@@ -22,6 +22,7 @@ import GerenciamentoSimplesPage from './components/GerenciamentoSimplesPage';
 import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
 import DeclararDASPage from './components/DeclararDASPage';
 import PendenciasPage from './components/PendenciasPage';
+import GerarBoletoPage from './components/GerarBoletoPage';
 
 import './App.css';
 import EmpresaGerenciamento from './components/EmpresaGerenciamento';
@@ -51,6 +52,7 @@ function App() {
             <Route path="/gerenciamento/simples-nacional" element={<GerenciamentoSimplesPage />} />
             <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
             <Route path="/gerar-das" element={<GerarDasPage />} />
+            <Route path="/gerar-boleto" element={<GerarBoletoPage />} />
             <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
             <Route path="/declarar-das" element={<DeclararDASPage />} />
             <Route path="/pendencias" element={<PendenciasPage />} />

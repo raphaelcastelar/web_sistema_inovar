@@ -212,3 +212,10 @@ AUTH_USER_MODEL = 'empresas.Funcionario'
 SERPRO_CERT_PUBLIC_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\certificado_publico.pem'
 SERPRO_CERT_PRIVATE_KEY_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\chave_privada_sem_senha.pem'
 
+# Configurações do Banco do Brasil (Sandbox)
+BB_API_BASE_URL = 'https://api.sandbox.bb.com.br/cobrancas/v2'
+BB_OAUTH_URL = 'https://oauth.sandbox.bb.com.br/oauth/token'
+BB_CLIENT_ID = 'eyJpZCI6ImVkNWYyYTEtMjg0MC00Nzg5LSIsImNvZGlnb1B1YmxpY2Fkb3IiOjAsImNvZGlnb1NvZnR3YXJlIjoxNTM1NzUsInNlcXVlbmNpYWxJbnN0YWxhY2FvIjoxfQ' 
+BB_CLIENT_SECRET = 'eyJpZCI6IjIyNTI4N2YtMDZjNy00NSIsImNvZGlnb1B1YmxpY2Fkb3IiOjAsImNvZGlnb1NvZnR3YXJlIjoxNTM1NzUsInNlcXVlbmNpYWxJbnN0YWxhY2FvIjoxLCJzZXF1ZW5jaWFsQ3JlZGVuY2lhbCI6MiwiYW1iaWVudGUiOiJob21vbG9nYWNhbyIsImlhdCI6MTc2MTIzOTYxNTMxNH0'
+BB_DEVELOPER_APPLICATION_KEY = '57e895cc5bb3404ab06ce07df472a153'
+BB_SCOPE = 'cobranca-bancaria.boletos-info.read cobranca-bancaria.boletos-requisicao.write'  # Adjust scopes as needed

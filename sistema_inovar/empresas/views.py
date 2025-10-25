@@ -40,6 +40,8 @@ from rest_framework import viewsets, permissions
 from empresas.serpro_service import gerar_e_enviar_das
 from .permissions import IsPessoalOrFiscalOrAdmin
 
+from .utils import get_bb_access_token
+
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
     SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao
@@ -1204,3 +1206,74 @@ def dashboard_summary(request):
             {'error': 'Erro ao processar resumo do dashboard.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+    
+@api_view(['POST'])
+def gerar_boleto_view(request):
+    empresa_id = request.data.get('empresa_id')
+    # Outros parâmetros do boleto (use os fornecidos pelo usuário)
+    boleto_data = request.data.get('boleto_data', {})
+
+    if not empresa_id:
+        return Response({"error": "empresa_id é obrigatório."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        empresa = Empresa.objects.get(id=empresa_id)
+    except Empresa.DoesNotExist:
+        return Response({"error": "Empresa não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+    # Preenche os dados do pagador com a empresa
+    boleto_data['pagador'] = {
+    "tipoInscricao": 2,  # CNPJ
+    "numeroInscricao": int(re.sub(r'\D', '', empresa.cnpj)),
+    "nome": empresa.nome,
+    "endereco": empresa.endereco or "Endereço padrão",
+    "cep": re.sub(r'\D', '', empresa.cep) if empresa.cep else 0,
+    "cidade": empresa.cidade or "Cidade",
+    "bairro": empresa.bairro or "Bairro",
+    "uf": empresa.uf or "SP",
+    "telefone": re.sub(r'\D', '', empresa.telefone) if empresa.telefone else "00000000000",
+    "email": empresa.email or "email@exemplo.com"
+    }
+
+    # Outros parâmetros obrigatórios (ajuste com valores reais ou do request)
+    boleto_data['numeroConvenio'] = 1234567  # Ajuste com o valor real
+    boleto_data['numeroCarteira'] = 1  # Ajuste
+    boleto_data['numeroVariacaoCarteira'] = 0  # Ajuste
+    boleto_data['codigoModalidade'] = 1  # Ajuste
+    boleto_data['dataEmissao'] = timezone.now().strftime('%Y-%m-%d')
+    boleto_data['dataVencimento'] = (timezone.now() + timedelta(days=30)).strftime('%Y-%m-%d')
+    boleto_data['valorOriginal'] = 100.00  # Valor do boleto (ajuste do request)
+    boleto_data['codigoAceite'] = "N"
+    boleto_data['codigoTipoTitulo'] = 1
+    boleto_data['descricaoTipoTitulo'] = "DM"
+    boleto_data['indicadorPermissaoRecebimentoParcial'] = "N"
+
+    # Obtém o token de acesso
+    access_token = get_bb_access_token()
+    if not access_token:
+        return Response({"error": "Falha ao obter token de acesso do BB."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # Registra o boleto
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+    register_url = f"{settings.BB_API_BASE_URL}/boletos"
+    response = requests.post(register_url, json=boleto_data, headers=headers)
+
+    if response.status_code != 200:
+        logger.error(f"Erro ao registrar boleto: {response.text}")
+        return Response({"error": f"Erro ao registrar boleto: {response.text}"}, status=response.status_code)
+
+    boleto_id = response.json().get('id')  # Assumindo que retorna um ID
+
+    # Gera o PDF do boleto
+    pdf_url = f"{settings.BB_API_BASE_URL}/boletos/{boleto_id}/gerar-pdf"
+    pdf_response = requests.post(pdf_url, headers=headers)
+
+    if pdf_response.status_code != 200:
+        logger.error(f"Erro ao gerar PDF: {pdf_response.text}")
+        return Response({"error": f"Erro ao gerar PDF: {pdf_response.text}"}, status=pdf_response.status_code)
+
+    # Retorna o PDF para o frontend
+    return Response(pdf_response.content, status=status.HTTP_200_OK, content_type='application/pdf', headers={'Content-Disposition': f'attachment; filename="boleto_{boleto_id}.pdf"'})

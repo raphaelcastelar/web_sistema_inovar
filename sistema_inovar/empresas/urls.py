@@ -14,6 +14,7 @@ from .views import (
     gerar_e_enviar_das_view,
     dashboard_pie_chart,
     PendenciaAPIView,
+    gerar_boleto_view,
 )
 
 urlpatterns = [
@@ -31,4 +32,5 @@ urlpatterns = [
     path('serpro/gerar-e-enviar-das/', gerar_e_enviar_das_view, name='gerar_e_enviar_das'),
     path('pendencias/', PendenciaAPIView.as_view(), name='pendencias'),
     path('dashboard/pie-chart/', dashboard_pie_chart, name='dashboard_pie_chart'),
+    path('gerar-boleto/', gerar_boleto_view, name='gerar_boleto'),
 ]
