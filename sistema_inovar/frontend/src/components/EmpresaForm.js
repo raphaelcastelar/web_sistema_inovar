@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { motion } from 'framer-motion';
-import {
-    InformationCircleIcon,
-    UserIcon,
-    BuildingOfficeIcon,
-    EnvelopeIcon,
+import { 
+    InformationCircleIcon, 
+    UserIcon, 
+    BuildingOfficeIcon, 
+    EnvelopeIcon, 
     PhoneIcon,
     MapPinIcon,
 } from '@heroicons/react/24/outline';
@@ -15,7 +15,7 @@ const EmpresaForm = () => {
     const { empresaId } = useParams();
     const navigate = useNavigate();
     const isEditing = Boolean(empresaId);
-
+    
     const [empresa, setEmpresa] = useState({
         nome: '',
         cnpj: '',
@@ -35,7 +35,7 @@ const EmpresaForm = () => {
         const cleanedValue = inputValue.replace(/\D/g, '');
         if (!inputValue.trim()) {
             setTelefoneFeedback({ message: 'DDD + Número (10 ou 11 dígitos). Ex: 22999998888', type: 'hint' });
-            return true;
+            return true; 
         }
         if (!/^[0-9\s()-]*$/.test(inputValue)) {
             setTelefoneFeedback({ message: "Telefone pode conter apenas números e formatação ( ), -.", type: 'error' });
@@ -94,17 +94,39 @@ const EmpresaForm = () => {
         fetchEmpresa();
     }, [empresaId, isEditing, validateAndSetTelefoneFeedback]);
 
-    const handleChange = (e) => {
+    const handleChange = async (e) => {
         const { name, value } = e.target;
         setEmpresa(prev => ({ ...prev, [name]: value }));
+
         if (name === 'telefone') {
             validateAndSetTelefoneFeedback(value);
+        }
+
+        // Consulta à ViaCEP quando o campo cep é alterado
+        if (name === 'cep' && value.length === 8) {
+            try {
+                const response = await fetch(`https://viacep.com.br/ws/${value}/json/`);
+                const data = await response.json();
+                if (!data.erro) {
+                    setEmpresa(prev => ({
+                        ...prev,
+                        endereco: data.logradouro || '',
+                        cidade: data.localidade || '',
+                        bairro: data.bairro || '',
+                        uf: data.uf || '',
+                    }));
+                } else {
+                    setError('CEP não encontrado ou inválido.');
+                }
+            } catch (err) {
+                setError('Erro ao consultar o CEP. Tente novamente.');
+            }
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
+        
         const isTelefoneValid = validateAndSetTelefoneFeedback(empresa.telefone);
         if (!isTelefoneValid) {
             setError("Por favor, corrija o formato do telefone antes de salvar.");
@@ -143,9 +165,9 @@ const EmpresaForm = () => {
         return 'text-gray-500 dark:text-gray-400';
     };
 
-    // Lista de UFs do Brasil
+    // Lista de UFs do Brasil (para o select)
     const ufs = [
-        'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+        'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 
         'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
     ];
 
@@ -154,7 +176,7 @@ const EmpresaForm = () => {
     }
 
     return (
-        <motion.div
+        <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -164,14 +186,14 @@ const EmpresaForm = () => {
                 <h2 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-8 text-center">
                     {isEditing ? 'Editar Empresa' : 'Cadastrar Nova Empresa'}
                 </h2>
-
+                
                 {error && (
                     <div className="bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-md relative mb-6 flex items-center gap-3" role="alert">
                         <InformationCircleIcon className="h-6 w-6"/>
                         <span className="block sm:inline">{error}</span>
                     </div>
                 )}
-
+                
                 <form onSubmit={handleSubmit} className="space-y-6">
                     {/* --- Input de Nome --- */}
                     <div className="relative">
@@ -187,7 +209,7 @@ const EmpresaForm = () => {
                             required
                         />
                     </div>
-
+                    
                     {/* --- Grid para CNPJ e Email --- */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="relative">
@@ -239,7 +261,7 @@ const EmpresaForm = () => {
                             </p>
                         )}
                     </div>
-
+                    
                     {/* --- Grid para Endereço, CEP, Cidade, Bairro e UF --- */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="relative">
@@ -265,6 +287,7 @@ const EmpresaForm = () => {
                                 onChange={handleChange}
                                 className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                                 placeholder="Ex.: 12345678"
+                                maxLength="8"
                             />
                         </div>
                         <div className="relative">
@@ -302,8 +325,8 @@ const EmpresaForm = () => {
                                 className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                             >
                                 <option value="">Selecione uma UF</option>
-                                {['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
-                                    'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
+                                {['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 
+                                  'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
                                     .sort()
                                     .map(uf => (
                                         <option key={uf} value={uf}>{uf}</option>
