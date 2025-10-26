@@ -8,7 +8,7 @@ import {
     BuildingOfficeIcon,
     EnvelopeIcon,
     PhoneIcon,
-    MapPinIcon, // Novo ícone para endereço
+    MapPinIcon,
 } from '@heroicons/react/24/outline';
 
 const EmpresaForm = () => {
@@ -26,13 +26,6 @@ const EmpresaForm = () => {
         cidade: '',
         bairro: '',
         uf: '',
-        simples_nacional: false,
-        inss: false,
-        fgts: false,
-        folha: false,
-        honorario: false,
-        monitorar_simples: true,
-        ativo: true,
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -86,13 +79,6 @@ const EmpresaForm = () => {
                         cidade: response.data.cidade || '',
                         bairro: response.data.bairro || '',
                         uf: response.data.uf || '',
-                        simples_nacional: response.data.simples_nacional || false,
-                        inss: response.data.inss || false,
-                        fgts: response.data.fgts || false,
-                        folha: response.data.folha || false,
-                        honorario: response.data.honorario || false,
-                        monitorar_simples: response.data.monitorar_simples || true,
-                        ativo: response.data.ativo || true,
                     });
                     validateAndSetTelefoneFeedback(displayTelefone);
                 } catch (err) {
@@ -101,24 +87,7 @@ const EmpresaForm = () => {
                     setLoading(false);
                 }
             } else {
-                setEmpresa({
-                    nome: '',
-                    cnpj: '',
-                    email: '',
-                    telefone: '',
-                    endereco: '',
-                    cep: '',
-                    cidade: '',
-                    bairro: '',
-                    uf: '',
-                    simples_nacional: false,
-                    inss: false,
-                    fgts: false,
-                    folha: false,
-                    honorario: false,
-                    monitorar_simples: true,
-                    ativo: true,
-                });
+                setEmpresa({ nome: '', cnpj: '', email: '', telefone: '', endereco: '', cep: '', cidade: '', bairro: '', uf: '' });
                 validateAndSetTelefoneFeedback('');
             }
         };
@@ -126,11 +95,8 @@ const EmpresaForm = () => {
     }, [empresaId, isEditing, validateAndSetTelefoneFeedback]);
 
     const handleChange = (e) => {
-        const { name, value, type, checked } = e.target;
-        setEmpresa(prev => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value,
-        }));
+        const { name, value } = e.target;
+        setEmpresa(prev => ({ ...prev, [name]: value }));
         if (name === 'telefone') {
             validateAndSetTelefoneFeedback(value);
         }
@@ -176,6 +142,12 @@ const EmpresaForm = () => {
         if (telefoneFeedback.type === 'success') return 'text-green-600 dark:text-green-400';
         return 'text-gray-500 dark:text-gray-400';
     };
+
+    // Lista de UFs do Brasil
+    const ufs = [
+        'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+        'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+    ];
 
     if (loading && isEditing) {
         return <p className="text-center text-gray-500 dark:text-gray-400 mt-10">Carregando dados da empresa...</p>;
@@ -322,104 +294,21 @@ const EmpresaForm = () => {
                         <div className="relative">
                             <label htmlFor="uf" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">UF</label>
                             <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <input
-                                type="text"
+                            <select
                                 name="uf"
                                 id="uf"
                                 value={empresa.uf}
                                 onChange={handleChange}
                                 className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
-                                placeholder="Ex.: SP"
-                                maxLength="2"
-                            />
-                        </div>
-                    </div>
-
-                    {/* --- Grid para Checkboxes --- */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                        <div>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    name="simples_nacional"
-                                    checked={empresa.simples_nacional}
-                                    onChange={handleChange}
-                                    className="mr-2"
-                                />
-                                Simples Nacional
-                            </label>
-                        </div>
-                        <div>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    name="inss"
-                                    checked={empresa.inss}
-                                    onChange={handleChange}
-                                    className="mr-2"
-                                />
-                                INSS
-                            </label>
-                        </div>
-                        <div>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    name="fgts"
-                                    checked={empresa.fgts}
-                                    onChange={handleChange}
-                                    className="mr-2"
-                                />
-                                FGTS
-                            </label>
-                        </div>
-                        <div>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    name="folha"
-                                    checked={empresa.folha}
-                                    onChange={handleChange}
-                                    className="mr-2"
-                                />
-                                Folha
-                            </label>
-                        </div>
-                        <div>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    name="honorario"
-                                    checked={empresa.honorario}
-                                    onChange={handleChange}
-                                    className="mr-2"
-                                />
-                                Honorário
-                            </label>
-                        </div>
-                        <div>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    name="monitorar_simples"
-                                    checked={empresa.monitorar_simples}
-                                    onChange={handleChange}
-                                    className="mr-2"
-                                />
-                                Monitorar Simples
-                            </label>
-                        </div>
-                        <div>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    name="ativo"
-                                    checked={empresa.ativo}
-                                    onChange={handleChange}
-                                    className="mr-2"
-                                />
-                                Ativo
-                            </label>
+                            >
+                                <option value="">Selecione uma UF</option>
+                                {['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
+                                    'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
+                                    .sort()
+                                    .map(uf => (
+                                        <option key={uf} value={uf}>{uf}</option>
+                                    ))}
+                            </select>
                         </div>
                     </div>
 

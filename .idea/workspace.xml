@@ -5,8 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="ce68984d-fbd8-4e70-a0c5-c6734f51fc33" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/sistema_inovar/empresas/models.py" beforeDir="false" afterPath="$PROJECT_DIR$/sistema_inovar/empresas/models.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/sistema_inovar/empresas/serializers.py" beforeDir="false" afterPath="$PROJECT_DIR$/sistema_inovar/empresas/serializers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sistema_inovar/frontend/src/components/EmpresaForm.js" beforeDir="false" afterPath="$PROJECT_DIR$/sistema_inovar/frontend/src/components/EmpresaForm.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -73,7 +72,7 @@
       <workItem from="1758422573508" duration="172000" />
       <workItem from="1761394898884" duration="208000" />
       <workItem from="1761425219369" duration="2179000" />
-      <workItem from="1761512497483" duration="363000" />
+      <workItem from="1761512497483" duration="1463000" />
     </task>
     <servers />
   </component>
