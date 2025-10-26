@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'inss', 'fgts', 'folha', 'honorario', 'simples_nacional', 'monitorar_simples', 'ativo']
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo']
         
     def validate_telefone(self, value):
         """
