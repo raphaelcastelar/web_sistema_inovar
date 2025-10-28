@@ -26,6 +26,7 @@ const EmpresaForm = () => {
         cidade: '',
         bairro: '',
         uf: '',
+        usuarios: [], // Adicionado para rastrear usuários
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -79,6 +80,7 @@ const EmpresaForm = () => {
                         cidade: response.data.cidade || '',
                         bairro: response.data.bairro || '',
                         uf: response.data.uf || '',
+                        usuarios: response.data.usuarios || [], // Carrega os usuários existentes
                     });
                     validateAndSetTelefoneFeedback(displayTelefone);
                 } catch (err) {
@@ -87,7 +89,18 @@ const EmpresaForm = () => {
                     setLoading(false);
                 }
             } else {
-                setEmpresa({ nome: '', cnpj: '', email: '', telefone: '', endereco: '', cep: '', cidade: '', bairro: '', uf: '' });
+                setEmpresa({ 
+                    nome: '', 
+                    cnpj: '', 
+                    email: '', 
+                    telefone: '', 
+                    endereco: '', 
+                    cep: '', 
+                    cidade: '', 
+                    bairro: '', 
+                    uf: '', 
+                    usuarios: [] 
+                });
                 validateAndSetTelefoneFeedback('');
             }
         };
@@ -139,7 +152,11 @@ const EmpresaForm = () => {
         setError(null);
 
         const telefoneLimpoParaEnvio = empresa.telefone.replace(/\D/g, '');
-        const payload = { ...empresa, telefone: telefoneLimpoParaEnvio };
+        const payload = { 
+            ...empresa, 
+            telefone: telefoneLimpoParaEnvio,
+            usuarios: empresa.usuarios.length > 0 ? empresa.usuarios : [1], // Envia os usuários existentes ou um ID padrão (ex.: 1) se vazio
+        };
         const url = isEditing ? `/api/empresas/${empresaId}/` : `/api/empresas/`;
         const method = isEditing ? 'put' : 'post';
 

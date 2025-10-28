@@ -46,20 +46,45 @@ def sanitize_filename_for_upload(filename):
         name_sanitized = "arquivo_sem_nome_valido"
     return f"{name_sanitized}{ext}"
 
+# utils/bb_api_utils.py
+import requests
+from django.conf import settings
+import base64
+import logging
+
+logger = logging.getLogger(__name__)
+
 def get_bb_access_token():
+    if not all([settings.BB_CLIENT_ID, settings.BB_CLIENT_SECRET]):
+        logger.error("Credenciais do BB não configuradas no settings.py.")
+        return None
+
+    credentials = f"{settings.BB_CLIENT_ID}:{settings.BB_CLIENT_SECRET}"
+    encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
+    logger.debug(f"Credenciais codificadas: {encoded_credentials}")
+
     payload = {
         'grant_type': 'client_credentials',
-        'scope': settings.BB_SCOPE,
-    }
-    headers = {
-        'Authorization': 'Basic ' + base64.b64encode(f"{settings.BB_CLIENT_ID}:{settings.BB_CLIENT_SECRET}".encode()).decode(),
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'developer_application_key': settings.BB_DEVELOPER_APPLICATION_KEY,
+        # Removido o scope para usar os padrões do app
     }
 
-    response = requests.post(settings.BB_OAUTH_URL, data=payload, headers=headers)
-    if response.status_code == 200:
-        return response.json()['access_token']
-    else:
-        logger.error(f"Erro ao obter token do BB: {response.text}")
+    headers = {
+        'Authorization': f'Basic {encoded_credentials}',
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
+
+    logger.info(f"Obtendo token com URL: {settings.BB_OAUTH_URL}, Payload: {payload}, Headers: {headers}")
+
+    try:
+        response = requests.post(settings.BB_OAUTH_URL, data=payload, headers=headers, timeout=30)
+        logger.info(f"Resposta OAuth: Status {response.status_code}, Headers: {dict(response.headers)}, Body: {response.text}")
+        if response.status_code in (200,201):
+            token_data = response.json()
+            logger.info(f"Token obtido com scopes: {token_data.get('scope')}")
+            return token_data.get('access_token')
+        else:
+            logger.error(f"Erro no token: Status {response.status_code}, Resposta completa: {response.text}")
+            return None
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro de conexão: {str(e)}")
         return None

@@ -40,6 +40,16 @@ from rest_framework import viewsets, permissions
 from empresas.serpro_service import gerar_e_enviar_das
 from .permissions import IsPessoalOrFiscalOrAdmin
 
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+from reportlab.lib.colors import black
+from io import BytesIO
+import qrcode
+from reportlab.graphics.barcode import code39
+from reportlab.lib.utils import ImageReader
+
 from .utils import get_bb_access_token
 
 from .models import (
@@ -1207,11 +1217,33 @@ def dashboard_summary(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
     
+def convert_date_format(date_str):
+    """Converte um formato de data YYYY-MM-DD para dd.mm.aaaa, se aplicável."""
+    if not date_str:
+        return "" # Retorna string vazia para campos opcionais como data de multa/desconto
+    try:
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
+            parsed_date = parse_date(date_str)
+            if parsed_date:
+                return parsed_date.strftime('%d.%m.%Y')
+        elif re.match(r'^\d{2}\.\d{2}\.\d{4}$', date_str):
+            return date_str
+        elif 'T' in date_str:
+             parsed_date = parse_date(date_str.split('T')[0])
+             if parsed_date:
+                return parsed_date.strftime('%d.%m.%Y')
+        elif date_str == "":
+            return ""
+        return date_str
+    except Exception as e:
+        logger.error(f"Erro ao converter data {date_str}: {str(e)}")
+        return ""
+
+
 @api_view(['POST'])
 def gerar_boleto_view(request):
     empresa_id = request.data.get('empresa_id')
-    # Outros parâmetros do boleto (use os fornecidos pelo usuário)
-    boleto_data = request.data.get('boleto_data', {})
+    incoming_data = request.data.get('boleto_data', {})
 
     if not empresa_id:
         return Response({"error": "empresa_id é obrigatório."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1221,59 +1253,210 @@ def gerar_boleto_view(request):
     except Empresa.DoesNotExist:
         return Response({"error": "Empresa não encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
-    # Preenche os dados do pagador com a empresa
-    boleto_data['pagador'] = {
-    "tipoInscricao": 2,  # CNPJ
-    "numeroInscricao": int(re.sub(r'\D', '', empresa.cnpj)),
-    "nome": empresa.nome,
-    "endereco": empresa.endereco or "Endereço padrão",
-    "cep": re.sub(r'\D', '', empresa.cep) if empresa.cep else 0,
-    "cidade": empresa.cidade or "Cidade",
-    "bairro": empresa.bairro or "Bairro",
-    "uf": empresa.uf or "SP",
-    "telefone": re.sub(r'\D', '', empresa.telefone) if empresa.telefone else "00000000000",
-    "email": empresa.email or "email@exemplo.com"
+    # --- INÍCIO DA CORREÇÃO FINAL ---
+
+    # !! IMPORTANTE !!
+    # CONFIRME ESTES 2 VALORES NO SEU PORTAL DE DESENVOLVEDOR DO BANCO DO BRASIL.
+    SEU_NUMERO_CONVENIO = 3128557  # Seu convênio de 7 dígitos
+    SUA_CARTEIRA = 17              # Geralmente 17 ou 18. CONFIRME.
+
+    default_payload = {
+        "numeroConvenio": SEU_NUMERO_CONVENIO,
+        "carteira": SUA_CARTEIRA,
+        # "variacaoCarteira" removida, conforme sua instrução para sandbox.
+        "codigoModalidade": 1,
+        "dataEmissao": timezone.now().strftime('%d.%m.%Y'),
+        "dataVencimento": (timezone.now() + timedelta(days=30)).strftime('%d.%m.%Y'),
+        "valorOriginal": 1.00,
+        "valorAbatimento": 0.0,
+        "quantidadeDiasProtesto": 0,
+        "quantidadeDiasNegativacao": 0,
+        "orgaoNegativador": 0,
+        "indicadorAceiteTituloVencido": "N",
+        "numeroDiasLimiteRecebimento": 0,
+        "codigoAceite": "N",
+        "codigoTipoTitulo": 2,
+        "descricaoTipoTitulo": "DM",
+        "indicadorPermissaoRecebimentoParcial": "N",
+        # Gera um número de controle único para cada teste
+        "numeroTituloBeneficiario": f"TESTE{int(timezone.now().timestamp())}",
+        "campoUtilizacaoBeneficiario": "TESTE API",
+        # Gera um "Nosso Número" de 20 dígitos, único para cada teste
+        "numeroTituloCliente": f"000{SEU_NUMERO_CONVENIO}{int(timezone.now().timestamp()) % 10**10:010d}",
+        "mensagemBloquetoOcorrencia": "Teste de Boleto - Homologação",
+        "indicadorPix": "S",
     }
 
-    # Outros parâmetros obrigatórios (ajuste com valores reais ou do request)
-    boleto_data['numeroConvenio'] = 1234567  # Ajuste com o valor real
-    boleto_data['numeroCarteira'] = 1  # Ajuste
-    boleto_data['numeroVariacaoCarteira'] = 0  # Ajuste
-    boleto_data['codigoModalidade'] = 1  # Ajuste
-    boleto_data['dataEmissao'] = timezone.now().strftime('%Y-%m-%d')
-    boleto_data['dataVencimento'] = (timezone.now() + timedelta(days=30)).strftime('%Y-%m-%d')
-    boleto_data['valorOriginal'] = 100.00  # Valor do boleto (ajuste do request)
-    boleto_data['codigoAceite'] = "N"
-    boleto_data['codigoTipoTitulo'] = 1
-    boleto_data['descricaoTipoTitulo'] = "DM"
-    boleto_data['indicadorPermissaoRecebimentoParcial'] = "N"
+    # Construa o payload final
+    final_payload = {
+        "numeroConvenio": int(incoming_data.get("numeroConvenio") or default_payload["numeroConvenio"]),
+        "carteira": int(incoming_data.get("carteira") or default_payload["carteira"]),
+        "codigoModalidade": int(incoming_data.get("codigoModalidade") or default_payload["codigoModalidade"]),
+        "dataEmissao": convert_date_format(incoming_data.get("dataEmissao")) or default_payload["dataEmissao"],
+        "dataVencimento": convert_date_format(incoming_data.get("dataVencimento")) or default_payload["dataVencimento"],
+        "valorOriginal": float(incoming_data.get("valorOriginal") or default_payload["valorOriginal"]),
+        "valorAbatimento": float(incoming_data.get("valorAbatimento") or default_payload["valorAbatimento"]),
+        "quantidadeDiasProtesto": int(incoming_data.get("quantidadeDiasProtesto") or default_payload["quantidadeDiasProtesto"]),
+        "quantidadeDiasNegativacao": int(incoming_data.get("quantidadeDiasNegativacao") or default_payload["quantidadeDiasNegativacao"]),
+        "orgaoNegativador": int(incoming_data.get("orgaoNegativador") or default_payload["orgaoNegativador"]),
+        "indicadorAceiteTituloVencido": incoming_data.get("indicadorAceiteTituloVencido") or default_payload["indicadorAceiteTituloVencido"],
+        "numeroDiasLimiteRecebimento": int(incoming_data.get("numeroDiasLimiteRecebimento") or default_payload["numeroDiasLimiteRecebimento"]),
+        "codigoAceite": incoming_data.get("codigoAceite") or default_payload["codigoAceite"],
+        "codigoTipoTitulo": int(incoming_data.get("codigoTipoTitulo") or default_payload["codigoTipoTitulo"]),
+        "descricaoTipoTitulo": incoming_data.get("descricaoTipoTitulo") or default_payload["descricaoTipoTitulo"],
+        "indicadorPermissaoRecebimentoParcial": incoming_data.get("indicadorPermissaoRecebimentoParcial") or default_payload["indicadorPermissaoRecebimentoParcial"],
+        "numeroTituloBeneficiario": incoming_data.get("numeroTituloBeneficiario") or default_payload["numeroTituloBeneficiario"],
+        "campoUtilizacaoBeneficiario": incoming_data.get("campoUtilizacaoBeneficiario") or default_payload["campoUtilizacaoBeneficiario"],
+        "numeroTituloCliente": incoming_data.get("numeroTituloCliente") or default_payload["numeroTituloCliente"],
+        "mensagemBloquetoOcorrencia": incoming_data.get("mensagemBloquetoOcorrencia") or default_payload["mensagemBloquetoOcorrencia"],
+        "indicadorPix": incoming_data.get("indicadorPix") or default_payload["indicadorPix"],
+    }
+    
+    # Validações...
+    if final_payload["valorOriginal"] <= final_payload["valorAbatimento"]:
+        final_payload["valorAbatimento"] = 0.0
 
-    # Obtém o token de acesso
+    if not final_payload["dataEmissao"] or not re.match(r'^\d{2}\.\d{2}\.\d{4}$', final_payload["dataEmissao"]):
+        return Response({"error": f"Formato de dataEmissao inválido: {final_payload['dataEmissao']}. Use dd.mm.aaaa."}, status=status.HTTP_400_BAD_REQUEST)
+    if not final_payload["dataVencimento"] or not re.match(r'^\d{2}\.\d{2}\.\d{4}$', final_payload["dataVencimento"]):
+        return Response({"error": f"Formato de dataVencimento inválido: {final_payload['dataVencimento']}. Use dd.mm.aaaa."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Construção do campo pagador
+    incoming_pagador = incoming_data.get('pagador', {})
+    final_payload["pagador"] = { "tipoInscricao": incoming_pagador.get("tipoInscricao") or 2, "numeroInscricao": incoming_pagador.get("numeroInscricao") or (int(re.sub(r"\D", "", str(empresa.cnpj))) if empresa.cnpj else 0), "nome": incoming_pagador.get("nome") or empresa.nome, "endereco": incoming_pagador.get("endereco") or empresa.endereco or "Endereço Padrão", "cep": incoming_pagador.get("cep") or (int(re.sub(r"\D", "", str(empresa.cep))) if empresa.cep else 0), "cidade": incoming_pagador.get("cidade") or empresa.cidade or "Cidade", "bairro": incoming_pagador.get("bairro") or empresa.bairro or "Bairro", "uf": incoming_pagador.get("uf") or empresa.uf or "SP", "telefone": incoming_pagador.get("telefone") or (re.sub(r"\D", "", str(empresa.telefone)) if empresa.telefone else "00000000000"), "email": incoming_pagador.get("email") or empresa.email or "email@exemplo.com", }
+
+    # Construção dos campos aninhados com lógica de validação
+    def build_charge_field(data, field_name):
+        incoming_field = data.get(field_name, {})
+        tipo = int(incoming_field.get("tipo") or 0)
+        # Cria um dicionário base sem chaves de data vazias
+        field_data = {
+            "tipo": tipo,
+            "porcentagem": float(incoming_field.get("porcentagem") or 0.0) if tipo != 0 else 0.0,
+            "valor": float(incoming_field.get("valor") or 0.0) if tipo != 0 else 0.0,
+        }
+        # Adiciona datas apenas se elas existirem e forem válidas
+        data_val = convert_date_format(incoming_field.get("data", ""))
+        if data_val: field_data["data"] = data_val
+        
+        data_exp_val = convert_date_format(incoming_field.get("dataExpiracao", ""))
+        if data_exp_val: field_data["dataExpiracao"] = data_exp_val
+
+        return field_data
+
+    final_payload["desconto"] = build_charge_field(incoming_data, "desconto")
+    final_payload["segundoDesconto"] = build_charge_field(incoming_data, "segundoDesconto")
+    final_payload["terceiroDesconto"] = build_charge_field(incoming_data, "terceiroDesconto")
+    final_payload["multa"] = build_charge_field(incoming_data, "multa")
+    final_payload["jurosMora"] = build_charge_field(incoming_data, "jurosMora")
+    final_payload["beneficiarioFinal"] = incoming_data.get("beneficiarioFinal", {"tipoInscricao": 0, "numeroInscricao": 0, "nome": ""})
+    
+    # --- FIM DA CORREÇÃO ---
+
     access_token = get_bb_access_token()
     if not access_token:
         return Response({"error": "Falha ao obter token de acesso do BB."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # Registra o boleto
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-        'Content-Type': 'application/json'
-    }
-    register_url = f"{settings.BB_API_BASE_URL}/boletos"
-    response = requests.post(register_url, json=boleto_data, headers=headers)
+    headers = { 'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json', 'X-Developer-Application-Key': settings.BB_DEVELOPER_APPLICATION_KEY }
+    register_url = f"{settings.BB_API_BASE_URL}/boletos?gw-dev-app-key={settings.BB_DEVELOPER_APPLICATION_KEY}"
 
-    if response.status_code != 200:
-        logger.error(f"Erro ao registrar boleto: {response.text}")
+
+    logger.info(f"URL: {register_url}")
+    logger.info(f"HEADERS: {headers}") 
+    logger.info(f"PAYLOAD: {json.dumps(final_payload, indent=2)}")
+    response = requests.post(register_url, json=final_payload, headers=headers, timeout=30)
+
+    logger.info(f"RESPOSTA: Status {response.status_code}, Body: {response.text[:500]}...")
+
+    if response.status_code not in [200, 201]:
         return Response({"error": f"Erro ao registrar boleto: {response.text}"}, status=response.status_code)
 
-    boleto_id = response.json().get('id')  # Assumindo que retorna um ID
 
-    # Gera o PDF do boleto
-    pdf_url = f"{settings.BB_API_BASE_URL}/boletos/{boleto_id}/gerar-pdf"
-    pdf_response = requests.post(pdf_url, headers=headers)
+    #geracao do boleto
+    boleto_response = response.json()
 
-    if pdf_response.status_code != 200:
-        logger.error(f"Erro ao gerar PDF: {pdf_response.text}")
-        return Response({"error": f"Erro ao gerar PDF: {pdf_response.text}"}, status=pdf_response.status_code)
+    numero_boleto = boleto_response.get('numero')
+    linha_digitavel = boleto_response.get('linhaDigitavel')
+    codigo_barra = boleto_response.get('codigoBarraNumerico')
+    qr_code_url = boleto_response.get('qrCode', {}).get('url', '')
+    beneficiario = boleto_response.get('beneficiario', {})
 
-    # Retorna o PDF para o frontend
-    return Response(pdf_response.content, status=status.HTTP_200_OK, content_type='application/pdf', headers={'Content-Disposition': f'attachment; filename="boleto_{boleto_id}.pdf"'})
+    # === GERAR QR CODE ===
+    qr = qrcode.QRCode(version=1, box_size=3, border=1)
+    qr.add_data(qr_code_url or "https://pix.bb.com.br")
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    qr_buffer = BytesIO()
+    qr_img.save(qr_buffer, format='PNG')
+    qr_buffer.seek(0)
+
+    # === GERAR PDF ===
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    # Margens
+    margin = 15 * mm
+    col1 = margin
+    col2 = 60 * mm
+    col3 = 100 * mm
+    col4 = 130 * mm
+    col5 = 160 * mm
+
+    # === RECIBO DO PAGADOR ===
+    y = height - 30 * mm
+
+    # QR Code
+    p.drawImage(ImageReader(qr_buffer), col1, y - 20 * mm, width=25 * mm, height=25 * mm)
+
+    # Título Pix
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(col2, y, "Pague agora com o seu Pix")
+    p.setFont("Helvetica", 8)
+    p.drawString(col2, y - 5 * mm, "Para efetuar o pagamento via Pix, utilize a opção Pix de seu aplicativo")
+
+    # Banco do Brasil
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(width - 80 * mm, y, "Recibo do Pagador")
+
+    # Linha digitável
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(col1 + 35 * mm, y - 10 * mm, "001-9")
+    p.drawString(col1 + 50 * mm, y - 10 * mm, linha_digitavel)
+
+    # Dados
+    p.setFont("Helvetica", 9)
+    p.drawString(col1, y - 25 * mm, f"Beneficiário: {empresa.nome}")
+    p.drawString(col1, y - 30 * mm, f"Agência/Código: {beneficiario.get('agencia', '')} / {beneficiario.get('codigoCliente', '')}")
+    p.drawString(col1, y - 35 * mm, f"Vencimento: {final_payload['dataVencimento']}")
+    p.drawString(col1, y - 40 * mm, f"Valor: R$ {final_payload['valorOriginal']:.2f}")
+
+    # === FICHA DE COMPENSAÇÃO ===
+    y = height - 100 * mm
+    p.setFont("Helvetica-Bold", 14)
+    p.drawString(col1 + 35 * mm, y, "001-9")
+    p.drawString(col1 + 50 * mm, y, linha_digitavel)
+
+    # Dados da ficha
+    p.setFont("Helvetica", 9)
+    p.drawString(col1, y - 10 * mm, "Local de Pagamento: Pagável preferencialmente nas canais de autoatendimento do BB")
+    p.drawString(col1, y - 15 * mm, f"Beneficiário: {empresa.nome}")
+    p.drawString(col1, y - 20 * mm, f"Data Documento: {final_payload['dataEmissao']}")
+    p.drawString(col1, y - 25 * mm, f"Nosso Número: {numero_boleto}")
+    p.drawString(col1, y - 30 * mm, f"(=) Valor Documento: R$ {final_payload['valorOriginal']:.2f}")
+
+    # === CÓDIGO DE BARRAS ===
+    barcode = code39.Extended39(codigo_barra, barHeight=15 * mm, humanReadable=False)
+    barcode.drawOn(p, col1, y - 50 * mm)
+
+    # Finaliza
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+
+    # === RETORNA PDF ===
+    return HttpResponse(
+        buffer,
+        content_type='application/pdf',
+        headers={'Content-Disposition': f'attachment; filename="boleto_{numero_boleto}.pdf"'}
+    )
