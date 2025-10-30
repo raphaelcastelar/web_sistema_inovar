@@ -49,6 +49,19 @@ from io import BytesIO
 import qrcode
 from reportlab.graphics.barcode import code39
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfgen import canvas as rl_canvas
+from reportlab.graphics.barcode import code128
+from barcode import Code128
+from barcode.writer import ImageWriter
+import barcode
+from barcode.writer import SVGWriter
+from io import BytesIO
+import base64
+from qrcode.image.svg import SvgImage
+
+
+import pdfkit
+from django.template.loader import render_to_string
 
 from .utils import get_bb_access_token
 
@@ -72,6 +85,8 @@ from .serpro_service import (
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
+
+WKHTMLTOPDF_PATH = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
 
 
 logger = logging.getLogger(__name__)
@@ -1372,7 +1387,7 @@ def gerar_boleto_view(request):
         return Response({"error": f"Erro ao registrar boleto: {response.text}"}, status=response.status_code)
 
 
-    #geracao do boleto
+    # === GERACAO DO BOLETO ===
     boleto_response = response.json()
 
     numero_boleto = boleto_response.get('numero')
@@ -1381,82 +1396,112 @@ def gerar_boleto_view(request):
     qr_code_url = boleto_response.get('qrCode', {}).get('url', '')
     beneficiario = boleto_response.get('beneficiario', {})
 
-    # === GERAR QR CODE ===
-    qr = qrcode.QRCode(version=1, box_size=3, border=1)
-    qr.add_data(qr_code_url or "https://pix.bb.com.br")
-    qr.make(fit=True)
-    qr_img = qr.make_image(fill_color="black", back_color="white")
+    # === GERAR QR CODE EM SVG ===
+    factory = qrcode.image.svg.SvgImage
+    qr = qrcode.make(qr_code_url, image_factory=factory)
     qr_buffer = BytesIO()
-    qr_img.save(qr_buffer, format='PNG')
+    qr.save(qr_buffer)
     qr_buffer.seek(0)
+    qr_base64 = base64.b64encode(qr_buffer.getvalue()).decode()
+
+    # === GERAR CÓDIGO DE BARRAS EM SVG ===
+    writer_options = {
+    'write_text': True,  # mostra os números abaixo
+    'font_size': 30,     # tamanho da fonte dos números
+    'text_distance': 10,  # distância entre barras e números
+    'module_height': 48, # altura das barras
+    'module_width': 1, # largura de cada barra
+    }
+
+    codigo_barra_obj = Code128(codigo_barra, writer=SVGWriter())
+    barcode_buffer = BytesIO()
+    codigo_barra_obj.write(barcode_buffer, options=writer_options)
+    barcode_buffer.seek(0)
+    codigo_barra_base64 = base64.b64encode(barcode_buffer.getvalue()).decode()
+
+    # === DADOS DO BOLETO ===
+    data_boleto = {
+        'codigo_banco_com_dv': '001-9',
+        'linha_digitavel': linha_digitavel,
+        'cedente': empresa.nome,
+        'agencia_codigo': f"{beneficiario.get('agencia', '')}/{beneficiario.get('codigoCliente', '')}",
+        'nosso_numero': numero_boleto,
+        'data_vencimento': final_payload['dataVencimento'],
+        'valor_boleto': f"R$ {final_payload['valorOriginal']:.2f}",
+        'numero_documento': final_payload.get('numeroTituloBeneficiario', ''),
+        'cpf_cnpj': empresa.cnpj,
+        'data_documento': final_payload['dataEmissao'],
+        'especie_doc': 'DM',
+        'aceite': 'N',
+        'data_processamento': final_payload['dataEmissao'],
+        'carteira': str(final_payload['carteira']),
+        'especie': 'R$',
+        'quantidade': '',
+        'valor_unitario': '',
+        'demonstrativo1': '',
+        'demonstrativo2': '',
+        'demonstrativo3': '',
+        'instrucoes1': final_payload['mensagemBloquetoOcorrencia'],
+        'instrucoes2': '',
+        'instrucoes3': '',
+        'instrucoes4': '',
+        'sacado': final_payload['pagador']['nome'],
+        'endereco1': final_payload['pagador'].get('endereco', ''),
+        'endereco2': f"{final_payload['pagador'].get('cidade', '')} - {final_payload['pagador'].get('uf', '')}",
+    }
+
+    # === CAMINHO ABSOLUTO DA LOGO ===
+    caminho_logo = os.path.join(settings.BASE_DIR, 'frontend','src', 'assets', 'logobb.PNG')
+    if not os.path.exists(caminho_logo):
+        raise FileNotFoundError(f"Logo não encontrada: {caminho_logo}")
+
+    with open(caminho_logo, "rb") as img_file:
+        logobb_base64 = base64.b64encode(img_file.read()).decode()
+
+    # === RENDERIZAR HTML COM SVG BASE64 ===
+    html_string = render_to_string('boleto_bb.html', {
+        'dataBoleto': data_boleto,
+        'caminho_logo': f"file:///{caminho_logo.replace('\\', '/')}",
+        'codigo_barra_base64': codigo_barra_base64,
+        'qr_base64': qr_base64,
+        'logobb': logobb_base64,
+    })
+
+    # === CONFIGURAÇÕES DO PDF ===
+    options = {
+        'page-size': 'A4',
+        'margin-top': '0mm',
+        'margin-right': '0mm',
+        'margin-bottom': '0mm',
+        'margin-left': '0mm',
+        'encoding': 'UTF-8',
+        'quiet': '',
+        'disable-smart-shrinking': '',
+        'dpi': 300,
+        'load-error-handling': 'ignore',
+        'load-media-error-handling': 'ignore',
+        'enable-local-file-access': None,
+        'allow': os.path.dirname(caminho_logo),
+        'enable-external-links': None,
+        'enable-internal-links': None,
+    }
+
+    config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
 
     # === GERAR PDF ===
-    buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+    try:
+        pdf = pdfkit.from_string(
+            html_string,
+            False,
+            options=options,
+            configuration=config
+        )
+    except Exception as e:
+        return HttpResponse(f"Erro ao gerar PDF: {str(e)}", status=500)
 
-    # Margens
-    margin = 15 * mm
-    col1 = margin
-    col2 = 60 * mm
-    col3 = 100 * mm
-    col4 = 130 * mm
-    col5 = 160 * mm
-
-    # === RECIBO DO PAGADOR ===
-    y = height - 30 * mm
-
-    # QR Code
-    p.drawImage(ImageReader(qr_buffer), col1, y - 20 * mm, width=25 * mm, height=25 * mm)
-
-    # Título Pix
-    p.setFont("Helvetica-Bold", 12)
-    p.drawString(col2, y, "Pague agora com o seu Pix")
-    p.setFont("Helvetica", 8)
-    p.drawString(col2, y - 5 * mm, "Para efetuar o pagamento via Pix, utilize a opção Pix de seu aplicativo")
-
-    # Banco do Brasil
-    p.setFont("Helvetica-Bold", 10)
-    p.drawString(width - 80 * mm, y, "Recibo do Pagador")
-
-    # Linha digitável
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(col1 + 35 * mm, y - 10 * mm, "001-9")
-    p.drawString(col1 + 50 * mm, y - 10 * mm, linha_digitavel)
-
-    # Dados
-    p.setFont("Helvetica", 9)
-    p.drawString(col1, y - 25 * mm, f"Beneficiário: {empresa.nome}")
-    p.drawString(col1, y - 30 * mm, f"Agência/Código: {beneficiario.get('agencia', '')} / {beneficiario.get('codigoCliente', '')}")
-    p.drawString(col1, y - 35 * mm, f"Vencimento: {final_payload['dataVencimento']}")
-    p.drawString(col1, y - 40 * mm, f"Valor: R$ {final_payload['valorOriginal']:.2f}")
-
-    # === FICHA DE COMPENSAÇÃO ===
-    y = height - 100 * mm
-    p.setFont("Helvetica-Bold", 14)
-    p.drawString(col1 + 35 * mm, y, "001-9")
-    p.drawString(col1 + 50 * mm, y, linha_digitavel)
-
-    # Dados da ficha
-    p.setFont("Helvetica", 9)
-    p.drawString(col1, y - 10 * mm, "Local de Pagamento: Pagável preferencialmente nas canais de autoatendimento do BB")
-    p.drawString(col1, y - 15 * mm, f"Beneficiário: {empresa.nome}")
-    p.drawString(col1, y - 20 * mm, f"Data Documento: {final_payload['dataEmissao']}")
-    p.drawString(col1, y - 25 * mm, f"Nosso Número: {numero_boleto}")
-    p.drawString(col1, y - 30 * mm, f"(=) Valor Documento: R$ {final_payload['valorOriginal']:.2f}")
-
-    # === CÓDIGO DE BARRAS ===
-    barcode = code39.Extended39(codigo_barra, barHeight=15 * mm, humanReadable=False)
-    barcode.drawOn(p, col1, y - 50 * mm)
-
-    # Finaliza
-    p.showPage()
-    p.save()
-    buffer.seek(0)
-
-    # === RETORNA PDF ===
+    # === RETORNO ===
     return HttpResponse(
-        buffer,
+        pdf,
         content_type='application/pdf',
         headers={'Content-Disposition': f'attachment; filename="boleto_{numero_boleto}.pdf"'}
     )
