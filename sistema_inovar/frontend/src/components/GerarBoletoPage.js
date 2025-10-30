@@ -17,6 +17,9 @@ const Section = ({ title, children }) => {
 };
 
 const GerarBoletoPage = () => {
+    // Reusable Tailwind classes for inputs to ensure transparent background and
+    // high-contrast text for both light and dark themes.
+    const inputClass = "w-full p-3 rounded border border-gray-300 dark:border-gray-600 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500";
     const [empresas, setEmpresas] = useState([]);
     const [selectedEmpresaId, setSelectedEmpresaId] = useState('');
 
@@ -99,7 +102,7 @@ const GerarBoletoPage = () => {
                 <select
                     value={selectedEmpresaId}
                     onChange={(e) => setSelectedEmpresaId(e.target.value)}
-                    className="w-full p-3 rounded border"
+                    className={inputClass}
                 >
                     <option value="">Selecione...</option>
                     {empresas.map(e => (
@@ -111,37 +114,37 @@ const GerarBoletoPage = () => {
             {/* DADOS DO TÍTULO */}
             <Section title="Dados do Título">
                 <div className="grid grid-cols-2 gap-3">
-                    <input name="numeroConvenio" placeholder="Número Convênio" onChange={update} className="input" />
-                    <input name="numeroCarteira" placeholder="Carteira" onChange={update} className="input" />
-                    <input name="numeroVariacaoCarteira" placeholder="Variação Carteira" onChange={update} className="input" />
-                    <input name="codigoModalidade" placeholder="Modalidade" onChange={update} className="input" />
-                    <input name="dataEmissao" type="date" onChange={update} className="input" />
-                    <input name="dataVencimento" type="date" onChange={update} className="input" />
-                    <input name="valorOriginal" type="number" step="0.01" placeholder="Valor" onChange={update} className="input" />
+                    <input name="numeroConvenio" placeholder="Número Convênio" onChange={update} className={inputClass} />
+                    <input name="numeroCarteira" placeholder="Carteira" onChange={update} className={inputClass} />
+                    <input name="numeroVariacaoCarteira" placeholder="Variação Carteira" onChange={update} className={inputClass} />
+                    <input name="codigoModalidade" placeholder="Modalidade" onChange={update} className={inputClass} />
+                    <input name="dataEmissao" type="date" onChange={update} className={inputClass} />
+                    <input name="dataVencimento" type="date" onChange={update} className={inputClass} />
+                    <input name="valorOriginal" type="number" step="0.01" placeholder="Valor" onChange={update} className={inputClass} />
                 </div>
             </Section>
 
             {/* DESCONTOS */}
             <Section title="Desconto">
                 <div className="grid grid-cols-2 gap-3">
-                    <input name="tipo" placeholder="Tipo" onChange={(e) => updateNested('desconto', e)} className="input" />
-                    <input name="dataExpiracao" type="date" onChange={(e) => updateNested('desconto', e)} className="input" />
-                    <input name="porcentagem" type="number" step="0.01" placeholder="%" onChange={(e) => updateNested('desconto', e)} className="input" />
-                    <input name="valor" type="number" step="0.01" placeholder="Valor" onChange={(e) => updateNested('desconto', e)} className="input" />
+                    <input name="tipo" placeholder="Tipo" onChange={(e) => updateNested('desconto', e)} className={inputClass} />
+                    <input name="dataExpiracao" type="date" onChange={(e) => updateNested('desconto', e)} className={inputClass} />
+                    <input name="porcentagem" type="number" step="0.01" placeholder="%" onChange={(e) => updateNested('desconto', e)} className={inputClass} />
+                    <input name="valor" type="number" step="0.01" placeholder="Valor" onChange={(e) => updateNested('desconto', e)} className={inputClass} />
                 </div>
             </Section>
 
             {/* JUROS E MULTA */}
             <Section title="Juros e Multa">
                 <div className="grid grid-cols-2 gap-3">
-                    <input name="porcentagem" placeholder="Juros (%)" onChange={(e) => updateNested('jurosMora', e)} className="input" />
-                    <input name="porcentagem" placeholder="Multa (%)" onChange={(e) => updateNested('multa', e)} className="input" />
+                    <input name="porcentagem" placeholder="Juros (%)" onChange={(e) => updateNested('jurosMora', e)} className={inputClass} />
+                    <input name="porcentagem" placeholder="Multa (%)" onChange={(e) => updateNested('multa', e)} className={inputClass} />
                 </div>
             </Section>
 
             {/* PIX */}
             <Section title="PIX">
-                <select name="indicadorPix" value={boletoData.indicadorPix} onChange={update} className="input">
+                <select name="indicadorPix" value={boletoData.indicadorPix} onChange={update} className={inputClass}>
                     <option value="N">Não</option>
                     <option value="S">Sim</option>
                 </select>
