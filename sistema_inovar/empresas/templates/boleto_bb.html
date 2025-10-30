@@ -7,7 +7,7 @@
   <style>
     /* Page and print setup */
     body { font-family: Arial, Helvetica, sans-serif; font-size:12px; margin:0; padding:10px; }
-    page[size="A4"] { display:block; width:210mm; min-height:297mm; margin:0 auto; background:white; }
+  page[size="A4"] { display:block; width:800px; height:auto; margin:0 auto; background:white; }
     @media print { body, page[size="A4"] { margin:0; box-shadow:none; } }
 
     /* General layout */
@@ -16,12 +16,14 @@
     .hack{ display:block; clear:both; }
 
     /* Header area */
-    .logo{ float:left; width:150px; height:30px; }
-    .cod-banco{ float:left; border-left:2px solid #000; border-right:2px solid #000; padding:4px 8px; margin-left:8px; font-weight:bold; font-size:18px; }
-    .linha-digitavel{ float:right; text-align:right; font-size:14px; padding:6px 4px; border-bottom:1px solid #000; min-width:260px; }
+  /* header pieces */
+  .logo{ float:left; width:150px; height:30px; }
+  .cod-banco{ float:left; border-left:2px solid #000; border-right:2px solid #000; padding:4px 8px; margin-left:8px; font-weight:bold; font-size:18px; }
+  .linha-digitavel{ float:right; text-align:right; font-size:14px; padding:6px 4px; border-bottom:1px solid #000; min-width:260px; }
 
     /* Cells */
-    .cell{ float:left; border-left:1px solid #000; border-top:1px solid #000; padding:6px; box-sizing:border-box; font-size:12px; }
+  /* cells use flex layout inside rows to avoid overflow */
+  .cell{ /*float:left;*/ border-left:1px solid #000; border-top:1px solid #000; padding:6px; box-sizing:border-box; font-size:12px; display:block; flex:0 0 auto; min-width:0; }
     .cell label{ display:block; font-size:10px; font-weight:normal; margin-bottom:4px; }
     .texto-a-direita{ text-align:right; }
     .texto-a-esquerda{ text-align:left; }
@@ -29,16 +31,30 @@
     /* Barcode */
     .codigobarras img{ display:block; margin:8px 0; }
 
-    /* Utility widths used in template */
-    .w-full{ width:100%; }
-    .w-798{ width:798px; }
-    .w-640{ width:640px; }
-    .w-200{ width:200px; }
-    .w-170{ width:170px; }
-    .w-150{ width:150px; }
-    .w-127{ width:127px; }
-    .h-80{ height:80px; }
-    .h-154{ height:154px; }
+  /* row wrapper to control horizontal layout */
+  .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; }
+  /* ensure the main page doesn't overflow horizontally */
+  page[size="A4"], #boleto { box-sizing: border-box; max-width:800px; overflow:hidden; }
+
+  /* Utility widths used in template - use percentages to avoid horizontal overflow */
+  .w-full{ flex:0 0 100%; max-width:100%; }
+  .w-75p{ flex:0 0 75%; max-width:75%; }
+  .w-60p{ flex:0 0 60%; max-width:60%; }
+  .w-50p{ flex:0 0 50%; max-width:50%; }
+  .w-33p{ flex:0 0 33.3333%; max-width:33.3333%; }
+  .w-25p{ flex:0 0 25%; max-width:25%; }
+  .w-20p{ flex:0 0 20%; max-width:20%; }
+  .w-15p{ flex:0 0 15%; max-width:15%; }
+  .w-10p{ flex:0 0 10%; max-width:10%; }
+  .h-80{ height:80px; }
+  .h-154{ height:154px; }
+
+  /* Backwards-compatible aliases (map old class names to percentage equivalents) */
+  .w-798, .w-640 { flex:0 0 75%; max-width:75%; }
+  .w-200 { flex:0 0 25%; max-width:25%; }
+  .w-170, .w-150 { flex:0 0 20%; max-width:20%; }
+  .w-127, .w-106 { flex:0 0 15%; max-width:15%; }
+  .w-80, .w-60 { flex:0 0 10%; max-width:10%; }
 
     /* small print adjustments */
     .titulo { font-weight:bold; text-align:center; margin-bottom:6px; }
@@ -70,35 +86,39 @@
     </div>
     <div class="hack"></div>
 
-    <div class="cell w-798" style="width:598px;">
-      <label>Nome do Pagador / CPF / CNPJ / Endereço</label>
-      {{ dataBoleto.sacado }}{% if dataBoleto.cpf_cnpj %} - CPF/CNPJ: {{ dataBoleto.cpf_cnpj }}{% endif %}{% if dataBoleto.endereco1 %} - {{ dataBoleto.endereco1 }}{% endif %}
+    <div class="row">
+      <div class="cell w-798">
+        <label>Nome do Pagador / CPF / CNPJ / Endereço</label>
+        {{ dataBoleto.sacado }}{% if dataBoleto.cpf_cnpj %} - CPF/CNPJ: {{ dataBoleto.cpf_cnpj }}{% endif %}{% if dataBoleto.endereco1 %} - {{ dataBoleto.endereco1 }}{% endif %}
+      </div>
+
+      <div class="cell w-170">
+        <label>Nosso Número</label>
+        {{ dataBoleto.nosso_numero }}
+      </div>
+
+      <div class="cell w-200">
+        <label>Nº Documento</label>
+        {{ dataBoleto.numero_documento }}
+      </div>
+
+      <div class="cell w-127 texto-a-direita">
+        <label>Data de Vencimento</label>
+        {{ dataBoleto.data_vencimento }}
+      </div>
+
+      <div class="cell w-127 texto-a-direita">
+        <label>Valor do Documento</label>
+        {{ dataBoleto.valor_boleto }}
+      </div>
     </div>
 
-    <div class="cell w-170" style="width:170px;">
-      <label>Nosso Número</label>
-      {{ dataBoleto.nosso_numero }}
-    </div>
-
-    <div class="cell w-200" style="width:200px;">
-      <label>Nº Documento</label>
-      {{ dataBoleto.numero_documento }}
-    </div>
-
-    <div class="cell w-127 texto-a-direita" style="width:127px;">
-      <label>Data de Vencimento</label>
-      {{ dataBoleto.data_vencimento }}
-    </div>
-
-    <div class="cell w-127 texto-a-direita" style="width:127px;">
-      <label>Valor do Documento</label>
-      {{ dataBoleto.valor_boleto }}
-    </div>
-
-    <div class="cell w-798 h-80" style="width:598px; height:80px;">
-      <label>Nome do Beneficiário / CPF / CNPJ / Endereço</label>
-      {{ dataBoleto.cedente }}
-      {% if dataBoleto.agencia_codigo %} - {{ dataBoleto.agencia_codigo }}{% endif %}
+    <div class="row">
+      <div class="cell w-798 h-80">
+        <label>Nome do Beneficiário / CPF / CNPJ / Endereço</label>
+        {{ dataBoleto.cedente }}
+        {% if dataBoleto.agencia_codigo %} - {{ dataBoleto.agencia_codigo }}{% endif %}
+      </div>
     </div>
 
     <br class="hack" />
@@ -114,116 +134,122 @@
       <div class="linha-digitavel">{{ dataBoleto.linha_digitavel }}</div>
     </div>
     <div class="hack"></div>
+    <div class="row">
+      <div class="cell w-640">
+        <label>Local de Pagamento</label>
+        {{ dataBoleto.local_pagamento|default:"Pagável em qualquer banco até o vencimento." }}
+      </div>
 
-    <div class="cell w-640" style="width:640px;">
-      <label>Local de Pagamento</label>
-      {{ dataBoleto.local_pagamento|default:"Pagável em qualquer banco até o vencimento." }}
+      <div class="cell w-150 texto-a-direita">
+        <label>Data de Vencimento</label>
+        {{ dataBoleto.data_vencimento }}
+      </div>
     </div>
 
-    <div class="cell w-150 texto-a-direita" style="width:150px;">
-      <label>Data de Vencimento</label>
-      {{ dataBoleto.data_vencimento }}
+    <div class="row">
+      <div class="cell w-640">
+        <label>Nome do Beneficiário / CPF / CNPJ</label>
+        {{ dataBoleto.cedente }}
+      </div>
+
+      <div class="cell w-150 texto-a-direita">
+        <label>Agência / Código do Beneficiário</label>
+        {{ dataBoleto.agencia_codigo }}
+      </div>
     </div>
 
-    <div class="cell w-640" style="width:640px;">
-      <label>Nome do Beneficiário / CPF / CNPJ</label>
-      {{ dataBoleto.cedente }}
+    <div class="row">
+      <div class="cell w-170">
+        <label>Data do Documento</label>
+        {{ dataBoleto.data_documento }}
+      </div>
+
+      <div class="cell w-200">
+        <label>Nº do Documento</label>
+        {{ dataBoleto.numero_documento }}
+      </div>
+
+      <div class="cell w-60">
+        <label>Espécie DOC</label>
+        {{ dataBoleto.especie_doc|default:"DM" }}
+      </div>
+
+      <div class="cell w-80">
+        <label>Aceite</label>
+        {{ dataBoleto.aceite|default:"N" }}
+      </div>
+
+      <div class="cell w-106">
+        <label>Data do Processamento</label>
+        {{ dataBoleto.data_processamento }}
+      </div>
+
+      <div class="cell w-150 texto-a-direita">
+        <label>Nosso Número</label>
+        {{ dataBoleto.nosso_numero }}
+      </div>
     </div>
 
-    <div class="cell w-150 texto-a-direita" style="width:150px;">
-      <label>Agência / Código do Beneficiário</label>
-      {{ dataBoleto.agencia_codigo }}
+    <div class="row">
+      <div class="cell w-170">
+        <label>Uso do banco</label>
+        &nbsp;
+      </div>
+
+      <div class="cell w-200">
+        <label>Carteira</label>
+        {{ dataBoleto.carteira|default:"" }}
+      </div>
+
+      <div class="cell w-60">
+        <label>Espécie</label>
+        R$
+      </div>
+
+      <div class="cell w-80">
+        <label>Quantidade</label>
+        &nbsp;
+      </div>
+
+      <div class="cell w-106">
+        <label>(x) Valor</label>
+        &nbsp;
+      </div>
+
+      <div class="cell w-150 texto-a-direita">
+        <label>(=) Valor do Documento</label>
+        {{ dataBoleto.valor_boleto }}
+      </div>
     </div>
 
-    <div class="cell w-170" style="width:170px;">
-      <label>Data do Documento</label>
-      {{ dataBoleto.data_documento }}
-    </div>
-
-    <div class="cell w-200" style="width:200px;">
-      <label>Nº do Documento</label>
-      {{ dataBoleto.numero_documento }}
-    </div>
-
-    <div class="cell w-60" style="width:60px;">
-      <label>Espécie DOC</label>
-      {{ dataBoleto.especie_doc|default:"DM" }}
-    </div>
-
-    <div class="cell w-80" style="width:80px;">
-      <label>Aceite</label>
-      {{ dataBoleto.aceite|default:"N" }}
-    </div>
-
-    <div class="cell w-106" style="width:106px;">
-      <label>Data do Processamento</label>
-      {{ dataBoleto.data_processamento }}
-    </div>
-
-    <div class="cell w-150 texto-a-direita" style="width:150px;">
-      <label>Nosso Número</label>
-      {{ dataBoleto.nosso_numero }}
-    </div>
-
-    <div class="cell w-170" style="width:170px;">
-      <label>Uso do banco</label>
-      &nbsp;
-    </div>
-
-    <div class="cell w-200" style="width:200px;">
-      <label>Carteira</label>
-      {{ dataBoleto.carteira|default:"" }}
-    </div>
-
-    <div class="cell w-60" style="width:60px;">
-      <label>Espécie</label>
-      R$
-    </div>
-
-    <div class="cell w-80" style="width:80px;">
-      <label>Quantidade</label>
-      &nbsp;
-    </div>
-
-    <div class="cell w-106" style="width:106px;">
-      <label>(x) Valor</label>
-      &nbsp;
-    </div>
-
-    <div class="cell w-150 texto-a-direita" style="width:150px;">
-      <label>(=) Valor do Documento</label>
-      {{ dataBoleto.valor_boleto }}
-    </div>
-
-    <div class="cell w-640 h-154" style="width:640px; height:154px;">
+    <div class="cell w-640 h-154">
       <label>Informações de Responsabilidade do Beneficiário</label>
       {{ dataBoleto.instrucoes1 }}<br />{{ dataBoleto.instrucoes2 }}<br />{{ dataBoleto.instrucoes3 }}
     </div>
 
-    <div class="cell w-150 texto-a-direita" style="width:150px;">
+    <div class="cell w-150 texto-a-direita">
       <label>(-) Desconto/Abatimento</label>
       &nbsp;
     </div>
 
-    <div class="cell w-150 texto-a-direita" style="width:150px;">
+    <div class="cell w-150 texto-a-direita">
       <label>(+) Juros/Multa</label>
       &nbsp;
     </div>
 
-    <div class="cell w-150 texto-a-direita" style="width:150px;">
+    <div class="cell w-150 texto-a-direita">
       <label>(=) Valor Cobrado</label>
       &nbsp;
     </div>
-
-    <div class="cell w-798" style="width:798px; height:60px;">
+    <div class="cell w-798" style="height:60px;">
       <label>Nome do Pagador / CPF / CNPJ / Endereço</label>
       {{ dataBoleto.sacado }} {% if dataBoleto.endereco1 %}- {{ dataBoleto.endereco1 }}{% endif %} {% if dataBoleto.endereco2 %}- {{ dataBoleto.endereco2 }}{% endif %}
     </div>
 
-    <div class="cell w-798" style="width:798px; height:100px;">
+    <div class="cell w-798" style="height:100px;">
       <label>Sacador/Avalista <span style="float:right">Autenticação mecânica</span></label>
       <div class="codigobarras" style="height:90px;">
-        <img id="img" src="data:image/svg+xml;base64,{{ codigo_barra_base64 }}" style="width:600px; height:70px; object-fit:contain;" />
+        <img id="img" src="data:image/svg+xml;base64,{{ codigo_barra_base64 }}" style="max-width:100%; height:auto; object-fit:contain;" />
       </div>
     </div>
 
