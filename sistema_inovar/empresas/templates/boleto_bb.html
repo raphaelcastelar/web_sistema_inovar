@@ -6,55 +6,49 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     /* Page and print setup */
-    body { font-family: Arial, Helvetica, sans-serif; font-size:12px; margin:0; padding:10px; }
-  page[size="A4"] { display:block; width:800px; height:auto; margin:0 auto; background:white; }
-    @media print { body, page[size="A4"] { margin:0; box-shadow:none; } }
+    body { font-family: Arial, Helvetica, sans-serif; font-size:12px; margin:0; padding:6mm 6mm; background:#fff; }
+    /* Use true A4 width, but keep the printable container slightly smaller to account for printer margins */
+    page[size="A4"] { display:block; width:210mm; margin:0 auto; background:white; }
+    #boleto { width:190mm; margin:0 auto; box-sizing:border-box; }
+    @media print { body, page[size="A4"], #boleto { margin:0; box-shadow:none; } }
 
-    /* General layout */
-    #boleto { width:100%; max-width:800px; margin:0 auto; }
-    .linha-pontilhada{ width:100%; border-bottom:1px dashed #000; margin:8px 0; }
+    /* Small helpers */
+    .linha-pontilhada{ width:100%; border-bottom:1px dashed #000; margin:6px 0; }
     .hack{ display:block; clear:both; }
 
-    /* Header area */
-  /* header pieces */
-  .logo{ float:left; width:150px; height:30px; }
-  .cod-banco{ float:left; border-left:2px solid #000; border-right:2px solid #000; padding:4px 8px; margin-left:8px; font-weight:bold; font-size:18px; }
-  .linha-digitavel{ float:right; text-align:right; font-size:14px; padding:6px 4px; border-bottom:1px solid #000; min-width:260px; }
+    /* Header area: use flex so elements share space and can shrink */
+    .header{ display:flex; gap:8px; align-items:center; width:100%; box-sizing:border-box; }
+    .logo{ flex:0 0 30mm; max-width:30mm; }
+    .logo img{ width:100%; height:auto; object-fit:contain; }
+    .cod-banco{ flex:0 0 24mm; padding:4px 6px; border-left:2px solid #000; border-right:2px solid #000; text-align:center; font-weight:bold; font-size:16px; }
+    .linha-digitavel{ flex:1 1 auto; text-align:right; font-size:13px; padding:4px; border-bottom:1px solid #000; min-width:0; }
 
-    /* Cells */
-  /* cells use flex layout inside rows to avoid overflow */
-  .cell{ /*float:left;*/ border-left:1px solid #000; border-top:1px solid #000; padding:6px; box-sizing:border-box; font-size:12px; display:block; flex:0 0 auto; min-width:0; }
+    /* Row / cell system: use flex rows and percent-based columns */
+    .row{ display:flex; gap:6px; flex-wrap:wrap; align-items:flex-start; width:100%; box-sizing:border-box; }
+    .cell{ border-left:1px solid #000; border-top:1px solid #000; padding:6px; box-sizing:border-box; font-size:12px; min-width:0; }
     .cell label{ display:block; font-size:10px; font-weight:normal; margin-bottom:4px; }
     .texto-a-direita{ text-align:right; }
     .texto-a-esquerda{ text-align:left; }
 
-    /* Barcode */
-    .codigobarras img{ display:block; margin:8px 0; }
+    /* Percent-based column helpers (flex-basis and max-width) */
+    .col-60{ flex:0 0 60%; max-width:60%; }
+    .col-55{ flex:0 0 55%; max-width:55%; }
+    .col-50{ flex:0 0 50%; max-width:50%; }
+    .col-40{ flex:0 0 40%; max-width:40%; }
+    .col-35{ flex:0 0 35%; max-width:35%; }
+    .col-33{ flex:0 0 33.3333%; max-width:33.3333%; }
+    .col-25{ flex:0 0 25%; max-width:25%; }
+    .col-20{ flex:0 0 20%; max-width:20%; }
+    .col-15{ flex:0 0 15%; max-width:15%; }
+    .col-10{ flex:0 0 10%; max-width:10%; }
+    .w-full{ flex:0 0 100%; max-width:100%; }
 
-  /* row wrapper to control horizontal layout */
-  .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; }
-  /* ensure the main page doesn't overflow horizontally */
-  page[size="A4"], #boleto { box-sizing: border-box; max-width:800px; overflow:hidden; }
+    /* Make barcode responsive and constrained to available width */
+    .codigobarras img{ display:block; margin:6px 0; max-width:100%; height:auto; }
 
-  /* Utility widths used in template - use percentages to avoid horizontal overflow */
-  .w-full{ flex:0 0 100%; max-width:100%; }
-  .w-75p{ flex:0 0 75%; max-width:75%; }
-  .w-60p{ flex:0 0 60%; max-width:60%; }
-  .w-50p{ flex:0 0 50%; max-width:50%; }
-  .w-33p{ flex:0 0 33.3333%; max-width:33.3333%; }
-  .w-25p{ flex:0 0 25%; max-width:25%; }
-  .w-20p{ flex:0 0 20%; max-width:20%; }
-  .w-15p{ flex:0 0 15%; max-width:15%; }
-  .w-10p{ flex:0 0 10%; max-width:10%; }
-  .h-80{ height:80px; }
-  .h-154{ height:154px; }
-
-  /* Backwards-compatible aliases (map old class names to percentage equivalents) */
-  .w-798, .w-640 { flex:0 0 75%; max-width:75%; }
-  .w-200 { flex:0 0 25%; max-width:25%; }
-  .w-170, .w-150 { flex:0 0 20%; max-width:20%; }
-  .w-127, .w-106 { flex:0 0 15%; max-width:15%; }
-  .w-80, .w-60 { flex:0 0 10%; max-width:10%; }
+    /* Heights (keep only where necessary) */
+    .h-80{ height:80px; }
+    .h-154{ height:154px; }
 
     /* small print adjustments */
     .titulo { font-weight:bold; text-align:center; margin-bottom:6px; }
@@ -67,7 +61,7 @@
       <p class="titulo">Instruções de Impressão</p>
       <ul>
         <li>Imprima em impressora jato de tinta (ink jet) ou laser em qualidade normal ou alta.</li>
-        <li>Use folha A4 (210 x 297 mm) ou Carta (216 x 279 mm) e margens mínimas.</li>
+        <li>Use folha A4 (210 x 297 mm) e margens mínimas.</li>
         <li>Corte na linha indicada. Não rasure, risque, fure ou dobre a região do código de barras.</li>
       </ul>
     </div>
@@ -76,48 +70,44 @@
     <br class="hack" />
 
     <!-- Recibo do Sacado (parte superior) -->
-    <div style="overflow:hidden;">
-      <div class="logo">
-        <!-- logo base64 (provided by view) -->
-        <img src="data:image/png;base64,{{ logobb }}" alt="logo" style="width:150px;height:30px;object-fit:contain;" />
-      </div>
+    <div class="header">
+      <div class="logo"><img src="data:image/png;base64,{{ logobb }}" alt="logo" /></div>
       <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv }}</div>
       <div class="linha-digitavel">{{ dataBoleto.linha_digitavel }}</div>
     </div>
     <div class="hack"></div>
 
-    <div class="row">
-      <div class="cell w-798">
+    <div class="row" style="margin-top:6px;">
+      <div class="cell col-55">
         <label>Nome do Pagador / CPF / CNPJ / Endereço</label>
         {{ dataBoleto.sacado }}{% if dataBoleto.cpf_cnpj %} - CPF/CNPJ: {{ dataBoleto.cpf_cnpj }}{% endif %}{% if dataBoleto.endereco1 %} - {{ dataBoleto.endereco1 }}{% endif %}
       </div>
 
-      <div class="cell w-170">
+      <div class="cell col-15">
         <label>Nosso Número</label>
         {{ dataBoleto.nosso_numero }}
       </div>
 
-      <div class="cell w-200">
+      <div class="cell col-15">
         <label>Nº Documento</label>
         {{ dataBoleto.numero_documento }}
       </div>
 
-      <div class="cell w-127 texto-a-direita">
+      <div class="cell col-15 texto-a-direita">
         <label>Data de Vencimento</label>
         {{ dataBoleto.data_vencimento }}
       </div>
 
-      <div class="cell w-127 texto-a-direita">
+      <div class="cell col-15 texto-a-direita">
         <label>Valor do Documento</label>
         {{ dataBoleto.valor_boleto }}
       </div>
     </div>
 
-    <div class="row">
-      <div class="cell w-798 h-80">
+    <div class="row" style="margin-top:6px;">
+      <div class="cell col-55 h-80">
         <label>Nome do Beneficiário / CPF / CNPJ / Endereço</label>
-        {{ dataBoleto.cedente }}
-        {% if dataBoleto.agencia_codigo %} - {{ dataBoleto.agencia_codigo }}{% endif %}
+        {{ dataBoleto.cedente }}{% if dataBoleto.agencia_codigo %} - {{ dataBoleto.agencia_codigo }}{% endif %}
       </div>
     </div>
 
@@ -126,130 +116,136 @@
     <br class="hack" />
 
     <!-- Ficha de Compensação (parte inferior) -->
-    <div style="overflow:hidden; margin-top:6px;">
-      <div class="logo">
-        <img src="data:image/png;base64,{{ logobb }}" alt="logo" style="width:150px;height:30px;object-fit:contain;" />
-      </div>
+    <div class="header" style="margin-top:6px;">
+      <div class="logo"><img src="data:image/png;base64,{{ logobb }}" alt="logo" /></div>
       <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv }}</div>
       <div class="linha-digitavel">{{ dataBoleto.linha_digitavel }}</div>
     </div>
     <div class="hack"></div>
-    <div class="row">
-      <div class="cell w-640">
+
+    <div class="row" style="margin-top:6px;">
+      <div class="cell col-60">
         <label>Local de Pagamento</label>
         {{ dataBoleto.local_pagamento|default:"Pagável em qualquer banco até o vencimento." }}
       </div>
 
-      <div class="cell w-150 texto-a-direita">
+      <div class="cell col-20 texto-a-direita">
         <label>Data de Vencimento</label>
         {{ dataBoleto.data_vencimento }}
       </div>
     </div>
 
-    <div class="row">
-      <div class="cell w-640">
+    <div class="row" style="margin-top:6px;">
+      <div class="cell col-60">
         <label>Nome do Beneficiário / CPF / CNPJ</label>
         {{ dataBoleto.cedente }}
       </div>
 
-      <div class="cell w-150 texto-a-direita">
+      <div class="cell col-20 texto-a-direita">
         <label>Agência / Código do Beneficiário</label>
         {{ dataBoleto.agencia_codigo }}
       </div>
     </div>
 
-    <div class="row">
-      <div class="cell w-170">
+    <div class="row" style="margin-top:6px;">
+      <div class="cell col-15">
         <label>Data do Documento</label>
         {{ dataBoleto.data_documento }}
       </div>
 
-      <div class="cell w-200">
+      <div class="cell col-15">
         <label>Nº do Documento</label>
         {{ dataBoleto.numero_documento }}
       </div>
 
-      <div class="cell w-60">
+      <div class="cell col-10">
         <label>Espécie DOC</label>
         {{ dataBoleto.especie_doc|default:"DM" }}
       </div>
 
-      <div class="cell w-80">
+      <div class="cell col-10">
         <label>Aceite</label>
         {{ dataBoleto.aceite|default:"N" }}
       </div>
 
-      <div class="cell w-106">
+      <div class="cell col-15">
         <label>Data do Processamento</label>
         {{ dataBoleto.data_processamento }}
       </div>
 
-      <div class="cell w-150 texto-a-direita">
+      <div class="cell col-15 texto-a-direita">
         <label>Nosso Número</label>
         {{ dataBoleto.nosso_numero }}
       </div>
     </div>
 
-    <div class="row">
-      <div class="cell w-170">
+    <div class="row" style="margin-top:6px;">
+      <div class="cell col-15">
         <label>Uso do banco</label>
         &nbsp;
       </div>
 
-      <div class="cell w-200">
+      <div class="cell col-15">
         <label>Carteira</label>
         {{ dataBoleto.carteira|default:"" }}
       </div>
 
-      <div class="cell w-60">
+      <div class="cell col-10">
         <label>Espécie</label>
         R$
       </div>
 
-      <div class="cell w-80">
+      <div class="cell col-10">
         <label>Quantidade</label>
         &nbsp;
       </div>
 
-      <div class="cell w-106">
+      <div class="cell col-15">
         <label>(x) Valor</label>
         &nbsp;
       </div>
 
-      <div class="cell w-150 texto-a-direita">
+      <div class="cell col-15 texto-a-direita">
         <label>(=) Valor do Documento</label>
         {{ dataBoleto.valor_boleto }}
       </div>
     </div>
 
-    <div class="cell w-640 h-154">
-      <label>Informações de Responsabilidade do Beneficiário</label>
-      {{ dataBoleto.instrucoes1 }}<br />{{ dataBoleto.instrucoes2 }}<br />{{ dataBoleto.instrucoes3 }}
+    <div class="row" style="margin-top:6px;">
+      <div class="cell col-60 h-154">
+        <label>Informações de Responsabilidade do Beneficiário</label>
+        {{ dataBoleto.instrucoes1 }}<br />{{ dataBoleto.instrucoes2 }}<br />{{ dataBoleto.instrucoes3 }}
+      </div>
+
+      <div class="cell col-15 texto-a-right">
+        <label>(-) Desconto/Abatimento</label>
+        &nbsp;
+      </div>
+
+      <div class="cell col-15 texto-a-right">
+        <label>(+) Juros/Multa</label>
+        &nbsp;
+      </div>
+
+      <div class="cell col-15 texto-a-right">
+        <label>(=) Valor Cobrado</label>
+        &nbsp;
+      </div>
     </div>
 
-    <div class="cell w-150 texto-a-direita">
-      <label>(-) Desconto/Abatimento</label>
-      &nbsp;
+    <div class="row" style="margin-top:6px;">
+      <div class="cell w-full" style="height:60px;">
+        <label>Nome do Pagador / CPF / CNPJ / Endereço</label>
+        {{ dataBoleto.sacado }} {% if dataBoleto.endereco1 %}- {{ dataBoleto.endereco1 }}{% endif %} {% if dataBoleto.endereco2 %}- {{ dataBoleto.endereco2 }}{% endif %}
+      </div>
     </div>
 
-    <div class="cell w-150 texto-a-direita">
-      <label>(+) Juros/Multa</label>
-      &nbsp;
-    </div>
-
-    <div class="cell w-150 texto-a-direita">
-      <label>(=) Valor Cobrado</label>
-      &nbsp;
-    </div>
-    <div class="cell w-798" style="height:60px;">
-      <label>Nome do Pagador / CPF / CNPJ / Endereço</label>
-      {{ dataBoleto.sacado }} {% if dataBoleto.endereco1 %}- {{ dataBoleto.endereco1 }}{% endif %} {% if dataBoleto.endereco2 %}- {{ dataBoleto.endereco2 }}{% endif %}
-    </div>
-
-    <div class="cell w-798" style="height:100px;">
-      <label>Sacador/Avalista <span style="float:right">Autenticação mecânica</span></label>
-      <div class="codigobarras" style="height:90px;">
-        <img id="img" src="data:image/svg+xml;base64,{{ codigo_barra_base64 }}" style="max-width:100%; height:auto; object-fit:contain;" />
+    <div class="row" style="margin-top:6px;">
+      <div class="cell w-full" style="height:100px;">
+        <label>Sacador/Avalista <span style="float:right">Autenticação mecânica</span></label>
+        <div class="codigobarras" style="height:90px;">
+          <img id="img" src="data:image/svg+xml;base64,{{ codigo_barra_base64 }}" alt="codigo de barras" />
+        </div>
       </div>
     </div>
 
