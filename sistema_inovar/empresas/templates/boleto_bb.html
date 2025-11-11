@@ -2,296 +2,286 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Boleto BB</title>
+  <title>Boleto Banco do Brasil</title>
+  <style>
+    /* === CONFIGURAÇÃO DE PÁGINA A4 === */
+    body {
+      background: #fff;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, Helvetica, sans-serif;
+    }
 
-<style type="text/css">
-  * {
-    font-family: Arial;
-    margin: 0;
-    padding: 0;
-  }
+    page[size="A4"] {
+      background: white;
+      width: 21cm;
+      height: 29.7cm;
+      display: block;
+      margin: 0 auto;
+      padding: 10mm;
+      box-sizing: border-box;
+    }
 
-  body {
-    margin: 0;
-    padding: 20px;
-  }
+    @media print {
+      body, page[size="A4"] {
+        margin: 0;
+        box-shadow: none;
+      }
+    }
 
-  .wrapper {
-    max-width: 100%;
-  }
+    /* === ELEMENTOS GERAIS === */
+    #boleto {
+      width: 100%;
+      font-size: 10.5px;
+      color: #000;
+    }
 
-  .container {
-    display: flex;
-    gap: 40px;
-    flex-direction: column;
-    justify-content: space-between;
-  }
+    .linha-pontilhada {
+      width: 100%;
+      border-bottom: 1px dashed #000;
+      margin: 8px 0;
+      position: relative;
+    }
 
-  .bloco-superior {
-    font-size: 10px;
-  }
+    .linha-pontilhada span {
+      position: absolute;
+      right: 0;
+      top: -11px;
+      font-size: 9px;
+    }
 
-  .corte {
-    font-size: 8px;
-  }
+    .hack { clear: both; display: block; }
 
-  .linha-pontilhada {
-    border: 1px dashed #000;
-  }
+    /* === CABEÇALHO === */
+    .logo {
+      width: 130px;
+      float: left;
+      margin-top: 10px;
+    }
 
-  h4 {
-    font-weight: 200;
-    font-size: 7.5px;
-    color: navy;
-    margin-bottom: 3px;
-  }
+    .logo img { width: 100%; }
 
-  .left { text-align: left; }
-  .right { text-align: right; }
+    .cod-banco {
+      float: left;
+      margin-top: 15px;
+      margin-left: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      border-left: 2px solid #000;
+      border-right: 2px solid #000;
+      padding: 0 5px;
+      height: 20px;
+      line-height: 20px;
+    }
 
-  .cabecalho {
-    font-size: 10px;
-    position: relative;
-    gap: 5px;
-    color: navy;
-    font-weight: bold;
-    border-bottom: 3px solid navy;
-    padding-bottom: 35px;
-  }
+    .linha-digitavel {
+      float: right;
+      font-size: 13px;
+      font-weight: bold;
+      margin-top: 15px;
+      text-align: right;
+    }
 
-  .logo-bb {
-    position: absolute;
-    left: 0;
-  }
+    /* === CAMPOS === */
+    .cell {
+      border: 1px solid #000;
+      padding: 3px 4px;
+      float: left;
+      font-size: 9.5px;
+      box-sizing: border-box;
+      font-weight: normal;
+      min-height: 24px;
+    }
 
-  .codigo-banco-com-dv {
-    position: absolute;
-    left: 160px;
-    top: 15px;
-    margin-right: auto;
-    border-right: 3px solid navy;
-    border-left: 3px solid navy;
-  }
+    .cell label {
+      display: block;
+      font-size: 8px;
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
 
-  .codigo-banco-com-dv p { margin: 0 5px; }
+    .texto-a-direita { text-align: right; }
+    .texto-a-esquerda { text-align: left; }
 
-  .linha-digitavel {
-    position: absolute;
-    right: 0;
-    top: 5px;
-    margin-top: 10px;
-    font-size: 12px;
-  }
+    /* === INSTRUÇÕES === */
+    #instrucoes {
+      font-size: 9px;
+      margin-bottom: 10px;
+    }
 
-  .bloco-inferior {
-    font-size: 12px;
-  }
+    #instrucoes .titulo {
+      text-align: center;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
 
-  .linha {
-    float: left;
-    font-size: 8.5px;
-    border-bottom: 1px solid #000;
-    min-height: 25px;
-    margin-top: 5px;
-    width: 100%;
-  }
+    #instrucoes ul {
+      margin: 0;
+      padding-left: 15px;
+    }
 
-  .linha-2 {
-    float: left;
-    background-color: #fff;
-    width: 67%;
-    height: 140px;
-    font-size: 8px;
-    margin-top: 5px;
-    border-bottom: 1px solid #000;
-  }
+    /* === CÓDIGO DE BARRAS === */
+    .codigobarras {
+      text-align: center;
+      padding: 10px 0;
+      border-top: 1px solid #000;
+      margin-top: 5px;
+    }
 
-  .linha-3 {
-    float: left;
-    font-size: 8px;
-    border-bottom: 1px solid #000;
-    min-height: 22px;
-    margin-top: 5px;
-    height: 70px;
-    width: 100%;
-  }
-
-  .linha-5 {
-    float: left;
-    font-size: 8px;
-    border-bottom: 1px solid #000;
-    min-height: 22px;
-    margin-top: 5px;
-    width: 33%;
-  }
-
-  .linha p, h4,
-  .linha-2 p, h4,
-  .linha-3 p, h4 {
-    margin-left: 5px;
-  }
-
-  .campo {
-    border-left: 6px solid gold;
-    min-height: 24px;
-    position: relative;
-    float: left;
-  }
-
-  /* larguras */
-  .cedente { width: 38%; }
-  .agencia { width: 17%; }
-  .especie { width: 6%; }
-  .quantidade { width: 8%; }
-  .nosso-numero { width: 18%; }
-  .numero-documento { width: 29%; }
-  .contato { width: 10%; }
-  .cpf-cei-cnpj { width: 15%; }
-  .vencimento { width: 10%; }
-  .valor-documento { width: 30%; }
-  .sacado { width: 100%; }
-
-  .local-pagamento { width: 65%; }
-  .vencimento-inferior { width: 30%; }
-  .cedente-inferior { width: 65%; }
-  .agencia-codigo-cedente-inferior { width: 30%; }
-
-  .data-documento { width: 10%; }
-  .no-documento { width: 26%; }
-  .especie-doc { width: 10%; }
-  .aceite { width: 5%; }
-  .data-process { width: 10%; }
-  .nosso-numero-inferior { width: 30%; }
-
-  .uso-banco { width: 20%; }
-  .carteira { width: 10%; }
-  .especie-inferior { width: 6%; }
-  .quantidade-inferior { width: 15%; }
-  .x-valor { width: 10%; }
-  .valor-documento-inferior { width: 30%; }
-
-  .barcode {
-    width: 100%;
-    float: left;
-    margin-bottom: 20px;
-  }
-
-  #img_barcode { object-fit: cover; }
-
-  @page { margin: 10px; }
-</style>
+    .codigobarras img {
+      width: 600px;
+      height: 70px;
+      object-fit: contain;
+    }
+  </style>
 </head>
+<body id="boleto">
+  <page size="A4">
 
-<body>
-<div class="wrapper">
-  <div class="container">
-
-    <!-- BLOCO SUPERIOR -->
-    <div class="bloco-superior">
-
-      <div class="corte">
-        <p class="left">Corte na linha pontilhada</p>
-        <hr class="linha-pontilhada">
-        <p class="right"><b>Recibo do Sacado</b></p>
-      </div>
-
-      <div class="cabecalho">
-        <div class="logo-bb">
-          <img src="data:image/jpeg;base64, {{ logobb }}" width="140" class="logo" />
-        </div>
-        <div class="codigo-banco-com-dv"><p>{{dataBoleto.codigo_banco_com_dv}}</p></div>
-        <div class="linha-digitavel right"><p>{{dataBoleto.linha_digitavel}}</p></div>
-      </div>
-
-      <div class="conteudo-bloco-superior">
-
-        <div class="linha">
-          <div class="campo cedente"><h4>Cedente</h4><p>{{dataBoleto.cedente}}</p></div>
-          <div class="campo agencia"><h4>Agência/Código do Cedente</h4><p>{{dataBoleto.agencia_codigo}}</p></div>
-          <div class="campo especie"><h4>Espécie</h4><p>{{dataBoleto.especie}}</p></div>
-          <div class="campo quantidade"><h4>Quantidade</h4><p>{{dataBoleto.quantidade}}</p></div>
-          <div class="campo nosso-numero"><h4>Nosso Número</h4><p>{{dataBoleto.nosso_numero}}</p></div>
-        </div>
-
-        <div class="linha">
-          <div class="campo numero-documento"><h4>Número do documento</h4><p>{{dataBoleto.numero_documento}}</p></div>
-          <div class="campo contato"><h4>Contato</h4><p>{{dataBoleto.contrato}}</p></div>
-          <div class="campo cpf-cei-cnpj"><h4>CPF/CEI/CNPJ</h4><p>{{dataBoleto.cpf_cnpj}}</p></div>
-          <div class="campo vencimento"><h4>Vencimento</h4><p>{{dataBoleto.data_vencimento}}</p></div>
-          <div class="campo valor-documento"><h4>Valor documento</h4><p class="right">{{dataBoleto.valor_boleto}}</p></div>
-        </div>
-
-        <div class="linha">
-          <div class="campo sacado"><h4>Sacado</h4><p>{{dataBoleto.sacado}}</p></div>
-        </div>
-      </div>
-
-      <h5 class="right autenticacao-mecanica-1">Autenticação mecânica</h5>
+    <!-- INSTRUÇÕES -->
+    <div id="instrucoes">
+      <p class="titulo">Instruções de Impressão</p>
+      <ul>
+        <li>Imprima em impressora jato de tinta (ink jet) ou laser em qualidade normal ou alta.</li>
+        <li>Utilize folha A4 (210 x 297 mm) ou Carta (216 x 279 mm) e margens mínimas.</li>
+        <li>Corte na linha indicada. Não dobre ou rasure a área do código de barras.</li>
+        <li>Se o código de barras não aparecer, atualize (F5) e tente novamente.</li>
+        <li>Se necessário, use o código numérico abaixo para pagamento no caixa eletrônico ou Internet Banking.</li>
+      </ul>
     </div>
 
-    <!-- BLOCO INFERIOR (FICHA DE COMPENSAÇÃO) -->
-    <div class="bloco-inferior">
+    <!-- RECIBO DO SACADO -->
+    <div class="linha-pontilhada"><span>Recibo do Sacado</span></div>
 
-      <div class="corte">
-        <p class="left">Corte na linha pontilhada</p>
-        <hr class="linha-pontilhada">
+    <div class="logo">
+      <img src="data:image/jpeg;base64,{{ logobb }}">
+    </div>
+    <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv|default:"" }}</div>
+    <div class="linha-digitavel">{{ dataBoleto.linha_digitavel|default:"" }}</div>
+    <div class="hack"></div>
+
+    <div class="cell" style="width: 100%;">
+      <label>Nome do Pagador / CPF / Endereço</label>
+      {{ dataBoleto.sacado|default:"" }} - CPF/CNPJ: {{ dataBoleto.cpf_cnpj|default:"" }} - {{ dataBoleto.endereco1|default:"" }} {{ dataBoleto.endereco2|default:"" }}
+    </div>
+
+    <div class="cell" style="width: 23%;">
+      <label>Nosso Número</label>{{ dataBoleto.nosso_numero|default:"" }}
+    </div>
+    <div class="cell" style="width: 24%;">
+      <label>Número do Documento</label>{{ dataBoleto.numero_documento|default:"" }}
+    </div>
+    <div class="cell" style="width: 23%;">
+      <label>Data de Vencimento</label>{{ dataBoleto.data_vencimento|default:"" }}
+    </div>
+    <div class="cell texto-a-direita" style="width: 30%;">
+      <label>Valor do Documento</label>{{ dataBoleto.valor_boleto|default:"" }}
+    </div>
+
+    <div class="cell" style="width: 100%; height: 60px;">
+      <label>Nome do Beneficiário</label>{{ dataBoleto.cedente|default:"" }}
+    </div>
+
+    <div class="linha-pontilhada"><span>Corte na linha pontilhada</span></div>
+
+    <!-- FICHA DE COMPENSAÇÃO -->
+    <div class="logo">
+      <img src="data:image/jpeg;base64,{{ logobb }}">
+    </div>
+    <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv|default:"" }}</div>
+    <div class="linha-digitavel">{{ dataBoleto.linha_digitavel|default:"" }}</div>
+    <div class="hack"></div>
+
+    <div class="cell" style="width: 75%;">
+      <label>Local de Pagamento</label>Pagável em qualquer banco até o vencimento.
+    </div>
+    <div class="cell texto-a-direita" style="width: 25%;">
+      <label>Vencimento</label>{{ dataBoleto.data_vencimento|default:"" }}
+    </div>
+
+    <div class="cell" style="width: 75%;">
+      <label>Cedente</label>{{ dataBoleto.cedente|default:"" }}
+    </div>
+    <div class="cell texto-a-direita" style="width: 25%;">
+      <label>Agência/Código Cedente</label>{{ dataBoleto.agencia_codigo|default:"" }}
+    </div>
+
+    <div class="cell" style="width: 15%;">
+      <label>Data Documento</label>{{ dataBoleto.data_documento|default:"" }}
+    </div>
+    <div class="cell" style="width: 20%;">
+      <label>Número Documento</label>{{ dataBoleto.numero_documento|default:"" }}
+    </div>
+    <div class="cell" style="width: 10%;">
+      <label>Espécie Doc</label>{{ dataBoleto.especie_doc|default:"" }}
+    </div>
+    <div class="cell" style="width: 10%;">
+      <label>Aceite</label>{{ dataBoleto.aceite|default:"" }}
+    </div>
+    <div class="cell" style="width: 15%;">
+      <label>Data Processamento</label>{{ dataBoleto.data_processamento|default:"" }}
+    </div>
+    <div class="cell texto-a-direita" style="width: 30%;">
+      <label>Nosso Número</label>{{ dataBoleto.nosso_numero|default:"" }}
+    </div>
+
+    <!-- CAMPOS DE USO DO BANCO -->
+    <div class="cell" style="width: 15%;">
+      <label>Uso do Banco</label>&nbsp;
+    </div>
+    <div class="cell" style="width: 10%;">
+      <label>Carteira</label>{{ dataBoleto.carteira|default:"" }}
+    </div>
+    <div class="cell" style="width: 10%;">
+      <label>Espécie</label>R$
+    </div>
+    <div class="cell" style="width: 15%;">
+      <label>Quantidade</label>{{ dataBoleto.quantidade|default:"" }}
+    </div>
+    <div class="cell" style="width: 20%;">
+      <label>(x) Valor</label>&nbsp;
+    </div>
+    <div class="cell texto-a-direita" style="width: 30%;">
+      <label>(=) Valor Documento</label>{{ dataBoleto.valor_boleto|default:"" }}
+    </div>
+
+    <!-- INSTRUÇÕES E CAMPOS FINANCEIROS -->
+    <div class="cell" style="width: 65%; height: 90px;">
+      <label>Instruções de Responsabilidade do Cedente</label>
+      {{ dataBoleto.instrucoes1|default:"" }}<br>
+      {{ dataBoleto.instrucoes2|default:"" }}<br>
+      {{ dataBoleto.instrucoes3|default:"" }}<br>
+      {{ dataBoleto.instrucoes4|default:"" }}
+    </div>
+
+    <div class="cell texto-a-direita" style="width: 35%; height: 90px;">
+      <div style="margin-bottom: 5px;">
+        <label>(-) Descontos / Abatimentos</label>{{ dataBoleto.desconto|default:"" }}
       </div>
-
-      <div class="cabecalho">
-        <div class="logo-bb">
-          <img src="data:image/jpg;base64, {{logobb}}" width="140">
-        </div>
-        <div class="codigo-banco-com-dv"><p>{{dataBoleto.codigo_banco_com_dv}}</p></div>
-        <div class="linha-digitavel right"><p>{{dataBoleto.linha_digitavel}}</p></div>
+      <div style="margin-bottom: 5px;">
+        <label>(+) Juros / Multa</label>{{ dataBoleto.juros|default:"" }}
       </div>
-
-      <div class="conteudo-bloco-inferior">
-
-        <div class="linha">
-          <div class="campo local-pagamento"><h4>Local de pagamento</h4><p>QUALQUER BANCO ATÉ O VENCIMENTO</p></div>
-          <div class="campo vencimento-inferior"><h4>Vencimento</h4><p>{{dataBoleto.data_vencimento}}</p></div>
-        </div>
-
-        <div class="linha">
-          <div class="campo cedente-inferior"><h4>Cedente</h4><p>{{dataBoleto.cedente}}</p></div>
-          <div class="campo agencia-codigo-cedente-inferior"><h4>Agência/Código cedente</h4><p>{{dataBoleto.agencia_codigo}}</p></div>
-        </div>
-
-        <div class="linha">
-          <div class="campo data-documento"><h4>Data do documento</h4><p>{{dataBoleto.data_documento}}</p></div>
-          <div class="campo no-documento"><h4>No. documento</h4><p>{{dataBoleto.numero_documento}}</p></div>
-          <div class="campo especie-doc"><h4>Espécie doc.</h4><p>{{dataBoleto.especie_doc}}</p></div>
-          <div class="campo aceite"><h4>Aceite</h4><p>{{dataBoleto.aceite}}</p></div>
-          <div class="campo data-process"><h4>Data process.</h4><p>{{dataBoleto.data_processamento}}</p></div>
-          <div class="campo nosso-numero-inferior"><h4>Nosso número</h4><p>{{dataBoleto.nosso_numero}}</p></div>
-        </div>
-
-        <div class="linha-2">
-          <h4>Instruções (Texto de responsabilidade do cedente)</h4>
-          <p>{{dataBoleto.instrucoes1}}</p>
-          <p>{{dataBoleto.instrucoes2}}</p>
-          <p>{{dataBoleto.instrucoes3}}</p>
-          <p>{{dataBoleto.instrucoes4}}</p>
-        </div>
-        
-
-        <div class="linha-3">
-          <h4>Sacado</h4>
-          <p>{{dataBoleto.sacado}}</p>
-          <p>{{dataBoleto.endereco1}}</p>
-          <p>{{dataBoleto.endereco2}}</p>
-        </div>
-
-        <div class="barcode">
-          <img src="data:image/svg+xml;base64,{{ codigo_barra_base64 }}" style="width: 60%; max-height: 60px;">
-        </div>
-
-        <h5 class="right autenticacao-mecanica-1">Autenticação mecânica - Ficha de Compensação</h5>
-
+      <div>
+        <label>(=) Valor Cobrado</label>{{ dataBoleto.valor_cobrado|default:"" }}
       </div>
     </div>
-  </div>
-</div>
 
+    <!-- SACADO -->
+    <div class="cell" style="width: 100%; height: 60px;">
+      <label>Nome do Pagador / Endereço</label>
+      {{ dataBoleto.sacado|default:"" }} - {{ dataBoleto.endereco1|default:"" }} {{ dataBoleto.endereco2|default:"" }}
+    </div>
+
+    <!-- CÓDIGO DE BARRAS -->
+    <div class="cell" style="width: 100%; border: none; height: 100px;">
+      <label>Sacador/Avalista <span style="float:right;">Autenticação Mecânica</span></label>
+      <div class="codigobarras">
+        <img src="data:image/svg+xml;base64,{{ codigo_barra_base64 }}">
+      </div>
+    </div>
+
+    <div class="linha-pontilhada"><span>Corte na linha pontilhada</span></div>
+
+  </page>
 </body>
 </html>

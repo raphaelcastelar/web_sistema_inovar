@@ -2,24 +2,29 @@ import React, { useState, useEffect } from 'react';
 import axiosInstance from '../api/axiosInstance';
 
 const Section = ({ title, children }) => {
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(false); // 🔒 começa fechado
     return (
-        <div className="border border-gray-300 dark:border-gray-600 rounded-lg mb-4">
+        <div className="border border-gray-300 dark:border-gray-700 rounded-lg mb-4 bg-white dark:bg-gray-800 shadow-sm">
             <button
                 onClick={() => setOpen(!open)}
-                className="w-full p-3 bg-gray-100 dark:bg-gray-700 text-left font-semibold rounded-lg"
+                className="w-full p-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-left font-semibold text-gray-800 dark:text-gray-100 rounded-t-lg transition"
             >
                 {title}
+                <span className="float-right">{open ? '▲' : '▼'}</span>
             </button>
-            {open && <div className="p-4">{children}</div>}
+            {open && <div className="p-4 border-t border-gray-200 dark:border-gray-700">{children}</div>}
         </div>
     );
 };
 
 const GerarBoletoPage = () => {
-    // Reusable Tailwind classes for inputs to ensure transparent background and
-    // high-contrast text for both light and dark themes.
-    const inputClass = "w-full p-3 rounded border border-gray-300 dark:border-gray-600 bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500";
+    const inputClass =
+        "w-full p-3 rounded-md border border-gray-300 dark:border-gray-600 " +
+        "bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 " +
+        "placeholder-gray-500 dark:placeholder-gray-400 " +
+        "focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 " +
+        "transition";
+
     const [empresas, setEmpresas] = useState([]);
     const [selectedEmpresaId, setSelectedEmpresaId] = useState('');
 
@@ -32,7 +37,6 @@ const GerarBoletoPage = () => {
         dataVencimento: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
         valorOriginal: '',
         indicadorPix: 'N',
-
         desconto: { tipo: '', dataExpiracao: '', porcentagem: '', valor: '' },
         jurosMora: { tipo: '', porcentagem: '', valor: '' },
         multa: { tipo: '', data: '', porcentagem: '', valor: '' },
@@ -48,7 +52,6 @@ const GerarBoletoPage = () => {
     }, []);
 
     const update = (e) => setBoletoData({ ...boletoData, [e.target.name]: e.target.value });
-
     const updateNested = (section, e) =>
         setBoletoData({ ...boletoData, [section]: { ...boletoData[section], [e.target.name]: e.target.value } });
 
@@ -72,7 +75,6 @@ const GerarBoletoPage = () => {
             };
 
             const payload = { ...boletoData, pagador };
-
             const res = await axiosInstance.post('/api/gerar-boleto/', {
                 empresa_id: selectedEmpresaId,
                 boleto_data: payload
@@ -93,12 +95,12 @@ const GerarBoletoPage = () => {
     };
 
     return (
-        <div className="p-6 md:p-8">
-            <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-200">Gerar Boleto</h1>
+        <div className="p-6 md:p-8 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
+            <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-gray-100">Gerar Boleto</h1>
 
             {/* Seleção da empresa */}
             <div className="mb-6">
-                <label className="block mb-1">Empresa</label>
+                <label className="block mb-2 font-medium text-gray-700 dark:text-gray-300">Empresa</label>
                 <select
                     value={selectedEmpresaId}
                     onChange={(e) => setSelectedEmpresaId(e.target.value)}
@@ -113,7 +115,7 @@ const GerarBoletoPage = () => {
 
             {/* DADOS DO TÍTULO */}
             <Section title="Dados do Título">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input name="numeroConvenio" placeholder="Número Convênio" onChange={update} className={inputClass} />
                     <input name="numeroCarteira" placeholder="Carteira" onChange={update} className={inputClass} />
                     <input name="numeroVariacaoCarteira" placeholder="Variação Carteira" onChange={update} className={inputClass} />
@@ -124,9 +126,9 @@ const GerarBoletoPage = () => {
                 </div>
             </Section>
 
-            {/* DESCONTOS */}
+            {/* DESCONTO */}
             <Section title="Desconto">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input name="tipo" placeholder="Tipo" onChange={(e) => updateNested('desconto', e)} className={inputClass} />
                     <input name="dataExpiracao" type="date" onChange={(e) => updateNested('desconto', e)} className={inputClass} />
                     <input name="porcentagem" type="number" step="0.01" placeholder="%" onChange={(e) => updateNested('desconto', e)} className={inputClass} />
@@ -136,7 +138,7 @@ const GerarBoletoPage = () => {
 
             {/* JUROS E MULTA */}
             <Section title="Juros e Multa">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input name="porcentagem" placeholder="Juros (%)" onChange={(e) => updateNested('jurosMora', e)} className={inputClass} />
                     <input name="porcentagem" placeholder="Multa (%)" onChange={(e) => updateNested('multa', e)} className={inputClass} />
                 </div>
@@ -150,12 +152,18 @@ const GerarBoletoPage = () => {
                 </select>
             </Section>
 
-            <button onClick={gerar} disabled={loading} className="w-full p-3 bg-indigo-600 text-white rounded-md">
+            <button
+                onClick={gerar}
+                disabled={loading}
+                className="w-full p-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition"
+            >
                 {loading ? "Gerando..." : "Gerar Boleto"}
             </button>
 
             {msg.text && (
-                <p className={`mt-4 ${msg.type === 'error' ? 'text-red-500' : 'text-green-500'}`}>{msg.text}</p>
+                <p className={`mt-4 font-medium ${msg.type === 'error' ? 'text-red-500' : 'text-green-500'}`}>
+                    {msg.text}
+                </p>
             )}
         </div>
     );
