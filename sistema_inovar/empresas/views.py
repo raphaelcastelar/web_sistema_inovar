@@ -51,11 +51,8 @@ from reportlab.graphics.barcode import code39
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.graphics.barcode import code128
-from barcode import Code128
-from barcode.writer import ImageWriter
-import barcode
-from barcode.writer import SVGWriter
-from io import BytesIO
+from barcode.codex import Code128
+from barcode.writer import ImageWriter, SVGWriter
 import base64
 from qrcode.image.svg import SvgImage
 
@@ -1413,6 +1410,7 @@ def gerar_boleto_view(request):
     'module_width': 1, # largura de cada barra
     }
 
+    # Usar Code128 diretamente
     codigo_barra_obj = Code128(codigo_barra, writer=SVGWriter())
     barcode_buffer = BytesIO()
     codigo_barra_obj.write(barcode_buffer, options=writer_options)
@@ -1459,9 +1457,10 @@ def gerar_boleto_view(request):
         logobb_base64 = base64.b64encode(img_file.read()).decode()
 
     # === RENDERIZAR HTML COM SVG BASE64 ===
+    caminho_logo_url = caminho_logo.replace('\\', '/')
     html_string = render_to_string('boleto_bb.html', {
         'dataBoleto': data_boleto,
-        'caminho_logo': f"file:///{caminho_logo.replace('\\', '/')}",
+        'caminho_logo': f"file:///{caminho_logo_url}",
         'codigo_barra_base64': codigo_barra_base64,
         'qr_base64': qr_base64,
         'logobb': logobb_base64,
