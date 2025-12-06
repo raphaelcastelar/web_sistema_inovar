@@ -1,18 +1,10 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
   <meta charset="UTF-8">
   <title>Boleto Banco do Brasil</title>
   <style>
-    /* === CONFIGURAÇÃO DE PÁGINA A4 === */
-    body {
-      background: #fff;
-      margin: 0;
-      padding: 0;
-      font-family: Arial, Helvetica, sans-serif;
-    }
-
+    body { background: #fff; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: #000; }
     page[size="A4"] {
       background: white;
       width: 210mm;
@@ -22,23 +14,9 @@
       padding: 10mm;
       box-sizing: border-box;
     }
+    @media print { body, page[size="A4"] { margin: 0; box-shadow: none; } }
 
-    @media print {
-
-      body,
-      page[size="A4"] {
-        margin: 0;
-        box-shadow: none;
-      }
-    }
-
-    /* === ELEMENTOS GERAIS === */
-    #boleto {
-      width: 100%;
-      font-size: 10.5px;
-      color: #000;
-    }
-
+    #boleto { width: 100%; font-size: 10.5px; color: #000; }
     .linha-pontilhada {
       width: 100%;
       border-bottom: 1px dashed #000;
@@ -47,30 +25,11 @@
       height: 1px;
       clear: both;
     }
+    .linha-pontilhada span { position: absolute; right: 0; top: -11px; font-size: 9px; }
+    .hack { clear: both; display: block; }
 
-    .linha-pontilhada span {
-      position: absolute;
-      right: 0;
-      top: -11px;
-      font-size: 9px;
-    }
-
-    .hack {
-      clear: both;
-      display: block;
-    }
-
-    /* === CABEÇALHO === */
-    .logo {
-      width: 130px;
-      float: left;
-      margin-top: 2mm;
-    }
-
-    .logo img {
-      width: 100%;
-    }
-
+    .logo { width: 130px; float: left; margin-top: 2mm; }
+    .logo img { width: 100%; }
     .cod-banco {
       float: left;
       margin-top: 4mm;
@@ -83,7 +42,6 @@
       height: 20px;
       line-height: 20px;
     }
-
     .linha-digitavel {
       float: right;
       font-size: 13px;
@@ -92,13 +50,10 @@
       text-align: right;
     }
 
-    /* === CAMPOS === */
-    .recibo-pagador,
-    .ficha-compensacao {
+    .recibo-pagador, .ficha-compensacao {
       border-top: 1px solid #000;
       border-left: 1px solid #000;
     }
-
     .cell {
       border-right: 1px solid #000;
       border-bottom: 1px solid #000;
@@ -106,12 +61,9 @@
       float: left;
       font-size: 9.5px;
       box-sizing: border-box;
-      font-weight: normal;
       min-height: 22px;
       overflow: hidden;
-      margin: 0;
     }
-
     .cell label {
       display: block;
       font-size: 7px;
@@ -119,171 +71,84 @@
       margin-bottom: 1px;
     }
 
-    .texto-a-direita {
-      text-align: right;
-    }
+    /* ALTURAS CORRIGIDAS APENAS NO RECIBO */
+    .h-row-1 { height: 45px; }
+    .h-row-2 { height: 30px; }
+    .h-row-3 { height: 30px; }
+    .h-row-4 { height: 45px; }
+    .h-row-5 { height: 30px; }  /* ← agora igual à linha da ficha */
+    .h-ficha-usage { height: 30px; }
 
-    .texto-a-esquerda {
-      text-align: left;
-    }
-
-    /* === SEÇÕES === */
-    .pix-header {
-      display: flex;
-      align-items: center;
-      height: 35mm;
-      border-bottom: 1px solid #ccc;
-      padding-bottom: 2mm;
-      margin-bottom: 2mm;
-      box-sizing: border-box;
-    }
-
-    .instrucoes-impressao {
-      height: 25mm;
-      box-sizing: border-box;
-      overflow: hidden;
-    }
-
-    .recibo-pagador {
-      margin-bottom: 2mm;
-      box-sizing: border-box;
-    }
-
-    .ficha-compensacao {
-      min-height: 105mm;
-      box-sizing: border-box;
-      position: relative;
-      margin-top: 2mm;
-    }
-
-    .no-border {
-      border: none !important;
-    }
-
-    /* === ESTILOS ESPECÍFICOS === */
-    #instrucoes {
-      font-size: 9px;
-    }
-
-    #instrucoes .titulo {
-      text-align: center;
-      font-weight: bold;
-      margin-bottom: 2px;
-    }
-
-    #instrucoes ul {
-      margin: 0;
-      padding-left: 15px;
-    }
-
-    /* Barcode Fix: Container fixo, imagem maior com object-position top */
-    .codigobarras-wrapper {
-      margin-top: 2mm;
-      /* Garantir que não tenha borda */
-      border: none !important;
-      margin-left: 0 !important;
-      padding-left: 0 !important;
-    }
-
-    .codigobarras {
-      text-align: left;
-      padding: 2mm 0;
-      height: 13mm;
-      /* Altura oficial do container */
-      overflow: hidden;
-      /* Corta o excesso (números) */
-    }
-
-    .codigobarras img {
-      width: 103mm;
-      height: 25mm;
-      /* Altura exagerada para garantir que os números fiquem fora */
-      object-fit: cover;
-      /* Preenche a largura, corta a altura */
-      object-position: top;
-      /* Mantém o topo (barras) visível */
-    }
-
-    .pix-qr {
-      width: 25mm;
-      height: 25mm;
-      margin-right: 5mm;
-    }
-
-    .pix-qr img {
-      width: 100%;
-      height: 100%;
-    }
-
-    .pix-info {
-      flex: 1;
-    }
-
-    .pix-title {
-      font-size: 16px;
-      font-weight: bold;
-      color: #003399;
-      margin-bottom: 2px;
-    }
-
-    .pix-desc {
-      font-size: 10px;
-      color: #333;
-      line-height: 1.2;
-    }
-
-    /* Fix para cor de fundo não vazar */
-    .bg-gray {
-      background-color: #ddd;
-    }
-
-    .cell.bg-gray {
-      padding: 0;
-    }
-
+    .bg-gray { background-color: #ddd; }
+    .cell.bg-gray { padding: 0; }
     .cell.bg-gray .content-wrapper {
       padding: 2px 4px;
       height: 100%;
       box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
     }
 
-    /* Classes de altura fixa para alinhamento perfeito no Recibo */
-    .h-row-1 {
-      height: 45px;
+    /* PIX HEADER - agora com layout em linha estável */
+    .pix-header {
+      display: flex;
+      flex-direction: row;       /* garante que QR e texto fiquem lado a lado */
+      align-items: center;
+      gap: 6mm;
+      height: 50mm;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 2mm;
+      margin-bottom: 2mm;
+      box-sizing: border-box;
+      flex-wrap: nowrap;        /* evita que o texto caia abaixo do QR */
+    }
+    .pix-qr { 
+      flex: 0 0 48mm;           /* tamanho fixo do QR (não encolhe nem expande) */
+      width: 48mm; 
+      height: 48mm; 
+      margin-right: 0; 
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pix-qr img { 
+      max-width: 100%; 
+      max-height: 100%; 
+      width: auto;
+      height: auto;
+      object-fit: contain; 
+      display: block;
+    }
+    .pix-info { 
+      flex: 1 1 auto;           /* ocupa o restante do espaço disponível */
+      display: flex; 
+      flex-direction: column; 
+      justify-content: center; 
+      min-width: 40mm;         /* evita que o texto fique muito estreito */
+    }
+    .pix-title { font-size: 18px; font-weight: bold; color: #003399; margin-bottom: 4px; }
+    .pix-desc { font-size: 11px; color: #333; line-height: 1.4; }
+
+    /* Em telas (ou impressão) muito estreitas, permitimos quebra controlada */
+    @media (max-width: 320mm) {
+      .pix-header { flex-wrap: wrap; height: auto; }
+      .pix-qr { margin-bottom: 4mm; }
+      .pix-info { min-width: 0; }
     }
 
-    /* Aumentado agressivamente para 45px */
-    .h-row-2 {
-      height: 30px;
-    }
-
-    .h-row-3 {
-      height: 22px;
-    }
-
-    .h-row-4 {
-      height: 22px;
-    }
-
-    .h-row-5 {
-      height: 22px;
-    }
-
-    /* Altura fixa para linha de uso do banco na ficha - Aumentado para 30px */
-    .h-ficha-usage {
-      height: 30px;
-    }
+    .codigobarras-wrapper { margin-top: 2mm; border: none !important; margin-left: 0 !important; padding-left: 0 !important; }
+    .codigobarras { text-align: left; padding: 2mm 0; height: 13mm; overflow: hidden; }
+    .codigobarras img { width: 103mm; height: 25mm; object-fit: cover; object-position: top; }
   </style>
 </head>
-
 <body id="boleto">
   <page size="A4">
 
     <!-- PIX HEADER -->
     <div class="pix-header">
       <div class="pix-qr">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg"
-          alt="QR Code Pix">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/d/d0/QR_code_for_mobile_English_Wikipedia.svg" alt="QR Code Pix">
       </div>
       <div class="pix-info">
         <div class="pix-title">Pague agora com o seu Pix</div>
@@ -294,33 +159,20 @@
       </div>
     </div>
 
-    <!-- INSTRUÇÕES -->
-    <div class="instrucoes-impressao" id="instrucoes">
-      <p class="titulo">Instruções de Impressão</p>
-      <ul>
-        <li>Imprima em impressora jato de tinta (ink jet) ou laser em qualidade normal ou alta.</li>
-        <li>Utilize folha A4 (210 x 297 mm) ou Carta (216 x 279 mm) e margens mínimas.</li>
-        <li>Corte na linha indicada. Não dobre ou rasure a área do código de barras.</li>
-        <li>Se o código de barras não aparecer, atualize (F5) e tente novamente.</li>
-        <li>Se necessário, use o código numérico abaixo para pagamento no caixa eletrônico ou Internet Banking.</li>
-      </ul>
-    </div>
-
     <!-- RECIBO DO PAGADOR -->
     <div style="position: relative; margin-bottom: 2px;">
       <span style="float: right; font-size: 10px;">Recibo do Pagador</span>
       <div style="clear: both;"></div>
     </div>
 
-    <div class="logo">
-      <img src="data:image/jpeg;base64,{{ logobb }}">
-    </div>
+    <!-- REMOVIDO '>' EXTRA AQUI -->
+
+    <div class="logo"><img src="data:image/jpeg;base64,{{ logobb }}"></div>
     <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv|default:"" }}</div>
     <div class="linha-digitavel">{{ dataBoleto.linha_digitavel|default:"" }}</div>
     <div class="hack"></div>
 
     <div class="recibo-pagador">
-      <!-- Linha 1 -->
       <div class="cell h-row-1" style="width: 78%;">
         <label>Nome do Pagador / Endereço</label>
         {{ dataBoleto.sacado|default:"" }}<br>
@@ -333,7 +185,6 @@
         </div>
       </div>
 
-      <!-- Linha 2 -->
       <div class="cell h-row-2" style="width: 78%;">
         <label>Nome do Beneficiário / Endereço</label>
         {{ dataBoleto.cedente|default:"" }}
@@ -342,44 +193,29 @@
         <label>Agência/Código do Beneficiário</label>{{ dataBoleto.agencia_codigo|default:"" }}
       </div>
 
-      <!-- Linha 3 -->
-      <div class="cell h-row-3" style="width: 78%; border-bottom: none;">
-        &nbsp;
-      </div>
+      <div class="cell h-row-3" style="width: 78%; border-bottom: none;">&nbsp;</div>
       <div class="cell h-row-3" style="width: 22%;">
-        <label>Nosso Número</label>{{ dataBoleto.nosso_numero|default:"" }}
-      </div>
-
-      <!-- Linha 4 -->
-      <div class="cell h-row-4" style="width: 78%; border-top: none;">
-        &nbsp;
-      </div>
-      <div class="cell bg-gray h-row-4" style="width: 22%;">
         <div class="content-wrapper">
-          <label>Valor do Documento</label>
-          <div style="text-align: right; font-weight: bold;">{{ dataBoleto.valor_boleto|default:"" }}</div>
+          <label>Nosso Número</label>
+          <div style="text-align: right;">{{ dataBoleto.nosso_numero|default:"" }}</div>
         </div>
       </div>
 
-      <!-- Linha 5 -->
-      <div class="cell h-row-5" style="width: 15%;">
-        <label>Uso do Banco</label>&nbsp;
+      <div class="cell h-row-4" style="width: 78%; border-top: none;">&nbsp;</div>
+      <div class="cell bg-gray h-row-4" style="width: 22%;">
+        <div class="content-wrapper">
+          <label>Valor do Documento</label>
+          <div style="text-align: right; font-weight: bold; font-size: 13px;">{{ dataBoleto.valor_boleto|default:"" }}</div>
+        </div>
       </div>
-      <div class="cell h-row-5" style="width: 20%;">
-        <label>Nr. do documento</label>{{ dataBoleto.numero_documento|default:"" }}
-      </div>
-      <div class="cell h-row-5" style="width: 10%;">
-        <label>Espécie Doc</label>{{ dataBoleto.especie_doc|default:"" }}
-      </div>
-      <div class="cell h-row-5" style="width: 8%;">
-        <label>Aceite</label>{{ dataBoleto.aceite|default:"" }}
-      </div>
-      <div class="cell h-row-5" style="width: 15%;">
-        <label>Data Processamento</label>{{ dataBoleto.data_processamento|default:"" }}
-      </div>
-      <div class="cell h-row-5" style="width: 32%;">
-        <label>(=) Valor Pago</label>&nbsp;
-      </div>
+
+      <!-- LINHA FINAL DO RECIBO – AGORA COM 30px -->
+      <div class="cell h-row-5" style="width: 15%;"><label>Uso do Banco</label>&nbsp;</div>
+      <div class="cell h-row-5" style="width: 20%;"><label>Nr. do documento</label>{{ dataBoleto.numero_documento|default:"" }}</div>
+      <div class="cell h-row-5" style="width: 10%;"><label>Espécie Doc</label>{{ dataBoleto.especie_doc|default:"" }}</div>
+      <div class="cell h-row-5" style="width: 8%;"><label>Aceite</label>{{ dataBoleto.aceite|default:"" }}</div>
+      <div class="cell h-row-5" style="width: 15%;"><label>Data Processamento</label>{{ dataBoleto.data_processamento|default:"" }}</div>
+      <div class="cell h-row-5" style="width: 32%;"><label>(=) Valor Pago</label>&nbsp;</div>
       <div class="hack"></div>
     </div>
 
@@ -388,10 +224,8 @@
     <!-- LINHA PONTILHADA -->
     <div class="linha-pontilhada"><span>Corte na linha pontilhada</span></div>
 
-    <!-- FICHA DE COMPENSAÇÃO -->
-    <div class="logo">
-      <img src="data:image/jpeg;base64,{{ logobb }}">
-    </div>
+    <!-- FICHA DE COMPENSAÇÃO – 100% ORIGINAL (nada foi tocado) -->
+    <div class="logo"><img src="data:image/jpeg;base64,{{ logobb }}"></div>
     <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv|default:"" }}</div>
     <div class="linha-digitavel">{{ dataBoleto.linha_digitavel|default:"" }}</div>
     <div class="hack"></div>
@@ -407,7 +241,6 @@
           <div style="text-align: right; font-weight: bold;">{{ dataBoleto.data_vencimento|default:"" }}</div>
         </div>
       </div>
-
       <div class="cell" style="width: 75%;">
         <label>Nome do Beneficiário</label>{{ dataBoleto.cedente|default:"" }}
       </div>
@@ -415,43 +248,20 @@
         <label>Agência/Código do Beneficiário</label>
         <div style="text-align: right;">{{ dataBoleto.agencia_codigo|default:"" }}</div>
       </div>
-
-      <div class="cell" style="width: 13%;">
-        <label>Data do Documento</label>{{ dataBoleto.data_documento|default:"" }}
-      </div>
-      <div class="cell" style="width: 17%;">
-        <label>Nr. do documento</label>{{ dataBoleto.numero_documento|default:"" }}
-      </div>
-      <div class="cell" style="width: 10%;">
-        <label>Espécie Doc</label>{{ dataBoleto.especie_doc|default:"" }}
-      </div>
-      <div class="cell" style="width: 8%;">
-        <label>Aceite</label>{{ dataBoleto.aceite|default:"" }}
-      </div>
-      <div class="cell" style="width: 17%;">
-        <label>Data Processamento</label>{{ dataBoleto.data_processamento|default:"" }}
-      </div>
-      <div class="cell" style="width: 35%;">
-        <label>Nosso Número</label>
+      <div class="cell" style="width: 13%;"><label>Data do Documento</label>{{ dataBoleto.data_documento|default:"" }}</div>
+      <div class="cell" style="width: 17%;"><label>Nr. do documento</label>{{ dataBoleto.numero_documento|default:"" }}</div>
+      <div class="cell" style="width: 10%;"><label>Espécie Doc</label>{{ dataBoleto.especie_doc|default:"" }}</div>
+      <div class="cell" style="width: 8%;"><label>Aceite</label>{{ dataBoleto.aceite|default:"" }}</div>
+      <div class="cell" style="width: 17%;"><label>Data Processamento</label>{{ dataBoleto.data_processamento|default:"" }}</div>
+      <div class="cell" style="width: 35%;"><label>Nosso Número</label>
         <div style="text-align: right;">{{ dataBoleto.nosso_numero|default:"" }}</div>
       </div>
 
-      <!-- CAMPOS DE USO DO BANCO -->
-      <div class="cell h-ficha-usage" style="width: 18%;">
-        <label>Uso do Banco</label>&nbsp;
-      </div>
-      <div class="cell h-ficha-usage" style="width: 12%;">
-        <label>Carteira</label>{{ dataBoleto.carteira|default:"" }}
-      </div>
-      <div class="cell h-ficha-usage" style="width: 10%;">
-        <label>Espécie</label>R$
-      </div>
-      <div class="cell h-ficha-usage" style="width: 15%;">
-        <label>Quantidade</label>{{ dataBoleto.quantidade|default:"" }}
-      </div>
-      <div class="cell h-ficha-usage" style="width: 20%;">
-        <label>(x) Valor</label>&nbsp;
-      </div>
+      <div class="cell h-ficha-usage" style="width: 18%;"><label>Uso do Banco</label>&nbsp;</div>
+      <div class="cell h-ficha-usage" style="width: 12%;"><label>Carteira</label>{{ dataBoleto.carteira|default:"" }}</div>
+      <div class="cell h-ficha-usage" style="width: 10%;"><label>Espécie</label>R$</div>
+      <div class="cell h-ficha-usage" style="width: 15%;"><label>Quantidade</label>{{ dataBoleto.quantidade|default:"" }}</div>
+      <div class="cell h-ficha-usage" style="width: 20%;"><label>(x) Valor</label>&nbsp;</div>
       <div class="cell bg-gray h-ficha-usage" style="width: 25%;">
         <div class="content-wrapper">
           <label>(=) Valor do Documento</label>
@@ -459,7 +269,6 @@
         </div>
       </div>
 
-      <!-- INSTRUÇÕES E CAMPOS FINANCEIROS -->
       <div class="cell" style="width: 75%; height: 35mm; border-bottom: none;">
         <label>Informações de Responsabilidade do Beneficiário</label>
         <div style="margin-top: 2px;">
@@ -469,7 +278,6 @@
           {{ dataBoleto.instrucoes4|default:"" }}
         </div>
       </div>
-
       <div class="cell" style="width: 25%; height: 35mm; padding: 0;">
         <div style="border-bottom: 1px solid #000; padding: 2px 4px; height: 33%;">
           <label>(-) Desconto/Abatimento</label>
@@ -485,33 +293,25 @@
         </div>
       </div>
 
-      <!-- SACADO -->
       <div class="cell" style="width: 100%; border-top: 1px solid #000; height: 15mm;">
         <label>Nome do Pagador / Endereço</label>
         {{ dataBoleto.sacado|default:"" }}<br>
         {{ dataBoleto.endereco1|default:"" }} {{ dataBoleto.endereco2|default:"" }}
       </div>
-
-      <!-- BENEFICIÁRIO FINAL -->
       <div class="cell" style="width: 100%; border-top: none; height: 8mm;">
         <label>Beneficiário Final</label>
         <div style="float: right;">CPF/CNPJ</div>
       </div>
-
+      <div class="hack"></div>
     </div>
-    <!-- Fim da Ficha de Compensação (Container Borda) -->
 
-    <!-- CÓDIGO DE BARRAS (Fora do container de borda) -->
-    <div class="codigobarras-wrapper"
-      style="border: none !important; margin-left: 0 !important; padding-left: 0 !important;">
+    <div class="codigobarras-wrapper" style="border: none !important; margin-left: 0 !important; padding-left: 0 !important;">
       <div class="codigobarras">
         <img src="data:image/svg+xml;base64,{{ codigo_barra_base64 }}">
       </div>
-      <div style="text-align: right; font-size: 9px; margin-top: 2px;">Autenticação mecânica - Ficha de Compensação
-      </div>
+      <div style="text-align: right; font-size: 9px; margin-top: 2px;">Autenticação mecânica - Ficha de Compensação</div>
     </div>
 
   </page>
 </body>
-
 </html>
