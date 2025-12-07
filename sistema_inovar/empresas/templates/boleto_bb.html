@@ -24,7 +24,6 @@
     }
 
     @media print {
-
       body,
       page[size="A4"] {
         margin: 0;
@@ -114,40 +113,15 @@
       margin-bottom: 1px;
     }
 
-    /* ALTURAS CORRIGIDAS APENAS NO RECIBO */
-    .h-row-1 {
-      height: 45px;
-    }
+    .h-row-1 { height: 45px; }
+    .h-row-2 { height: 30px; }
+    .h-row-3 { height: 30px; }
+    .h-row-4 { height: 45px; }
+    .h-row-5 { height: 30px; }
+    .h-ficha-usage { height: 30px; }
 
-    .h-row-2 {
-      height: 30px;
-    }
-
-    .h-row-3 {
-      height: 30px;
-    }
-
-    .h-row-4 {
-      height: 45px;
-    }
-
-    .h-row-5 {
-      height: 30px;
-    }
-
-    /* ← agora igual à linha da ficha */
-    .h-ficha-usage {
-      height: 30px;
-    }
-
-    .bg-gray {
-      background-color: #ddd;
-    }
-
-    .cell.bg-gray {
-      padding: 0;
-    }
-
+    .bg-gray { background-color: #ddd; }
+    .cell.bg-gray { padding: 0; }
     .cell.bg-gray .content-wrapper {
       padding: 2px 4px;
       height: 100%;
@@ -157,11 +131,9 @@
       justify-content: center;
     }
 
-    /* PIX HEADER - agora com layout em linha estável */
     .pix-header {
       display: flex;
       flex-direction: row;
-      /* garante que QR e texto fiquem lado a lado */
       align-items: center;
       gap: 6mm;
       height: 50mm;
@@ -170,12 +142,10 @@
       margin-bottom: 2mm;
       box-sizing: border-box;
       flex-wrap: nowrap;
-      /* evita que o texto caia abaixo do QR */
     }
 
     .pix-qr {
       flex: 0 0 48mm;
-      /* tamanho fixo do QR (não encolhe nem expande) */
       width: 48mm;
       height: 48mm;
       margin-right: 0;
@@ -195,41 +165,19 @@
 
     .pix-info {
       flex: 1 1 auto;
-      /* ocupa o restante do espaço disponível */
       display: flex;
       flex-direction: column;
       justify-content: center;
       min-width: 40mm;
-      /* evita que o texto fique muito estreito */
     }
 
-    .pix-title {
-      font-size: 18px;
-      font-weight: bold;
-      color: #003399;
-      margin-bottom: 4px;
-    }
+    .pix-title { font-size: 18px; font-weight: bold; color: #003399; margin-bottom: 4px; }
+    .pix-desc { font-size: 11px; color: #333; line-height: 1.4; }
 
-    .pix-desc {
-      font-size: 11px;
-      color: #333;
-      line-height: 1.4;
-    }
-
-    /* Em telas (ou impressão) muito estreitas, permitimos quebra controlada */
     @media (max-width: 320mm) {
-      .pix-header {
-        flex-wrap: wrap;
-        height: auto;
-      }
-
-      .pix-qr {
-        margin-bottom: 4mm;
-      }
-
-      .pix-info {
-        min-width: 0;
-      }
+      .pix-header { flex-wrap: wrap; height: auto; }
+      .pix-qr { margin-bottom: 4mm; }
+      .pix-info { min-width: 0; }
     }
 
     .codigobarras-wrapper {
@@ -262,13 +210,12 @@
     <div class="pix-header">
       <div class="pix-qr">
         {% if qr_base64 %}
-        <img src="data:{{ qr_mime|default:'image/svg+xml' }};base64,{{ qr_base64 }}" alt="QR Code Pix">
+          <img src="data:{{ qr_mime|default:"image/svg+xml" }};base64,{{ qr_base64 }}" alt="QR Code Pix">
         {% else %}
-        <!-- QR não disponível: esconder bloco inteiro ou mostrar placeholder -->
-        <!-- <img src="/static/img/qr-placeholder.png" alt="QR indisponível"> -->
-        <div style="font-size:11px; text-align:center;">QR indisponível para este boleto</div>
+          <div style="font-size:11px; text-align:center;">QR indisponível para este boleto</div>
         {% endif %}
       </div>
+
       <div class="pix-info">
         <div class="pix-title">Pague agora com o seu Pix</div>
         <div class="pix-desc">
@@ -284,60 +231,76 @@
       <div style="clear: both;"></div>
     </div>
 
-    <!-- REMOVIDO '>' EXTRA AQUI -->
-
-    <div class="logo"><img src="data:image/jpeg;base64,{{ logobb }}"></div>
-    <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv|default:"" }}</div>
-    <div class="linha-digitavel">{{ dataBoleto.linha_digitavel|default:"" }}</div>
+    <div class="logo"><img src="data:image/jpeg;base64,{{ logobb }}" alt="Logo"></div>
+    <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv }}</div>
+    <div class="linha-digitavel">{{ dataBoleto.linha_digitavel }}</div>
     <div class="hack"></div>
 
     <div class="recibo-pagador">
       <div class="cell h-row-1" style="width: 78%;">
         <label>Nome do Pagador / Endereço</label>
-        {{ dataBoleto.sacado|default:"" }}<br>
-        {{ dataBoleto.endereco1|default:"" }} {{ dataBoleto.endereco2|default:"" }}
+        {{ dataBoleto.sacado }}<br>
+        {{ dataBoleto.endereco1 }} {{ dataBoleto.endereco2 }}
       </div>
+
       <div class="cell bg-gray h-row-1" style="width: 22%;">
         <div class="content-wrapper">
           <label>Data de Vencimento</label>
-          <div style="text-align: right; font-weight: bold;">{{ dataBoleto.data_vencimento|default:"" }}</div>
+          <div style="text-align: right; font-weight: bold;">{{ dataBoleto.data_vencimento }}</div>
         </div>
       </div>
 
       <div class="cell h-row-2" style="width: 78%;">
         <label>Nome do Beneficiário / Endereço</label>
-        {{ dataBoleto.cedente|default:"" }}
+        {{ dataBoleto.cedente }}
       </div>
+
       <div class="cell h-row-2" style="width: 22%;">
-        <label>Agência/Código do Beneficiário</label>{{ dataBoleto.agencia_codigo|default:"" }}
+        <label>Agência/Código do Beneficiário</label>
+        {{ dataBoleto.agencia_codigo }}
       </div>
 
       <div class="cell h-row-3" style="width: 78%; border-bottom: none;">&nbsp;</div>
+
       <div class="cell h-row-3" style="width: 22%;">
         <div class="content-wrapper">
           <label>Nosso Número</label>
-          <div style="text-align: right;">{{ dataBoleto.nosso_numero|default:"" }}</div>
+          <div style="text-align: right;">{{ dataBoleto.nosso_numero }}</div>
         </div>
       </div>
 
       <div class="cell h-row-4" style="width: 78%; border-top: none;">&nbsp;</div>
+
       <div class="cell bg-gray h-row-4" style="width: 22%;">
         <div class="content-wrapper">
           <label>Valor do Documento</label>
-          <div style="text-align: right; font-weight: bold; font-size: 13px;">{{ dataBoleto.valor_boleto|default:"" }}
-          </div>
+          <div style="text-align: right; font-weight: bold; font-size: 13px;">{{ dataBoleto.valor_boleto }}</div>
         </div>
       </div>
 
-      <!-- LINHA FINAL DO RECIBO – AGORA COM 30px -->
+      <!-- LINHA FINAL DO RECIBO -->
       <div class="cell h-row-5" style="width: 15%;"><label>Uso do Banco</label>&nbsp;</div>
-      <div class="cell h-row-5" style="width: 20%;"><label>Nr. do documento</label>{{ dataBoleto.numero_documento}}
+
+      <div class="cell h-row-5" style="width: 20%;">
+        <label>Nr. do documento</label>
+        {{ dataBoleto.numero_documento }}
       </div>
-      <div class="cell h-row-5" style="width: 10%;"><label>Espécie Doc</label>{{ dataBoleto.especie_doc|default:"" }}
+
+      <div class="cell h-row-5" style="width: 10%;">
+        <label>Espécie Doc</label>
+        {{ dataBoleto.especie_doc }}
       </div>
-      <div class="cell h-row-5" style="width: 8%;"><label>Aceite</label>{{ dataBoleto.aceite|default:"" }}</div>
-      <div class="cell h-row-5" style="width: 15%;"><label>Data Processamento</label>{{
-        dataBoleto.data_processamento}}</div>
+
+      <div class="cell h-row-5" style="width: 8%;">
+        <label>Aceite</label>
+        {{ dataBoleto.aceite }}
+      </div>
+
+      <div class="cell h-row-5" style="width: 15%;">
+        <label>Data Processamento</label>
+        <div style="text-align: right;">{{ dataBoleto.data_processamento }}</div>
+      </div>
+
       <div class="cell h-row-5" style="width: 32%;"><label>(=) Valor Pago</label>&nbsp;</div>
       <div class="hack"></div>
     </div>
@@ -347,10 +310,10 @@
     <!-- LINHA PONTILHADA -->
     <div class="linha-pontilhada"><span>Corte na linha pontilhada</span></div>
 
-    <!-- FICHA DE COMPENSAÇÃO – 100% ORIGINAL (nada foi tocado) -->
-    <div class="logo"><img src="data:image/jpeg;base64,{{ logobb }}"></div>
-    <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv|default:"" }}</div>
-    <div class="linha-digitavel">{{ dataBoleto.linha_digitavel|default:"" }}</div>
+    <!-- FICHA DE COMPENSAÇÃO -->
+    <div class="logo"><img src="data:image/jpeg;base64,{{ logobb }}" alt="Logo"></div>
+    <div class="cod-banco">{{ dataBoleto.codigo_banco_com_dv }}</div>
+    <div class="linha-digitavel">{{ dataBoleto.linha_digitavel }}</div>
     <div class="hack"></div>
 
     <div class="ficha-compensacao">
@@ -358,92 +321,117 @@
         <label>Local de Pagamento</label>
         Pagável preferencialmente nos canais de autoatendimento do Banco do Brasil.
       </div>
+
       <div class="cell bg-gray" style="width: 25%;">
         <div class="content-wrapper">
           <label>Data de Vencimento</label>
-          <div style="text-align: right; font-weight: bold;">{{ dataBoleto.data_vencimento|default:"" }}</div>
+          <div style="text-align: right; font-weight: bold;">{{ dataBoleto.data_vencimento }}</div>
         </div>
       </div>
+
       <div class="cell" style="width: 75%;">
-        <label>Nome do Beneficiário</label>{{ dataBoleto.cedente|default:"" }}
+        <label>Nome do Beneficiário</label>
+        {{ dataBoleto.cedente }}
       </div>
+
       <div class="cell" style="width: 25%;">
         <label>Agência/Código do Beneficiário</label>
-        <div style="text-align: right;">{{ dataBoleto.agencia_codigo|default:"" }}</div>
+        <div style="text-align: right;">{{ dataBoleto.agencia_codigo }}</div>
       </div>
-      <div class="cell" style="width: 13%;"><label>Data do Documento</label>{{ dataBoleto.data_documento|default:"" }}
+
+      <div class="cell" style="width: 13%;">
+        <label>Data do Documento</label>
+        {{ dataBoleto.data_documento }}
       </div>
-      <div class="cell" style="width: 17%;"><label>Nr. do documento</label>{{ dataBoleto.numero_documento|default:"" }}
+
+      <div class="cell" style="width: 17%;">
+        <label>Nr. do documento</label>
+        {{ dataBoleto.numero_documento }}
       </div>
-      <div class="cell" style="width: 10%;"><label>Espécie Doc</label>{{ dataBoleto.especie_doc|default:"" }}</div>
-      <div class="cell" style="width: 8%;"><label>Aceite</label>{{ dataBoleto.aceite|default:"" }}</div>
-      <div class="cell" style="width: 17%;"><label>Data Processamento</label>{{ dataBoleto.data_processamento }}</div>
-      <div class="cell" style="width: 35%;"><label>Nosso Número</label>
-        <div style="text-align: right;">{{ dataBoleto.nosso_numero|default:"" }}</div>
+
+      <div class="cell" style="width: 10%;">
+        <label>Espécie Doc</label>
+        {{ dataBoleto.especie_doc }}
+      </div>
+
+      <div class="cell" style="width: 8%;">
+        <label>Aceite</label>
+        {{ dataBoleto.aceite }}
+      </div>
+
+      <div class="cell" style="width: 17%;">
+        <label>Data Processamento</label>
+        {{ dataBoleto.data_processamento }}
+      </div>
+
+      <div class="cell" style="width: 35%;">
+        <label>Nosso Número</label>
+        <div style="text-align: right;">{{ dataBoleto.nosso_numero }}</div>
       </div>
 
       <div class="cell h-ficha-usage" style="width: 18%;"><label>Uso do Banco</label>&nbsp;</div>
-      <div class="cell h-ficha-usage" style="width: 12%;"><label>Carteira</label>{{ dataBoleto.carteira|default:"" }}
-      </div>
+      <div class="cell h-ficha-usage" style="width: 12%;"><label>Carteira</label>{{ dataBoleto.carteira }}</div>
       <div class="cell h-ficha-usage" style="width: 10%;"><label>Espécie</label>R$</div>
-      <div class="cell h-ficha-usage" style="width: 15%;"><label>Quantidade</label>{{ dataBoleto.quantidade}}</div>
+      <div class="cell h-ficha-usage" style="width: 15%;"><label>Quantidade</label>{{ dataBoleto.quantidade }}</div>
       <div class="cell h-ficha-usage" style="width: 20%;"><label>(x) Valor</label>&nbsp;</div>
+
       <div class="cell bg-gray h-ficha-usage" style="width: 25%;">
         <div class="content-wrapper">
           <label>(=) Valor do Documento</label>
-          <div style="text-align: right; font-weight: bold;">{{ dataBoleto.valor_boleto|default:"" }}</div>
+          <div style="text-align: right; font-weight: bold;">{{ dataBoleto.valor_boleto }}</div>
         </div>
       </div>
 
       <div class="cell" style="width: 75%; height: 35mm; border-bottom: none;">
         <label>Informações de Responsabilidade do Beneficiário</label>
         <div style="margin-top: 2px;">
-          {{ dataBoleto.instrucoes1|default:"" }}<br>
-          {{ dataBoleto.instrucoes2|default:"" }}<br>
-          {{ dataBoleto.instrucoes3|default:"" }}<br>
-          {{ dataBoleto.instrucoes4|default:"" }}
+          {{ dataBoleto.instrucoes1 }}<br>
+          {{ dataBoleto.instrucoes2 }}<br>
+          {{ dataBoleto.instrucoes3 }}<br>
+          {{ dataBoleto.instrucoes4 }}
         </div>
       </div>
+
       <div class="cell" style="width: 25%; height: 35mm; padding: 0;">
         <div style="border-bottom: 1px solid #000; padding: 2px 4px; height: 33%;">
           <label>(-) Desconto/Abatimento</label>
-          <div style="text-align: right;">{{ dataBoleto.desconto|default:"" }}</div>
+          <div style="text-align: right;">{{ dataBoleto.desconto }}</div>
         </div>
+
         <div style="border-bottom: 1px solid #000; padding: 2px 4px; height: 33%;">
           <label>(+) Juros/Multa</label>
-          <div style="text-align: right;">{{ dataBoleto.juros|default:"" }}</div>
+          <div style="text-align: right;">{{ dataBoleto.juros }}</div>
         </div>
+
         <div class="bg-gray" style="padding: 2px 4px; height: 33%;">
           <label>(=) Valor Cobrado</label>
-          <div style="text-align: right; font-weight: bold;">{{ dataBoleto.valor_cobrado|default:"" }}</div>
+          <div style="text-align: right; font-weight: bold;">{{ dataBoleto.valor_cobrado }}</div>
         </div>
       </div>
 
       <div class="cell" style="width: 100%; border-top: 1px solid #000; height: 15mm;">
         <label>Nome do Pagador / Endereço</label>
-        {{ dataBoleto.sacado|default:"" }}<br>
-        {{ dataBoleto.endereco1|default:"" }} {{ dataBoleto.endereco2|default:"" }}
+        {{ dataBoleto.sacado }}<br>
+        {{ dataBoleto.endereco1 }} {{ dataBoleto.endereco2 }}
       </div>
+
       <div class="cell" style="width: 100%; border-top: none; height: 8mm;">
         <label>Beneficiário Final</label>
         <div style="float: right;">CPF/CNPJ</div>
       </div>
+
       <div class="hack"></div>
     </div>
 
-    <div class="codigobarras-wrapper"
-      style="border: none !important; margin-left: 0 !important; padding-left: 0 !important;">
+    <div class="codigobarras-wrapper" style="border: none !important; margin-left: 0 !important; padding-left: 0 !important;">
       <div class="codigobarras">
         {% if codigo_barra_base64 %}
-        <img src="data:{{ codigo_barra_mime|default:'image/png' }};base64,{{ codigo_barra_base64 }}"
-          alt="Código de Barras">
+          <img src="data:{{ codigo_barra_mime|default:"image/png" }};base64,{{ codigo_barra_base64 }}" alt="Código de Barras">
         {% else %}
-        <!-- fallback: exibir only numeric code -->
-        <div style="font-size:11px; text-align:left;">{{ dataBoleto.linha_digitavel }}</div>
+          <div style="font-size:11px; text-align:left;">{{ dataBoleto.linha_digitavel }}</div>
         {% endif %}
       </div>
-      <div style="text-align: right; font-size: 9px; margin-top: 2px;">Autenticação mecânica - Ficha de Compensação
-      </div>
+      <div style="text-align: right; font-size: 9px; margin-top: 2px;">Autenticação mecânica - Ficha de Compensação</div>
     </div>
 
   </page>
