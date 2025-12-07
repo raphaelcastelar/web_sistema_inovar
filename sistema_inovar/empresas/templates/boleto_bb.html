@@ -331,13 +331,13 @@
 
       <!-- LINHA FINAL DO RECIBO – AGORA COM 30px -->
       <div class="cell h-row-5" style="width: 15%;"><label>Uso do Banco</label>&nbsp;</div>
-      <div class="cell h-row-5" style="width: 20%;"><label>Nr. do documento</label>{{
-        dataBoleto.numero_documento|default:"" }}</div>
+      <div class="cell h-row-5" style="width: 20%;"><label>Nr. do documento</label>{{ dataBoleto.numero_documento}}
+      </div>
       <div class="cell h-row-5" style="width: 10%;"><label>Espécie Doc</label>{{ dataBoleto.especie_doc|default:"" }}
       </div>
       <div class="cell h-row-5" style="width: 8%;"><label>Aceite</label>{{ dataBoleto.aceite|default:"" }}</div>
       <div class="cell h-row-5" style="width: 15%;"><label>Data Processamento</label>{{
-        dataBoleto.data_processamento|default:"" }}</div>
+        dataBoleto.data_processamento}}</div>
       <div class="cell h-row-5" style="width: 32%;"><label>(=) Valor Pago</label>&nbsp;</div>
       <div class="hack"></div>
     </div>
@@ -377,8 +377,7 @@
       </div>
       <div class="cell" style="width: 10%;"><label>Espécie Doc</label>{{ dataBoleto.especie_doc|default:"" }}</div>
       <div class="cell" style="width: 8%;"><label>Aceite</label>{{ dataBoleto.aceite|default:"" }}</div>
-      <div class="cell" style="width: 17%;"><label>Data Processamento</label>{{ dataBoleto.data_processamento|default:""
-        }}</div>
+      <div class="cell" style="width: 17%;"><label>Data Processamento</label>{{ dataBoleto.data_processamento }}</div>
       <div class="cell" style="width: 35%;"><label>Nosso Número</label>
         <div style="text-align: right;">{{ dataBoleto.nosso_numero|default:"" }}</div>
       </div>
@@ -387,8 +386,7 @@
       <div class="cell h-ficha-usage" style="width: 12%;"><label>Carteira</label>{{ dataBoleto.carteira|default:"" }}
       </div>
       <div class="cell h-ficha-usage" style="width: 10%;"><label>Espécie</label>R$</div>
-      <div class="cell h-ficha-usage" style="width: 15%;"><label>Quantidade</label>{{ dataBoleto.quantidade|default:""
-        }}</div>
+      <div class="cell h-ficha-usage" style="width: 15%;"><label>Quantidade</label>{{ dataBoleto.quantidade}}</div>
       <div class="cell h-ficha-usage" style="width: 20%;"><label>(x) Valor</label>&nbsp;</div>
       <div class="cell bg-gray h-ficha-usage" style="width: 25%;">
         <div class="content-wrapper">
