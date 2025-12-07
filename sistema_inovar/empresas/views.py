@@ -1512,6 +1512,7 @@ def gerar_boleto_view(request):
         logobb_base64 = base64.b64encode(img_file.read()).decode()
 
     # === RENDERIZAR HTML COM SVG BASE64 ===
+    caminho_logo_url = caminho_logo.replace('\\', '/')
     html_string = render_to_string('boleto_bb.html', {
         'dataBoleto': data_boleto,
         'caminho_logo': f"file:///{caminho_logo_url}",
