@@ -1370,12 +1370,12 @@ def gerar_boleto_view(request):
         return Response({"error": "Falha ao obter token de acesso do BB."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     headers = { 'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json', 'X-Developer-Application-Key': settings.BB_DEVELOPER_APPLICATION_KEY }
-    register_url = f"{settings.BB_API_BASE_URL}/boletos?gw-dev-app-key={settings.BB_DEVELOPER_APPLICATION_KEY}"
+    register_url = f"{settings.BB_API_BASE_URL}/boletos"
 
 
     logger.info(f"URL: {register_url}")
     logger.info(f"HEADERS: {headers}") 
-    logger.info(f"PAYLOAD: {json.dumps(final_payload, indent=2)}")
+    logger.debug(f"PAYLOAD keys: {list(final_payload.keys())} - valorOriginal={final_payload.get('valorOriginal')}")
     response = requests.post(register_url, json=final_payload, headers=headers, timeout=30)
 
     logger.info(f"RESPOSTA: Status {response.status_code}, Body: {response.text[:500]}...")
@@ -1387,19 +1387,52 @@ def gerar_boleto_view(request):
     # === GERACAO DO BOLETO ===
     boleto_response = response.json()
 
-    numero_boleto = boleto_response.get('numero')
-    linha_digitavel = boleto_response.get('linhaDigitavel')
-    codigo_barra = boleto_response.get('codigoBarraNumerico')
-    qr_code_url = boleto_response.get('qrCode', {}).get('url', '')
-    beneficiario = boleto_response.get('beneficiario', {})
+    # --- Extração dos campos retornados pelo BB (nomes conforme exemplo de resposta) ---
+    beneficiario = boleto_response.get('beneficiario', {}) or {}
+    # Linha digitável retornada pelo BB
+    linha_digitavel = boleto_response.get('linhaDigitavel') or boleto_response.get('linha_digitavel')
+    # Código de barras numérico (string somente com dígitos)
+    codigo_barra_numerico = boleto_response.get('codigoBarraNumerico') or boleto_response.get('codigoBarra') or boleto_response.get('codigoBarras')
+    # Nosso número / número do boleto
+    numero_boleto = boleto_response.get('numero') or boleto_response.get('nossoNumero')
+    # QR code info (muitos ambientes do BB retornam objeto qrCode; pode ter url, emv, txId, imagemBase64, payload)
+    qr_info = boleto_response.get('qrCode', {}) or {}
+    qr_url = qr_info.get('url') or ''
+    qr_emv = qr_info.get('emv') or qr_info.get('payload') or ''
+    qr_image_base64 = qr_info.get('imagemBase64') or qr_info.get('imagem')  # se existir
+
+    # Log minimal — sem payloads sensíveis
+    logger.debug(f"BB response: numero={numero_boleto}, linha_digitavel present={bool(linha_digitavel)}, codigo_barra_numerico present={bool(codigo_barra_numerico)}, qr present={bool(qr_url or qr_emv or qr_image_base64)}")
+
 
     # === GERAR QR CODE EM SVG ===
-    factory = qrcode.image.svg.SvgImage
-    qr = qrcode.make(qr_code_url, image_factory=factory)
-    qr_buffer = BytesIO()
-    qr.save(qr_buffer)
-    qr_buffer.seek(0)
-    qr_base64 = base64.b64encode(qr_buffer.getvalue()).decode()
+    qr_base64 = None
+    qr_mime = None
+
+    # 1) prefira imagem retornada pelo BB
+    if qr_image_base64:
+        # supondo que seja SVG ou PNG — você pode detectar depois se necessário
+        qr_base64 = qr_image_base64
+        # tente inferir mime (muitos retornam SVG em base64)
+        qr_mime = 'image/svg+xml'
+    else:
+        # 2) se o BB retornou emv/payload, gere o QR localmente
+        qr_payload = qr_emv or qr_url
+        if qr_payload:
+            try:
+                factory = qrcode.image.svg.SvgImage
+                qr = qrcode.make(qr_payload, image_factory=factory)
+                qr_buffer = BytesIO()
+                qr.save(qr_buffer)
+                qr_buffer.seek(0)
+                qr_base64 = base64.b64encode(qr_buffer.getvalue()).decode()
+                qr_mime = 'image/svg+xml'
+            except Exception as e:
+                logger.warning(f"Falha ao gerar QR localmente: {e}")
+                qr_base64 = None
+                qr_mime = None
+    # Se tudo falhar, qr_base64 fica None e o template não deve exibir QR.
+
 
     # === GERAR CÓDIGO DE BARRAS EM SVG ===
     writer_options = {
@@ -1410,43 +1443,65 @@ def gerar_boleto_view(request):
     'module_width': 1, # largura de cada barra
     }
 
-    # Usar Code128 diretamente
-    codigo_barra_obj = Code128(codigo_barra, writer=SVGWriter())
-    barcode_buffer = BytesIO()
-    codigo_barra_obj.write(barcode_buffer, options=writer_options)
-    barcode_buffer.seek(0)
-    codigo_barra_base64 = base64.b64encode(barcode_buffer.getvalue()).decode()
+    codigo_barra_base64 = None
+    codigo_barra_mime = None
+
+    # 1) prefira imagem retornada pelo BB (campo comum: imagemCodigoBarrasBase64 / imagemCodigoBarras)
+    codigo_barra_base64 = boleto_response.get('imagemCodigoBarrasBase64') or boleto_response.get('imagemCodigoBarras')
+
+    if not codigo_barra_base64:
+    # 2) se temos o número do código de barras (string numérica), gere usando ITF/interleaved2of5
+        if codigo_barra_numerico:
+            try:
+                # Recomendo usar treepoem (gera ITF corretamente). Exige ghostscript instalado.
+                # pip install treepoem
+                import treepoem
+                img = treepoem.generate_barcode(barcode_type='interleaved2of5', data=codigo_barra_numerico, options={'includetext': 'true'})
+                buf = BytesIO()
+                img.convert('RGB').save(buf, format='PNG')
+                buf.seek(0)
+                codigo_barra_base64 = base64.b64encode(buf.getvalue()).decode()
+                codigo_barra_mime = 'image/png'
+            except Exception as e:
+                logger.error(f"Erro gerando código de barras ITF: {e}")
+                # fallback mínimo: exibir apenas a linha numérica no template
+                codigo_barra_base64 = None
+                codigo_barra_mime = None
+        else:
+            logger.error("codigoBarraNumerico não retornado pelo BB e não foi possível gerar barcode.")
+
 
     # === DADOS DO BOLETO ===
     data_boleto = {
-        'codigo_banco_com_dv': '001-9',
-        'linha_digitavel': linha_digitavel,
-        'cedente': empresa.nome,
-        'agencia_codigo': f"{beneficiario.get('agencia', '')}/{beneficiario.get('codigoCliente', '')}",
-        'nosso_numero': numero_boleto,
-        'data_vencimento': final_payload['dataVencimento'],
-        'valor_boleto': f"R$ {final_payload['valorOriginal']:.2f}",
+        'codigo_banco_com_dv': settings.BB_BANK_CODE_WITH_DV,  # configure em settings (ex: "001-9" ou derive do convênio)
+        'linha_digitavel': linha_digitavel or '',
+        'cedente': beneficiario.get('nome') or empresa.nome,
+        'agencia_codigo': f"{beneficiario.get('agencia','')}/{beneficiario.get('codigoCliente','') or boleto_response.get('codigoCliente','')}",
+        'nosso_numero': numero_boleto or final_payload.get('numeroTituloBeneficiario',''),
+        'data_vencimento': boleto_response.get('dataVencimento') or final_payload['dataVencimento'],
+        'valor_boleto': f"R$ {float(boleto_response.get('valorOriginal', final_payload['valorOriginal'])):,.2f}".replace(',', 'v').replace('.', ',').replace('v', '.'),
         'numero_documento': final_payload.get('numeroTituloBeneficiario', ''),
         'cpf_cnpj': empresa.cnpj,
-        'data_documento': final_payload['dataEmissao'],
-        'especie_doc': 'DM',
-        'aceite': 'N',
-        'data_processamento': final_payload['dataEmissao'],
+        'data_documento': boleto_response.get('dataDocumento') or final_payload['dataEmissao'],
+        'especie_doc': boleto_response.get('especieDocumento') or final_payload.get('descricaoTipoTitulo','DM'),
+        'aceite': boleto_response.get('aceite') or final_payload.get('codigoAceite','N'),
+        'data_processamento': boleto_response.get('dataProcessamento') or final_payload['dataEmissao'],
         'carteira': str(final_payload['carteira']),
         'especie': 'R$',
-        'quantidade': '',
-        'valor_unitario': '',
-        'demonstrativo1': '',
-        'demonstrativo2': '',
-        'demonstrativo3': '',
-        'instrucoes1': final_payload['mensagemBloquetoOcorrencia'],
-        'instrucoes2': '',
-        'instrucoes3': '',
-        'instrucoes4': '',
+        'quantidade': boleto_response.get('quantidade',''),
+        'valor_unitario': boleto_response.get('valorUnitario',''),
+        'demonstrativo1': boleto_response.get('demonstrativo1',''),
+        'demonstrativo2': boleto_response.get('demonstrativo2',''),
+        'demonstrativo3': boleto_response.get('demonstrativo3',''),
+        'instrucoes1': boleto_response.get('mensagemOcorrencia') or final_payload.get('mensagemBloquetoOcorrencia',''),
+        'instrucoes2': boleto_response.get('instrucoes',[])[0] if boleto_response.get('instrucoes') else '',
+        'instrucoes3': boleto_response.get('instrucoes',[])[1] if boleto_response.get('instrucoes') and len(boleto_response.get('instrucoes'))>1 else '',
+        'instrucoes4': boleto_response.get('instrucoes',[])[2] if boleto_response.get('instrucoes') and len(boleto_response.get('instrucoes'))>2 else '',
         'sacado': final_payload['pagador']['nome'],
-        'endereco1': final_payload['pagador'].get('endereco', ''),
-        'endereco2': f"{final_payload['pagador'].get('cidade', '')} - {final_payload['pagador'].get('uf', '')}",
+        'endereco1': final_payload['pagador'].get('endereco',''),
+        'endereco2': f"{final_payload['pagador'].get('cidade','')} - {final_payload['pagador'].get('uf','')}",
     }
+
 
     # === CAMINHO ABSOLUTO DA LOGO ===
     caminho_logo = os.path.join(settings.BASE_DIR, 'frontend','src', 'assets', 'logobb.PNG')
@@ -1457,12 +1512,13 @@ def gerar_boleto_view(request):
         logobb_base64 = base64.b64encode(img_file.read()).decode()
 
     # === RENDERIZAR HTML COM SVG BASE64 ===
-    caminho_logo_url = caminho_logo.replace('\\', '/')
     html_string = render_to_string('boleto_bb.html', {
         'dataBoleto': data_boleto,
         'caminho_logo': f"file:///{caminho_logo_url}",
         'codigo_barra_base64': codigo_barra_base64,
+        'codigo_barra_mime': codigo_barra_mime,
         'qr_base64': qr_base64,
+        'qr_mime': qr_mime,
         'logobb': logobb_base64,
     })
 
