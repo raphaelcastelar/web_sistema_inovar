@@ -1322,6 +1322,7 @@ def gerar_boleto_view(request):
         "numeroTituloCliente": incoming_data.get("numeroTituloCliente") or default_payload["numeroTituloCliente"],
         "mensagemBloquetoOcorrencia": incoming_data.get("mensagemBloquetoOcorrencia") or default_payload["mensagemBloquetoOcorrencia"],
         "indicadorPix": incoming_data.get("indicadorPix") or default_payload["indicadorPix"],
+        "quantidade": incoming_data.get("quantidade") or "", # Novo campo
     }
     
     # Validações...
@@ -1485,10 +1486,10 @@ def gerar_boleto_view(request):
         'data_documento': boleto_response.get('dataDocumento') or final_payload['dataEmissao'],
         'especie_doc': boleto_response.get('especieDocumento') or final_payload.get('descricaoTipoTitulo','DM'),
         'aceite': boleto_response.get('aceite') or final_payload.get('codigoAceite','N'),
-        'data_processamento': boleto_response.get('dataProcessamento') or final_payload['dataEmissao'],
+        'data_processamento': boleto_response.get('dataProcessamento') or final_payload['dataEmissao'] or timezone.now().strftime('%d.%m.%Y'),
         'carteira': str(final_payload['carteira']),
         'especie': 'R$',
-        'quantidade': boleto_response.get('quantidade',''),
+        'quantidade': boleto_response.get('quantidade') or final_payload.get('quantidade') or '',
         'valor_unitario': boleto_response.get('valorUnitario',''),
         'demonstrativo1': boleto_response.get('demonstrativo1',''),
         'demonstrativo2': boleto_response.get('demonstrativo2',''),

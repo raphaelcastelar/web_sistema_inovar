@@ -37,6 +37,7 @@ const GerarBoletoPage = () => {
         dataEmissao: new Date().toISOString().split('T')[0], // iso yyyy-mm-dd (backend faz conversão)
         dataVencimento: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
         valorOriginal: '',              // string, será convertido para float
+        quantidade: '',                 // string/number
         indicadorPix: 'N',              // 'S' ou 'N'
         // nested charges
         desconto: { tipo: 0, dataExpiracao: '', porcentagem: 0.0, valor: 0.0 },
@@ -139,6 +140,7 @@ const GerarBoletoPage = () => {
             quantidadeDiasProtesto: 0,
             quantidadeDiasNegativacao: 0,
             orgaoNegativador: 0,
+            quantidade: boletoData.quantidade || '', // envia string ou vazio
             indicadorAceiteTituloVencido: "N",
             numeroDiasLimiteRecebimento: 0,
             codigoAceite: "N",
@@ -268,6 +270,7 @@ const GerarBoletoPage = () => {
                     <input name="dataVencimento" type="date" value={boletoData.dataVencimento} onChange={update} className={inputClass} />
                     <input name="valorOriginal" type="number" step="0.01" placeholder="Valor (ex: 150.00)" value={boletoData.valorOriginal} onChange={update} className={inputClass} />
                     <input name="numeroTituloBeneficiario" placeholder="Número Título Beneficiário (opcional)" value={boletoData.numeroTituloBeneficiario} onChange={update} className={inputClass} />
+                    <input name="quantidade" placeholder="Quantidade (ex: 1)" value={boletoData.quantidade} onChange={update} className={inputClass} />
                 </div>
             </Section>
 
