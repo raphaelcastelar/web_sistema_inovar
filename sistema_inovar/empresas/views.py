@@ -1435,41 +1435,34 @@ def gerar_boleto_view(request):
     # Se tudo falhar, qr_base64 fica None e o template não deve exibir QR.
 
 
+    logger.debug("API codigoBarraNumerico (raw): %r", boleto_response.get('codigoBarraNumerico'))
+    logger.debug("API linhaDigitavel (raw): %r", boleto_response.get('linhaDigitavel'))
+    # se você já tem codigo_barra que vai para o gerador:
+    
+
     # === GERAR CÓDIGO DE BARRAS EM SVG ===
+    # === GERAR CÓDIGO DE BARRAS EM SVG (USAR MESMO PADRÃO QUE VOCÊ DISSE FUNCIONAR) ===
     writer_options = {
-    'write_text': True,  # mostra os números abaixo
-    'font_size': 30,     # tamanho da fonte dos números
-    'text_distance': 10,  # distância entre barras e números
-    'module_height': 48, # altura das barras
-    'module_width': 1, # largura de cada barra
+        'write_text': True,   # mostra os números abaixo
+        'font_size': 30,      # tamanho da fonte dos números
+        'text_distance': 10,  # distância entre barras e números
+        'module_height': 48,  # altura das barras
+        'module_width': 1,    # largura de cada barra
     }
 
-    codigo_barra_base64 = None
-    codigo_barra_mime = None
-
-    # 1) prefira imagem retornada pelo BB (campo comum: imagemCodigoBarrasBase64 / imagemCodigoBarras)
-    codigo_barra_base64 = boleto_response.get('imagemCodigoBarrasBase64') or boleto_response.get('imagemCodigoBarras')
-
-    if not codigo_barra_base64:
-    # 2) se temos o número do código de barras (string numérica), gere usando ITF/interleaved2of5
-        if codigo_barra_numerico:
-            try:
-                # Recomendo usar treepoem (gera ITF corretamente). Exige ghostscript instalado.
-                # pip install treepoem
-                import treepoem
-                img = treepoem.generate_barcode(barcode_type='interleaved2of5', data=codigo_barra_numerico, options={'includetext': 'true'})
-                buf = BytesIO()
-                img.convert('RGB').save(buf, format='PNG')
-                buf.seek(0)
-                codigo_barra_base64 = base64.b64encode(buf.getvalue()).decode()
-                codigo_barra_mime = 'image/png'
-            except Exception as e:
-                logger.error(f"Erro gerando código de barras ITF: {e}")
-                # fallback mínimo: exibir apenas a linha numérica no template
-                codigo_barra_base64 = None
-                codigo_barra_mime = None
-        else:
-            logger.error("codigoBarraNumerico não retornado pelo BB e não foi possível gerar barcode.")
+    # Usar Code128 diretamente (mesmo padrão antigo)
+    # 'codigo_barra' vem de: codigo_barra = boleto_response.get('codigoBarraNumerico')
+    codigo_barra = linha_digitavel
+    codigo_barra_obj = Code128(codigo_barra, writer=SVGWriter())
+    barcode_buffer = BytesIO()
+    # Algumas versões aceitam options=..., outras writer_options=...
+    try:
+        codigo_barra_obj.write(barcode_buffer, options=writer_options)
+    except TypeError:
+        codigo_barra_obj.write(barcode_buffer, writer_options=writer_options)
+    barcode_buffer.seek(0)
+    codigo_barra_base64 = base64.b64encode(barcode_buffer.getvalue()).decode()
+    codigo_barra_mime = 'image/svg+xml'
 
 
     # === DADOS DO BOLETO ===
