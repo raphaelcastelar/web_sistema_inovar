@@ -196,14 +196,8 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(instance, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
-                users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
-                logger.info(f"Atualizando parcialmente empresa '{instance.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
-                for user in users_to_notify:
-                    Notificacao.objects.create(
-                        destinatario=user,
-                        mensagem=f'Usuário alterou informações da empresa "{instance.nome}".'
-                    )
-                logger.info(f"Notificações criadas para atualização parcial da empresa '{instance.nome}'.")
+                # Notificações são criadas automaticamente pelo signal post_save em signals.py
+                logger.info(f"Empresa '{instance.nome}' atualizada parcialmente.")
                 return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Empresa.DoesNotExist:
@@ -215,14 +209,8 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-        users_to_notify = Funcionario.objects.filter(usercompanyaccess__empresa=instance)
-        logger.info(f"Atualizando empresa '{instance.nome}'. Usuários a notificar: {[user.username for user in users_to_notify]}")
-        for user in users_to_notify:
-            Notificacao.objects.create(
-                destinatario=user,
-                mensagem=f'Usuário alterou informações da empresa "{instance.nome}".'
-            )
-        logger.info(f"Notificações criadas para atualização da empresa '{instance.nome}'.")
+        # Notificações são criadas automaticamente pelo signal post_save em signals.py
+        logger.info(f"Empresa '{instance.nome}' atualizada.")
         return Response(serializer.data)
         
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
