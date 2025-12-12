@@ -61,9 +61,8 @@ const NotificationDropdown = ({ notifications, onMarkAsRead, onClearAll }) => (
           <div
             key={n.id}
             onClick={() => onMarkAsRead(n.id)}
-            className={`p-4 border-b border-gray-100 dark:border-gray-700 last:border-b-0 cursor-pointer ${
-              !n.lida ? 'bg-indigo-50 dark:bg-indigo-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-            }`}
+            className={`p-4 border-b border-gray-100 dark:border-gray-700 last:border-b-0 cursor-pointer ${!n.lida ? 'bg-indigo-50 dark:bg-indigo-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+              }`}
           >
             <p className={`text-sm ${!n.lida ? 'font-semibold text-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-300'}`}>
               {n.mensagem}
@@ -283,7 +282,7 @@ const InicioPage = () => {
   const clearNotifications = async () => {
     try {
       await axiosInstance.post('/api/notificacoes/marcar_todas_como_lidas/');
-      setNotifications(prev => prev.map(n => ({ ...n, lida: true })));
+      setNotifications([]);
     } catch (err) {
       console.error('Erro ao limpar notificações:', err);
     }
@@ -701,11 +700,10 @@ const InicioPage = () => {
                         <>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.inss
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.inss
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'inss');
@@ -715,11 +713,10 @@ const InicioPage = () => {
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.fgts
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.fgts
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'fgts');
@@ -729,11 +726,10 @@ const InicioPage = () => {
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.folha
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.folha
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'folha');
@@ -743,11 +739,10 @@ const InicioPage = () => {
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.honorario
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.honorario
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'honorario');
@@ -761,11 +756,10 @@ const InicioPage = () => {
                         <>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.simples_nacional
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.simples_nacional
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'simples_nacional');
@@ -822,11 +816,10 @@ const InicioPage = () => {
                         <>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.inss
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.inss
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'inss');
@@ -836,11 +829,10 @@ const InicioPage = () => {
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.fgts
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.fgts
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'fgts');
@@ -850,11 +842,10 @@ const InicioPage = () => {
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.folha
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.folha
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'folha');
@@ -864,11 +855,10 @@ const InicioPage = () => {
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.honorario
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.honorario
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'honorario');
@@ -878,11 +868,10 @@ const InicioPage = () => {
                           </td>
                           <td className="p-2 text-center">
                             <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${
-                                checkboxState[empresa.id]?.simples_nacional
-                                  ? 'text-green-500'
-                                  : 'text-gray-300 dark:text-gray-600'
-                              } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.simples_nacional
+                                ? 'text-green-500'
+                                : 'text-gray-300 dark:text-gray-600'
+                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                               onClick={() => {
                                 if (!empresaStatus[empresa.id]?.loading) {
                                   handleCheckboxChange(empresa.id, 'simples_nacional');

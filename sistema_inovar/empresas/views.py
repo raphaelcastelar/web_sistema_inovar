@@ -361,8 +361,8 @@ class NotificacaoViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def marcar_todas_como_lidas(self, request):
-        """Ação customizada para marcar todas as notificações como lidas."""
-        request.user.notificacoes.update(lida=True)
+        """Ação customizada para excluir todas as notificações do usuário."""
+        request.user.notificacoes.all().delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 @api_view(['POST'])
