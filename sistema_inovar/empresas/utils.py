@@ -11,24 +11,15 @@ logger = logging.getLogger(__name__)
 
 def gerar_nome_pasta_empresa_padronizado(nome_da_empresa_str):
     """
-    Gera um nome de pasta seguro e MAIÚSCULO a partir de uma string de nome de empresa.
+    Retorna o nome da empresa exatamente como está, sem nenhum tratamento.
+    O nome da pasta no servidor deve ser exatamente o nome da empresa.
     """
     if not nome_da_empresa_str:
         logger.warning("Tentativa de gerar nome de pasta para empresa sem nome.")
-        # Você pode querer um fallback diferente ou levantar um erro
-        # Para consistência com o sinal, podemos ter um fallback similar
         return "EMPRESA_NOME_VAZIO" 
 
-    name_no_accents = unidecode.unidecode(str(nome_da_empresa_str))
-    name_underscored = re.sub(r'[\s.\-]+', '_', name_no_accents)
-    name_sanitized = re.sub(r'[^\w_]', '', name_underscored)
-    name_upper = name_sanitized.upper()
-
-    if not name_upper:
-        logger.warning(f"Nome de empresa '{nome_da_empresa_str}' resultou em nome de pasta vazio.")
-        return "NOME_EMPRESA_INVALIDO_PARA_PASTA"
-
-    return name_upper
+    # Retorna o nome exatamente como está, sem tratamento
+    return str(nome_da_empresa_str)
 
 def sanitize_filename_for_upload(filename):
     """
@@ -45,12 +36,6 @@ def sanitize_filename_for_upload(filename):
     if not name_sanitized: # Evita nome de arquivo vazio
         name_sanitized = "arquivo_sem_nome_valido"
     return f"{name_sanitized}{ext}"
-
-# utils/bb_api_utils.py
-import requests
-from django.conf import settings
-import base64
-import logging
 
 logger = logging.getLogger(__name__)
 
