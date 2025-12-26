@@ -70,7 +70,7 @@ const GerenciarBoletos = () => {
         try {
             const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: id }, {
                 responseType: 'blob',
-                headers: { 'Accept': 'application/pdf' }
+                headers: { 'Accept': 'application/pdf, application/json' }
             });
             const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
             const link = document.createElement('a');

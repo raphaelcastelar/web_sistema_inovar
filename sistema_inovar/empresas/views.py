@@ -1397,9 +1397,12 @@ def gerar_boleto_view(request):
     final_payload["desconto"] = build_charge_field(incoming_data, "desconto", empresa.desconto_taxa, data_desconto_str)
     final_payload["segundoDesconto"] = build_charge_field(incoming_data, "segundoDesconto")
     final_payload["terceiroDesconto"] = build_charge_field(incoming_data, "terceiroDesconto")
-    # Para multa e juros, usamos a data de encargos (vencimento + 1)
-    final_payload["multa"] = build_charge_field(incoming_data, "multa", empresa.multa_taxa, data_encargos_str)
-    final_payload["jurosMora"] = build_charge_field(incoming_data, "jurosMora", empresa.juros_mora_taxa, data_encargos_str)
+    
+    # --- ALTERAÇÃO: Juros e Multa desativados temporariamente conforme pedido ---
+    # Para reativar, basta voltar a usar build_charge_field com os parâmetros da empresa
+    final_payload["multa"] = { "tipo": 0, "porcentagem": 0.0, "valor": 0.0, "data": "" }
+    final_payload["jurosMora"] = { "tipo": 0, "porcentagem": 0.0, "valor": 0.0, "data": "" }
+    
     final_payload["beneficiarioFinal"] = incoming_data.get("beneficiarioFinal", {"tipoInscricao": 0, "numeroInscricao": 0, "nome": ""})
     
     # --- FIM DA CORREÇÃO ---
