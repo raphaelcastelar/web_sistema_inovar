@@ -1354,6 +1354,10 @@ def gerar_boleto_view(request):
     incoming_pagador = incoming_data.get('pagador', {})
     final_payload["pagador"] = { "tipoInscricao": incoming_pagador.get("tipoInscricao") or 2, "numeroInscricao": incoming_pagador.get("numeroInscricao") or (int(re.sub(r"\D", "", str(empresa.cnpj))) if empresa.cnpj else 0), "nome": incoming_pagador.get("nome") or empresa.nome, "endereco": incoming_pagador.get("endereco") or empresa.endereco or "Endereço Padrão", "cep": incoming_pagador.get("cep") or (int(re.sub(r"\D", "", str(empresa.cep))) if empresa.cep else 0), "cidade": incoming_pagador.get("cidade") or empresa.cidade or "Cidade", "bairro": incoming_pagador.get("bairro") or empresa.bairro or "Bairro", "uf": incoming_pagador.get("uf") or empresa.uf or "SP", "telefone": incoming_pagador.get("telefone") or (re.sub(r"\D", "", str(empresa.telefone)) if empresa.telefone else "00000000000"), "email": incoming_pagador.get("email") or empresa.email or "email@exemplo.com", }
 
+    # Calculando datas padrão para Multa e Juros (geralmente vencimento + 1 dia)
+    data_limite_pagamento_dt = data_vencimento_dt + timedelta(days=1)
+    data_encargos_str = data_limite_pagamento_dt.strftime('%d.%m.%Y')
+
     # Construção dos campos aninhados com lógica de validação e defaults da empresa
     def build_charge_field(data, field_name, default_percent=0.0, default_date=""):
         incoming_field = data.get(field_name, {})
@@ -1363,25 +1367,28 @@ def gerar_boleto_view(request):
             return {
                 "tipo": 2, # 2 = Percentual
                 "porcentagem": float(default_percent),
-                "valor": 0.0,
-                "data": default_date # Usado apenas para desconto
+                "valor": 0.0, # Para tipo 2, valor deve ser zerado
+                "data": default_date # Usado para desconto ou multa
             }
 
         tipo = int(incoming_field.get("tipo") or 0)
-        # Cria um dicionário base sem chaves de data vazias
+        
         field_data = {
             "tipo": tipo,
-            "porcentagem": float(incoming_field.get("porcentagem") or 0.0) if tipo != 0 else 0.0,
-            "valor": float(incoming_field.get("valor") or 0.0) if tipo != 0 else 0.0,
+            "porcentagem": float(incoming_field.get("porcentagem") or 0.0) if tipo == 2 else 0.0,
+            "valor": float(incoming_field.get("valor") or 0.0) if tipo == 1 else 0.0,
         }
+        
         # Adiciona datas apenas se elas existirem e forem válidas
         data_val = convert_date_format(incoming_field.get("data", ""))
         if data_val: 
             field_data["data"] = data_val
         elif default_date and default_percent > 0 and tipo == 0: 
-            # Fallback se algo estranho aconteceu, mas geralmente cairia no primeiro if
-            field_data["data"] = default_date
-
+             # Se não veio nada no input (tipo 0), mas estamos aplicando default
+             field_data["tipo"] = 2
+             field_data["porcentagem"] = float(default_percent)
+             field_data["data"] = default_date
+             
         data_exp_val = convert_date_format(incoming_field.get("dataExpiracao", ""))
         if data_exp_val: field_data["dataExpiracao"] = data_exp_val
 
@@ -1390,8 +1397,9 @@ def gerar_boleto_view(request):
     final_payload["desconto"] = build_charge_field(incoming_data, "desconto", empresa.desconto_taxa, data_desconto_str)
     final_payload["segundoDesconto"] = build_charge_field(incoming_data, "segundoDesconto")
     final_payload["terceiroDesconto"] = build_charge_field(incoming_data, "terceiroDesconto")
-    final_payload["multa"] = build_charge_field(incoming_data, "multa", empresa.multa_taxa)
-    final_payload["jurosMora"] = build_charge_field(incoming_data, "jurosMora", empresa.juros_mora_taxa)
+    # Para multa e juros, usamos a data de encargos (vencimento + 1)
+    final_payload["multa"] = build_charge_field(incoming_data, "multa", empresa.multa_taxa, data_encargos_str)
+    final_payload["jurosMora"] = build_charge_field(incoming_data, "jurosMora", empresa.juros_mora_taxa, data_encargos_str)
     final_payload["beneficiarioFinal"] = incoming_data.get("beneficiarioFinal", {"tipoInscricao": 0, "numeroInscricao": 0, "nome": ""})
     
     # --- FIM DA CORREÇÃO ---
