@@ -15,6 +15,7 @@ from .views import (
     dashboard_pie_chart,
     PendenciaAPIView,
     gerar_boleto_view,
+    gerenciar_boletos_view,
 )
 
 urlpatterns = [
@@ -33,4 +34,5 @@ urlpatterns = [
     path('pendencias/', PendenciaAPIView.as_view(), name='pendencias'),
     path('dashboard/pie-chart/', dashboard_pie_chart, name='dashboard_pie_chart'),
     path('gerar-boleto/', gerar_boleto_view, name='gerar_boleto'),
+    path('gerenciar-boleto/', gerenciar_boletos_view, name='gerenciar_boletos'),
 ]

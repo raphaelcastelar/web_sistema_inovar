@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-    HomeIcon, 
-    UserGroupIcon, 
-    ClockIcon, 
+import {
+    HomeIcon,
+    UserGroupIcon,
+    ClockIcon,
     DocumentArrowDownIcon,
     DocumentMagnifyingGlassIcon,
     ArrowLeftOnRectangleIcon,
@@ -29,22 +29,21 @@ const Navbar = () => {
     const NavLink = ({ to, icon: Icon, text }) => {
         // Verifica se a rota atual é exatamente igual à rota do link
         const isExactMatch = location.pathname === to;
-        
+
         // Tratamento especial para "Empresas" e "Gerenciar Empresas"
         const isEmpresasActive = location.pathname === '/empresas';
         const isGerenciarActive = location.pathname === '/empresas/gerenciar';
 
         // Define se o link está ativo com base no texto e na rota
-        const isActive = (text === 'Empresas' && isEmpresasActive) || 
-                        (text === 'Gerenciar Empresas' && isGerenciarActive) || 
-                        (text !== 'Empresas' && text !== 'Gerenciar Empresas' && isExactMatch);
+        const isActive = (text === 'Empresas' && isEmpresasActive) ||
+            (text === 'Gerenciar Empresas' && isGerenciarActive) ||
+            (text !== 'Empresas' && text !== 'Gerenciar Empresas' && isExactMatch);
 
         return (
             <Link
                 to={to}
-                className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${
-                    isActive ? 'bg-indigo-800 text-white shadow-inner' : ''
-                }`}
+                className={`flex items-center space-x-4 px-4 py-3 text-indigo-200 rounded-md hover:bg-indigo-700 hover:text-white transition-colors duration-200 ${isActive ? 'bg-indigo-800 text-white shadow-inner' : ''
+                    }`}
             >
                 <Icon className="h-6 w-6 flex-shrink-0" />
                 <span className="text-base font-medium">{text}</span>
@@ -68,17 +67,18 @@ const Navbar = () => {
                 <NavLink to="/gerenciar-usuarios" icon={UserGroupIcon} text="Usuários" />
                 <NavLink to="/gerenciar-atribuicoes" icon={Cog6ToothIcon} text="Gerenciar Atribuicoes" />
                 <NavLink to="/empresas/gerenciar" icon={ChartBarIcon} text="Gerenciar Empresas" />
-                
+
                 <div className="px-4 pt-4 pb-2">
                     <span className="text-xs font-semibold text-indigo-400 uppercase">Serviços</span>
                 </div>
-                
+
                 <NavLink to="/gerar-das" icon={DocumentArrowDownIcon} text="Gerar DAS" />
                 <NavLink to="/gerar-boleto" icon={BanknotesIcon} text="Gerar Boleto" />
                 <NavLink to="/consultar-extrato" icon={DocumentMagnifyingGlassIcon} text="Consultar Extrato" />
                 <NavLink to="/declarar-das" icon={DocumentCheckIcon} text="Declarar DAS" />
                 <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" />
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
+                <NavLink to="/gerenciar-boleto" icon={BanknotesIcon} text="Gerenciar Boleto" />
             </nav>
 
             <div className="w-full flex-shrink-0 p-4 space-y-2 border-t border-indigo-800/50">

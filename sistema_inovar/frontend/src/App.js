@@ -23,6 +23,7 @@ import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
 import DeclararDASPage from './components/DeclararDASPage';
 import PendenciasPage from './components/PendenciasPage';
 import GerarBoletoPage from './components/GerarBoletoPage';
+import GerenciarBoletos from './components/GerenciarBoletos';
 
 import './App.css';
 import EmpresaGerenciamento from './components/EmpresaGerenciamento';
@@ -48,15 +49,16 @@ function App() {
             <Route path="/gerenciar-usuarios" element={<FuncionarioList />} />
             <Route path="/gerenciar-usuarios/novo" element={<FuncionarioForm />} />
             <Route path="/gerenciar-usuarios/editar/:funcionarioId" element={<FuncionarioForm />} />
-            
+
             <Route path="/gerenciamento/simples-nacional" element={<GerenciamentoSimplesPage />} />
             <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
             <Route path="/gerar-das" element={<GerarDasPage />} />
             <Route path="/gerar-boleto" element={<GerarBoletoPage />} />
+            <Route path="/gerenciar-boleto" element={<GerenciarBoletos />} />
             <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
             <Route path="/declarar-das" element={<DeclararDASPage />} />
             <Route path="/pendencias" element={<PendenciasPage />} />
-            
+
             {/* Rota padrão para usuários logados */}
             <Route path="/" element={<EmpresaList />} />
           </Route>
