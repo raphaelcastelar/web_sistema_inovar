@@ -32,6 +32,14 @@ class Empresa(models.Model):
     usuarios = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='empresas')
     ativo = models.BooleanField(default=True)
 
+    # Configurações de Boleto
+    valor_honorario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Valor do honorário para geração de boleto")
+    dia_vencimento_honorario = models.IntegerField(default=15, help_text="Dia do vencimento do boleto (1-31)")
+    juros_mora_taxa = models.DecimalField(max_digits=5, decimal_places=2, default=1.00, help_text="Taxa de juros mensal (%)")
+    multa_taxa = models.DecimalField(max_digits=5, decimal_places=2, default=2.00, help_text="Taxa de multa (%)")
+    desconto_taxa = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Taxa de desconto (%)")
+    dias_para_desconto = models.IntegerField(default=0, help_text="Dias até o vencimento para aplicar desconto")
+
     def __str__(self):
         return self.nome
 

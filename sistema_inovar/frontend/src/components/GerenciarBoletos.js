@@ -9,6 +9,16 @@ const GerenciarBoletos = () => {
     const [success, setSuccess] = useState('');
     const [search, setSearch] = useState('');
     const [isAdmin, setIsAdmin] = useState(null);
+    const [configModalOpen, setConfigModalOpen] = useState(false);
+    const [currentConfig, setCurrentConfig] = useState({
+        id: null,
+        valor_honorario: '',
+        dia_vencimento_honorario: '',
+        juros_mora_taxa: '',
+        multa_taxa: '',
+        desconto_taxa: '',
+        dias_para_desconto: ''
+    });
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -73,10 +83,37 @@ const GerenciarBoletos = () => {
     };
 
     const handleConfiguracoes = (id) => {
-        // Redireciona para uma página de configurações específicas da empresa
-        // Você pode criar uma rota como /configuracoes-boleto/{id}
-        console.log(`Abrir configurações para empresa ID: ${id}`);
-        // Exemplo: useNavigate para '/configuracoes-boleto/' + id
+        const empresa = empresas.find(e => e.id === id);
+        if (empresa) {
+            setCurrentConfig({
+                id: empresa.id,
+                valor_honorario: empresa.valor_honorario || '',
+                dia_vencimento_honorario: empresa.dia_vencimento_honorario || '',
+                juros_mora_taxa: empresa.juros_mora_taxa || '',
+                multa_taxa: empresa.multa_taxa || '',
+                desconto_taxa: empresa.desconto_taxa || '',
+                dias_para_desconto: empresa.dias_para_desconto || ''
+            });
+            setConfigModalOpen(true);
+        }
+    };
+
+    const handleSaveConfig = async () => {
+        try {
+            const { id, ...data } = currentConfig;
+            await axiosInstance.patch(`/api/empresas/${id}/`, data);
+
+            setEmpresas(empresas.map(empresa =>
+                empresa.id === id ? { ...empresa, ...data } : empresa
+            ));
+
+            setSuccess('Configurações atualizadas com sucesso!');
+            setConfigModalOpen(false);
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            console.error('Erro ao salvar configurações:', err.response?.data || err.message);
+            setError('Falha ao salvar as configurações.');
+        }
     };
 
     const filteredEmpresas = empresas.filter(empresa => {
@@ -200,6 +237,91 @@ const GerenciarBoletos = () => {
             )}
             {success && <p className="mt-4 text-center text-green-600 dark:text-green-400">{success}</p>}
             {error && <p className="mt-4 text-center text-red-600 dark:text-red-400">{error}</p>}
+            {configModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6">
+                        <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">Configurações de Boleto</h2>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Valor Honorário (R$)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={currentConfig.valor_honorario}
+                                    onChange={(e) => setCurrentConfig({ ...currentConfig, valor_honorario: e.target.value })}
+                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dia Vencimento</label>
+                                <input
+                                    type="number"
+                                    min="1" max="31"
+                                    value={currentConfig.dia_vencimento_honorario}
+                                    onChange={(e) => setCurrentConfig({ ...currentConfig, dia_vencimento_honorario: e.target.value })}
+                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Juros Mensal (%)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={currentConfig.juros_mora_taxa}
+                                    onChange={(e) => setCurrentConfig({ ...currentConfig, juros_mora_taxa: e.target.value })}
+                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Multa (%)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={currentConfig.multa_taxa}
+                                    onChange={(e) => setCurrentConfig({ ...currentConfig, multa_taxa: e.target.value })}
+                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Desconto (%)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    value={currentConfig.desconto_taxa}
+                                    onChange={(e) => setCurrentConfig({ ...currentConfig, desconto_taxa: e.target.value })}
+                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dias para Desconto</label>
+                                <input
+                                    type="number"
+                                    value={currentConfig.dias_para_desconto}
+                                    onChange={(e) => setCurrentConfig({ ...currentConfig, dias_para_desconto: e.target.value })}
+                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    title="Quantos dias ANTES do vencimento o desconto é válido (0 = até o vencimento)"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end space-x-3">
+                            <button
+                                onClick={() => setConfigModalOpen(false)}
+                                className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSaveConfig}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+                            >
+                                Salvar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

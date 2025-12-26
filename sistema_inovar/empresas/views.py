@@ -1260,14 +1260,42 @@ def gerar_boleto_view(request):
     SEU_NUMERO_CONVENIO = 3645123  # Seu convênio de 7 dígitos
     SUA_CARTEIRA = 17              # Geralmente 17 ou 18. CONFIRME.
 
+    # --- Lógica de Data de Vencimento e Valores Padrão ---
+    hoje = timezone.now().date()
+    dia_vencimento = empresa.dia_vencimento_honorario
+    
+    # Determinar a data de vencimento
+    try:
+        data_vencimento_dt = hoje.replace(day=dia_vencimento)
+    except ValueError:
+        import calendar
+        last_day = calendar.monthrange(hoje.year, hoje.month)[1]
+        data_vencimento_dt = hoje.replace(day=last_day)
+
+    if hoje.day > dia_vencimento:
+        proximo_mes = (hoje.replace(day=1) + timedelta(days=32)).replace(day=1)
+        try:
+            data_vencimento_dt = proximo_mes.replace(day=dia_vencimento)
+        except ValueError:
+             import calendar
+             last_day = calendar.monthrange(proximo_mes.year, proximo_mes.month)[1]
+             data_vencimento_dt = proximo_mes.replace(day=last_day)
+    
+    data_vencimento_str = data_vencimento_dt.strftime('%d.%m.%Y')
+
+    data_desconto_str = ""
+    if empresa.dias_para_desconto > 0:
+        data_desc_dt = data_vencimento_dt - timedelta(days=empresa.dias_para_desconto)
+        data_desconto_str = data_desc_dt.strftime('%d.%m.%Y')
+
     default_payload = {
         "numeroConvenio": SEU_NUMERO_CONVENIO,
         "carteira": SUA_CARTEIRA,
         # "variacaoCarteira" removida, conforme sua instrução para sandbox.
         "codigoModalidade": 1,
         "dataEmissao": timezone.now().strftime('%d.%m.%Y'),
-        "dataVencimento": (timezone.now() + timedelta(days=30)).strftime('%d.%m.%Y'),
-        "valorOriginal": 1.00,
+        "dataVencimento": data_vencimento_str,
+        "valorOriginal": float(empresa.valor_honorario) if empresa.valor_honorario > 0 else 1.00,
         "valorAbatimento": 0.0,
         "quantidadeDiasProtesto": 0,
         "quantidadeDiasNegativacao": 0,
@@ -1326,9 +1354,19 @@ def gerar_boleto_view(request):
     incoming_pagador = incoming_data.get('pagador', {})
     final_payload["pagador"] = { "tipoInscricao": incoming_pagador.get("tipoInscricao") or 2, "numeroInscricao": incoming_pagador.get("numeroInscricao") or (int(re.sub(r"\D", "", str(empresa.cnpj))) if empresa.cnpj else 0), "nome": incoming_pagador.get("nome") or empresa.nome, "endereco": incoming_pagador.get("endereco") or empresa.endereco or "Endereço Padrão", "cep": incoming_pagador.get("cep") or (int(re.sub(r"\D", "", str(empresa.cep))) if empresa.cep else 0), "cidade": incoming_pagador.get("cidade") or empresa.cidade or "Cidade", "bairro": incoming_pagador.get("bairro") or empresa.bairro or "Bairro", "uf": incoming_pagador.get("uf") or empresa.uf or "SP", "telefone": incoming_pagador.get("telefone") or (re.sub(r"\D", "", str(empresa.telefone)) if empresa.telefone else "00000000000"), "email": incoming_pagador.get("email") or empresa.email or "email@exemplo.com", }
 
-    # Construção dos campos aninhados com lógica de validação
-    def build_charge_field(data, field_name):
+    # Construção dos campos aninhados com lógica de validação e defaults da empresa
+    def build_charge_field(data, field_name, default_percent=0.0, default_date=""):
         incoming_field = data.get(field_name, {})
+        
+        # Se o form não enviou nada, mas temos um default configurado na empresa > 0
+        if not incoming_field and default_percent > 0:
+            return {
+                "tipo": 2, # 2 = Percentual
+                "porcentagem": float(default_percent),
+                "valor": 0.0,
+                "data": default_date # Usado apenas para desconto
+            }
+
         tipo = int(incoming_field.get("tipo") or 0)
         # Cria um dicionário base sem chaves de data vazias
         field_data = {
@@ -1338,18 +1376,22 @@ def gerar_boleto_view(request):
         }
         # Adiciona datas apenas se elas existirem e forem válidas
         data_val = convert_date_format(incoming_field.get("data", ""))
-        if data_val: field_data["data"] = data_val
-        
+        if data_val: 
+            field_data["data"] = data_val
+        elif default_date and default_percent > 0 and tipo == 0: 
+            # Fallback se algo estranho aconteceu, mas geralmente cairia no primeiro if
+            field_data["data"] = default_date
+
         data_exp_val = convert_date_format(incoming_field.get("dataExpiracao", ""))
         if data_exp_val: field_data["dataExpiracao"] = data_exp_val
 
         return field_data
 
-    final_payload["desconto"] = build_charge_field(incoming_data, "desconto")
+    final_payload["desconto"] = build_charge_field(incoming_data, "desconto", empresa.desconto_taxa, data_desconto_str)
     final_payload["segundoDesconto"] = build_charge_field(incoming_data, "segundoDesconto")
     final_payload["terceiroDesconto"] = build_charge_field(incoming_data, "terceiroDesconto")
-    final_payload["multa"] = build_charge_field(incoming_data, "multa")
-    final_payload["jurosMora"] = build_charge_field(incoming_data, "jurosMora")
+    final_payload["multa"] = build_charge_field(incoming_data, "multa", empresa.multa_taxa)
+    final_payload["jurosMora"] = build_charge_field(incoming_data, "jurosMora", empresa.juros_mora_taxa)
     final_payload["beneficiarioFinal"] = incoming_data.get("beneficiarioFinal", {"tipoInscricao": 0, "numeroInscricao": 0, "nome": ""})
     
     # --- FIM DA CORREÇÃO ---
