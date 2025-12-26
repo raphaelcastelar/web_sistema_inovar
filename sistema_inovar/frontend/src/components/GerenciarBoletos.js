@@ -251,7 +251,7 @@ const GerenciarBoletos = () => {
                                     step="0.01"
                                     value={currentConfig.valor_honorario}
                                     onChange={(e) => setCurrentConfig({ ...currentConfig, valor_honorario: e.target.value })}
-                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    className="w-full p-2 border rounded text-gray-900 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 />
                             </div>
                             <div>
@@ -261,7 +261,7 @@ const GerenciarBoletos = () => {
                                     min="1" max="31"
                                     value={currentConfig.dia_vencimento_honorario}
                                     onChange={(e) => setCurrentConfig({ ...currentConfig, dia_vencimento_honorario: e.target.value })}
-                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    className="w-full p-2 border rounded text-gray-900 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 />
                             </div>
                             <div>
@@ -271,7 +271,7 @@ const GerenciarBoletos = () => {
                                     step="0.01"
                                     value={currentConfig.juros_mora_taxa}
                                     onChange={(e) => setCurrentConfig({ ...currentConfig, juros_mora_taxa: e.target.value })}
-                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    className="w-full p-2 border rounded text-gray-900 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 />
                             </div>
                             <div>
@@ -281,7 +281,7 @@ const GerenciarBoletos = () => {
                                     step="0.01"
                                     value={currentConfig.multa_taxa}
                                     onChange={(e) => setCurrentConfig({ ...currentConfig, multa_taxa: e.target.value })}
-                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    className="w-full p-2 border rounded text-gray-900 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 />
                             </div>
                             <div>
@@ -291,7 +291,7 @@ const GerenciarBoletos = () => {
                                     step="0.01"
                                     value={currentConfig.desconto_taxa}
                                     onChange={(e) => setCurrentConfig({ ...currentConfig, desconto_taxa: e.target.value })}
-                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    className="w-full p-2 border rounded text-gray-900 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                 />
                             </div>
                             <div>
@@ -300,7 +300,7 @@ const GerenciarBoletos = () => {
                                     type="number"
                                     value={currentConfig.dias_para_desconto}
                                     onChange={(e) => setCurrentConfig({ ...currentConfig, dias_para_desconto: e.target.value })}
-                                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    className="w-full p-2 border rounded text-gray-900 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     title="Quantos dias ANTES do vencimento o desconto é válido (0 = até o vencimento)"
                                 />
                             </div>
