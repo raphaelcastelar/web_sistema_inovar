@@ -1257,7 +1257,7 @@ def gerar_boleto_view(request):
 
     # !! IMPORTANTE !!
     # CONFIRME ESTES 2 VALORES NO SEU PORTAL DE DESENVOLVEDOR DO BANCO DO BRASIL.
-    SEU_NUMERO_CONVENIO = 3128557  # Seu convênio de 7 dígitos
+    SEU_NUMERO_CONVENIO = 3645123  # Seu convênio de 7 dígitos
     SUA_CARTEIRA = 17              # Geralmente 17 ou 18. CONFIRME.
 
     default_payload = {
