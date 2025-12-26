@@ -102,10 +102,22 @@ const GerenciarBoletos = () => {
     const handleSaveConfig = async () => {
         try {
             const { id, ...data } = currentConfig;
-            await axiosInstance.patch(`/api/empresas/${id}/`, data);
+
+            // Sanitização: Converte strings vazias para 0 ou '0.00'
+            const sanitizedData = {
+                ...data,
+                valor_honorario: data.valor_honorario === '' ? '0.00' : data.valor_honorario,
+                dia_vencimento_honorario: data.dia_vencimento_honorario === '' ? 15 : data.dia_vencimento_honorario,
+                juros_mora_taxa: data.juros_mora_taxa === '' ? '0.00' : data.juros_mora_taxa,
+                multa_taxa: data.multa_taxa === '' ? '0.00' : data.multa_taxa,
+                desconto_taxa: data.desconto_taxa === '' ? '0.00' : data.desconto_taxa,
+                dias_para_desconto: data.dias_para_desconto === '' ? 0 : data.dias_para_desconto
+            };
+
+            await axiosInstance.patch(`/api/empresas/${id}/`, sanitizedData);
 
             setEmpresas(empresas.map(empresa =>
-                empresa.id === id ? { ...empresa, ...data } : empresa
+                empresa.id === id ? { ...empresa, ...sanitizedData } : empresa
             ));
 
             setSuccess('Configurações atualizadas com sucesso!');
