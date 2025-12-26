@@ -68,8 +68,11 @@ const GerenciarBoletos = () => {
 
     const handleGerarBoleto = async (id) => {
         try {
-            const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: id });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: id }, {
+                responseType: 'blob',
+                headers: { 'Accept': 'application/pdf' }
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', `boleto_empresa_${id}.pdf`);
