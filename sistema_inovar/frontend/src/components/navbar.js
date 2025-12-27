@@ -70,12 +70,12 @@ const Navbar = () => {
                     <span className="text-xs font-semibold text-indigo-400 uppercase">Serviços</span>
                 </div>
 
-                <NavLink to="/central-simples" icon={DocumentChartBarIcon} text="Central do Simples" />\
+                <NavLink to="/central-simples" icon={DocumentChartBarIcon} text="Central do Simples" />
                 <NavLink to="/gerenciar-boleto" icon={BanknotesIcon} text="Gerenciar Boleto" />
                 <NavLink to="/gerar-boleto" icon={BanknotesIcon} text="Gerar Boleto" />
                 <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" />
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
-
+                
             </nav>
 
             <div className="w-full flex-shrink-0 p-4 space-y-2 border-t border-indigo-800/50">
