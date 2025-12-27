@@ -10,7 +10,7 @@ import {
     BuildingOfficeIcon,
     Cog6ToothIcon,
     DocumentCheckIcon,
-    ChartBarIcon,
+    DocumentChartBarIcon,
     ExclamationTriangleIcon,
     BanknotesIcon
 } from '@heroicons/react/24/outline';
@@ -72,9 +72,8 @@ const Navbar = () => {
                     <span className="text-xs font-semibold text-indigo-400 uppercase">Serviços</span>
                 </div>
 
-                <NavLink to="/gerar-das" icon={DocumentArrowDownIcon} text="Gerar DAS" />
+                <NavLink to="/central-simples" icon={DocumentChartBarIcon} text="Central do Simples" />
                 <NavLink to="/gerar-boleto" icon={BanknotesIcon} text="Gerar Boleto" />
-                <NavLink to="/consultar-extrato" icon={DocumentMagnifyingGlassIcon} text="Consultar Extrato" />
                 <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" />
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
                 <NavLink to="/gerenciar-boleto" icon={BanknotesIcon} text="Gerenciar Boleto" />

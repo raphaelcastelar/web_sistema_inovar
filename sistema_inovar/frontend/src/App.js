@@ -17,12 +17,12 @@ import LoginPage from './components/LoginPage';
 import FuncionarioList from './components/FuncionarioList';
 import FuncionarioForm from './components/FuncionarioForm';
 import GerarDasPage from './components/GerarDasPage';
-import ConsultarExtratoPage from './components/ConsultarExtratoPage';
 import GerenciamentoSimplesPage from './components/GerenciamentoSimplesPage';
 import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
 import PendenciasPage from './components/PendenciasPage';
 import GerarBoletoPage from './components/GerarBoletoPage';
 import GerenciarBoletos from './components/GerenciarBoletos';
+import CentralDoSimples from './components/CentralDoSimples';
 
 import './App.css';
 import EmpresaGerenciamento from './components/EmpresaGerenciamento';
@@ -51,10 +51,9 @@ function App() {
 
             <Route path="/gerenciamento/simples-nacional" element={<GerenciamentoSimplesPage />} />
             <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
-            <Route path="/gerar-das" element={<GerarDasPage />} />
+            <Route path="/central-simples" element={<CentralDoSimples />} />
             <Route path="/gerar-boleto" element={<GerarBoletoPage />} />
             <Route path="/gerenciar-boleto" element={<GerenciarBoletos />} />
-            <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
             <Route path="/pendencias" element={<PendenciasPage />} />
 
             {/* Rota padrão para usuários logados */}
