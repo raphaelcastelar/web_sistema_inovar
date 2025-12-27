@@ -11,6 +11,7 @@ import {
     Cog6ToothIcon,
     DocumentCheckIcon,
     DocumentChartBarIcon,
+    ChartBarIcon,
     ExclamationTriangleIcon,
     BanknotesIcon
 } from '@heroicons/react/24/outline';
