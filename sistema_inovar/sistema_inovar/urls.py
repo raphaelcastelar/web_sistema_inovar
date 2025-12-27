@@ -5,7 +5,7 @@ from empresas.views import (
     EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet,
     DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet,
     enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet,
-    current_user, declarar_das_api, gerar_e_enviar_das_view, NotificacaoViewSet
+    current_user,  gerar_e_enviar_das_view, NotificacaoViewSet
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -32,5 +32,4 @@ urlpatterns = [
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/current-user/', current_user, name='current-user'),
-    path('api/declarar-das/', declarar_das_api, name='declarar-das'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

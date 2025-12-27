@@ -20,7 +20,6 @@ import GerarDasPage from './components/GerarDasPage';
 import ConsultarExtratoPage from './components/ConsultarExtratoPage';
 import GerenciamentoSimplesPage from './components/GerenciamentoSimplesPage';
 import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
-import DeclararDASPage from './components/DeclararDASPage';
 import PendenciasPage from './components/PendenciasPage';
 import GerarBoletoPage from './components/GerarBoletoPage';
 import GerenciarBoletos from './components/GerenciarBoletos';
@@ -56,7 +55,6 @@ function App() {
             <Route path="/gerar-boleto" element={<GerarBoletoPage />} />
             <Route path="/gerenciar-boleto" element={<GerenciarBoletos />} />
             <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
-            <Route path="/declarar-das" element={<DeclararDASPage />} />
             <Route path="/pendencias" element={<PendenciasPage />} />
 
             {/* Rota padrão para usuários logados */}
