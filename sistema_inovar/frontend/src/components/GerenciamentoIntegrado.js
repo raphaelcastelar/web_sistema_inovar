@@ -271,14 +271,14 @@ const GerenciamentoIntegrado = () => {
                             placeholder="Buscar por nome, CNPJ ou e-mail..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-white transition-shadow shadow-sm"
+                            className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-white transition-shadow shadow-sm"
                         />
                     </div>
                     <div className="flex gap-2">
                         <select
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
-                            className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:text-white shadow-sm cursor-pointer"
+                            className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-white shadow-sm cursor-pointer"
                         >
                             <option value="all">Todos os Status</option>
                             <option value="active">Apenas Ativas</option>
@@ -341,8 +341,8 @@ const GerenciamentoIntegrado = () => {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${empresa.ativo
-                                                        ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800'
-                                                        : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800'
+                                                    ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800'
+                                                    : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800'
                                                     }`}>
                                                     {empresa.ativo ? 'Ativa' : 'Inativa'}
                                                 </span>
@@ -367,8 +367,8 @@ const GerenciamentoIntegrado = () => {
                                                     <button
                                                         onClick={() => handleToggleAtivo(empresa.id, empresa.ativo)}
                                                         className={`p-2 rounded-lg transition-colors ${empresa.ativo
-                                                                ? 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
-                                                                : 'text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30'
+                                                            ? 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
+                                                            : 'text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30'
                                                             }`}
                                                         title={empresa.ativo ? 'Desativar Empresa' : 'Ativar Empresa'}
                                                     >
