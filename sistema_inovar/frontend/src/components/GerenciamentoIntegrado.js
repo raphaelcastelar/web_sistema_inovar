@@ -390,24 +390,29 @@ const GerenciamentoIntegrado = () => {
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                             <motion.div
                                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                                className="absolute inset-0 bg-gray-900/20 backdrop-blur-sm dark:bg-black/40"
                                 onClick={() => setConfigModalOpen(false)}
                             />
                             <motion.div
-                                initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                                className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg p-6 md:p-8"
+                                initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg p-8 border border-gray-100 dark:border-gray-700"
                             >
-                                <div className="flex items-center justify-between mb-6">
-                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                        <CogIcon className="h-6 w-6 text-indigo-500" />
-                                        Configurações de Boleto
-                                    </h2>
-                                    <button onClick={() => setConfigModalOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                            Configurar Boletos
+                                        </h2>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Defina as taxas e valores padrão.</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setConfigModalOpen(false)}
+                                        className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                                    >
                                         <XCircleIcon className="h-6 w-6" />
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                     {[
                                         { label: 'Valor Honorário (R$)', key: 'valor_honorario', type: 'number', step: '0.01' },
                                         { label: 'Dia Vencimento', key: 'dia_vencimento_honorario', type: 'number', min: '1', max: '31' },
@@ -416,8 +421,10 @@ const GerenciamentoIntegrado = () => {
                                         { label: 'Desconto (%)', key: 'desconto_taxa', type: 'number', step: '0.01' },
                                         { label: 'Dias para Desconto', key: 'dias_para_desconto', type: 'number', title: 'Dias antes do vencimento' },
                                     ].map((field) => (
-                                        <div key={field.key}>
-                                            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wider">{field.label}</label>
+                                        <div key={field.key} className="relative group">
+                                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400 transition-colors">
+                                                {field.label}
+                                            </label>
                                             <input
                                                 type={field.type}
                                                 step={field.step}
@@ -426,24 +433,24 @@ const GerenciamentoIntegrado = () => {
                                                 title={field.title}
                                                 value={currentConfig[field.key]}
                                                 onChange={(e) => setCurrentConfig({ ...currentConfig, [field.key]: e.target.value })}
-                                                className="w-full p-2.5 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                                                className="w-full p-3 bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium"
                                             />
                                         </div>
                                     ))}
                                 </div>
 
-                                <div className="mt-8 flex justify-end gap-3">
+                                <div className="mt-10 flex justify-end gap-3">
                                     <button
                                         onClick={() => setConfigModalOpen(false)}
-                                        className="px-5 py-2.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 rounded-xl font-medium transition-colors"
+                                        className="px-6 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-xl transition-colors"
                                     >
                                         Cancelar
                                     </button>
                                     <button
                                         onClick={handleSaveConfig}
-                                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium shadow-lg shadow-indigo-500/30 transition-all"
+                                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all transform hover:-translate-y-0.5"
                                     >
-                                        Salvar Alterações
+                                        Salvar Configuração
                                     </button>
                                 </div>
                             </motion.div>
