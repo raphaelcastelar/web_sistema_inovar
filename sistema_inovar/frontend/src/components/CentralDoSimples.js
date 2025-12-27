@@ -143,13 +143,15 @@ const CentralDoSimples = () => {
 
     const [loadingExtrato, setLoadingExtrato] = useState(false);
     const [loadingDas, setLoadingDas] = useState(false);
-    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+    // Flow State
+    const [step, setStep] = useState(0); // 0: Select Service, 1: Select Data & Execute
+    const [selectedAction, setSelectedAction] = useState(null); // 'extrato' | 'das'
 
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
     const [extratoData, setExtratoData] = useState(null);
-    const [activeTab, setActiveTab] = useState('extrato'); // 'extrato' or 'das' (though UI is blended now)
 
     // --- Options ---
     const yearOptions = useMemo(() => {
@@ -201,11 +203,30 @@ const CentralDoSimples = () => {
         };
     };
 
+    const handleSelectAction = (action) => {
+        setSelectedAction(action);
+        setStep(1);
+        resetMessages();
+    };
+
+    const handleBack = () => {
+        setStep(0);
+        setSelectedAction(null);
+        resetMessages();
+    };
+
+    const handleExecute = async () => {
+        if (selectedAction === 'extrato') {
+            await handleConsultarExtrato();
+        } else if (selectedAction === 'das') {
+            await handleGerarDas();
+        }
+    };
+
     const handleConsultarExtrato = async () => {
         if (!validateSelection()) return;
         resetMessages();
         setLoadingExtrato(true);
-        setActiveTab('extrato');
 
         const empresa = getEmpresaData();
         const periodo = `${selectedYear}${selectedMonth}`;
@@ -255,7 +276,6 @@ const CentralDoSimples = () => {
         if (!validateSelection()) return;
         resetMessages();
         setLoadingDas(true);
-        setActiveTab('das');
 
         const empresa = getEmpresaData();
         const periodo = `${selectedYear}${selectedMonth}`;
@@ -301,120 +321,46 @@ const CentralDoSimples = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 md:p-8 animate-fade-in font-sans text-gray-800 dark:text-gray-100">
-            <div className="max-w-6xl mx-auto">
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 md:p-8 animate-fade-in font-sans text-gray-800 dark:text-gray-100 flex flex-col items-center">
+            <div className="w-full max-w-4xl">
                 <header className="mb-10 text-center">
                     <h1 className="text-4xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 mb-2">
                         Central do Simples Nacional
                     </h1>
                     <p className="text-lg text-gray-600 dark:text-gray-400">
-                        Gerencie suas obrigações, consulte extratos e emita guias DAS em um só lugar.
+                        {step === 0
+                            ? "Escolha o serviço que deseja acessar."
+                            : selectedAction === 'extrato'
+                                ? "Consulta de Extrato Simples Nacional"
+                                : "Emissão de Guia DAS"
+                        }
                     </p>
                 </header>
 
-                <div className="grid lg:grid-cols-3 gap-8">
-                    {/* Painel de Controle (Esquerda) */}
-                    <div className="lg:col-span-1 space-y-6">
-                        <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6">
-                            <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-800 dark:text-white">
-                                <UsersIcon className="h-6 w-6 text-indigo-500" />
-                                Seleção
-                            </h2>
-
-                            <div className="space-y-5">
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                        Empresa
-                                    </label>
-                                    <div className="relative">
-                                        <select
-                                            value={selectedEmpresaId}
-                                            onChange={(e) => setSelectedEmpresaId(e.target.value)}
-                                            className="w-full pl-4 pr-10 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none transition-all"
-                                        >
-                                            <option value="">Selecione...</option>
-                                            {empresas.map(emp => (
-                                                <option key={emp.id} value={emp.id}>{emp.nome}</option>
-                                            ))}
-                                        </select>
-                                        <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-500">
-                                            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                        Período de Apuração
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="relative">
-                                            <select
-                                                value={selectedMonth}
-                                                onChange={(e) => setSelectedMonth(e.target.value)}
-                                                className="w-full pl-3 pr-8 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 appearance-none transition-all"
-                                            >
-                                                {monthOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                                            </select>
-                                        </div>
-                                        <div className="relative">
-                                            <select
-                                                value={selectedYear}
-                                                onChange={(e) => setSelectedYear(e.target.value)}
-                                                className="w-full pl-3 pr-8 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 appearance-none transition-all"
-                                            >
-                                                {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        {/* Status / Feedback */}
-                        <AnimatePresence>
-                            {error && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                                    className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3"
-                                >
-                                    <InformationCircleIcon className="h-6 w-6 text-red-600 dark:text-red-400 shrink-0" />
-                                    <p className="text-sm text-red-700 dark:text-red-300 font-medium">{error}</p>
-                                </motion.div>
-                            )}
-                            {successMessage && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                                    className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-start gap-3"
-                                >
-                                    <CheckCircleIcon className="h-6 w-6 text-green-600 dark:text-green-400 shrink-0" />
-                                    <p className="text-sm text-green-700 dark:text-green-300 font-medium">{successMessage}</p>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-
-                    {/* Area de Ação Principal (Direita) */}
-                    <div className="lg:col-span-2">
-                        <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-4">Ações Disponíveis</h3>
-                        <div className="grid md:grid-cols-2 gap-6">
-
+                <AnimatePresence mode="wait">
+                    {step === 0 ? (
+                        <motion.div
+                            key="step0"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto"
+                        >
                             {/* Card Extrato */}
                             <button
-                                onClick={handleConsultarExtrato}
-                                disabled={loadingExtrato}
-                                className="relative group overflow-hidden p-8 rounded-2xl bg-white dark:bg-gray-800 border-2 border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 shadow-lg hover:shadow-2xl transition-all duration-300 text-left w-full disabled:opacity-70 disabled:grayscale"
+                                onClick={() => handleSelectAction('extrato')}
+                                className="relative group overflow-hidden p-8 rounded-2xl bg-white dark:bg-gray-800 border-2 border-transparent hover:border-indigo-100 dark:hover:border-indigo-900 shadow-xl hover:shadow-2xl transition-all duration-300 text-left w-full"
                             >
                                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <DocumentChartBarIcon className="h-32 w-32 text-indigo-600 dark:text-indigo-400 transform rotate-12" />
+                                    <DocumentChartBarIcon className="h-40 w-40 text-indigo-600 dark:text-indigo-400 transform rotate-12" />
                                 </div>
-                                <div className="relative z-10">
-                                    <div className="h-14 w-14 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                                        {loadingExtrato ? <ArrowPathIcon className="h-7 w-7 text-indigo-600 animate-spin" /> : <MagnifyingGlassIcon className="h-7 w-7 text-indigo-600 dark:text-indigo-400" />}
+                                <div className="relative z-10 flex flex-col items-center text-center">
+                                    <div className="h-20 w-20 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                                        <MagnifyingGlassIcon className="h-10 w-10 text-indigo-600 dark:text-indigo-400" />
                                     </div>
-                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Consultar Extrato</h3>
-                                    <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
-                                        Visualize o detalhamento completo dos tributos e valores declarados do mês referência.
+                                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Consultar Extrato</h3>
+                                    <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed max-w-xs">
+                                        Visualize o detalhamento completo dos tributos e valores declarados.
                                     </p>
                                 </div>
                                 <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
@@ -422,43 +368,156 @@ const CentralDoSimples = () => {
 
                             {/* Card DAS */}
                             <button
-                                onClick={handleGerarDas}
-                                disabled={loadingDas}
-                                className="relative group overflow-hidden p-8 rounded-2xl bg-white dark:bg-gray-800 border-2 border-transparent hover:border-emerald-100 dark:hover:border-emerald-900 shadow-lg hover:shadow-2xl transition-all duration-300 text-left w-full disabled:opacity-70 disabled:grayscale"
+                                onClick={() => handleSelectAction('das')}
+                                className="relative group overflow-hidden p-8 rounded-2xl bg-white dark:bg-gray-800 border-2 border-transparent hover:border-emerald-100 dark:hover:border-emerald-900 shadow-xl hover:shadow-2xl transition-all duration-300 text-left w-full"
                             >
                                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                                    <DocumentArrowDownIcon className="h-32 w-32 text-emerald-600 dark:text-emerald-400 transform -rotate-12" />
+                                    <DocumentArrowDownIcon className="h-40 w-40 text-emerald-600 dark:text-emerald-400 transform -rotate-12" />
                                 </div>
-                                <div className="relative z-10">
-                                    <div className="h-14 w-14 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                                        {loadingDas ? <ArrowPathIcon className="h-7 w-7 text-emerald-600 animate-spin" /> : <DocumentArrowDownIcon className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />}
+                                <div className="relative z-10 flex flex-col items-center text-center">
+                                    <div className="h-20 w-20 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                                        <DocumentArrowDownIcon className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
                                     </div>
-                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Emitir Guia DAS</h3>
-                                    <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">
-                                        Gere e faça o download da guia de pagamento do Documento de Arrecadação do Simples Nacional.
+                                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Emitir Guia DAS</h3>
+                                    <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed max-w-xs">
+                                        Gere e faça o download da guia de pagamento mensal.
                                     </p>
                                 </div>
                                 <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300" />
                             </button>
-                        </div>
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key="step1"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden max-w-2xl mx-auto"
+                        >
+                            <div className={`p-1 h-2 w-full ${selectedAction === 'extrato' ? 'bg-gradient-to-r from-indigo-500 to-purple-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`} />
 
-                        {/* Área de Resultado Condicional (Se um dia voltarmos a mostrar dados na tela) */}
-                        {extratoData && (
-                            <ExtratoResult
-                                data={extratoData}
-                                onDownloadPdf={() => { }} // Já estamos baixando direto na ação principal por enquanto
-                                isDownloadingPdf={false}
-                            />
-                        )}
+                            <div className="p-8">
+                                <div className="flex items-center justify-between mb-8">
+                                    <button
+                                        onClick={handleBack}
+                                        className="text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white flex items-center gap-2 transition-colors text-sm font-medium"
+                                    >
+                                        &larr; Voltar
+                                    </button>
+                                    <div className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${selectedAction === 'extrato'
+                                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                        }`}>
+                                        {selectedAction === 'extrato' ? 'Consulta Extrato' : 'Emissão DAS'}
+                                    </div>
+                                </div>
 
-                        {!selectedEmpresaId && (
-                            <div className="mt-8 p-10 text-center border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl text-gray-400">
-                                <InformationCircleIcon className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                                <p>Selecione uma empresa para começar.</p>
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                            Selecione a Empresa
+                                        </label>
+                                        <div className="relative">
+                                            <select
+                                                value={selectedEmpresaId}
+                                                onChange={(e) => setSelectedEmpresaId(e.target.value)}
+                                                className="w-full pl-4 pr-10 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 appearance-none transition-all font-medium text-gray-800 dark:text-white"
+                                            >
+                                                <option value="">Clique para selecionar...</option>
+                                                {empresas.map(emp => (
+                                                    <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                                                ))}
+                                            </select>
+                                            <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-500">
+                                                <UsersIcon className="h-5 w-5" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                            Período de Apuração
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="relative">
+                                                <select
+                                                    value={selectedMonth}
+                                                    onChange={(e) => setSelectedMonth(e.target.value)}
+                                                    className="w-full pl-4 pr-8 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 appearance-none transition-all font-medium text-gray-800 dark:text-white"
+                                                >
+                                                    {monthOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                                                </select>
+                                                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-500">
+                                                    <CalendarDaysIcon className="h-5 w-5" />
+                                                </div>
+                                            </div>
+                                            <div className="relative">
+                                                <select
+                                                    value={selectedYear}
+                                                    onChange={(e) => setSelectedYear(e.target.value)}
+                                                    className="w-full pl-4 pr-8 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 appearance-none transition-all font-medium text-gray-800 dark:text-white"
+                                                >
+                                                    {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+                                                </select>
+                                                <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-500">
+                                                    <CalendarDaysIcon className="h-5 w-5" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Botão de Ação */}
+                                    <button
+                                        onClick={handleExecute}
+                                        disabled={loadingExtrato || loadingDas}
+                                        className={`w-full py-4 px-6 rounded-xl font-bold text-white shadow-lg transform transition-all hover:-translate-y-1 hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-3 ${selectedAction === 'extrato'
+                                                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
+                                                : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+                                            }`}
+                                    >
+                                        {(loadingExtrato || loadingDas) ? (
+                                            <ArrowPathIcon className="h-6 w-6 animate-spin" />
+                                        ) : selectedAction === 'extrato' ? (
+                                            <DocumentChartBarIcon className="h-6 w-6" />
+                                        ) : (
+                                            <DocumentArrowDownIcon className="h-6 w-6" />
+                                        )}
+                                        {loadingExtrato || loadingDas
+                                            ? 'Processando...'
+                                            : selectedAction === 'extrato'
+                                                ? 'Baixar Extrato PDF'
+                                                : 'Gerar Guia DAS PDF'
+                                        }
+                                    </button>
+                                </div>
+
+                                {/* Mensagens */}
+                                <div className="mt-6">
+                                    <AnimatePresence>
+                                        {error && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                                className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 p-4 rounded-xl text-sm flex items-center gap-3"
+                                            >
+                                                <InformationCircleIcon className="h-5 w-5 shrink-0" />
+                                                {error}
+                                            </motion.div>
+                                        )}
+                                        {successMessage && (
+                                            <motion.div
+                                                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                                className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-4 rounded-xl text-sm flex items-center gap-3"
+                                            >
+                                                <CheckCircleIcon className="h-5 w-5 shrink-0" />
+                                                {successMessage}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
                             </div>
-                        )}
-                    </div>
-                </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );
