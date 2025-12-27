@@ -1307,11 +1307,11 @@ def gerar_boleto_view(request):
         "descricaoTipoTitulo": "DM",
         "indicadorPermissaoRecebimentoParcial": "N",
         # Gera um número de controle único para cada teste
-        "numeroTituloBeneficiario": f"TESTE{int(timezone.now().timestamp())}",
-        "campoUtilizacaoBeneficiario": "TESTE API",
+        "numeroTituloBeneficiario": f"{int(timezone.now().timestamp())}",
+        "campoUtilizacaoBeneficiario": "EMISSAO WEB",
         # Gera um "Nosso Número" de 20 dígitos, único para cada teste
         "numeroTituloCliente": f"000{SEU_NUMERO_CONVENIO}{int(timezone.now().timestamp()) % 10**10:010d}",
-        "mensagemBloquetoOcorrencia": "Teste de Boleto - Homologação",
+        "mensagemBloquetoOcorrencia": "Boleto de Cobrança",
         "indicadorPix": "S",
     }
 
