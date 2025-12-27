@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { Link } from 'react-router-dom';
 import {
@@ -9,10 +9,7 @@ import {
     MagnifyingGlassIcon,
     ExclamationCircleIcon,
     CogIcon,
-    DocumentArrowDownIcon,
-    FunnelIcon,
-    ChartBarIcon,
-    BanknotesIcon
+    DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 

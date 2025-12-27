@@ -685,9 +685,9 @@ const InicioPage = () => {
                         <div className="flex items-center space-x-2">
                           <UsersIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
                           <Link
-                            to={`/consultar-declaracoes?empresa_id=${empresa.id}`}
-                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
-                            onClick={() => console.log(`Navegando para /consultar-declaracoes?empresa_id=${empresa.id}`)}
+                            to={`/empresas/${empresa.id}/pastas`}
+                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium hover:underline"
+                            title="Acessar pasta de arquivos"
                           >
                             {empresa.nome}
                           </Link>
