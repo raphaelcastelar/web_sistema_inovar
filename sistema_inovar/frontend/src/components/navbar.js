@@ -63,19 +63,17 @@ const Navbar = () => {
                 <NavLink to="/" icon={HomeIcon} text="Início" />
                 <NavLink to="/empresas" icon={BuildingOfficeIcon} text="Empresas" />
                 <NavLink to="/gerenciar-usuarios" icon={UserGroupIcon} text="Usuários" />
-                <NavLink to="/gerenciar-atribuicoes" icon={Cog6ToothIcon} text="Gerenciar Atribuicoes" />
-                <NavLink to="/empresas/gerenciar" icon={ChartBarIcon} text="Gerenciar Empresas" />
+                <NavLink to="/gerenciar-atribuicoes" icon={Cog6ToothIcon} text="Atribuições" />
+                <NavLink to="/gerenciamento-integrado" icon={ChartBarIcon} text="Gestão Integrada" />
 
                 <div className="px-4 pt-4 pb-2">
                     <span className="text-xs font-semibold text-indigo-400 uppercase">Serviços</span>
                 </div>
 
                 <NavLink to="/central-simples" icon={DocumentChartBarIcon} text="Central do Simples" />
-                <NavLink to="/gerenciar-boleto" icon={BanknotesIcon} text="Gerenciar Boleto" />
-                <NavLink to="/gerar-boleto" icon={BanknotesIcon} text="Gerar Boleto" />
                 <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" />
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
-                
+
             </nav>
 
             <div className="w-full flex-shrink-0 p-4 space-y-2 border-t border-indigo-800/50">
