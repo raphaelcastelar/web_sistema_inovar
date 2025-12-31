@@ -693,7 +693,56 @@ def enviar_documentos_whatsapp_api(request):
             failed_sends.append({"filename": doc.nome_arquivo, "reason": "Caminho do arquivo inválido."})
             continue
         
-        file_path_on_server = doc.caminho_arquivo.path
+        # FIX: Reconstruir o caminho do arquivo manualmente para garantir que pegamos o arquivo REAL no disco (raw filename)
+        # e não o caminho sanitizado que o Django salva no banco (caminho_arquivo.path)
+        
+        # 1. Tenta pegar a config de sync para saber a estrutura de pastas
+        config_sync = MODEL_CONFIG_MAP_SYNC.get(tipo_pasta)
+        
+        file_path_on_server = None
+        if config_sync:
+            # Reconstroi o caminho da pasta
+            company_folder = gerar_nome_pasta_empresa_padronizado(empresa.nome)
+            fs_folder_name = config_sync['fs_folder_name']
+            
+            base_path = os.path.join(settings.MEDIA_ROOT, company_folder, fs_folder_name)
+            
+            # Adiciona Ano e Mês se necessário
+            if config_sync['has_year_month']:
+                doc_ano = str(doc.ano)
+                doc_mes = str(doc.mes)
+                # Verifica se mes já vem com 2 digitos ou não, garante formato MM
+                if len(doc_mes) == 1:
+                    doc_mes = f"0{doc_mes}"
+                
+                # Formato da pasta mensal: MMYYYY (ex: 012025)
+                # IMPORTANTE: Verificar se doc.mes e doc.ano estão preenchidos.
+                if doc_ano and doc_mes:
+                    folder_month_year = f"{doc_mes}{doc_ano}"
+                    base_path = os.path.join(base_path, doc_ano, folder_month_year)
+            
+            # Junta com o nome do arquivo ORIGINAL (doc.nome_arquivo)
+            # doc.nome_arquivo é o nome EXATO que está no disco (raw), enquanto doc.caminho_arquivo é sanitizado pelo Django
+            possible_path = os.path.join(base_path, doc.nome_arquivo)
+            
+            if os.path.exists(possible_path):
+                file_path_on_server = possible_path
+                logger.info(f"Arquivo encontrado compondo caminho manual: {file_path_on_server}")
+            else:
+                 # Fallback: Se não achar com o nome original (o que seria estranho dado o problema), tenta o path do django
+                logger.warning(f"Arquivo não encontrado no caminho manual: {possible_path}. Tentando fallback para doc.caminho_arquivo.path")
+                if doc.caminho_arquivo and hasattr(doc.caminho_arquivo, 'path') and os.path.exists(doc.caminho_arquivo.path):
+                     file_path_on_server = doc.caminho_arquivo.path
+        
+        if not file_path_on_server:
+             # Última tentativa direto do objeto, caso a lógica acima falhe ou config não exista
+             if doc.caminho_arquivo and hasattr(doc.caminho_arquivo, 'path'):
+                file_path_on_server = doc.caminho_arquivo.path
+
+        if not file_path_on_server or not os.path.exists(file_path_on_server):
+            logger.error(f"Arquivo FÍSICO não encontrado para ID {doc.id}: {doc.nome_arquivo}")
+            failed_sends.append({"filename": doc.nome_arquivo, "reason": "Arquivo físico não encontrado no servidor."})
+            continue
         original_filename = doc.nome_arquivo
         logger.info(f"Processando envio para WhatsApp: {original_filename} para {recipient_whatsapp_number} (Empresa: {empresa.nome}) usando template: {whatsapp_template_to_use}")
 
