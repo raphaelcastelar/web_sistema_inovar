@@ -54,6 +54,7 @@ const GerarBoletoPage = () => {
 
     const [pagadorEditable, setPagadorEditable] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [isDisabled, setIsDisabled] = useState(false); // Novo estado para desativar botão
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [showPreview, setShowPreview] = useState(true);
 
@@ -77,6 +78,7 @@ const GerarBoletoPage = () => {
     // Atualizar pagador (quando user escolhe empresa, preenche por padrão)
     useEffect(() => {
         if (!selectedEmpresaId) return;
+        setIsDisabled(false); // Reativa o botão se trocar de empresa
         const empresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
         if (!empresa) return;
         // preenche pagador apenas se ainda não tiver sido editado
@@ -188,6 +190,7 @@ const GerarBoletoPage = () => {
             return setMsg({ type: 'error', text: 'Informe um valorOriginal maior que zero.' });
         }
         setLoading(true);
+        setIsDisabled(true); // Desativa imediatamente ao clicar
 
         try {
             const payload = buildPayload();
@@ -231,6 +234,7 @@ const GerarBoletoPage = () => {
             console.error(err);
             // pode ser erro de rede ou resposta não-JSON
             setMsg({ type: 'error', text: 'Erro ao gerar boleto. Verifique logs.' });
+            setIsDisabled(false); // Reativa o botão apenas em caso de erro
         } finally {
             setLoading(false);
         }
@@ -344,10 +348,13 @@ const GerarBoletoPage = () => {
 
             <button
                 onClick={gerar}
-                disabled={loading}
-                className="w-full p-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition"
+                disabled={loading || isDisabled}
+                className={`w-full p-3 font-semibold rounded-lg transition ${loading || isDisabled
+                        ? 'bg-gray-400 cursor-not-allowed text-gray-200'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    }`}
             >
-                {loading ? "Gerando..." : "Gerar Boleto"}
+                {loading ? "Gerando..." : (isDisabled ? "Boleto Gerado" : "Gerar Boleto")}
             </button>
 
             {msg.text && (
