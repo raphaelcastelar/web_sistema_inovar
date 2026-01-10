@@ -25,6 +25,10 @@ const EmpresaList = () => {
     const [isAdmin, setIsAdmin] = useState(null);
     const [activeTab, setActiveTab] = useState('ativadas'); // 'ativadas' ou 'nao-ativadas'
 
+    // Estado para controle do Infinite Scroll
+    const [visibleCount, setVisibleCount] = useState(24); // Começa mostrando 24
+    const observerTarget = React.useRef(null);
+
     useEffect(() => {
         const fetchUser = async () => {
             try {
@@ -44,8 +48,8 @@ const EmpresaList = () => {
                 setEmpresas(response.data);
             } catch (err) {
                 console.error('Erro ao carregar empresas:', err.response?.data || err.message);
-                setError(err.response?.status === 403 
-                    ? 'Você não tem permissão para visualizar empresas.' 
+                setError(err.response?.status === 403
+                    ? 'Você não tem permissão para visualizar empresas.'
                     : `Erro ao carregar empresas: ${err.response?.data?.detail || err.message}`);
             } finally {
                 setLoading(false);
@@ -55,6 +59,33 @@ const EmpresaList = () => {
         fetchUser();
         fetchEmpresas();
     }, []);
+
+    // Resetar a contagem visível quando mudar a busca ou a aba
+    useEffect(() => {
+        setVisibleCount(24);
+    }, [search, activeTab]);
+
+    // Intersection Observer para carregar mais itens
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting) {
+                    setVisibleCount(prev => prev + 24);
+                }
+            },
+            { threshold: 1.0 }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => {
+            if (observerTarget.current) {
+                observer.unobserve(observerTarget.current);
+            }
+        };
+    }, [observerTarget]);
 
     const handleDelete = (id) => {
         if (window.confirm('Tem certeza que deseja excluir esta empresa? Esta ação apaga também a pasta da empresa no servidor.')) {
@@ -90,6 +121,8 @@ const EmpresaList = () => {
         });
     }, [empresas, search, activeTab]);
 
+    const visibleEmpresas = filteredEmpresas.slice(0, visibleCount);
+
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
@@ -113,7 +146,7 @@ const EmpresaList = () => {
                 <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300">Empresas Cadastradas</h1>
                 <div className="flex items-center gap-4 w-full md:w-auto">
                     <div className="relative w-full md:w-64">
-                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute top-1/2 left-3 transform -translate-y-1/2"/>
+                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute top-1/2 left-3 transform -translate-y-1/2" />
                         <input
                             type="text"
                             placeholder="Buscar..."
@@ -164,7 +197,7 @@ const EmpresaList = () => {
 
             {filteredEmpresas.length === 0 ? (
                 <div className="text-center py-16 px-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-                    <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400"/>
+                    <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400" />
                     <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">
                         {activeTab === 'ativadas' ? 'Nenhuma empresa ativada' : 'Nenhuma empresa não ativada'}
                     </h3>
@@ -174,51 +207,60 @@ const EmpresaList = () => {
                     </p>
                 </div>
             ) : (
-                <motion.div 
-                    className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                >
-                    {filteredEmpresas.map(empresa => {
-                        const avatar = getAvatarStyle(empresa.nome);
-                        return (
-                            <motion.div
-                                key={empresa.id}
-                                variants={itemVariants}
-                                whileHover={{ y: -5 }}
-                                className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl border border-gray-200 dark:border-gray-700 transition-shadow duration-300 flex flex-col"
-                            >
-                                <div className="p-6 flex-grow">
-                                    <div className="flex items-center mb-4">
-                                        <div className={`w-12 h-12 rounded-full ${avatar.color} flex items-center justify-center text-white text-xl font-bold mr-4 flex-shrink-0`}>
-                                            {avatar.initial}
+                <>
+                    <motion.div
+                        className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="visible"
+                    >
+                        {visibleEmpresas.map(empresa => {
+                            const avatar = getAvatarStyle(empresa.nome);
+                            return (
+                                <motion.div
+                                    key={empresa.id}
+                                    variants={itemVariants}
+                                    whileHover={{ y: -5 }}
+                                    className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl border border-gray-200 dark:border-gray-700 transition-shadow duration-300 flex flex-col"
+                                >
+                                    <div className="p-6 flex-grow">
+                                        <div className="flex items-center mb-4">
+                                            <div className={`w-12 h-12 rounded-full ${avatar.color} flex items-center justify-center text-white text-xl font-bold mr-4 flex-shrink-0`}>
+                                                {avatar.initial}
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-bold text-gray-900 dark:text-indigo-300 break-words leading-tight">{empresa.nome}</h3>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400">{empresa.cnpj}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h3 className="text-lg font-bold text-gray-900 dark:text-indigo-300 break-words leading-tight">{empresa.nome}</h3>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">{empresa.cnpj}</p>
-                                        </div>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 break-all">{empresa.email}</p>
                                     </div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 break-all">{empresa.email}</p>
-                                </div>
-                                
-                                <div className="flex space-x-2 bg-gray-50 dark:bg-gray-700/50 p-3 border-t border-gray-200 dark:border-gray-700">
-                                    <Link to={`/empresas/editar/${empresa.id}`} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors" title="Editar">
-                                        <PencilIcon className="h-5 w-5 mx-auto"/>
-                                    </Link>
-                                    {isAdmin && (
-                                        <button onClick={() => handleDelete(empresa.id)} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-colors" title="Excluir">
-                                            <TrashIcon className="h-5 w-5 mx-auto" />
-                                        </button>
-                                    )}
-                                    <Link to={`/empresas/${empresa.id}/pastas`} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-green-100 dark:hover:bg-green-900/50 hover:text-green-600 dark:hover:text-green-400 rounded-md transition-colors" title="Acessar Pastas">
-                                        <FolderIcon className="h-5 w-5 mx-auto" />
-                                    </Link>
-                                </div>
-                            </motion.div>
-                        );
-                    })}
-                </motion.div>
+
+                                    <div className="flex space-x-2 bg-gray-50 dark:bg-gray-700/50 p-3 border-t border-gray-200 dark:border-gray-700">
+                                        <Link to={`/empresas/editar/${empresa.id}`} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors" title="Editar">
+                                            <PencilIcon className="h-5 w-5 mx-auto" />
+                                        </Link>
+                                        {isAdmin && (
+                                            <button onClick={() => handleDelete(empresa.id)} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-red-100 dark:hover:bg-red-900/50 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-colors" title="Excluir">
+                                                <TrashIcon className="h-5 w-5 mx-auto" />
+                                            </button>
+                                        )}
+                                        <Link to={`/empresas/${empresa.id}/pastas`} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-green-100 dark:hover:bg-green-900/50 hover:text-green-600 dark:hover:text-green-400 rounded-md transition-colors" title="Acessar Pastas">
+                                            <FolderIcon className="h-5 w-5 mx-auto" />
+                                        </Link>
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
+                    </motion.div>
+
+                    {/* Elemento sentinela para o Infinite Scroll */}
+                    {visibleCount < filteredEmpresas.length && (
+                        <div ref={observerTarget} className="text-center py-8 text-gray-500">
+                            Carregando mais empresas...
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
