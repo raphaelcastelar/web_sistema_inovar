@@ -4,18 +4,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, BuildingOffice2Icon } from '@heroicons/react/24/outline';
 
-const getAvatarStyle = (name) => {
-    if (!name) return { initial: '?', color: 'bg-gray-500' };
-    const colors = [
-        'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500',
-        'bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-teal-500',
-        'bg-orange-500'
-    ];
-    const initial = name.charAt(0).toUpperCase();
-    const charCodeSum = name.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    const color = colors[charCodeSum % colors.length];
-    return { initial, color };
-};
+
 
 const EmpresaList = () => {
     const [empresas, setEmpresas] = useState([]);
@@ -215,7 +204,7 @@ const EmpresaList = () => {
                         animate="visible"
                     >
                         {visibleEmpresas.map(empresa => {
-                            const avatar = getAvatarStyle(empresa.nome);
+
                             return (
                                 <motion.div
                                     key={empresa.id}
@@ -224,10 +213,7 @@ const EmpresaList = () => {
                                     className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl border border-gray-200 dark:border-gray-700 transition-shadow duration-300 flex flex-col"
                                 >
                                     <div className="p-6 flex-grow">
-                                        <div className="flex items-center mb-4">
-                                            <div className={`w-12 h-12 rounded-full ${avatar.color} flex items-center justify-center text-white text-xl font-bold mr-4 flex-shrink-0`}>
-                                                {avatar.initial}
-                                            </div>
+                                        <div className="mb-4">
                                             <div>
                                                 <h3 className="text-lg font-bold text-gray-900 dark:text-indigo-300 break-words leading-tight">{empresa.nome}</h3>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">{empresa.cnpj}</p>
