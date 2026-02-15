@@ -74,7 +74,7 @@ const Navbar = () => {
                 <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" />
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
 
-            </nav>
+                                                                                                                                                    </nav>
 
             <div className="w-full flex-shrink-0 p-4 space-y-2 border-t border-indigo-800/50">
                 <ThemeToggle />
