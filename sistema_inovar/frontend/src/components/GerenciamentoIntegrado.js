@@ -31,6 +31,7 @@ const GerenciamentoIntegrado = () => {
     const [resultsModalOpen, setResultsModalOpen] = useState(false);
     const [updatingHonorarioIds, setUpdatingHonorarioIds] = useState([]);
     const [retryingEmpresaIds, setRetryingEmpresaIds] = useState([]);
+    const [lastSessionUpdatedAt, setLastSessionUpdatedAt] = useState(null);
 
     // --- Modal Config State ---
     const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -68,11 +69,33 @@ const GerenciamentoIntegrado = () => {
             }
         };
 
+        const fetchLastSessionResult = async () => {
+            try {
+                const response = await axiosInstance.get('/api/ultimo-resultado-sessao/');
+                setBatchSummary(response.data?.batch_summary || null);
+                setLastSessionUpdatedAt(response.data?.atualizado_em || null);
+            } catch (err) {
+                console.error('Erro ao carregar o ultimo resultado salvo:', err.response?.data || err.message);
+            }
+        };
+
         fetchUser();
         fetchEmpresas();
+        fetchLastSessionResult();
     }, []);
 
     // --- Handlers ---
+    const persistBatchSummary = async (nextSummary) => {
+        try {
+            const response = await axiosInstance.post('/api/ultimo-resultado-sessao/', {
+                batch_summary: nextSummary,
+            });
+            setLastSessionUpdatedAt(response.data?.atualizado_em || null);
+        } catch (err) {
+            console.error('Erro ao salvar o ultimo resultado da sessao:', err.response?.data || err.message);
+        }
+    };
+
     const updateEmpresaInState = (empresaId, updates) => {
         setEmpresas((currentEmpresas) => currentEmpresas.map((empresa) => (
             empresa.id === empresaId ? { ...empresa, ...updates } : empresa
@@ -212,13 +235,16 @@ const GerenciamentoIntegrado = () => {
         const successResults = results.filter((result) => result.status === 'success');
         const errorResults = results.filter((result) => result.status === 'error');
 
-        setBatchSummary({
+        const nextBatchSummary = {
             total: results.length,
             successCount: successResults.length,
             errorCount: errorResults.length,
             successResults,
             errorResults,
-        });
+        };
+
+        setBatchSummary(nextBatchSummary);
+        await persistBatchSummary(nextBatchSummary);
 
         if (successResults.length > 0) {
             setSuccess(`Remessa concluida: ${successResults.length} empresa(s) processada(s) com sucesso.`);
@@ -247,6 +273,7 @@ const GerenciamentoIntegrado = () => {
 
         try {
             const retryResult = await processarBoletoEmpresa(empresaId);
+            let nextBatchSummary = null;
 
             setBatchSummary((currentSummary) => {
                 if (!currentSummary) {
@@ -262,14 +289,20 @@ const GerenciamentoIntegrado = () => {
                     errorResults.push(retryResult);
                 }
 
-                return {
+                nextBatchSummary = {
                     ...currentSummary,
                     successCount: successResults.length,
                     errorCount: errorResults.length,
                     successResults,
                     errorResults,
                 };
+
+                return nextBatchSummary;
             });
+
+            if (nextBatchSummary) {
+                await persistBatchSummary(nextBatchSummary);
+            }
 
             if (retryResult.status === 'success') {
                 setSelectedEmpresaIds((currentIds) => currentIds.filter((id) => id !== empresaId));
@@ -551,6 +584,11 @@ const GerenciamentoIntegrado = () => {
                                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                                     Resultado consolidado em um popup para nao ocupar a area principal da tela.
                                 </p>
+                                {lastSessionUpdatedAt && (
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                        Salvo em {new Date(lastSessionUpdatedAt).toLocaleString('pt-BR')}
+                                    </p>
+                                )}
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200">

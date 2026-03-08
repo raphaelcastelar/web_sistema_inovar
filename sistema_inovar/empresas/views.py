@@ -66,13 +66,15 @@ from .utils import get_bb_access_token
 
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao
+    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
+    UltimoResultadoSessao
 
 )
 from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
-    HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer
+    HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
+    UltimoResultadoSessaoSerializer
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
@@ -1049,6 +1051,28 @@ def current_user(request):
     except Exception as e:
         logger.error(f"Error in current_user: {str(e)}")
         return Response({'error': f'Erro ao obter dados do usuário: {str(e)}'}, status=500)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def ultimo_resultado_sessao(request):
+    try:
+        registro, _ = UltimoResultadoSessao.objects.get_or_create(usuario=request.user)
+
+        if request.method == 'POST':
+            batch_summary = request.data.get('batch_summary')
+
+            if batch_summary is not None and not isinstance(batch_summary, dict):
+                return Response({'error': 'O campo batch_summary deve ser um objeto JSON válido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            registro.batch_summary = batch_summary
+            registro.save(update_fields=['batch_summary', 'atualizado_em'])
+
+        serializer = UltimoResultadoSessaoSerializer(registro)
+        return Response(serializer.data)
+    except Exception as e:
+        logger.error(f"Erro ao processar último resultado de sessão para {request.user.username}: {str(e)}")
+        return Response({'error': 'Erro ao processar o último resultado da sessão.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     
 @api_view(['POST'])

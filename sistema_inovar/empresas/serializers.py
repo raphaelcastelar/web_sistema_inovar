@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao
 import re
 import logging
 
@@ -188,3 +188,9 @@ class NotificacaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notificacao
         fields = ['id', 'destinatario', 'mensagem', 'lida', 'timestamp']
+
+
+class UltimoResultadoSessaoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UltimoResultadoSessao
+        fields = ['batch_summary', 'atualizado_em']

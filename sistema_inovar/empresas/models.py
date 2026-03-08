@@ -343,3 +343,16 @@ class Notificacao(models.Model):
 
     def __str__(self):
         return f"Notificação para {self.destinatario.username}: {self.mensagem}"
+
+
+class UltimoResultadoSessao(models.Model):
+    usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ultimo_resultado_sessao')
+    batch_summary = models.JSONField(null=True, blank=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Último resultado de sessão'
+        verbose_name_plural = 'Últimos resultados de sessão'
+
+    def __str__(self):
+        return f"Último resultado de {self.usuario.username}"
