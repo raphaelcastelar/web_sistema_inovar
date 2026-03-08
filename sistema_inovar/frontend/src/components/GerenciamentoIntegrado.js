@@ -22,6 +22,10 @@ const GerenciamentoIntegrado = () => {
     const [search, setSearch] = useState('');
     const [isAdmin, setIsAdmin] = useState(null);
     const [filterStatus, setFilterStatus] = useState('all'); // all, active, inactive
+    const [boletoModalOpen, setBoletoModalOpen] = useState(false);
+    const [boletoBatchSearch, setBoletoBatchSearch] = useState('');
+    const [selectedEmpresaIds, setSelectedEmpresaIds] = useState([]);
+    const [isGeneratingBoletos, setIsGeneratingBoletos] = useState(false);
 
     // --- Modal Config State ---
     const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -82,15 +86,83 @@ const GerenciamentoIntegrado = () => {
         }
     };
 
-    const handleGerarBoleto = async (id) => {
-        try {
-            const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: id });
-            setSuccess(response?.data?.message || 'Boleto gerado com sucesso!');
-            setTimeout(() => setSuccess(''), 3000);
-        } catch (err) {
-            console.error('Erro ao gerar boleto:', err);
-            setError(err?.response?.data?.error || err?.response?.data?.message || 'Falha ao gerar o boleto.');
+    const handleOpenBoletoModal = () => {
+        setError('');
+        setSuccess('');
+        setBoletoBatchSearch('');
+        setSelectedEmpresaIds([]);
+        setBoletoModalOpen(true);
+    };
+
+    const handleToggleEmpresaSelection = (empresaId) => {
+        setSelectedEmpresaIds((currentIds) => (
+            currentIds.includes(empresaId)
+                ? currentIds.filter((id) => id !== empresaId)
+                : [...currentIds, empresaId]
+        ));
+    };
+
+    const handleToggleAllModalEmpresas = () => {
+        const modalEmpresaIds = filteredActiveEmpresasForModal.map((empresa) => empresa.id);
+        const allSelected = modalEmpresaIds.length > 0 && modalEmpresaIds.every((id) => selectedEmpresaIds.includes(id));
+
+        if (allSelected) {
+            setSelectedEmpresaIds((currentIds) => currentIds.filter((id) => !modalEmpresaIds.includes(id)));
+            return;
         }
+
+        setSelectedEmpresaIds((currentIds) => Array.from(new Set([...currentIds, ...modalEmpresaIds])));
+    };
+
+    const handleGerarBoletosEmLote = async () => {
+        if (selectedEmpresaIds.length === 0) {
+            setError('Selecione pelo menos uma empresa ativa para gerar os boletos.');
+            return;
+        }
+
+        setIsGeneratingBoletos(true);
+        setError('');
+        setSuccess('');
+
+        const results = [];
+
+        for (const empresaId of selectedEmpresaIds) {
+            const empresa = empresas.find((item) => item.id === empresaId);
+
+            try {
+                const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: empresaId });
+                results.push({
+                    empresa: empresa?.nome || `Empresa ${empresaId}`,
+                    status: 'success',
+                    message: response?.data?.message || 'Boleto processado com sucesso.'
+                });
+            } catch (err) {
+                console.error('Erro ao gerar boleto em lote:', err);
+                results.push({
+                    empresa: empresa?.nome || `Empresa ${empresaId}`,
+                    status: 'error',
+                    message: err?.response?.data?.error || err?.response?.data?.message || 'Falha ao gerar o boleto.'
+                });
+            }
+        }
+
+        const successResults = results.filter((result) => result.status === 'success');
+        const errorResults = results.filter((result) => result.status === 'error');
+
+        if (successResults.length > 0) {
+            setSuccess(`${successResults.length} empresa(s) processada(s) com sucesso para geração e envio de honorários.`);
+            setTimeout(() => setSuccess(''), 5000);
+        }
+
+        if (errorResults.length > 0) {
+            const nomesComErro = errorResults.map((result) => result.empresa).join(', ');
+            setError(`Falha ao processar ${errorResults.length} empresa(s): ${nomesComErro}.`);
+        } else {
+            setBoletoModalOpen(false);
+            setSelectedEmpresaIds([]);
+        }
+
+        setIsGeneratingBoletos(false);
     };
 
     const handleConfiguracoes = (id) => {
@@ -161,6 +233,36 @@ const GerenciamentoIntegrado = () => {
             return matchNome || matchEmail || matchCnpj;
         });
     }, [empresas, search, filterStatus]);
+
+    const activeEmpresas = useMemo(() => {
+        return empresas
+            .filter((empresa) => empresa.ativo)
+            .sort((firstEmpresa, secondEmpresa) => firstEmpresa.nome.localeCompare(secondEmpresa.nome, 'pt-BR'));
+    }, [empresas]);
+
+    const filteredActiveEmpresasForModal = useMemo(() => {
+        const normalizedSearch = boletoBatchSearch.toLowerCase().trim();
+
+        if (!normalizedSearch) {
+            return activeEmpresas;
+        }
+
+        const searchDigits = boletoBatchSearch.replace(/\D/g, '');
+
+        return activeEmpresas.filter((empresa) => {
+            const matchNome = empresa.nome?.toLowerCase().includes(normalizedSearch);
+            const matchEmail = empresa.email?.toLowerCase().includes(normalizedSearch);
+            const matchCnpj = searchDigits.length > 0
+                ? empresa.cnpj?.replace(/\D/g, '').includes(searchDigits)
+                : false;
+
+            return matchNome || matchEmail || matchCnpj;
+        });
+    }, [activeEmpresas, boletoBatchSearch]);
+
+    const selectedEmpresasCount = selectedEmpresaIds.length;
+    const allModalEmpresasSelected = filteredActiveEmpresasForModal.length > 0
+        && filteredActiveEmpresasForModal.every((empresa) => selectedEmpresaIds.includes(empresa.id));
 
     // --- Stats ---
     const stats = useMemo(() => {
@@ -248,6 +350,37 @@ const GerenciamentoIntegrado = () => {
                         </div>
                     </div>
                 </div>
+
+                <section className="relative overflow-hidden rounded-3xl border border-amber-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.28),_transparent_38%),linear-gradient(135deg,#111827_0%,#1f2937_55%,#0f172a_100%)] p-6 md:p-8 shadow-xl shadow-amber-900/10">
+                    <div className="absolute right-0 top-0 h-40 w-40 translate-x-10 -translate-y-10 rounded-full bg-amber-300/10 blur-3xl" />
+                    <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="max-w-2xl space-y-3">
+                            <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
+                                Disparo de Honorarios
+                            </span>
+                            <h2 className="text-2xl font-black tracking-tight text-white md:text-3xl">
+                                Monte uma remessa e envie os boletos sem sair da tela.
+                            </h2>
+                            <p className="max-w-xl text-sm leading-6 text-slate-300 md:text-base">
+                                Abra o seletor, marque as empresas ativas que devem receber honorario neste ciclo e dispare tudo em sequencia com um unico comando.
+                            </p>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-[auto_auto] sm:items-center">
+                            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 backdrop-blur-sm">
+                                <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Elegiveis agora</div>
+                                <div className="mt-1 text-2xl font-bold text-white">{activeEmpresas.length}</div>
+                            </div>
+                            <button
+                                onClick={handleOpenBoletoModal}
+                                className="inline-flex items-center justify-center gap-3 rounded-2xl bg-amber-400 px-5 py-4 text-sm font-black uppercase tracking-[0.16em] text-slate-950 transition-transform hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={activeEmpresas.length === 0}
+                            >
+                                <DocumentArrowDownIcon className="h-5 w-5" />
+                                Selecionar Empresas
+                            </button>
+                        </div>
+                    </div>
+                </section>
 
                 {/* Controls Area (Search & Filter) */}
                 <div className="flex flex-col md:flex-row gap-4">
@@ -337,13 +470,6 @@ const GerenciamentoIntegrado = () => {
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                                     <button
-                                                        onClick={() => handleGerarBoleto(empresa.id)}
-                                                        className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors"
-                                                        title="Gerar Boleto"
-                                                    >
-                                                        <DocumentArrowDownIcon className="h-5 w-5" />
-                                                    </button>
-                                                    <button
                                                         onClick={() => handleConfiguracoes(empresa.id)}
                                                         className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
                                                         title="Configurações"
@@ -373,6 +499,155 @@ const GerenciamentoIntegrado = () => {
 
                 {/* Modal Configurações */}
                 <AnimatePresence>
+                    {boletoModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            <motion.div
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
+                                onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
+                            />
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                                className="relative w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+                            >
+                                <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#f59e0b_0%,#fbbf24_45%,#fde68a_100%)] px-6 py-6 dark:border-slate-700">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="max-w-2xl">
+                                            <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-800/70">Selecao em Lote</p>
+                                            <h2 className="mt-2 text-2xl font-black text-slate-950">Quais empresas ativas vao receber honorario agora?</h2>
+                                            <p className="mt-2 text-sm text-slate-900/80">
+                                                Escolha as empresas ativas, gere os boletos e dispare o envio pelo WhatsApp em uma unica operacao.
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
+                                            className="rounded-full bg-white/60 p-2 text-slate-700 transition-colors hover:bg-white hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+                                            disabled={isGeneratingBoletos}
+                                        >
+                                            <XCircleIcon className="h-6 w-6" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-6 p-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+                                    <aside className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/70">
+                                        <div>
+                                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Resumo</div>
+                                            <div className="mt-3 grid grid-cols-2 gap-3">
+                                                <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
+                                                    <div className="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Ativas</div>
+                                                    <div className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{activeEmpresas.length}</div>
+                                                </div>
+                                                <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
+                                                    <div className="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Marcadas</div>
+                                                    <div className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{selectedEmpresasCount}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                                                Filtrar no popup
+                                            </label>
+                                            <div className="relative">
+                                                <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                                                <input
+                                                    type="text"
+                                                    value={boletoBatchSearch}
+                                                    onChange={(e) => setBoletoBatchSearch(e.target.value)}
+                                                    placeholder="Nome, CNPJ ou email"
+                                                    className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-amber-500/20"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={handleToggleAllModalEmpresas}
+                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-slate-950 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
+                                        >
+                                            {allModalEmpresasSelected ? 'Desmarcar visiveis' : 'Marcar visiveis'}
+                                        </button>
+
+                                        <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                            Somente empresas ativas aparecem neste seletor. Cada envio vai gerar o arquivo HONORARIO.pdf na pasta da empresa e enviar a copia nomeada para o WhatsApp.
+                                        </p>
+                                    </aside>
+
+                                    <div className="space-y-4">
+                                        <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                                            {filteredActiveEmpresasForModal.length === 0 ? (
+                                                <div className="rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
+                                                    Nenhuma empresa ativa encontrada com esse filtro.
+                                                </div>
+                                            ) : (
+                                                filteredActiveEmpresasForModal.map((empresa) => {
+                                                    const selected = selectedEmpresaIds.includes(empresa.id);
+
+                                                    return (
+                                                        <button
+                                                            key={empresa.id}
+                                                            type="button"
+                                                            onClick={() => handleToggleEmpresaSelection(empresa.id)}
+                                                            className={`w-full rounded-2xl border p-4 text-left transition ${selected
+                                                                ? 'border-amber-400 bg-amber-50 shadow-sm shadow-amber-200/60 dark:border-amber-400 dark:bg-amber-500/10'
+                                                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700/70'
+                                                                }`}
+                                                        >
+                                                            <div className="flex items-start gap-4">
+                                                                <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${selected
+                                                                    ? 'border-amber-500 bg-amber-400 text-slate-950'
+                                                                    : 'border-slate-300 bg-white dark:border-slate-500 dark:bg-slate-900'
+                                                                    }`}>
+                                                                    {selected && <CheckCircleIcon className="h-4 w-4" />}
+                                                                </div>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                                        <div>
+                                                                            <div className="text-sm font-bold text-slate-900 dark:text-white">{empresa.nome}</div>
+                                                                            <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">{empresa.cnpj}</div>
+                                                                        </div>
+                                                                        <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+                                                                            Ativa
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">{empresa.email}</div>
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                                                {selectedEmpresasCount === 0
+                                                    ? 'Nenhuma empresa selecionada.'
+                                                    : `${selectedEmpresasCount} empresa(s) pronta(s) para gerar e enviar honorario.`}
+                                            </p>
+                                            <div className="flex gap-3">
+                                                <button
+                                                    onClick={() => setBoletoModalOpen(false)}
+                                                    className="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                                                    disabled={isGeneratingBoletos}
+                                                >
+                                                    Fechar
+                                                </button>
+                                                <button
+                                                    onClick={handleGerarBoletosEmLote}
+                                                    className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-amber-400 dark:text-slate-950 dark:hover:bg-amber-300"
+                                                    disabled={isGeneratingBoletos || selectedEmpresasCount === 0}
+                                                >
+                                                    {isGeneratingBoletos ? 'Processando...' : 'Gerar E Enviar'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+
                     {configModalOpen && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                             <motion.div
