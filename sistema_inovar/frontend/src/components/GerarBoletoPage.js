@@ -202,38 +202,16 @@ const GerarBoletoPage = () => {
             // debug: opcional mostrar preview
             console.debug('Payload enviar:', body);
 
-            const res = await axiosInstance.post('/api/gerar-boleto/', body, {
-                responseType: 'blob',
-                headers: { 'Accept': 'application/pdf, application/json' }
+            const res = await axiosInstance.post('/api/gerar-boleto/', body);
+            setMsg({
+                type: 'success',
+                text: res?.data?.message || 'Boleto gerado com sucesso, salvo na pasta da empresa e enviado no WhatsApp.'
             });
-
-            // se vier PDF (blob), salva; se vier JSON (erro), tenta ler
-            const contentType = res.headers && res.headers['content-type'] ? res.headers['content-type'] : '';
-            if (contentType.includes('application/json')) {
-                // erro tratado como JSON
-                const text = await res.data.text();
-                // tenta parsear json
-                let parsed;
-                try { parsed = JSON.parse(text); } catch { parsed = { message: text }; }
-                setMsg({ type: 'error', text: `Erro: ${parsed?.error || parsed?.message || JSON.stringify(parsed)}` });
-            } else {
-                // assume PDF
-                const blob = new Blob([res.data], { type: 'application/pdf' });
-                const blobURL = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = blobURL;
-                const filename = `boleto_${(payload.numeroTituloBeneficiario || 'download')}.pdf`;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                setMsg({ type: 'success', text: 'Boleto gerado com sucesso!' });
-            }
         } catch (err) {
             // tenta extrair mensagem do response
             console.error(err);
-            // pode ser erro de rede ou resposta não-JSON
-            setMsg({ type: 'error', text: 'Erro ao gerar boleto. Verifique logs.' });
+            const errorText = err?.response?.data?.error || err?.response?.data?.message || 'Erro ao gerar boleto. Verifique logs.';
+            setMsg({ type: 'error', text: errorText });
             setIsDisabled(false); // Reativa o botão apenas em caso de erro
         } finally {
             setLoading(false);

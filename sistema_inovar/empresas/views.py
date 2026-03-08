@@ -23,6 +23,7 @@ from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.core.files.base import ContentFile
 from datetime import timedelta
 from django.db.models import OuterRef, Subquery, CharField
 from django.http import JsonResponse
@@ -1309,6 +1310,50 @@ def enviar_boleto_honorario_whatsapp(empresa, pdf_content, nome_arquivo, usuario
             os.remove(temp_file_path)
 
 
+def salvar_boleto_honorario_departamento_pessoal(empresa, pdf_content):
+    agora = timezone.now()
+    ano_referencia = str(agora.year)
+    mes_referencia = str(agora.month).zfill(2)
+    nome_arquivo_pasta = 'HONORARIO.pdf'
+
+    documentos_existentes = DepartamentoPessoal.objects.filter(
+        cnpj_empresa=empresa.cnpj,
+        tipo_documento='HONORARIO',
+        mes=mes_referencia,
+        ano=ano_referencia,
+    ).order_by('id')
+
+    documento = documentos_existentes.first()
+    for documento_extra in documentos_existentes[1:]:
+        if documento_extra.caminho_arquivo:
+            documento_extra.caminho_arquivo.delete(save=False)
+        documento_extra.delete()
+
+    if documento is None:
+        documento = DepartamentoPessoal(
+            nome_empresa=empresa.nome,
+            cnpj_empresa=empresa.cnpj,
+            tipo_documento='HONORARIO',
+            mes=mes_referencia,
+            ano=ano_referencia,
+            entregue=False,
+        )
+    else:
+        documento.nome_empresa = empresa.nome
+        documento.cnpj_empresa = empresa.cnpj
+        documento.tipo_documento = 'HONORARIO'
+        documento.mes = mes_referencia
+        documento.ano = ano_referencia
+        documento.entregue = False
+        if documento.caminho_arquivo:
+            documento.caminho_arquivo.delete(save=False)
+
+    documento.nome_arquivo = nome_arquivo_pasta
+    documento.caminho_arquivo.save(nome_arquivo_pasta, ContentFile(pdf_content), save=False)
+    documento.save()
+    return documento
+
+
 @api_view(['POST'])
 def gerar_boleto_view(request):
     empresa_id = request.data.get('empresa_id')
@@ -1659,6 +1704,7 @@ def gerar_boleto_view(request):
     except Exception as e:
         return HttpResponse(f"Erro ao gerar PDF: {str(e)}", status=500)
 
+    documento_honorario = salvar_boleto_honorario_departamento_pessoal(empresa, pdf)
     nome_base_empresa = empresa.nome or 'empresa'
     nome_arquivo_boleto = sanitize_filename_for_upload(f"honorario_{nome_base_empresa}.pdf").lower()
     usuario_envio = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
@@ -1678,8 +1724,10 @@ def gerar_boleto_view(request):
         logger.error(f"Erro inesperado no fluxo de envio do boleto via WhatsApp para {empresa.nome}: {e}")
 
     # === RETORNO ===
-    return HttpResponse(
-        pdf,
-        content_type='application/pdf',
-        headers={'Content-Disposition': f'attachment; filename="{nome_arquivo_boleto}"'}
-    )
+    return Response({
+        "success": True,
+        "message": "Boleto gerado, salvo na pasta da empresa e processado para envio no WhatsApp.",
+        "arquivo_whatsapp": nome_arquivo_boleto,
+        "arquivo_pasta": documento_honorario.nome_arquivo,
+        "caminho_arquivo": documento_honorario.caminho_arquivo.name,
+    }, status=status.HTTP_200_OK)

@@ -68,21 +68,11 @@ const GerenciarBoletos = () => {
 
     const handleGerarBoleto = async (id) => {
         try {
-            const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: id }, {
-                responseType: 'blob',
-                headers: { 'Accept': 'application/pdf, application/json' }
-            });
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', `boleto_empresa_${id}.pdf`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            setSuccess('Boleto gerado com sucesso!');
+            const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: id });
+            setSuccess(response?.data?.message || 'Boleto gerado com sucesso!');
         } catch (err) {
             console.error('Erro ao gerar boleto:', err);
-            setError('Falha ao gerar o boleto.');
+            setError(err?.response?.data?.error || err?.response?.data?.message || 'Falha ao gerar o boleto.');
         }
     };
 
