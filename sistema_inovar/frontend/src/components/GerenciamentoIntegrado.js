@@ -11,7 +11,6 @@ import {
     CogIcon,
     DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
-import { motion, AnimatePresence } from 'framer-motion';
 
 const GerenciamentoIntegrado = () => {
     // --- State ---
@@ -351,28 +350,27 @@ const GerenciamentoIntegrado = () => {
                     </div>
                 </div>
 
-                <section className="relative overflow-hidden rounded-3xl border border-amber-200/70 bg-[radial-gradient(circle_at_top_left,_rgba(251,191,36,0.28),_transparent_38%),linear-gradient(135deg,#111827_0%,#1f2937_55%,#0f172a_100%)] p-6 md:p-8 shadow-xl shadow-amber-900/10">
-                    <div className="absolute right-0 top-0 h-40 w-40 translate-x-10 -translate-y-10 rounded-full bg-amber-300/10 blur-3xl" />
-                    <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-                        <div className="max-w-2xl space-y-3">
-                            <span className="inline-flex items-center rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-200">
+                <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="max-w-2xl space-y-2">
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
                                 Disparo de Honorarios
                             </span>
-                            <h2 className="text-2xl font-black tracking-tight text-white md:text-3xl">
+                            <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
                                 Monte uma remessa e envie os boletos sem sair da tela.
                             </h2>
-                            <p className="max-w-xl text-sm leading-6 text-slate-300 md:text-base">
+                            <p className="max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-300 md:text-base">
                                 Abra o seletor, marque as empresas ativas que devem receber honorario neste ciclo e dispare tudo em sequencia com um unico comando.
                             </p>
                         </div>
-                        <div className="grid gap-3 sm:grid-cols-[auto_auto] sm:items-center">
-                            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 backdrop-blur-sm">
-                                <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Elegiveis agora</div>
-                                <div className="mt-1 text-2xl font-bold text-white">{activeEmpresas.length}</div>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-900">
+                                <div className="text-xs uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Elegiveis agora</div>
+                                <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{activeEmpresas.length}</div>
                             </div>
                             <button
                                 onClick={handleOpenBoletoModal}
-                                className="inline-flex items-center justify-center gap-3 rounded-2xl bg-amber-400 px-5 py-4 text-sm font-black uppercase tracking-[0.16em] text-slate-950 transition-transform hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex items-center justify-center gap-3 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
                                 disabled={activeEmpresas.length === 0}
                             >
                                 <DocumentArrowDownIcon className="h-5 w-5" />
@@ -408,20 +406,18 @@ const GerenciamentoIntegrado = () => {
                 </div>
 
                 {/* Messages */}
-                <AnimatePresence>
-                    {success && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 p-4 rounded-xl flex items-center gap-2">
-                            <CheckCircleIcon className="h-5 w-5" />
-                            {success}
-                        </motion.div>
-                    )}
-                    {error && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 p-4 rounded-xl flex items-center gap-2">
-                            <ExclamationCircleIcon className="h-5 w-5" />
-                            {error}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                {success && (
+                    <div className="bg-green-100 p-4 text-green-800 rounded-xl flex items-center gap-2 dark:bg-green-900/30 dark:text-green-200">
+                        <CheckCircleIcon className="h-5 w-5" />
+                        {success}
+                    </div>
+                )}
+                {error && (
+                    <div className="bg-red-100 p-4 text-red-800 rounded-xl flex items-center gap-2 dark:bg-red-900/30 dark:text-red-200">
+                        <ExclamationCircleIcon className="h-5 w-5" />
+                        {error}
+                    </div>
+                )}
 
                 {/* Table View */}
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -498,227 +494,217 @@ const GerenciamentoIntegrado = () => {
                 </div>
 
                 {/* Modal Configurações */}
-                <AnimatePresence>
-                    {boletoModalOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                            <motion.div
-                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
-                                onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
-                            />
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }}
-                                className="relative w-full max-w-4xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
-                            >
-                                <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#f59e0b_0%,#fbbf24_45%,#fde68a_100%)] px-6 py-6 dark:border-slate-700">
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="max-w-2xl">
-                                            <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-800/70">Selecao em Lote</p>
-                                            <h2 className="mt-2 text-2xl font-black text-slate-950">Quais empresas ativas vao receber honorario agora?</h2>
-                                            <p className="mt-2 text-sm text-slate-900/80">
-                                                Escolha as empresas ativas, gere os boletos e dispare o envio pelo WhatsApp em uma unica operacao.
-                                            </p>
-                                        </div>
-                                        <button
-                                            onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
-                                            className="rounded-full bg-white/60 p-2 text-slate-700 transition-colors hover:bg-white hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-                                            disabled={isGeneratingBoletos}
-                                        >
-                                            <XCircleIcon className="h-6 w-6" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="grid gap-6 p-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-                                    <aside className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/70">
-                                        <div>
-                                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">Resumo</div>
-                                            <div className="mt-3 grid grid-cols-2 gap-3">
-                                                <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
-                                                    <div className="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Ativas</div>
-                                                    <div className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{activeEmpresas.length}</div>
-                                                </div>
-                                                <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
-                                                    <div className="text-xs uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">Marcadas</div>
-                                                    <div className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{selectedEmpresasCount}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-                                                Filtrar no popup
-                                            </label>
-                                            <div className="relative">
-                                                <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                                                <input
-                                                    type="text"
-                                                    value={boletoBatchSearch}
-                                                    onChange={(e) => setBoletoBatchSearch(e.target.value)}
-                                                    placeholder="Nome, CNPJ ou email"
-                                                    className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-200 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-amber-500/20"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <button
-                                            onClick={handleToggleAllModalEmpresas}
-                                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-amber-300 hover:text-slate-950 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
-                                        >
-                                            {allModalEmpresasSelected ? 'Desmarcar visiveis' : 'Marcar visiveis'}
-                                        </button>
-
-                                        <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                            Somente empresas ativas aparecem neste seletor. Cada envio vai gerar o arquivo HONORARIO.pdf na pasta da empresa e enviar a copia nomeada para o WhatsApp.
+                {boletoModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                        <div
+                            className="absolute inset-0"
+                            onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
+                        />
+                        <div className="relative w-full max-w-4xl rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                            <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-700">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="max-w-2xl">
+                                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Selecao em Lote</p>
+                                        <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Quais empresas ativas vao receber honorario agora?</h2>
+                                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                            Escolha as empresas ativas, gere os boletos e dispare o envio pelo WhatsApp em uma unica operacao.
                                         </p>
-                                    </aside>
-
-                                    <div className="space-y-4">
-                                        <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
-                                            {filteredActiveEmpresasForModal.length === 0 ? (
-                                                <div className="rounded-2xl border border-dashed border-slate-300 px-6 py-12 text-center text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400">
-                                                    Nenhuma empresa ativa encontrada com esse filtro.
-                                                </div>
-                                            ) : (
-                                                filteredActiveEmpresasForModal.map((empresa) => {
-                                                    const selected = selectedEmpresaIds.includes(empresa.id);
-
-                                                    return (
-                                                        <button
-                                                            key={empresa.id}
-                                                            type="button"
-                                                            onClick={() => handleToggleEmpresaSelection(empresa.id)}
-                                                            className={`w-full rounded-2xl border p-4 text-left transition ${selected
-                                                                ? 'border-amber-400 bg-amber-50 shadow-sm shadow-amber-200/60 dark:border-amber-400 dark:bg-amber-500/10'
-                                                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700/70'
-                                                                }`}
-                                                        >
-                                                            <div className="flex items-start gap-4">
-                                                                <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${selected
-                                                                    ? 'border-amber-500 bg-amber-400 text-slate-950'
-                                                                    : 'border-slate-300 bg-white dark:border-slate-500 dark:bg-slate-900'
-                                                                    }`}>
-                                                                    {selected && <CheckCircleIcon className="h-4 w-4" />}
-                                                                </div>
-                                                                <div className="min-w-0 flex-1">
-                                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                                                        <div>
-                                                                            <div className="text-sm font-bold text-slate-900 dark:text-white">{empresa.nome}</div>
-                                                                            <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">{empresa.cnpj}</div>
-                                                                        </div>
-                                                                        <span className="inline-flex w-fit items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
-                                                                            Ativa
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="mt-3 text-sm text-slate-500 dark:text-slate-400">{empresa.email}</div>
-                                                                </div>
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })
-                                            )}
-                                        </div>
-
-                                        <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 dark:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
-                                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                                                {selectedEmpresasCount === 0
-                                                    ? 'Nenhuma empresa selecionada.'
-                                                    : `${selectedEmpresasCount} empresa(s) pronta(s) para gerar e enviar honorario.`}
-                                            </p>
-                                            <div className="flex gap-3">
-                                                <button
-                                                    onClick={() => setBoletoModalOpen(false)}
-                                                    className="rounded-2xl px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                                                    disabled={isGeneratingBoletos}
-                                                >
-                                                    Fechar
-                                                </button>
-                                                <button
-                                                    onClick={handleGerarBoletosEmLote}
-                                                    className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black uppercase tracking-[0.16em] text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-amber-400 dark:text-slate-950 dark:hover:bg-amber-300"
-                                                    disabled={isGeneratingBoletos || selectedEmpresasCount === 0}
-                                                >
-                                                    {isGeneratingBoletos ? 'Processando...' : 'Gerar E Enviar'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        </div>
-                    )}
-
-                    {configModalOpen && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                            <motion.div
-                                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                                className="absolute inset-0 bg-gray-900/20 backdrop-blur-sm dark:bg-black/40"
-                                onClick={() => setConfigModalOpen(false)}
-                            />
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                                className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg p-8 border border-gray-100 dark:border-gray-700"
-                            >
-                                <div className="flex items-center justify-between mb-8">
-                                    <div>
-                                        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                            Configurar Boletos
-                                        </h2>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Defina as taxas e valores padrão.</p>
                                     </div>
                                     <button
-                                        onClick={() => setConfigModalOpen(false)}
-                                        className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                                        onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
+                                        className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                                        disabled={isGeneratingBoletos}
                                     >
                                         <XCircleIcon className="h-6 w-6" />
                                     </button>
                                 </div>
+                            </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                    {[
-                                        { label: 'Valor Honorário (R$)', key: 'valor_honorario', type: 'number', step: '0.01' },
-                                        { label: 'Dia Vencimento', key: 'dia_vencimento_honorario', type: 'number', min: '1', max: '31' },
-                                        { label: 'Juros Mensal (%)', key: 'juros_mora_taxa', type: 'number', step: '0.01' },
-                                        { label: 'Multa (%)', key: 'multa_taxa', type: 'number', step: '0.01' },
-                                        { label: 'Desconto (%)', key: 'desconto_taxa', type: 'number', step: '0.01' },
-                                        { label: 'Dias para Desconto', key: 'dias_para_desconto', type: 'number', title: 'Dias antes do vencimento' },
-                                    ].map((field) => (
-                                        <div key={field.key} className="relative group">
-                                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400 transition-colors">
-                                                {field.label}
-                                            </label>
+                            <div className="grid gap-6 p-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+                                <aside className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800">
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Resumo</div>
+                                        <div className="mt-3 grid grid-cols-2 gap-3">
+                                            <div className="rounded-xl bg-white p-4 dark:bg-gray-900">
+                                                <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Ativas</div>
+                                                <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{activeEmpresas.length}</div>
+                                            </div>
+                                            <div className="rounded-xl bg-white p-4 dark:bg-gray-900">
+                                                <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Marcadas</div>
+                                                <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{selectedEmpresasCount}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                                            Filtrar no popup
+                                        </label>
+                                        <div className="relative">
+                                            <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                                             <input
-                                                type={field.type}
-                                                step={field.step}
-                                                min={field.min}
-                                                max={field.max}
-                                                title={field.title}
-                                                value={currentConfig[field.key]}
-                                                onChange={(e) => setCurrentConfig({ ...currentConfig, [field.key]: e.target.value })}
-                                                className="w-full p-3 bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium"
+                                                type="text"
+                                                value={boletoBatchSearch}
+                                                onChange={(e) => setBoletoBatchSearch(e.target.value)}
+                                                placeholder="Nome, CNPJ ou email"
+                                                className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:ring-indigo-500/20"
                                             />
                                         </div>
-                                    ))}
-                                </div>
+                                    </div>
 
-                                <div className="mt-10 flex justify-end gap-3">
                                     <button
-                                        onClick={() => setConfigModalOpen(false)}
-                                        className="px-6 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-xl transition-colors"
+                                        onClick={handleToggleAllModalEmpresas}
+                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-700"
                                     >
-                                        Cancelar
+                                        {allModalEmpresasSelected ? 'Desmarcar visiveis' : 'Marcar visiveis'}
                                     </button>
-                                    <button
-                                        onClick={handleSaveConfig}
-                                        className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/40 transition-all transform hover:-translate-y-0.5"
-                                    >
-                                        Salvar Configuração
-                                    </button>
+
+                                    <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
+                                        Somente empresas ativas aparecem neste seletor. Cada envio vai gerar o arquivo HONORARIO.pdf na pasta da empresa e enviar a copia nomeada para o WhatsApp.
+                                    </p>
+                                </aside>
+
+                                <div className="space-y-4">
+                                    <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                                        {filteredActiveEmpresasForModal.length === 0 ? (
+                                            <div className="rounded-xl border border-dashed border-gray-300 px-6 py-12 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                                Nenhuma empresa ativa encontrada com esse filtro.
+                                            </div>
+                                        ) : (
+                                            filteredActiveEmpresasForModal.map((empresa) => {
+                                                const selected = selectedEmpresaIds.includes(empresa.id);
+
+                                                return (
+                                                    <button
+                                                        key={empresa.id}
+                                                        type="button"
+                                                        onClick={() => handleToggleEmpresaSelection(empresa.id)}
+                                                        className={`w-full rounded-xl border p-4 text-left transition-colors ${selected
+                                                            ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/10'
+                                                            : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700'
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-start gap-4">
+                                                            <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${selected
+                                                                ? 'border-indigo-500 bg-indigo-500 text-white'
+                                                                : 'border-gray-300 bg-white dark:border-gray-500 dark:bg-gray-900'
+                                                                }`}>
+                                                                {selected && <CheckCircleIcon className="h-4 w-4" />}
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                                    <div>
+                                                                        <div className="text-sm font-semibold text-gray-900 dark:text-white">{empresa.nome}</div>
+                                                                        <div className="mt-1 text-xs font-mono text-gray-500 dark:text-gray-400">{empresa.cnpj}</div>
+                                                                    </div>
+                                                                    <span className="inline-flex w-fit items-center rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                                                        Ativa
+                                                                    </span>
+                                                                </div>
+                                                                <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">{empresa.email}</div>
+                                                            </div>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+
+                                    <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                                            {selectedEmpresasCount === 0
+                                                ? 'Nenhuma empresa selecionada.'
+                                                : `${selectedEmpresasCount} empresa(s) pronta(s) para gerar e enviar honorario.`}
+                                        </p>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => setBoletoModalOpen(false)}
+                                                className="rounded-xl px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                                                disabled={isGeneratingBoletos}
+                                            >
+                                                Fechar
+                                            </button>
+                                            <button
+                                                onClick={handleGerarBoletosEmLote}
+                                                className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                                disabled={isGeneratingBoletos || selectedEmpresasCount === 0}
+                                            >
+                                                {isGeneratingBoletos ? 'Processando...' : 'Gerar E Enviar'}
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </motion.div>
+                            </div>
                         </div>
-                    )}
-                </AnimatePresence>
+                    </div>
+                )}
+
+                {configModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div
+                            className="absolute inset-0 bg-black/40"
+                            onClick={() => setConfigModalOpen(false)}
+                        />
+                        <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-lg w-full max-w-lg p-8 border border-gray-100 dark:border-gray-700">
+                            <div className="flex items-center justify-between mb-8">
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                        Configurar Boletos
+                                    </h2>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Defina as taxas e valores padrão.</p>
+                                </div>
+                                <button
+                                    onClick={() => setConfigModalOpen(false)}
+                                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                                >
+                                    <XCircleIcon className="h-6 w-6" />
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                {[
+                                    { label: 'Valor Honorário (R$)', key: 'valor_honorario', type: 'number', step: '0.01' },
+                                    { label: 'Dia Vencimento', key: 'dia_vencimento_honorario', type: 'number', min: '1', max: '31' },
+                                    { label: 'Juros Mensal (%)', key: 'juros_mora_taxa', type: 'number', step: '0.01' },
+                                    { label: 'Multa (%)', key: 'multa_taxa', type: 'number', step: '0.01' },
+                                    { label: 'Desconto (%)', key: 'desconto_taxa', type: 'number', step: '0.01' },
+                                    { label: 'Dias para Desconto', key: 'dias_para_desconto', type: 'number', title: 'Dias antes do vencimento' },
+                                ].map((field) => (
+                                    <div key={field.key} className="relative group">
+                                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400 transition-colors">
+                                            {field.label}
+                                        </label>
+                                        <input
+                                            type={field.type}
+                                            step={field.step}
+                                            min={field.min}
+                                            max={field.max}
+                                            title={field.title}
+                                            value={currentConfig[field.key]}
+                                            onChange={(e) => setCurrentConfig({ ...currentConfig, [field.key]: e.target.value })}
+                                            className="w-full p-3 bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-10 flex justify-end gap-3">
+                                <button
+                                    onClick={() => setConfigModalOpen(false)}
+                                    className="px-6 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-xl transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleSaveConfig}
+                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-colors"
+                                >
+                                    Salvar Configuração
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
