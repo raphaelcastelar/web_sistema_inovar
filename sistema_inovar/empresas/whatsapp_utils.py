@@ -65,7 +65,6 @@ def send_whatsapp_document_template_message(
         },
         "honorario": {
             "body_params": [
-                {"type": "text", "text": document_filename},
                 {"type": "text", "text": company_name}
             ]
         },
