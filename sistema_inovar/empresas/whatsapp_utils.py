@@ -63,6 +63,12 @@ def send_whatsapp_document_template_message(
                 {"type": "text", "text": company_name}       # 2ª variável: Nome da empresa
             ]
         },
+        "honorario": {
+            "body_params": [
+                {"type": "text", "text": document_filename},
+                {"type": "text", "text": company_name}
+            ]
+        },
         "enviar_dp": {
             "body_params": [
                 {"type": "text", "text": company_name},  # 1ª variável: Nome da empresa

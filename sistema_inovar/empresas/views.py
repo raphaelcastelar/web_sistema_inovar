@@ -1,5 +1,6 @@
 import os
 import smtplib
+import tempfile
 import urllib.parse
 import re
 import datetime
@@ -1228,6 +1229,86 @@ def convert_date_format(date_str):
         return ""
 
 
+def enviar_boleto_honorario_whatsapp(empresa, pdf_content, nome_arquivo, usuario=None):
+    recipient_number = re.sub(r"\D", "", str(empresa.telefone or ""))
+
+    if not recipient_number:
+        erro = "Empresa sem telefone configurado para envio de boleto pelo WhatsApp."
+        logger.warning(f"{erro} Empresa: {empresa.nome}")
+        HistoricoEnvios.objects.create(
+            remetente="",
+            arquivo=nome_arquivo,
+            status='falha',
+            usuario=usuario,
+            erro=erro,
+            empresa=empresa,
+        )
+        return None, erro
+
+    temp_file_path = None
+
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            temp_file.write(pdf_content)
+            temp_file_path = temp_file.name
+
+        media_id, _ = upload_media_to_whatsapp(temp_file_path, nome_arquivo)
+        if not media_id:
+            erro = "Falha ao fazer upload do boleto para o WhatsApp."
+            HistoricoEnvios.objects.create(
+                remetente=recipient_number,
+                arquivo=nome_arquivo,
+                status='falha',
+                usuario=usuario,
+                erro=erro,
+                empresa=empresa,
+            )
+            return None, erro
+
+        message_id, error_sending = send_whatsapp_document_template_message(
+            recipient_number=recipient_number,
+            document_media_id=media_id,
+            document_filename=nome_arquivo,
+            template_name='honorario',
+            template_params={},
+        )
+
+        if message_id:
+            HistoricoEnvios.objects.create(
+                remetente=recipient_number,
+                arquivo=nome_arquivo,
+                status='sucesso',
+                message_id=message_id,
+                usuario=usuario,
+                empresa=empresa,
+            )
+            return message_id, None
+
+        HistoricoEnvios.objects.create(
+            remetente=recipient_number,
+            arquivo=nome_arquivo,
+            status='falha',
+            usuario=usuario,
+            erro=error_sending,
+            empresa=empresa,
+        )
+        return None, error_sending
+    except Exception as e:
+        logger.error(f"Erro ao enviar boleto via WhatsApp para {empresa.nome}: {e}")
+        HistoricoEnvios.objects.create(
+            remetente=recipient_number,
+            arquivo=nome_arquivo,
+            status='falha',
+            usuario=usuario,
+            erro=str(e),
+            empresa=empresa,
+        )
+        return None, str(e)
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+
+
 @api_view(['POST'])
 def gerar_boleto_view(request):
     empresa_id = request.data.get('empresa_id')
@@ -1578,9 +1659,27 @@ def gerar_boleto_view(request):
     except Exception as e:
         return HttpResponse(f"Erro ao gerar PDF: {str(e)}", status=500)
 
+    nome_base_empresa = empresa.nome or 'empresa'
+    nome_arquivo_boleto = sanitize_filename_for_upload(f"honorario_{nome_base_empresa}.pdf").lower()
+    usuario_envio = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
+
+    try:
+        message_id, whatsapp_error = enviar_boleto_honorario_whatsapp(
+            empresa=empresa,
+            pdf_content=pdf,
+            nome_arquivo=nome_arquivo_boleto,
+            usuario=usuario_envio,
+        )
+        if message_id:
+            logger.info(f"Boleto enviado via WhatsApp com sucesso para {empresa.nome}. message_id={message_id}")
+        else:
+            logger.warning(f"Falha ao enviar boleto via WhatsApp para {empresa.nome}: {whatsapp_error}")
+    except Exception as e:
+        logger.error(f"Erro inesperado no fluxo de envio do boleto via WhatsApp para {empresa.nome}: {e}")
+
     # === RETORNO ===
     return HttpResponse(
         pdf,
         content_type='application/pdf',
-        headers={'Content-Disposition': f'attachment; filename="boleto_{numero_boleto}.pdf"'}
+        headers={'Content-Disposition': f'attachment; filename="{nome_arquivo_boleto}"'}
     )
