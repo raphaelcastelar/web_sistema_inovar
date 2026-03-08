@@ -9,7 +9,9 @@ import {
     MagnifyingGlassIcon,
     ExclamationCircleIcon,
     CogIcon,
-    DocumentArrowDownIcon
+    DocumentArrowDownIcon,
+    ArrowPathIcon,
+    EyeIcon
 } from '@heroicons/react/24/outline';
 
 const GerenciamentoIntegrado = () => {
@@ -26,6 +28,9 @@ const GerenciamentoIntegrado = () => {
     const [selectedEmpresaIds, setSelectedEmpresaIds] = useState([]);
     const [isGeneratingBoletos, setIsGeneratingBoletos] = useState(false);
     const [batchSummary, setBatchSummary] = useState(null);
+    const [resultsModalOpen, setResultsModalOpen] = useState(false);
+    const [updatingHonorarioIds, setUpdatingHonorarioIds] = useState([]);
+    const [retryingEmpresaIds, setRetryingEmpresaIds] = useState([]);
 
     // --- Modal Config State ---
     const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -68,6 +73,72 @@ const GerenciamentoIntegrado = () => {
     }, []);
 
     // --- Handlers ---
+    const updateEmpresaInState = (empresaId, updates) => {
+        setEmpresas((currentEmpresas) => currentEmpresas.map((empresa) => (
+            empresa.id === empresaId ? { ...empresa, ...updates } : empresa
+        )));
+    };
+
+    const updateHonorarioStatus = async (empresaId, nextValue, shouldSetFeedback = true) => {
+        setUpdatingHonorarioIds((currentIds) => Array.from(new Set([...currentIds, empresaId])));
+
+        try {
+            await axiosInstance.patch(`/api/empresas/${empresaId}/`, { honorario: nextValue });
+            updateEmpresaInState(empresaId, { honorario: nextValue });
+
+            if (shouldSetFeedback) {
+                setError('');
+                setSuccess(`Status de honorario atualizado com sucesso.`);
+                setTimeout(() => setSuccess(''), 3000);
+            }
+
+            return true;
+        } catch (err) {
+            console.error('Erro ao atualizar honorario:', err.response?.data || err.message);
+
+            if (shouldSetFeedback) {
+                setError('Falha ao atualizar o status de honorario.');
+            }
+
+            return false;
+        } finally {
+            setUpdatingHonorarioIds((currentIds) => currentIds.filter((id) => id !== empresaId));
+        }
+    };
+
+    const processarBoletoEmpresa = async (empresaId) => {
+        const empresa = empresas.find((item) => item.id === empresaId);
+
+        try {
+            const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: empresaId });
+            let message = response?.data?.message || 'Boleto processado com sucesso.';
+
+            if (!empresa?.honorario) {
+                const honorarioAtualizado = await updateHonorarioStatus(empresaId, true, false);
+
+                if (!honorarioAtualizado) {
+                    message = `${message} O status de honorario nao foi marcado automaticamente.`;
+                }
+            }
+
+            return {
+                empresaId,
+                empresa: empresa?.nome || `Empresa ${empresaId}`,
+                status: 'success',
+                message,
+            };
+        } catch (err) {
+            console.error('Erro ao gerar boleto em lote:', err);
+
+            return {
+                empresaId,
+                empresa: empresa?.nome || `Empresa ${empresaId}`,
+                status: 'error',
+                message: err?.response?.data?.error || err?.response?.data?.message || 'Falha ao gerar o boleto.'
+            };
+        }
+    };
+
     const handleToggleAtivo = async (id, ativo) => {
         if (!isAdmin) {
             setError('Você não tem permissão para alterar o status das empresas.');
@@ -75,15 +146,22 @@ const GerenciamentoIntegrado = () => {
         }
         try {
             await axiosInstance.patch(`/api/empresas/${id}/`, { ativo: !ativo });
-            setEmpresas(empresas.map(empresa =>
-                empresa.id === id ? { ...empresa, ativo: !ativo } : empresa
-            ));
+            updateEmpresaInState(id, { ativo: !ativo });
             setSuccess(`Status da empresa atualizado com sucesso!`);
             setTimeout(() => setSuccess(''), 3000);
         } catch (err) {
             console.error('Erro ao atualizar status:', err.response?.data || err.message);
             setError('Falha ao atualizar o status da empresa.');
         }
+    };
+
+    const handleToggleHonorario = async (empresaId, honorarioAtual) => {
+        if (updatingHonorarioIds.includes(empresaId)) {
+            return;
+        }
+
+        setError('');
+        await updateHonorarioStatus(empresaId, !honorarioAtual);
     };
 
     const handleOpenBoletoModal = () => {
@@ -128,25 +206,7 @@ const GerenciamentoIntegrado = () => {
         const results = [];
 
         for (const empresaId of selectedEmpresaIds) {
-            const empresa = empresas.find((item) => item.id === empresaId);
-
-            try {
-                const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: empresaId });
-                results.push({
-                    empresaId,
-                    empresa: empresa?.nome || `Empresa ${empresaId}`,
-                    status: 'success',
-                    message: response?.data?.message || 'Boleto processado com sucesso.'
-                });
-            } catch (err) {
-                console.error('Erro ao gerar boleto em lote:', err);
-                results.push({
-                    empresaId,
-                    empresa: empresa?.nome || `Empresa ${empresaId}`,
-                    status: 'error',
-                    message: err?.response?.data?.error || err?.response?.data?.message || 'Falha ao gerar o boleto.'
-                });
-            }
+            results.push(await processarBoletoEmpresa(empresaId));
         }
 
         const successResults = results.filter((result) => result.status === 'success');
@@ -166,13 +226,62 @@ const GerenciamentoIntegrado = () => {
         }
 
         if (errorResults.length > 0) {
-            setError(`Algumas empresas precisam de ajuste antes do envio. Revise o resumo da remessa abaixo e configure o boleto das empresas com falha.`);
+            setError(`${errorResults.length} empresa(s) precisam de ajuste antes do envio.`);
+            setResultsModalOpen(true);
         } else {
-            setBoletoModalOpen(false);
             setSelectedEmpresaIds([]);
+            setResultsModalOpen(false);
         }
 
+        if (errorResults.length > 0) {
+            setSelectedEmpresaIds(errorResults.map((result) => result.empresaId));
+        }
+
+        setBoletoModalOpen(false);
         setIsGeneratingBoletos(false);
+    };
+
+    const handleRetryEmpresa = async (empresaId) => {
+        setRetryingEmpresaIds((currentIds) => Array.from(new Set([...currentIds, empresaId])));
+        setError('');
+
+        try {
+            const retryResult = await processarBoletoEmpresa(empresaId);
+
+            setBatchSummary((currentSummary) => {
+                if (!currentSummary) {
+                    return currentSummary;
+                }
+
+                const successResults = currentSummary.successResults.filter((result) => result.empresaId !== empresaId);
+                const errorResults = currentSummary.errorResults.filter((result) => result.empresaId !== empresaId);
+
+                if (retryResult.status === 'success') {
+                    successResults.push(retryResult);
+                } else {
+                    errorResults.push(retryResult);
+                }
+
+                return {
+                    ...currentSummary,
+                    successCount: successResults.length,
+                    errorCount: errorResults.length,
+                    successResults,
+                    errorResults,
+                };
+            });
+
+            if (retryResult.status === 'success') {
+                setSelectedEmpresaIds((currentIds) => currentIds.filter((id) => id !== empresaId));
+                setSuccess(`${retryResult.empresa}: boleto gerado e enviado com sucesso.`);
+                setTimeout(() => setSuccess(''), 4000);
+            } else {
+                setSelectedEmpresaIds((currentIds) => Array.from(new Set([...currentIds, empresaId])));
+                setError(`${retryResult.empresa}: ainda existem ajustes pendentes para o envio.`);
+            }
+        } finally {
+            setRetryingEmpresaIds((currentIds) => currentIds.filter((id) => id !== empresaId));
+        }
     };
 
     const handleConfiguracoes = (id) => {
@@ -418,94 +527,48 @@ const GerenciamentoIntegrado = () => {
 
                 {/* Messages */}
                 {success && (
-                    <div className="bg-green-100 p-4 text-green-800 rounded-xl flex items-center gap-2 dark:bg-green-900/30 dark:text-green-200">
-                        <CheckCircleIcon className="h-5 w-5" />
-                        {success}
+                    <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">
+                        <div className="flex items-start gap-2">
+                            <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                            <span>{success}</span>
+                        </div>
                     </div>
                 )}
                 {error && (
-                    <div className="bg-red-100 p-4 text-red-800 rounded-xl flex items-center gap-2 dark:bg-red-900/30 dark:text-red-200">
-                        <ExclamationCircleIcon className="h-5 w-5" />
-                        {error}
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                        <div className="flex items-start gap-2">
+                            <ExclamationCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                            <span>{error}</span>
+                        </div>
                     </div>
                 )}
 
                 {batchSummary && (
-                    <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Ultima Remessa</p>
-                                <h3 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">Resumo do processamento de honorarios</h3>
-                                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                                    Em vez de varias notificacoes, o resultado fica concentrado aqui com tudo o que foi enviado e o que precisa de ajuste.
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                                    Resultado consolidado em um popup para nao ocupar a area principal da tela.
                                 </p>
                             </div>
-                            <div className="grid grid-cols-3 gap-3 sm:min-w-[320px]">
-                                <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-center dark:border-gray-700 dark:bg-gray-900">
-                                    <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Total</div>
-                                    <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{batchSummary.total}</div>
-                                </div>
-                                <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-center dark:border-green-800 dark:bg-green-900/20">
-                                    <div className="text-xs uppercase tracking-[0.12em] text-green-700 dark:text-green-300">Enviadas</div>
-                                    <div className="mt-1 text-2xl font-bold text-green-700 dark:text-green-300">{batchSummary.successCount}</div>
-                                </div>
-                                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-center dark:border-red-800 dark:bg-red-900/20">
-                                    <div className="text-xs uppercase tracking-[0.12em] text-red-700 dark:text-red-300">Com ajuste</div>
-                                    <div className="mt-1 text-2xl font-bold text-red-700 dark:text-red-300">{batchSummary.errorCount}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                            <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-                                    <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                    Empresas enviadas com sucesso
-                                </div>
-                                <div className="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
-                                    {batchSummary.successResults.length === 0 ? (
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma empresa concluida nesta remessa.</p>
-                                    ) : (
-                                        batchSummary.successResults.map((result) => (
-                                            <div key={`success-${result.empresaId}`} className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-200">
-                                                <div className="font-semibold">{result.empresa}</div>
-                                                <div className="mt-1 text-xs">{result.message}</div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-                                    <ExclamationCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
-                                    Empresas que precisam de configuracao
-                                </div>
-                                <div className="mt-3 max-h-64 space-y-3 overflow-y-auto pr-1">
-                                    {batchSummary.errorResults.length === 0 ? (
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma empresa com falha nesta remessa.</p>
-                                    ) : (
-                                        batchSummary.errorResults.map((result) => (
-                                            <div key={`error-${result.empresaId}`} className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 dark:border-red-800 dark:bg-red-900/20">
-                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                                    <div>
-                                                        <div className="font-semibold text-red-800 dark:text-red-200">{result.empresa}</div>
-                                                        <div className="mt-1 text-xs text-red-700 dark:text-red-300">{result.message}</div>
-                                                        <div className="mt-2 text-xs font-medium text-red-800 dark:text-red-200">
-                                                            Configure o boleto dessa empresa antes de tentar novamente.
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => handleConfiguracoes(result.empresaId)}
-                                                        className="inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700"
-                                                    >
-                                                        Configurar boleto
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200">
+                                    Total: {batchSummary.total}
+                                </span>
+                                <span className="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                    Sucesso: {batchSummary.successCount}
+                                </span>
+                                <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300">
+                                    Ajuste: {batchSummary.errorCount}
+                                </span>
+                                <button
+                                    onClick={() => setResultsModalOpen(true)}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+                                >
+                                    <EyeIcon className="h-4 w-4" />
+                                    Ver resultados
+                                </button>
                             </div>
                         </div>
                     </section>
@@ -526,6 +589,7 @@ const GerenciamentoIntegrado = () => {
                                     <tr>
                                         <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Empresa</th>
                                         <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contato</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Honorario</th>
                                         <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                                         <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Ações</th>
                                     </tr>
@@ -546,6 +610,22 @@ const GerenciamentoIntegrado = () => {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="text-sm text-gray-500 dark:text-gray-400">{empresa.email}</div>
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleHonorario(empresa.id, empresa.honorario)}
+                                                    disabled={updatingHonorarioIds.includes(empresa.id)}
+                                                    className="inline-flex items-center justify-center rounded-lg p-1 disabled:cursor-not-allowed"
+                                                    title={empresa.honorario ? 'Honorario concluido' : 'Marcar honorario'}
+                                                >
+                                                    <CheckCircleIcon
+                                                        className={`h-5 w-5 ${empresa.honorario
+                                                            ? 'text-green-500'
+                                                            : 'text-gray-300 dark:text-gray-600'
+                                                            } ${updatingHonorarioIds.includes(empresa.id) ? 'opacity-50' : 'cursor-pointer'}`}
+                                                    />
+                                                </button>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${empresa.ativo
@@ -677,12 +757,12 @@ const GerenciamentoIntegrado = () => {
                                                             }`}
                                                     >
                                                         <div className="flex items-start gap-4">
-                                                            <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${selected
-                                                                ? 'border-indigo-500 bg-indigo-500 text-white'
-                                                                : 'border-gray-300 bg-white dark:border-gray-500 dark:bg-gray-900'
-                                                                }`}>
-                                                                {selected && <CheckCircleIcon className="h-4 w-4" />}
-                                                            </div>
+                                                            <CheckCircleIcon
+                                                                className={`mt-0.5 h-6 w-6 shrink-0 ${selected
+                                                                    ? 'text-green-500'
+                                                                    : 'text-gray-300 dark:text-gray-600'
+                                                                    }`}
+                                                            />
                                                             <div className="min-w-0 flex-1">
                                                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                                                     <div>
@@ -793,6 +873,124 @@ const GerenciamentoIntegrado = () => {
                                 >
                                     Salvar Configuração
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {batchSummary && resultsModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                        <div
+                            className="absolute inset-0"
+                            onClick={() => setResultsModalOpen(false)}
+                        />
+                        <div className="relative w-full max-w-5xl rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                            <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-700">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Resultados da Remessa</p>
+                                        <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Empresas enviadas e empresas que ainda precisam de ajuste</h2>
+                                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                            Revise os retornos sem ocupar a tela principal. As falhas podem ser configuradas e reenviadas por aqui.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setResultsModalOpen(false)}
+                                        className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                                    >
+                                        <XCircleIcon className="h-6 w-6" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 border-b border-gray-200 px-6 py-4 dark:border-gray-700 md:grid-cols-3">
+                                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                                    <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Total</div>
+                                    <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{batchSummary.total}</div>
+                                </div>
+                                <div className="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+                                    <div className="text-xs uppercase tracking-[0.12em] text-green-700 dark:text-green-300">Enviadas</div>
+                                    <div className="mt-1 text-2xl font-bold text-green-700 dark:text-green-300">{batchSummary.successCount}</div>
+                                </div>
+                                <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                                    <div className="text-xs uppercase tracking-[0.12em] text-red-700 dark:text-red-300">Com ajuste</div>
+                                    <div className="mt-1 text-2xl font-bold text-red-700 dark:text-red-300">{batchSummary.errorCount}</div>
+                                </div>
+                            </div>
+
+                            <div className="grid gap-4 p-6 lg:grid-cols-2">
+                                <section className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                                        <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                        Empresas enviadas com sucesso
+                                    </div>
+                                    <div className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                                        {batchSummary.successResults.length === 0 ? (
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma empresa concluida nesta remessa.</p>
+                                        ) : (
+                                            batchSummary.successResults.map((result) => (
+                                                <div key={`success-${result.empresaId}`} className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-900/20">
+                                                    <div className="flex items-start gap-3">
+                                                        <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
+                                                        <div>
+                                                            <div className="font-semibold text-green-800 dark:text-green-200">{result.empresa}</div>
+                                                            <div className="mt-1 text-xs text-green-700 dark:text-green-300">{result.message}</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </section>
+
+                                <section className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
+                                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                                        <ExclamationCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
+                                        Empresas que precisam de configuracao
+                                    </div>
+                                    <div className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                                        {batchSummary.errorResults.length === 0 ? (
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma empresa com falha nesta remessa.</p>
+                                        ) : (
+                                            batchSummary.errorResults.map((result) => {
+                                                const isRetrying = retryingEmpresaIds.includes(result.empresaId);
+
+                                                return (
+                                                    <div key={`error-${result.empresaId}`} className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 dark:border-red-800 dark:bg-red-900/20">
+                                                        <div className="flex flex-col gap-4">
+                                                            <div>
+                                                                <div className="font-semibold text-red-800 dark:text-red-200">{result.empresa}</div>
+                                                                <div className="mt-1 text-xs text-red-700 dark:text-red-300">{result.message}</div>
+                                                                <div className="mt-2 text-xs font-medium text-red-800 dark:text-red-200">
+                                                                    Configure o boleto dessa empresa antes de tentar novamente, se necessario.
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-col gap-2 sm:flex-row">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setResultsModalOpen(false);
+                                                                        handleConfiguracoes(result.empresaId);
+                                                                    }}
+                                                                    className="inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700"
+                                                                >
+                                                                    Configurar boleto
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRetryEmpresa(result.empresaId)}
+                                                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                                                                    disabled={isRetrying}
+                                                                >
+                                                                    <ArrowPathIcon className={`h-4 w-4 ${isRetrying ? 'animate-spin' : ''}`} />
+                                                                    {isRetrying ? 'Reenviando...' : 'Reenviar'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </section>
                             </div>
                         </div>
                     </div>
