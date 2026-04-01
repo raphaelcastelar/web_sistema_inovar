@@ -774,7 +774,8 @@ def enviar_documentos_whatsapp_api(request):
             document_media_id=media_id,
             document_filename=original_filename,
             template_name=whatsapp_template_to_use,
-            template_params=template_params
+            template_params=template_params,
+            company_name=empresa.nome,
         )
 
         if message_id:
@@ -1296,6 +1297,7 @@ def enviar_boleto_honorario_whatsapp(empresa, pdf_content, nome_arquivo, usuario
             document_filename=nome_arquivo,
             template_name='honorario',
             template_params={},
+            company_name=empresa.nome,
         )
 
         if message_id:

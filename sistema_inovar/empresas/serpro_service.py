@@ -198,6 +198,7 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
 
         response_data = response.json()
         logger.info(f"Resposta da API Serpro: {json.dumps(response_data, indent=2)}")
+                empresa=empresa,
 
         mensagens = response_data.get('mensagens', [])
         dados_str = response_data.get('dados')
@@ -218,6 +219,7 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
                 pdf_content = base64.b64decode(pdf_base64)
                 filename = dados_item.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
                 logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao} (sem débitos).")
+            empresa=empresa if 'empresa' in locals() else None,
                 return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
             else:
                 return {"sucesso": False, "erro": "Formato de dados inválido: lista vazia ou formato inesperado."}
@@ -528,7 +530,8 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None, request=None, templa
                     status='falha',
                     data_envio=timezone.now(),
                     usuario=None,
-                    erro="Falha ao fazer upload do PDF para o WhatsApp."
+                    erro="Falha ao fazer upload do PDF para o WhatsApp.",
+                    empresa=empresa,
                 )
                 return {"sucesso": False, "erro": "Falha ao fazer upload do PDF para o WhatsApp."}
 
@@ -541,7 +544,8 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None, request=None, templa
                 document_media_id=media_id,
                 document_filename=filename,
                 template_params=template_params,
-                template_name=template_name
+                template_name=template_name,
+                company_name=empresa.nome,
             )
 
             if not message_id:
@@ -552,7 +556,8 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None, request=None, templa
                     status='falha',
                     data_envio=timezone.now(),
                     usuario=None,
-                    erro=f"Falha ao enviar o DAS via WhatsApp: {error}"
+                    erro=f"Falha ao enviar o DAS via WhatsApp: {error}",
+                    empresa=empresa,
                 )
                 return {"sucesso": False, "erro": f"Falha ao enviar o DAS via WhatsApp: {error}"}
 

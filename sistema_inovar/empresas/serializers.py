@@ -100,9 +100,18 @@ class HistoricoEnviosSerializer(serializers.ModelSerializer):
         remetente = validated_data.get('remetente', '')
         normalized_remetente = remetente.replace('+', '') if remetente.startswith('+') else remetente
         validated_data['remetente'] = normalized_remetente
-        empresa = Empresa.objects.filter(telefone=normalized_remetente).first()
+        empresas = Empresa.objects.filter(telefone=normalized_remetente)
+        empresa = empresas.first() if empresas.count() == 1 else None
+
+        if empresas.count() > 1:
+            logger.warning(
+                f"Telefone {normalized_remetente} está associado a múltiplas empresas. "
+                "O histórico não vai inferir automaticamente a empresa."
+            )
+
         if empresa and 'empresa' not in validated_data:
             validated_data['empresa'] = empresa
+
         instance = super().create(validated_data)
         if not instance.empresa_id and empresa:
             instance.empresa = empresa
@@ -113,7 +122,16 @@ class HistoricoEnviosSerializer(serializers.ModelSerializer):
         remetente = validated_data.get('remetente', instance.remetente)
         normalized_remetente = remetente.replace('+', '') if remetente.startswith('+') else remetente
         validated_data['remetente'] = normalized_remetente
-        empresa = Empresa.objects.filter(telefone=normalized_remetente).first()
+
+        empresas = Empresa.objects.filter(telefone=normalized_remetente)
+        empresa = empresas.first() if empresas.count() == 1 else None
+
+        if empresas.count() > 1:
+            logger.warning(
+                f"Telefone {normalized_remetente} está associado a múltiplas empresas. "
+                "O histórico não vai inferir automaticamente a empresa na atualização."
+            )
+
         if empresa and 'empresa' not in validated_data:
             validated_data['empresa'] = empresa
         return super().update(instance, validated_data)

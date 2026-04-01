@@ -37,7 +37,8 @@ def send_whatsapp_document_template_message(
     document_media_id: str,
     document_filename: str,
     template_name: str,
-    template_params: dict = None  # Parâmetro opcional
+    template_params: dict = None,
+    company_name: str = None
 ):
     api_url = f"https://graph.facebook.com/{settings.WHATSAPP_API_VERSION}/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
     headers = {"Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}", "Content-Type": "application/json"}
@@ -45,32 +46,44 @@ def send_whatsapp_document_template_message(
     # Normaliza o número de telefone para remover o '+' se presente
     normalized_phone = recipient_number.replace('+', '') if recipient_number.startswith('+') else recipient_number
 
-    # Busca o nome da empresa com base no telefone
-    empresa = Empresa.objects.filter(telefone=normalized_phone).first()
-    company_name = empresa.nome if empresa else "Empresa Desconhecida"
+    resolved_company_name = company_name
+
+    if not resolved_company_name:
+        empresas = Empresa.objects.filter(telefone=normalized_phone)
+
+        if empresas.count() == 1:
+            resolved_company_name = empresas.first().nome
+        elif empresas.count() > 1:
+            logger.warning(
+                f"Telefone {normalized_phone} está associado a múltiplas empresas. "
+                "O nome da empresa precisa ser informado explicitamente no envio do WhatsApp."
+            )
+            resolved_company_name = "Empresa"
+        else:
+            resolved_company_name = "Empresa Desconhecida"
 
     # Mapeamento dinâmico de parâmetros com base no template_name
     template_configs = {
         "enviar_sn": {
             "body_params": [
-                {"type": "text", "text": company_name},  # 1ª variável: Nome da empresa
+                {"type": "text", "text": resolved_company_name},  # 1ª variável: Nome da empresa
                 {"type": "text", "text": template_params.get("period_month", "") if template_params else ""}  # 2ª variável: Mês anterior
             ]
         },
         "envio_documento_com_contato": {
             "body_params": [
                 {"type": "text", "text": document_filename},  # 1ª variável: Nome do arquivo
-                {"type": "text", "text": company_name}       # 2ª variável: Nome da empresa
+                {"type": "text", "text": resolved_company_name}       # 2ª variável: Nome da empresa
             ]
         },
         "honorario": {
             "body_params": [
-                {"type": "text", "text": company_name}
+                {"type": "text", "text": resolved_company_name}
             ]
         },
         "enviar_dp": {
             "body_params": [
-                {"type": "text", "text": company_name},  # 1ª variável: Nome da empresa
+                {"type": "text", "text": resolved_company_name},  # 1ª variável: Nome da empresa
                 {"type": "text", "text": template_params.get("period_month", "") if template_params else ""}  # 2ª variável: Mês anterior
             ]
         }
@@ -83,7 +96,7 @@ def send_whatsapp_document_template_message(
         return None, f"Template '{template_name}' não suportado."
 
     body_params = config.get("body_params", [
-        {"type": "text", "text": company_name},
+        {"type": "text", "text": resolved_company_name},
         {"type": "text", "text": ""}
     ])
 
