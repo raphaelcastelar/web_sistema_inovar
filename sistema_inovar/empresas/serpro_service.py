@@ -198,7 +198,6 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
 
         response_data = response.json()
         logger.info(f"Resposta da API Serpro: {json.dumps(response_data, indent=2)}")
-                empresa=empresa,
 
         mensagens = response_data.get('mensagens', [])
         dados_str = response_data.get('dados')
@@ -219,7 +218,6 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
                 pdf_content = base64.b64decode(pdf_base64)
                 filename = dados_item.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
                 logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao} (sem débitos).")
-            empresa=empresa if 'empresa' in locals() else None,
                 return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
             else:
                 return {"sucesso": False, "erro": "Formato de dados inválido: lista vazia ou formato inesperado."}
