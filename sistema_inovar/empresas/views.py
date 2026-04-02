@@ -1442,7 +1442,7 @@ def gerar_boleto_view(request):
         "orgaoNegativador": 0,
         # Permite recebimento após o vencimento; limite alto evita baixa automática.
         "indicadorAceiteTituloVencido": "S",
-        "numeroDiasLimiteRecebimento": 999,
+        "numeroDiasLimiteRecebimento": 30,
         "codigoAceite": "N",
         "codigoTipoTitulo": 2,
         "descricaoTipoTitulo": "DM",
