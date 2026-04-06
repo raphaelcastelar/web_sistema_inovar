@@ -27,6 +27,7 @@ const GerenciamentoIntegrado = () => {
     const [boletoBatchSearch, setBoletoBatchSearch] = useState('');
     const [selectedEmpresaIds, setSelectedEmpresaIds] = useState([]);
     const [isGeneratingBoletos, setIsGeneratingBoletos] = useState(false);
+    const [generatingBoletoId, setGeneratingBoletoId] = useState(null);
     const [batchSummary, setBatchSummary] = useState(null);
     const [resultsModalOpen, setResultsModalOpen] = useState(false);
     const [updatingHonorarioIds, setUpdatingHonorarioIds] = useState([]);
@@ -176,6 +177,23 @@ const GerenciamentoIntegrado = () => {
             console.error('Erro ao atualizar status:', err.response?.data || err.message);
             setError('Falha ao atualizar o status da empresa.');
         }
+    };
+
+    const handleGerarBoletoAvulso = async (empresaId) => {
+        setGeneratingBoletoId(empresaId);
+        setError('');
+        setSuccess('');
+
+        const result = await processarBoletoEmpresa(empresaId);
+
+        if (result.status === 'success') {
+            setSuccess(`${result.empresa}: boleto gerado e enviado com sucesso.`);
+            setTimeout(() => setSuccess(''), 4000);
+        } else {
+            setError(`${result.empresa}: ${result.message}`);
+        }
+
+        setGeneratingBoletoId(null);
     };
 
     const handleToggleHonorario = async (empresaId, honorarioAtual) => {
@@ -675,18 +693,28 @@ const GerenciamentoIntegrado = () => {
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => handleConfiguracoes(empresa.id)}
-                                                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
-                                                        title="Configurações"
-                                                    >
-                                                        <CogIcon className="h-5 w-5" />
-                                                    </button>
-                                                    <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                                                    <button
-                                                        onClick={() => handleToggleAtivo(empresa.id, empresa.ativo)}
-                                                        className={`p-2 rounded-lg transition-colors ${empresa.ativo
-                                                            ? 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
+                                                <button
+                                                    onClick={() => handleConfiguracoes(empresa.id)}
+                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                                                    title="Configurações"
+                                                >
+                                                    <CogIcon className="h-5 w-5" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleGerarBoletoAvulso(empresa.id)}
+                                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                                    title="Gerar boleto avulso"
+                                                    disabled={generatingBoletoId === empresa.id}
+                                                >
+                                                    {generatingBoletoId === empresa.id
+                                                        ? <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                                                        : <DocumentArrowDownIcon className="h-5 w-5" />}
+                                                </button>
+                                                <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+                                                <button
+                                                    onClick={() => handleToggleAtivo(empresa.id, empresa.ativo)}
+                                                    className={`p-2 rounded-lg transition-colors ${empresa.ativo
+                                                        ? 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
                                                             : 'text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30'
                                                             }`}
                                                         title={empresa.ativo ? 'Desativar Empresa' : 'Ativar Empresa'}
