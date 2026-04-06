@@ -10,6 +10,40 @@ const axiosInstance = axios.create({
     headers: { 'Content-Type': 'application/json' },
 });
 
+// Renovação automática para manter sessão ativa
+const setupAutoRefresh = () => {
+    if (typeof window === 'undefined') return;
+    if (window.__axiosRefreshInterval) return;
+
+    window.__axiosRefreshInterval = setInterval(async () => {
+        try {
+            const stored = localStorage.getItem('authTokens');
+            if (!stored) return;
+            const authTokens = JSON.parse(stored);
+            const { access, refresh } = authTokens || {};
+            if (!access || !refresh) return;
+
+            let expiresInMs;
+            try {
+                const decoded = jwtDecode(access);
+                expiresInMs = decoded.exp * 1000 - Date.now();
+            } catch {
+                expiresInMs = 0;
+            }
+
+            if (expiresInMs > 2 * 60 * 1000) return;
+
+            const response = await axios.post(`${baseURL}/api/token/refresh/`, { refresh });
+            const newAuthTokens = response.data;
+            localStorage.setItem('authTokens', JSON.stringify(newAuthTokens));
+        } catch (err) {
+            console.warn('Falha ao renovar token automaticamente. Tentará novamente.', err);
+        }
+    }, 60 * 1000);
+};
+
+setupAutoRefresh();
+
 // --- O Interceptor: A PARTE MAIS IMPORTANTE ---
 // Este código é executado ANTES de cada requisição ser enviada.
 axiosInstance.interceptors.request.use(
@@ -52,11 +86,9 @@ axiosInstance.interceptors.request.use(
             return config;
 
         } catch (refreshError) {
-            // 7. Se a renovação falhar (ex: refresh token também expirou), limpa tudo e redireciona para o login
-            console.error('Falha ao renovar o token. Redirecionando para o login.', refreshError);
-            localStorage.removeItem('authTokens');
-            // Redireciona para a página de login de forma segura
-            window.location.href = '/login'; 
+            // 7. Se a renovação falhar, mantemos a sessão e apenas propagamos o erro.
+            // O usuário só será desconectado ao clicar em "Sair".
+            console.error('Falha ao renovar o token. Mantendo sessão atual.', refreshError);
             return Promise.reject(refreshError);
         }
     },
