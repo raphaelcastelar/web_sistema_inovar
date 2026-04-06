@@ -54,28 +54,6 @@ const EmpresaList = () => {
         setVisibleCount(24);
     }, [search, activeTab]);
 
-    // Intersection Observer para carregar mais itens
-    useEffect(() => {
-        const target = observerTarget.current;
-        if (!target) return;
-
-        // Usa threshold mais baixo e rootMargin para acionar antes do fim da lista
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0].isIntersecting) {
-                    setVisibleCount((prev) => prev + 24);
-                }
-            },
-            { threshold: 0.25, rootMargin: '200px' }
-        );
-
-        observer.observe(target);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, [filteredEmpresas.length, visibleCount]);
-
     const handleDelete = (id) => {
         if (window.confirm('Tem certeza que deseja excluir esta empresa? Esta ação apaga também a pasta da empresa no servidor.')) {
             axiosInstance.delete(`/api/empresas/${id}/`)
@@ -109,6 +87,28 @@ const EmpresaList = () => {
             return (matchNome || matchEmail || matchCnpj) && isInTab;
         });
     }, [empresas, search, activeTab]);
+
+    // Intersection Observer para carregar mais itens
+    useEffect(() => {
+        const target = observerTarget.current;
+        if (!target) return;
+
+        // Usa threshold mais baixo e rootMargin para acionar antes do fim da lista
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setVisibleCount((prev) => prev + 24);
+                }
+            },
+            { threshold: 0.25, rootMargin: '200px' }
+        );
+
+        observer.observe(target);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, [filteredEmpresas.length, visibleCount]);
 
     const visibleEmpresas = filteredEmpresas.slice(0, visibleCount);
 
