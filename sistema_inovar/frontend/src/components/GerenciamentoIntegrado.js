@@ -31,6 +31,7 @@ const GerenciamentoIntegrado = () => {
     const [generatingBoletoId, setGeneratingBoletoId] = useState(null);
     const [boletoActionModal, setBoletoActionModal] = useState(null); // { id, nome }
     const [boletoActionLoading, setBoletoActionLoading] = useState(false);
+    const [boletoActionResult, setBoletoActionResult] = useState(null); // {type,text}
     const [batchSummary, setBatchSummary] = useState(null);
     const [resultsModalOpen, setResultsModalOpen] = useState(false);
     const [updatingHonorarioIds, setUpdatingHonorarioIds] = useState([]);
@@ -186,6 +187,7 @@ const GerenciamentoIntegrado = () => {
         setBoletoActionModal({ id: empresa.id, nome: empresa.nome });
         setError('');
         setSuccess('');
+        setBoletoActionResult(null);
     };
 
     const handleBoletoAction = async (action) => {
@@ -195,6 +197,7 @@ const GerenciamentoIntegrado = () => {
         setBoletoActionLoading(true);
         setError('');
         setSuccess('');
+        setBoletoActionResult(null);
 
         try {
             const response = await axiosInstance.post('/api/gerar-boleto/', {
@@ -208,16 +211,24 @@ const GerenciamentoIntegrado = () => {
                     window.open(downloadUrl, '_blank');
                 }
                 setSuccess('Boleto disponível para download.');
+                setBoletoActionResult({ type: 'success', text: 'Download liberado.' });
             } else {
-                setSuccess(response.data?.message || 'Boleto gerado/enviado com sucesso.');
+                const msg = response.data?.message || 'Boleto gerado/enviado com sucesso.';
+                setSuccess(msg);
+                setBoletoActionResult({ type: 'success', text: 'Envio concluído.' });
             }
             setTimeout(() => setSuccess(''), 4000);
         } catch (err) {
             setError(err.response?.data?.error || err.message || 'Falha ao processar boleto.');
+            setBoletoActionResult({ type: 'error', text: 'Falha ao processar.' });
         } finally {
             setGeneratingBoletoId(null);
             setBoletoActionLoading(false);
-            setBoletoActionModal(null);
+            // Mantém modal aberto para o usuário ver o status; fecha após curto intervalo
+            setTimeout(() => {
+                setBoletoActionModal(null);
+                setBoletoActionResult(null);
+            }, 1200);
         }
     };
 
@@ -794,6 +805,14 @@ const GerenciamentoIntegrado = () => {
                                     {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <PaperAirplaneIcon className="h-5 w-5 rotate-45" />}
                                     Gerar e enviar pelo WhatsApp
                                 </button>
+                                {boletoActionResult && (
+                                    <div className={`rounded-lg px-4 py-3 text-sm font-semibold ${boletoActionResult.type === 'success'
+                                        ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-200'
+                                        : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-200'
+                                        }`}>
+                                        {boletoActionResult.text}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
