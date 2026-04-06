@@ -161,10 +161,11 @@ def send_whatsapp_document_template_message(
             msg = response_data["messages"][0]
             wamid = msg.get("id")
             ts = msg.get("timestamp")
+            body_preview = json.dumps(payload.get("template", {}), ensure_ascii=False)
             log_whatsapp_message(
                 wamid=wamid,
                 to=recipient_number,
-                message=f"template:{template_name}",
+                message=f"template:{template_name} body={body_preview}",
                 msg_type="template",
                 timestamp=ts,
                 raw_payload=response_data,
