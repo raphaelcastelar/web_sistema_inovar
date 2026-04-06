@@ -56,25 +56,25 @@ const EmpresaList = () => {
 
     // Intersection Observer para carregar mais itens
     useEffect(() => {
+        const target = observerTarget.current;
+        if (!target) return;
+
+        // Usa threshold mais baixo e rootMargin para acionar antes do fim da lista
         const observer = new IntersectionObserver(
-            entries => {
+            (entries) => {
                 if (entries[0].isIntersecting) {
-                    setVisibleCount(prev => prev + 24);
+                    setVisibleCount((prev) => prev + 24);
                 }
             },
-            { threshold: 1.0 }
+            { threshold: 0.25, rootMargin: '200px' }
         );
 
-        if (observerTarget.current) {
-            observer.observe(observerTarget.current);
-        }
+        observer.observe(target);
 
         return () => {
-            if (observerTarget.current) {
-                observer.unobserve(observerTarget.current);
-            }
+            observer.disconnect();
         };
-    }, [observerTarget]);
+    }, [filteredEmpresas.length, visibleCount]);
 
     const handleDelete = (id) => {
         if (window.confirm('Tem certeza que deseja excluir esta empresa? Esta ação apaga também a pasta da empresa no servidor.')) {
