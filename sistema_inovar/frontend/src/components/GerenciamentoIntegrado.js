@@ -11,7 +11,8 @@ import {
     CogIcon,
     DocumentArrowDownIcon,
     ArrowPathIcon,
-    EyeIcon
+    EyeIcon,
+    PaperAirplaneIcon
 } from '@heroicons/react/24/outline';
 
 const GerenciamentoIntegrado = () => {
@@ -28,6 +29,8 @@ const GerenciamentoIntegrado = () => {
     const [selectedEmpresaIds, setSelectedEmpresaIds] = useState([]);
     const [isGeneratingBoletos, setIsGeneratingBoletos] = useState(false);
     const [generatingBoletoId, setGeneratingBoletoId] = useState(null);
+    const [boletoActionModal, setBoletoActionModal] = useState(null); // { id, nome }
+    const [boletoActionLoading, setBoletoActionLoading] = useState(false);
     const [batchSummary, setBatchSummary] = useState(null);
     const [resultsModalOpen, setResultsModalOpen] = useState(false);
     const [updatingHonorarioIds, setUpdatingHonorarioIds] = useState([]);
@@ -179,21 +182,43 @@ const GerenciamentoIntegrado = () => {
         }
     };
 
-    const handleGerarBoletoAvulso = async (empresaId) => {
+    const handleAbrirModalBoleto = (empresa) => {
+        setBoletoActionModal({ id: empresa.id, nome: empresa.nome });
+        setError('');
+        setSuccess('');
+    };
+
+    const handleBoletoAction = async (action) => {
+        if (!boletoActionModal) return;
+        const empresaId = boletoActionModal.id;
         setGeneratingBoletoId(empresaId);
+        setBoletoActionLoading(true);
         setError('');
         setSuccess('');
 
-        const result = await processarBoletoEmpresa(empresaId);
+        try {
+            const response = await axiosInstance.post('/api/gerar-boleto/', {
+                empresa_id: empresaId,
+                action,
+            });
 
-        if (result.status === 'success') {
-            setSuccess(`${result.empresa}: boleto gerado e enviado com sucesso.`);
+            if (action === 'baixar') {
+                const downloadUrl = response.data?.download_url;
+                if (downloadUrl) {
+                    window.open(downloadUrl, '_blank');
+                }
+                setSuccess('Boleto disponível para download.');
+            } else {
+                setSuccess(response.data?.message || 'Boleto gerado/enviado com sucesso.');
+            }
             setTimeout(() => setSuccess(''), 4000);
-        } else {
-            setError(`${result.empresa}: ${result.message}`);
+        } catch (err) {
+            setError(err.response?.data?.error || err.message || 'Falha ao processar boleto.');
+        } finally {
+            setGeneratingBoletoId(null);
+            setBoletoActionLoading(false);
+            setBoletoActionModal(null);
         }
-
-        setGeneratingBoletoId(null);
     };
 
     const handleToggleHonorario = async (empresaId, honorarioAtual) => {
@@ -701,9 +726,9 @@ const GerenciamentoIntegrado = () => {
                                                     <CogIcon className="h-5 w-5" />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleGerarBoletoAvulso(empresa.id)}
+                                                    onClick={() => handleAbrirModalBoleto(empresa)}
                                                     className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                                    title="Gerar boleto avulso"
+                                                    title="Gerar/baixar boleto"
                                                     disabled={generatingBoletoId === empresa.id}
                                                 >
                                                     {generatingBoletoId === empresa.id
@@ -730,6 +755,49 @@ const GerenciamentoIntegrado = () => {
                         </div>
                     )}
                 </div>
+
+                {/* Modal ação boleto avulso */}
+                {boletoActionModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                        <div
+                            className="absolute inset-0"
+                            onClick={() => !boletoActionLoading && setBoletoActionModal(null)}
+                        />
+                        <div className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                            <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-700 flex items-start justify-between">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Boleto Avulso</p>
+                                    <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{boletoActionModal.nome}</h2>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Escolha a ação para o honorário deste mês.</p>
+                                </div>
+                                <button
+                                    onClick={() => !boletoActionLoading && setBoletoActionModal(null)}
+                                    className="p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                >
+                                    <XCircleIcon className="h-6 w-6" />
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-4">
+                                <button
+                                    onClick={() => handleBoletoAction('baixar')}
+                                    disabled={boletoActionLoading}
+                                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-white hover:border-indigo-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-indigo-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <DocumentArrowDownIcon className="h-5 w-5" />}
+                                    Baixar boleto (usa existente se houver)
+                                </button>
+                                <button
+                                    onClick={() => handleBoletoAction('gerar_enviar')}
+                                    disabled={boletoActionLoading}
+                                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <PaperAirplaneIcon className="h-5 w-5 rotate-45" />}
+                                    Gerar e enviar pelo WhatsApp
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Modal Configurações */}
                 {boletoModalOpen && (

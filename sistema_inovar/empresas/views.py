@@ -1384,6 +1384,7 @@ def salvar_boleto_honorario_departamento_pessoal(empresa, pdf_content):
 def gerar_boleto_view(request):
     empresa_id = request.data.get('empresa_id')
     incoming_data = request.data.get('boleto_data', {})
+    action = request.data.get('action', "gerar_enviar")  # gerar_enviar (padrão) ou baixar
 
     if not empresa_id:
         return Response({"error": "empresa_id é obrigatório."}, status=status.HTTP_400_BAD_REQUEST)
@@ -1392,6 +1393,57 @@ def gerar_boleto_view(request):
         empresa = Empresa.objects.get(id=empresa_id)
     except Empresa.DoesNotExist:
         return Response({"error": "Empresa não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+    # Controle para manter apenas 1 boleto por mês por empresa
+    agora = timezone.now()
+    mes_atual = str(agora.month).zfill(2)
+    ano_atual = str(agora.year)
+    boleto_existente = DepartamentoPessoal.objects.filter(
+        cnpj_empresa=empresa.cnpj,
+        tipo_documento='HONORARIO',
+        mes=mes_atual,
+        ano=ano_atual,
+    ).order_by('id').first()
+
+    def enviar_boleto_existente(doc):
+        if not doc or not doc.caminho_arquivo:
+            return None, "Nenhum boleto encontrado para enviar."
+        try:
+            with doc.caminho_arquivo.open('rb') as f:
+                pdf_content = f.read()
+        except Exception as e:
+            return None, f"Falha ao ler boleto existente: {e}"
+
+        nome_base_empresa = empresa.nome or "empresa"
+        nome_arquivo_boleto = sanitize_filename_for_upload(f"honorario_{nome_base_empresa}.pdf").lower()
+        usuario_envio = request.user if getattr(request, "user", None) and request.user.is_authenticated else None
+        return enviar_boleto_honorario_whatsapp(
+            empresa=empresa,
+            pdf_content=pdf_content,
+            nome_arquivo=nome_arquivo_boleto,
+            usuario=usuario_envio,
+        )
+
+    # Ação: somente download. Se já existe, devolve link; se não, gera abaixo sem enviar.
+    if action == "baixar" and boleto_existente and boleto_existente.caminho_arquivo:
+        return Response({
+            "success": True,
+            "message": "Boleto encontrado. Disponível para download.",
+            "from_cache": True,
+            "download_url": request.build_absolute_uri(boleto_existente.caminho_arquivo.url),
+            "arquivo_pasta": boleto_existente.nome_arquivo,
+        }, status=status.HTTP_200_OK)
+
+    # Ação: gerar/enviar mas já existe -> apenas reenviar
+    if action == "gerar_enviar" and boleto_existente and boleto_existente.caminho_arquivo:
+        message_id, whatsapp_error = enviar_boleto_existente(boleto_existente)
+        return Response({
+            "success": True,
+            "message": "Boleto já existia; reenviado via WhatsApp." if message_id else "Boleto já existia, mas não foi reenviado.",
+            "arquivo_pasta": boleto_existente.nome_arquivo,
+            "reenviado": True,
+            "whatsapp_error": whatsapp_error,
+        }, status=status.HTTP_200_OK if message_id else status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # --- INÍCIO DA CORREÇÃO FINAL ---
 
@@ -1735,6 +1787,17 @@ def gerar_boleto_view(request):
     nome_base_empresa = empresa.nome or 'empresa'
     nome_arquivo_boleto = sanitize_filename_for_upload(f"honorario_{nome_base_empresa}.pdf").lower()
     usuario_envio = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
+
+    # Se a ação for apenas baixar, não envia pelo WhatsApp
+    if action == "baixar":
+        return Response({
+            "success": True,
+            "message": "Boleto gerado e disponível para download.",
+            "from_cache": False,
+            "download_url": request.build_absolute_uri(documento_honorario.caminho_arquivo.url),
+            "arquivo_pasta": documento_honorario.nome_arquivo,
+            "caminho_arquivo": documento_honorario.caminho_arquivo.name,
+        }, status=status.HTTP_200_OK)
 
     try:
         message_id, whatsapp_error = enviar_boleto_honorario_whatsapp(
