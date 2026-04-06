@@ -216,6 +216,7 @@ const GerenciamentoIntegrado = () => {
                 const msg = response.data?.message || 'Boleto gerado/enviado com sucesso.';
                 setSuccess(msg);
                 setBoletoActionResult({ type: 'success', text: 'Envio concluído.' });
+                await updateHonorarioStatus(empresaId, true, false);
             }
             setTimeout(() => setSuccess(''), 4000);
         } catch (err) {
