@@ -269,6 +269,24 @@ class HistoricoEnvios(models.Model):
         if self.remetente and self.remetente.startswith('+'):
             self.remetente = self.remetente.replace('+', '')  # Converte +5528999270687 para 5528999270687
         super().save(*args, **kwargs)
+
+class WhatsAppMessage(models.Model):
+    id = models.AutoField(primary_key=True)
+    wamid = models.CharField(max_length=255, unique=True)
+    to = models.CharField(max_length=20)
+    message = models.TextField(blank=True)
+    msg_type = models.CharField(max_length=32, default='text')
+    timestamp = models.DateTimeField(help_text="Timestamp fornecido pela API do WhatsApp")
+    raw_payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'whatsapp_messages'
+        indexes = [models.Index(fields=['timestamp']), models.Index(fields=['to'])]
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.to} - {self.wamid}"
     
 class ObrigacaoMensal(models.Model):
     STATUS_CHOICES = [

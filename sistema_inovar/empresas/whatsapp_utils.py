@@ -5,9 +5,33 @@ import os
 import mimetypes
 from django.conf import settings
 import logging
-from .models import Empresa
+from django.utils import timezone
+from .models import Empresa, WhatsAppMessage
 
 logger = logging.getLogger(__name__)
+
+def log_whatsapp_message(wamid, to, message, msg_type, timestamp, raw_payload):
+    try:
+        if timestamp:
+            try:
+                ts = timezone.datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
+            except Exception:
+                ts = timezone.datetime.fromisoformat(str(timestamp).replace('Z', '+00:00'))
+        else:
+            ts = timezone.now()
+
+        WhatsAppMessage.objects.update_or_create(
+            wamid=wamid,
+            defaults={
+                "to": to,
+                "message": message or "",
+                "msg_type": msg_type or "",
+                "timestamp": ts,
+                "raw_payload": raw_payload or {},
+            }
+        )
+    except Exception as e:
+        logger.error(f"Falha ao registrar mensagem no banco: {e}")
 
 def upload_media_to_whatsapp(file_path, original_filename):
     # ... (código da função upload_media_to_whatsapp como definido anteriormente) ...
@@ -134,7 +158,18 @@ def send_whatsapp_document_template_message(
         response_data = response.json()
         logger.info(f"Resposta do envio do template: {json.dumps(response_data, indent=2, ensure_ascii=False)}")
         if "messages" in response_data and response_data["messages"]:
-            return response_data["messages"][0].get("id"), None
+            msg = response_data["messages"][0]
+            wamid = msg.get("id")
+            ts = msg.get("timestamp")
+            log_whatsapp_message(
+                wamid=wamid,
+                to=recipient_number,
+                message=f"template:{template_name}",
+                msg_type="template",
+                timestamp=ts,
+                raw_payload=response_data,
+            )
+            return wamid, None
         return None, "Nenhum message_id na resposta."
     except requests.exceptions.RequestException as e:
         error_message = f"Erro API: {e}"
