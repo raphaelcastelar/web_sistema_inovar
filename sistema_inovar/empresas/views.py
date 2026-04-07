@@ -1405,45 +1405,21 @@ def gerar_boleto_view(request):
         ano=ano_atual,
     ).order_by('id').first()
 
-    def enviar_boleto_existente(doc):
-        if not doc or not doc.caminho_arquivo:
-            return None, "Nenhum boleto encontrado para enviar."
-        try:
-            with doc.caminho_arquivo.open('rb') as f:
-                pdf_content = f.read()
-        except Exception as e:
-            return None, f"Falha ao ler boleto existente: {e}"
+    # Ação: somente download. Se existe, devolve link; se não, retorna erro sem gerar novo arquivo
+    if action == "baixar":
+        if boleto_existente and boleto_existente.caminho_arquivo:
+            return Response({
+                "success": True,
+                "message": "Boleto encontrado. Disponível para download.",
+                "from_cache": True,
+                "download_url": request.build_absolute_uri(boleto_existente.caminho_arquivo.url),
+                "arquivo_pasta": boleto_existente.nome_arquivo,
+            }, status=status.HTTP_200_OK)
 
-        nome_base_empresa = empresa.nome or "empresa"
-        nome_arquivo_boleto = sanitize_filename_for_upload(f"honorario_{nome_base_empresa}.pdf").lower()
-        usuario_envio = request.user if getattr(request, "user", None) and request.user.is_authenticated else None
-        return enviar_boleto_honorario_whatsapp(
-            empresa=empresa,
-            pdf_content=pdf_content,
-            nome_arquivo=nome_arquivo_boleto,
-            usuario=usuario_envio,
-        )
-
-    # Ação: somente download. Se já existe, devolve link; se não, gera abaixo sem enviar.
-    if action == "baixar" and boleto_existente and boleto_existente.caminho_arquivo:
         return Response({
-            "success": True,
-            "message": "Boleto encontrado. Disponível para download.",
-            "from_cache": True,
-            "download_url": request.build_absolute_uri(boleto_existente.caminho_arquivo.url),
-            "arquivo_pasta": boleto_existente.nome_arquivo,
-        }, status=status.HTTP_200_OK)
-
-    # Ação: gerar/enviar mas já existe -> apenas reenviar
-    if action == "gerar_enviar" and boleto_existente and boleto_existente.caminho_arquivo:
-        message_id, whatsapp_error = enviar_boleto_existente(boleto_existente)
-        return Response({
-            "success": True,
-            "message": "Boleto já existia; reenviado via WhatsApp." if message_id else "Boleto já existia, mas não foi reenviado.",
-            "arquivo_pasta": boleto_existente.nome_arquivo,
-            "reenviado": True,
-            "whatsapp_error": whatsapp_error,
-        }, status=status.HTTP_200_OK if message_id else status.HTTP_500_INTERNAL_SERVER_ERROR)
+            "success": False,
+            "error": "Nenhum boleto encontrado para download.",
+        }, status=status.HTTP_404_NOT_FOUND)
 
     # --- INÍCIO DA CORREÇÃO FINAL ---
 
