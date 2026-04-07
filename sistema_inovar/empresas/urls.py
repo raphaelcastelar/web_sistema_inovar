@@ -16,6 +16,7 @@ from .views import (
     PendenciaAPIView,
     gerar_boleto_view,
     ultimo_resultado_sessao,
+    bb_cobranca_webhook,
 )
 
 urlpatterns = [
@@ -35,4 +36,5 @@ urlpatterns = [
     path('dashboard/pie-chart/', dashboard_pie_chart, name='dashboard_pie_chart'),
     path('gerar-boleto/', gerar_boleto_view, name='gerar_boleto'),
     path('ultimo-resultado-sessao/', ultimo_resultado_sessao, name='ultimo_resultado_sessao'),
+    path('webhook/bb-cobranca/', bb_cobranca_webhook, name='bb_cobranca_webhook'),
 ]

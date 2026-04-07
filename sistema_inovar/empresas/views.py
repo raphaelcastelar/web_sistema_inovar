@@ -31,7 +31,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
@@ -1796,3 +1796,69 @@ def gerar_boleto_view(request):
         "arquivo_pasta": documento_honorario.nome_arquivo,
         "caminho_arquivo": documento_honorario.caminho_arquivo.name,
     }, status=status.HTTP_200_OK)
+
+
+# === WEBHOOK COBRANÇA BB ===
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([])  # externo; não requer auth
+@permission_classes([])      # libera autenticação do DRF
+def bb_cobranca_webhook(request):
+    """
+    Endpoint para receber notificações de eventos (ex.: Baixa Operacional) da API Cobranças v2 do Banco do Brasil.
+    - Responde 200 rapidamente para evitar reenvio.
+    - Valida opcionalmente um header de segredo (X-Hook-Token) se BB_WEBHOOK_TOKEN estiver definido em settings/.env.
+    - Persiste log em logs/webhook_bb.log para auditoria.
+    """
+    if request.method != 'POST':
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+
+    # Verificação opcional de segredo
+    secret = getattr(settings, 'BB_WEBHOOK_TOKEN', None)
+    provided = request.headers.get('X-Hook-Token') or request.headers.get('X-Hook-Secret')
+    if secret and provided != secret:
+        return JsonResponse({"detail": "Invalid webhook token"}, status=403)
+
+    # Parse seguro do payload
+    try:
+        payload = request.data if isinstance(request.data, dict) else json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        payload = {}
+
+    evento = payload.get('tipoEvento') or payload.get('evento') or payload.get('situacao') or 'desconhecido'
+    nosso_numero = (
+        payload.get('nossoNumero')
+        or payload.get('numeroTituloBeneficiario')
+        or payload.get('numeroTituloCliente')
+        or payload.get('numero')
+    )
+    numero_convenio = payload.get('numeroConvenio')
+    valor_pago = payload.get('valorPago') or payload.get('valorRecebido')
+    data_evento = payload.get('dataPagamento') or payload.get('dataOcorrencia')
+
+    log_entry = {
+        "evento": evento,
+        "numero_convenio": numero_convenio,
+        "nosso_numero": nosso_numero,
+        "valor_pago": valor_pago,
+        "data_evento": data_evento,
+        "payload": payload,
+        "recebido_em": timezone.now().isoformat(),
+        "ip": request.META.get('REMOTE_ADDR'),
+        "user_agent": request.META.get('HTTP_USER_AGENT'),
+    }
+
+    # Log para arquivo local (auditoria simples)
+    try:
+        logs_dir = os.path.join(settings.BASE_DIR, 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
+        logfile = os.path.join(logs_dir, 'webhook_bb.log')
+        with open(logfile, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+    except Exception as e:
+        logger.warning(f"Não foi possível gravar log do webhook BB: {e}")
+
+    # Log estruturado no logger padrão
+    logger.info("Webhook BB recebido: %s", {k: v for k, v in log_entry.items() if k != 'payload'})
+
+    return JsonResponse({"status": "ok"})
