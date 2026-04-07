@@ -209,8 +209,14 @@ const GerenciamentoIntegrado = () => {
                 const downloadUrl = response.data?.download_url;
                 if (downloadUrl) {
                     const nomeEmpresa = boletoActionModal?.nome || 'empresa';
-                    const sanitizedName = nomeEmpresa.replace(/[^\\w\\d-]+/g, '_').toUpperCase();
-                    const fileName = `HONORARIO-${sanitizedName}.pdf`;
+                    const normalizedName = nomeEmpresa
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '') // remove acentos
+                        .replace(/[^A-Za-z0-9-]+/g, '_') // troca espaços e símbolos por _
+                        .replace(/_+/g, '_') // compacta múltiplos _
+                        .replace(/^_+|_+$/g, ''); // remove _ no início/fim
+                    const safeName = normalizedName || 'EMPRESA';
+                    const fileName = `HONORARIO-${safeName.toUpperCase()}.pdf`;
 
                     const fileResponse = await axiosInstance.get(downloadUrl, { responseType: 'blob' });
                     const blobUrl = window.URL.createObjectURL(new Blob([fileResponse.data]));
