@@ -1405,21 +1405,15 @@ def gerar_boleto_view(request):
         ano=ano_atual,
     ).order_by('id').first()
 
-    # Ação: somente download. Se existe, devolve link; se não, retorna erro sem gerar novo arquivo
-    if action == "baixar":
-        if boleto_existente and boleto_existente.caminho_arquivo:
-            return Response({
-                "success": True,
-                "message": "Boleto encontrado. Disponível para download.",
-                "from_cache": True,
-                "download_url": request.build_absolute_uri(boleto_existente.caminho_arquivo.url),
-                "arquivo_pasta": boleto_existente.nome_arquivo,
-            }, status=status.HTTP_200_OK)
-
+    # Ação: somente download. Se existe, devolve link; se não, segue para gerar um novo (sem enviar)
+    if action == "baixar" and boleto_existente and boleto_existente.caminho_arquivo:
         return Response({
-            "success": False,
-            "error": "Nenhum boleto encontrado para download.",
-        }, status=status.HTTP_404_NOT_FOUND)
+            "success": True,
+            "message": "Boleto encontrado. Disponível para download.",
+            "from_cache": True,
+            "download_url": request.build_absolute_uri(boleto_existente.caminho_arquivo.url),
+            "arquivo_pasta": boleto_existente.nome_arquivo,
+        }, status=status.HTTP_200_OK)
 
     # --- INÍCIO DA CORREÇÃO FINAL ---
 
