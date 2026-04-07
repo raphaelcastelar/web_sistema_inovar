@@ -208,9 +208,21 @@ const GerenciamentoIntegrado = () => {
             if (action === 'baixar') {
                 const downloadUrl = response.data?.download_url;
                 if (downloadUrl) {
-                    window.open(downloadUrl, '_blank');
+                    const nomeEmpresa = boletoActionModal?.nome || 'empresa';
+                    const sanitizedName = nomeEmpresa.replace(/[^\\w\\d-]+/g, '_').toUpperCase();
+                    const fileName = `HONORARIO-${sanitizedName}.pdf`;
+
+                    const fileResponse = await axiosInstance.get(downloadUrl, { responseType: 'blob' });
+                    const blobUrl = window.URL.createObjectURL(new Blob([fileResponse.data]));
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.URL.revokeObjectURL(blobUrl);
                 }
-                setSuccess('Boleto disponível para download.');
+                setSuccess('Boleto baixado.');
                 setBoletoActionResult({ type: 'success', text: 'Download liberado.' });
             } else {
                 const msg = response.data?.message || 'Boleto gerado/enviado com sucesso.';
