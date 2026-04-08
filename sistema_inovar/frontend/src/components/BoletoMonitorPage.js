@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axiosInstance from '../api/axiosInstance';
 
 const statusColors = {
@@ -20,44 +20,72 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('pt-BR');
 }
 
+function formatDateTime(d) {
+  if (!d) return '-';
+  return new Date(d).toLocaleString('pt-BR');
+}
+
+function normalizeBoletosResponse(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
+  return [];
+}
+
 const BoletoMonitorPage = () => {
   const [boletos, setBoletos] = useState([]);
   const [empresas, setEmpresas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [filters, setFilters] = useState({ search: '', status: '', empresa_id: '' });
 
-  const fetchEmpresas = async () => {
+  const fetchEmpresas = useCallback(async () => {
     try {
       const res = await axiosInstance.get('/api/empresas/');
       setEmpresas(res.data || []);
     } catch (err) {
       console.error('Erro ao carregar empresas', err);
     }
-  };
+  }, []);
 
-  const fetchBoletos = async () => {
-    setLoading(true);
-    setError(null);
+  const fetchBoletos = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+      setError(null);
+    }
+
     try {
       const params = {};
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
       if (filters.empresa_id) params.empresa_id = filters.empresa_id;
+      params._ts = Date.now(); // Evita cache e força retorno atualizado.
+
       const res = await axiosInstance.get('/api/boletos-bb/', { params });
-      setBoletos(res.data || []);
+      setBoletos(normalizeBoletosResponse(res.data));
+      setLastUpdated(new Date());
     } catch (err) {
       setError(err?.response?.data?.detail || 'Falha ao carregar boletos.');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  };
+  }, [filters]);
 
   useEffect(() => {
     fetchEmpresas();
-    fetchBoletos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchEmpresas]);
+
+  useEffect(() => {
+    fetchBoletos(true);
+  }, [fetchBoletos]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchBoletos(false);
+    }, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [fetchBoletos]);
 
   const filteredLabel = useMemo(() => {
     const parts = [];
@@ -85,10 +113,13 @@ const BoletoMonitorPage = () => {
         <div>
           <h1 className="text-2xl font-bold">Monitor de Boletos BB</h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">Acompanhe registro, baixa e pagamento por empresa.</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            Última atualização: {lastUpdated ? formatDateTime(lastUpdated) : '-'}
+          </p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={fetchBoletos}
+            onClick={() => fetchBoletos(true)}
             className="rounded-lg bg-indigo-600 px-4 py-2 text-white shadow hover:bg-indigo-700 disabled:opacity-50"
             disabled={loading}
           >
@@ -159,21 +190,22 @@ const BoletoMonitorPage = () => {
                 <th className="px-4 py-3 text-left font-semibold">Vencimento</th>
                 <th className="px-4 py-3 text-left font-semibold">Pagamento</th>
                 <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Convênio</th>
+                <th className="px-4 py-3 text-left font-semibold">Operação / Convênio</th>
+                <th className="px-4 py-3 text-left font-semibold">Linha Digitável / Código</th>
                 <th className="px-4 py-3 text-left font-semibold">Atualizado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading && (
                 <tr>
-                  <td colSpan="8" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan="9" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                     Carregando...
                   </td>
                 </tr>
               )}
               {!loading && boletos.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan="9" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                     Nenhum boleto encontrado.
                   </td>
                 </tr>
@@ -197,13 +229,22 @@ const BoletoMonitorPage = () => {
                     <td className="px-4 py-3">{formatDate(b.data_pagamento)}</td>
                     <td className="px-4 py-3">{statusBadge(b.status)}</td>
                     <td className="px-4 py-3">
+                      <div>Operação: {b.numero_operacao || '-'}</div>
                       <div>Convênio: {b.numero_convenio || '-'}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         Cart/Var: {b.carteira || '-'} / {b.variacao_carteira || '-'}
                       </div>
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="max-w-[280px] truncate" title={b.linha_digitavel || '-'}>
+                        {b.linha_digitavel || '-'}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 max-w-[280px] truncate" title={b.codigo_barra || '-'}>
+                        {b.codigo_barra || '-'}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(b.atualizado_em).toLocaleString('pt-BR')}
+                      {formatDateTime(b.atualizado_em)}
                     </td>
                   </tr>
                 ))}

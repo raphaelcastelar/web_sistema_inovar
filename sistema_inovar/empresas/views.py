@@ -388,7 +388,7 @@ class PendenciaAPIView(APIView):
 class BoletoBBViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = BoletoBBSerializer
-    queryset = BoletoBB.objects.select_related('empresa').all().order_by('-criado_em')
+    queryset = BoletoBB.objects.select_related('empresa').all().order_by('-atualizado_em', '-criado_em')
 
     def get_queryset(self):
         qs = self.queryset
