@@ -26,6 +26,7 @@ from django.utils.dateparse import parse_date
 from django.core.files.base import ContentFile
 from datetime import timedelta
 from django.db.models import OuterRef, Subquery, CharField
+from django.db import models
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
@@ -74,7 +75,7 @@ from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
-    UltimoResultadoSessaoSerializer
+    UltimoResultadoSessaoSerializer, BoletoBBSerializer
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
@@ -338,6 +339,33 @@ class PendenciaAPIView(APIView):
                 )
         
         return Response(created_pendencias, status=status.HTTP_201_CREATED)
+
+
+class BoletoBBViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = BoletoBBSerializer
+    queryset = BoletoBB.objects.select_related('empresa').all().order_by('-criado_em')
+
+    def get_queryset(self):
+        qs = self.queryset
+        empresa_id = self.request.query_params.get('empresa_id')
+        status_param = self.request.query_params.get('status')
+        search = self.request.query_params.get('search')
+
+        if empresa_id:
+            qs = qs.filter(empresa_id=empresa_id)
+        if status_param:
+            qs = qs.filter(status=status_param)
+        if search:
+            digits = ''.join(ch for ch in search if ch.isdigit())
+            qs = qs.filter(
+                models.Q(numero_titulo_cliente__icontains=search) |
+                models.Q(nosso_numero__icontains=search) |
+                models.Q(linha_digitavel__icontains=digits) |
+                models.Q(codigo_barra__icontains=digits) |
+                models.Q(empresa__nome__icontains=search)
+            )
+        return qs
 
 class NotificacaoViewSet(viewsets.ModelViewSet):
     serializer_class = NotificacaoSerializer

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao
+from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
 import re
 import logging
 
@@ -212,3 +212,18 @@ class UltimoResultadoSessaoSerializer(serializers.ModelSerializer):
     class Meta:
         model = UltimoResultadoSessao
         fields = ['batch_summary', 'atualizado_em']
+
+
+class BoletoBBSerializer(serializers.ModelSerializer):
+    empresa_nome = serializers.CharField(source='empresa.nome', read_only=True)
+
+    class Meta:
+        model = BoletoBB
+        fields = [
+            'id', 'empresa', 'empresa_nome', 'numero_convenio', 'carteira', 'variacao_carteira',
+            'numero_operacao', 'numero_titulo_cliente', 'nosso_numero',
+            'linha_digitavel', 'codigo_barra', 'valor_original', 'valor_pago',
+            'data_vencimento', 'data_pagamento', 'status',
+            'payload_registro', 'payload_baixa',
+            'criado_em', 'atualizado_em',
+        ]

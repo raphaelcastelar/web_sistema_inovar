@@ -10,7 +10,8 @@ import {
     DocumentChartBarIcon,
     ChartBarIcon,
     ExclamationTriangleIcon,
-    BanknotesIcon
+    BanknotesIcon,
+    ClipboardDocumentCheckIcon
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 import ThemeToggle from './ThemeToggle';
@@ -73,6 +74,7 @@ const Navbar = () => {
                 <NavLink to="/central-simples" icon={DocumentChartBarIcon} text="Central do Simples" />
                 <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" />
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
+                <NavLink to="/monitor-boletos" icon={ClipboardDocumentCheckIcon} text="Monitor Boletos" />
 
                                                                                                                                                     </nav>
 
