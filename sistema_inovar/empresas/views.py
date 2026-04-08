@@ -38,6 +38,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework import viewsets, permissions
+from decimal import Decimal
 
 from empresas.serpro_service import gerar_e_enviar_das
 from .permissions import IsPessoalOrFiscalOrAdmin
@@ -67,8 +68,7 @@ from .utils import get_bb_access_token
 from .models import (
     Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
     SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
-    UltimoResultadoSessao
-
+    UltimoResultadoSessao, BoletoBB
 )
 from .serializers import (
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
@@ -1705,6 +1705,29 @@ def gerar_boleto_view(request):
         'endereco2': f"{final_payload['pagador'].get('cidade','')} - {final_payload['pagador'].get('uf','')}",
     }
 
+    # === PERSISTIR BOLETO NO BANCO ===
+    try:
+        venc_dt = datetime.datetime.strptime(final_payload['dataVencimento'], '%d.%m.%Y').date()
+    except Exception:
+        venc_dt = None
+
+    BoletoBB.objects.update_or_create(
+        numero_titulo_cliente=final_payload.get('numeroTituloCliente'),
+        defaults={
+            'empresa': empresa,
+            'numero_convenio': str(final_payload.get('numeroConvenio', '')),
+            'carteira': str(final_payload.get('carteira', '')),
+            'variacao_carteira': str(final_payload.get('variacaoCarteira', '') or final_payload.get('variacao_carteira', '')),
+            'nosso_numero': numero_boleto,
+            'linha_digitavel': linha_digitavel or '',
+            'codigo_barra': codigo_barra_numerico or '',
+            'valor_original': Decimal(str(final_payload.get('valorOriginal', 0))) if final_payload.get('valorOriginal') is not None else Decimal('0'),
+            'data_vencimento': venc_dt,
+            'status': 'registrado',
+            'payload_registro': boleto_response,
+        }
+    )
+
 
     # === CAMINHO ABSOLUTO DA LOGO ===
     caminho_logo = os.path.join(settings.BASE_DIR, 'frontend','src', 'assets', 'logobb.PNG')
@@ -1843,6 +1866,7 @@ def bb_cobranca_webhook(request):
         "valor_pago": valor_pago,
         "data_evento": data_evento,
         "payload": payload,
+        "raw_body": request.body.decode('utf-8', errors='ignore'),
         "recebido_em": timezone.now().isoformat(),
         "ip": request.META.get('REMOTE_ADDR'),
         "user_agent": request.META.get('HTTP_USER_AGENT'),
@@ -1860,5 +1884,64 @@ def bb_cobranca_webhook(request):
 
     # Log estruturado no logger padrão
     logger.info("Webhook BB recebido: %s", {k: v for k, v in log_entry.items() if k != 'payload'})
+
+    # Atualizar boleto no banco (idempotente)
+    try:
+        # Tentar parsear payload se veio como lista ou string
+        if not payload:
+            try:
+                body_json = json.loads(log_entry["raw_body"])
+                if isinstance(body_json, list) and body_json:
+                    payload = body_json[0]
+                elif isinstance(body_json, dict):
+                    payload = body_json
+            except Exception:
+                payload = {}
+
+        numero_titulo_cliente = payload.get('numeroTituloCliente') or payload.get('id')
+        numero_operacao = payload.get('numeroOperacao')
+        nosso_numero_payload = payload.get('nossoNumero') or nosso_numero
+
+        filtro = {}
+        if numero_titulo_cliente:
+            filtro['numero_titulo_cliente'] = str(numero_titulo_cliente)
+        elif nosso_numero_payload:
+            filtro['nosso_numero'] = str(nosso_numero_payload)
+        elif numero_operacao:
+            filtro['numero_operacao'] = str(numero_operacao)
+
+        if filtro:
+            boleto = BoletoBB.objects.filter(**filtro).first()
+            if boleto:
+                # data pagamento em formatos diferentes
+                data_pg = None
+                for key in ('dataLiquidacao', 'dataPagamento', 'dataOcorrencia', 'dataCredito'):
+                    if payload.get(key):
+                        for fmt in ('%d.%m.%Y', '%d/%m/%Y %H:%M:%S', '%d/%m/%Y'):
+                            try:
+                                data_pg = datetime.datetime.strptime(payload[key], fmt).date()
+                                raise StopIteration
+                            except StopIteration:
+                                break
+                            except Exception:
+                                continue
+                        if data_pg:
+                            break
+
+                valor_pago_final = payload.get('valorPago') or payload.get('valorPagoSacado') or valor_pago
+                status_final = boleto.status
+                if str(payload.get('codigoEstadoBaixaOperacional')) in ('1', '2') or evento.lower().startswith('baixa'):
+                    status_final = 'pago'
+
+                boleto.numero_operacao = numero_operacao or boleto.numero_operacao
+                boleto.valor_pago = Decimal(str(valor_pago_final)) if valor_pago_final not in (None, '') else boleto.valor_pago
+                boleto.data_pagamento = data_pg or boleto.data_pagamento
+                boleto.status = status_final
+                boleto.payload_baixa = payload
+                boleto.save(update_fields=['numero_operacao','valor_pago', 'data_pagamento', 'status', 'payload_baixa', 'atualizado_em'])
+            else:
+                logger.warning("Webhook BB: boleto não encontrado para filtro %s", filtro)
+    except Exception as e:
+        logger.error(f"Falha ao atualizar boleto via webhook BB: {e}")
 
     return JsonResponse({"status": "ok"})

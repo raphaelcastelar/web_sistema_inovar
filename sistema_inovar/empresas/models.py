@@ -4,6 +4,7 @@ import re # Para sanitizar nomes de pastas/arquivos
 import unidecode # Para remover acentos de nomes de pastas/arquivos (pip install unidecode)
 from django.db import models
 from django.utils import timezone
+from decimal import Decimal
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado
 from django.contrib.auth.models import AbstractUser
@@ -374,3 +375,42 @@ class UltimoResultadoSessao(models.Model):
 
     def __str__(self):
         return f"Último resultado de {self.usuario.username}"
+
+
+class BoletoBB(models.Model):
+    STATUS_CHOICES = [
+        ('registrado', 'Registrado'),
+        ('pago', 'Pago'),
+        ('baixado', 'Baixado'),
+        ('cancelado', 'Cancelado'),
+    ]
+
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='boletos_bb')
+    numero_convenio = models.CharField(max_length=12)
+    carteira = models.CharField(max_length=5, blank=True, null=True)
+    variacao_carteira = models.CharField(max_length=5, blank=True, null=True)
+    numero_operacao = models.CharField(max_length=30, null=True, blank=True, db_index=True)
+    numero_titulo_cliente = models.CharField(max_length=30, unique=True)
+    nosso_numero = models.CharField(max_length=30, db_index=True, null=True, blank=True)
+    linha_digitavel = models.CharField(max_length=80, null=True, blank=True)
+    codigo_barra = models.CharField(max_length=80, null=True, blank=True)
+    valor_original = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    valor_pago = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    data_vencimento = models.DateField(null=True, blank=True)
+    data_pagamento = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='registrado')
+    payload_registro = models.JSONField(default=dict, blank=True)
+    payload_baixa = models.JSONField(default=dict, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'boletos_bb'
+        indexes = [
+            models.Index(fields=['numero_titulo_cliente']),
+            models.Index(fields=['nosso_numero']),
+        ]
+        ordering = ['-criado_em']
+
+    def __str__(self):
+        return f"{self.numero_titulo_cliente} - {self.empresa.nome}"
