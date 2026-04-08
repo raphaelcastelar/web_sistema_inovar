@@ -92,6 +92,50 @@ WKHTMLTOPDF_PATH = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_bb_decimal(value):
+    if value in (None, ""):
+        return None
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return None
+
+
+def _parse_bb_date(value):
+    if not value:
+        return None
+
+    value_str = str(value).strip()
+    for fmt in ('%d.%m.%Y', '%d/%m/%Y', '%d/%m/%Y %H:%M:%S', '%Y-%m-%d'):
+        try:
+            return datetime.datetime.strptime(value_str, fmt).date()
+        except ValueError:
+            continue
+
+    parsed = parse_date(value_str)
+    if parsed:
+        return parsed
+    return None
+
+
+def _map_bb_webhook_status(evento, payload_obj):
+    evento_norm = str(evento or '').strip().lower()
+    codigo_baixa = str(payload_obj.get('codigoEstadoBaixaOperacional') or '').strip()
+
+    if (
+        'liquid' in evento_norm
+        or payload_obj.get('dataLiquidacao')
+        or payload_obj.get('valorPagoSacado') is not None
+        or codigo_baixa in {'1', '2'}
+    ):
+        return 'pago'
+    if 'cancel' in evento_norm:
+        return 'cancelado'
+    if 'baixa' in evento_norm:
+        return 'baixado'
+    return None
+
 MODEL_CONFIG_MAP = {
     'documentos_constitutivos': {
         'model': DocumentosConstitutivos, 
@@ -1746,6 +1790,7 @@ def gerar_boleto_view(request):
             'numero_convenio': str(final_payload.get('numeroConvenio', '')),
             'carteira': str(final_payload.get('carteira', '')),
             'variacao_carteira': str(final_payload.get('variacaoCarteira', '') or final_payload.get('variacao_carteira', '')),
+            'numero_operacao': str(boleto_response.get('numeroOperacao') or final_payload.get('numeroOperacao') or ''),
             'nosso_numero': numero_boleto,
             'linha_digitavel': linha_digitavel or '',
             'codigo_barra': codigo_barra_numerico or '',
@@ -1973,6 +2018,69 @@ def bb_cobranca_webhook(request):
         "user_agent": request.META.get('HTTP_USER_AGENT'),
     }
 
+    boleto_atualizado = None
+    status_boleto = _map_bb_webhook_status(evento, payload_obj)
+    data_pagamento = _parse_bb_date(data_evento)
+    valor_pago_decimal = _parse_bb_decimal(valor_pago)
+    numero_operacao = pick(payload_obj, 'numeroOperacao', 'numero_operacao')
+
+    try:
+        boleto_qs = BoletoBB.objects.all()
+        if numero_convenio:
+            boleto_qs = boleto_qs.filter(numero_convenio=str(numero_convenio))
+
+        lookup_candidates = []
+        for candidate in (nosso_numero, numero_operacao):
+            if candidate not in (None, ""):
+                lookup_candidates.append(str(candidate))
+
+        boleto = None
+        if lookup_candidates:
+            for candidate in lookup_candidates:
+                boleto = boleto_qs.filter(
+                    models.Q(nosso_numero=str(candidate)) |
+                    models.Q(numero_titulo_cliente=str(candidate)) |
+                    models.Q(numero_operacao=str(candidate))
+                ).first()
+                if boleto:
+                    break
+
+        if boleto:
+            changed_fields = []
+
+            if valor_pago_decimal is not None and boleto.valor_pago != valor_pago_decimal:
+                boleto.valor_pago = valor_pago_decimal
+                changed_fields.append('valor_pago')
+
+            if data_pagamento and boleto.data_pagamento != data_pagamento:
+                boleto.data_pagamento = data_pagamento
+                changed_fields.append('data_pagamento')
+
+            if status_boleto and boleto.status != status_boleto:
+                boleto.status = status_boleto
+                changed_fields.append('status')
+
+            if numero_operacao and boleto.numero_operacao != str(numero_operacao):
+                boleto.numero_operacao = str(numero_operacao)
+                changed_fields.append('numero_operacao')
+
+            boleto.payload_baixa = payload_obj
+            changed_fields.append('payload_baixa')
+
+            if changed_fields:
+                boleto.save(update_fields=list(dict.fromkeys(changed_fields + ['atualizado_em'])))
+            boleto_atualizado = boleto
+            log_entry["boleto_id"] = boleto.id
+            log_entry["boleto_status"] = boleto.status
+            log_entry["boleto_encontrado"] = True
+        else:
+            log_entry["boleto_encontrado"] = False
+            log_entry["identificadores_consultados"] = lookup_candidates
+            log_entry["numero_operacao"] = numero_operacao
+    except Exception as e:
+        log_entry["erro_atualizacao_boleto"] = str(e)
+        logger.exception("Erro ao atualizar boleto BB via webhook")
+
     # Log em arquivo local
     try:
         logs_dir = os.path.join(settings.BASE_DIR, 'logs')
@@ -1996,7 +2104,14 @@ def bb_cobranca_webhook(request):
             "recebido_em": log_entry["recebido_em"],
             "ip": real_ip,
             "user_agent": log_entry["user_agent"],
+            "boleto_encontrado": log_entry.get("boleto_encontrado"),
+            "boleto_id": log_entry.get("boleto_id"),
+            "boleto_status": log_entry.get("boleto_status"),
         }
     )
 
-    return JsonResponse({"status": "ok"})
+    return JsonResponse({
+        "status": "ok",
+        "boleto_encontrado": bool(boleto_atualizado),
+        "boleto_id": getattr(boleto_atualizado, 'id', None),
+    })

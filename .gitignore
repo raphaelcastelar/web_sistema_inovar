@@ -3,3 +3,4 @@ sistema_inovar/sistema_inovar/.env
 /.idea
 /.idea
 sistema_inovar/sistema_inovar/settings.py
+/node_modules
