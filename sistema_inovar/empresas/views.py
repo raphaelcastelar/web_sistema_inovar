@@ -1827,12 +1827,6 @@ def gerar_boleto_view(request):
 @authentication_classes([])  # externo; não requer auth
 @permission_classes([])      # libera autenticação do DRF
 def bb_cobranca_webhook(request):
-    """
-    Endpoint para receber notificações de eventos (ex.: Baixa Operacional) da API Cobranças v2 do Banco do Brasil.
-    - Responde 200 rapidamente para evitar reenvio.
-    - Valida opcionalmente um header de segredo (X-Hook-Token) se BB_WEBHOOK_TOKEN estiver definido em settings/.env.
-    - Persiste log em logs/webhook_bb.log para auditoria.
-    """
     if request.method != 'POST':
         return JsonResponse({"detail": "Method not allowed"}, status=405)
 
@@ -1842,22 +1836,99 @@ def bb_cobranca_webhook(request):
     if secret and provided != secret:
         return JsonResponse({"detail": "Invalid webhook token"}, status=403)
 
-    # Parse seguro do payload
+    # Parse seguro do body
     try:
-        payload = request.data if isinstance(request.data, dict) else json.loads(request.body.decode('utf-8') or '{}')
+        raw_body = request.body.decode('utf-8-sig', errors='replace') if request.body else ''
+    except Exception:
+        raw_body = ''
+
+    try:
+        payload = json.loads(raw_body) if raw_body else {}
     except Exception:
         payload = {}
 
-    evento = payload.get('tipoEvento') or payload.get('evento') or payload.get('situacao') or 'desconhecido'
-    nosso_numero = (
-        payload.get('nossoNumero')
-        or payload.get('numeroTituloBeneficiario')
-        or payload.get('numeroTituloCliente')
-        or payload.get('numero')
+    # Aceita objeto ou lista de objetos
+    if isinstance(payload, list):
+        payload_items = payload
+        payload_obj = payload[0] if payload and isinstance(payload[0], dict) else {}
+    elif isinstance(payload, dict):
+        payload_items = [payload]
+        payload_obj = payload
+    else:
+        payload_items = []
+        payload_obj = {}
+
+    def pick(data, *keys, default=None):
+        if not isinstance(data, dict):
+            return default
+        for key in keys:
+            value = data.get(key)
+            if value is not None and value != "":
+                return value
+        return default
+
+    # IP real do cliente por trás do Cloudflare Tunnel
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        real_ip = forwarded_for.split(',')[0].strip()
+    else:
+        real_ip = (
+            request.headers.get('CF-Connecting-IP')
+            or request.META.get('HTTP_CF_CONNECTING_IP')
+            or request.META.get('REMOTE_ADDR')
+        )
+
+    # Mapeamento real do payload do BB
+    evento = pick(
+        payload_obj,
+        'tipoEvento',
+        'tipo_evento',
+        'evento',
+        'situacao',
+        default='liquidacao'
     )
-    numero_convenio = payload.get('numeroConvenio')
-    valor_pago = payload.get('valorPago') or payload.get('valorRecebido')
-    data_evento = payload.get('dataPagamento') or payload.get('dataOcorrencia')
+
+    numero_convenio = pick(
+        payload_obj,
+        'numeroConvenio',
+        'numero_convenio',
+        'convenio'
+    )
+
+    # O BB real não mandou "nossoNumero" nesse exemplo.
+    # O campo mais próximo para identificar o título é "id" ou "numeroOperacao".
+    nosso_numero = pick(
+        payload_obj,
+        'nossoNumero',
+        'nosso_numero',
+        'numeroTituloBeneficiario',
+        'numeroTituloCliente',
+        'id',
+        'numeroOperacao'
+    )
+
+    valor_pago = pick(
+        payload_obj,
+        'valorPago',
+        'valor_pago',
+        'valorRecebido',
+        'valor_recebido',
+        'valorPagoSacado',
+        'valorOriginal'
+    )
+
+    data_evento = pick(
+        payload_obj,
+        'dataPagamento',
+        'data_pagamento',
+        'dataOcorrencia',
+        'data_ocorrencia',
+        'dataEvento',
+        'data_evento',
+        'dataLiquidacao',
+        'dataCredito',
+        'dataRegistro'
+    )
 
     log_entry = {
         "evento": evento,
@@ -1866,82 +1937,38 @@ def bb_cobranca_webhook(request):
         "valor_pago": valor_pago,
         "data_evento": data_evento,
         "payload": payload,
-        "raw_body": request.body.decode('utf-8', errors='ignore'),
+        "payload_obj": payload_obj,
+        "quantidade_itens": len(payload_items),
+        "raw_body": raw_body,
         "recebido_em": timezone.now().isoformat(),
-        "ip": request.META.get('REMOTE_ADDR'),
+        "ip": real_ip,
         "user_agent": request.META.get('HTTP_USER_AGENT'),
     }
 
-    # Log para arquivo local (auditoria simples)
+    # Log em arquivo local
     try:
         logs_dir = os.path.join(settings.BASE_DIR, 'logs')
         os.makedirs(logs_dir, exist_ok=True)
         logfile = os.path.join(logs_dir, 'webhook_bb.log')
+
         with open(logfile, 'a', encoding='utf-8') as f:
             f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
     except Exception as e:
-        logger.warning(f"Não foi possível gravar log do webhook BB: {e}")
+        logger.warning("Não foi possível gravar log do webhook BB: %s", e)
 
-    # Log estruturado no logger padrão
-    logger.info("Webhook BB recebido: %s", {k: v for k, v in log_entry.items() if k != 'payload'})
-
-    # Atualizar boleto no banco (idempotente)
-    try:
-        # Tentar parsear payload se veio como lista ou string
-        if not payload:
-            try:
-                body_json = json.loads(log_entry["raw_body"])
-                if isinstance(body_json, list) and body_json:
-                    payload = body_json[0]
-                elif isinstance(body_json, dict):
-                    payload = body_json
-            except Exception:
-                payload = {}
-
-        numero_titulo_cliente = payload.get('numeroTituloCliente') or payload.get('id')
-        numero_operacao = payload.get('numeroOperacao')
-        nosso_numero_payload = payload.get('nossoNumero') or nosso_numero
-
-        filtro = {}
-        if numero_titulo_cliente:
-            filtro['numero_titulo_cliente'] = str(numero_titulo_cliente)
-        elif nosso_numero_payload:
-            filtro['nosso_numero'] = str(nosso_numero_payload)
-        elif numero_operacao:
-            filtro['numero_operacao'] = str(numero_operacao)
-
-        if filtro:
-            boleto = BoletoBB.objects.filter(**filtro).first()
-            if boleto:
-                # data pagamento em formatos diferentes
-                data_pg = None
-                for key in ('dataLiquidacao', 'dataPagamento', 'dataOcorrencia', 'dataCredito'):
-                    if payload.get(key):
-                        for fmt in ('%d.%m.%Y', '%d/%m/%Y %H:%M:%S', '%d/%m/%Y'):
-                            try:
-                                data_pg = datetime.datetime.strptime(payload[key], fmt).date()
-                                raise StopIteration
-                            except StopIteration:
-                                break
-                            except Exception:
-                                continue
-                        if data_pg:
-                            break
-
-                valor_pago_final = payload.get('valorPago') or payload.get('valorPagoSacado') or valor_pago
-                status_final = boleto.status
-                if str(payload.get('codigoEstadoBaixaOperacional')) in ('1', '2') or evento.lower().startswith('baixa'):
-                    status_final = 'pago'
-
-                boleto.numero_operacao = numero_operacao or boleto.numero_operacao
-                boleto.valor_pago = Decimal(str(valor_pago_final)) if valor_pago_final not in (None, '') else boleto.valor_pago
-                boleto.data_pagamento = data_pg or boleto.data_pagamento
-                boleto.status = status_final
-                boleto.payload_baixa = payload
-                boleto.save(update_fields=['numero_operacao','valor_pago', 'data_pagamento', 'status', 'payload_baixa', 'atualizado_em'])
-            else:
-                logger.warning("Webhook BB: boleto não encontrado para filtro %s", filtro)
-    except Exception as e:
-        logger.error(f"Falha ao atualizar boleto via webhook BB: {e}")
+    logger.info(
+        "Webhook BB recebido: %s",
+        {
+            "evento": evento,
+            "numero_convenio": numero_convenio,
+            "nosso_numero": nosso_numero,
+            "valor_pago": valor_pago,
+            "data_evento": data_evento,
+            "quantidade_itens": len(payload_items),
+            "recebido_em": log_entry["recebido_em"],
+            "ip": real_ip,
+            "user_agent": log_entry["user_agent"],
+        }
+    )
 
     return JsonResponse({"status": "ok"})
