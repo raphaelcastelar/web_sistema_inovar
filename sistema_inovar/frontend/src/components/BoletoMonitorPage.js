@@ -80,11 +80,11 @@ const BoletoMonitorPage = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-gray-900 dark:text-gray-100">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Monitor de Boletos BB</h1>
-          <p className="text-sm text-gray-600">Acompanhe registro, baixa e pagamento por empresa.</p>
+          <h1 className="text-2xl font-bold">Monitor de Boletos BB</h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Acompanhe registro, baixa e pagamento por empresa.</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -99,22 +99,22 @@ const BoletoMonitorPage = () => {
 
       <div className="grid gap-3 md:grid-cols-4">
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Buscar</label>
           <input
             name="search"
             value={filters.search}
             onChange={handleChange}
             placeholder="Nosso número, título, linha digitável ou empresa"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none"
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 focus:border-indigo-500 focus:outline-none"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
           <select
             name="status"
             value={filters.status}
             onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none"
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 focus:border-indigo-500 focus:outline-none"
           >
             <option value="">Todos</option>
             <option value="registrado">Registrado</option>
@@ -124,12 +124,12 @@ const BoletoMonitorPage = () => {
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Empresa</label>
           <select
             name="empresa_id"
             value={filters.empresa_id}
             onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:outline-none"
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 px-3 py-2 focus:border-indigo-500 focus:outline-none"
           >
             <option value="">Todas</option>
             {empresas.map((e) => (
@@ -141,17 +141,17 @@ const BoletoMonitorPage = () => {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          <div className="text-sm text-gray-600">{filteredLabel}</div>
-          <div className="text-xs text-gray-500">{boletos.length} resultados</div>
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 px-4 py-3">
+          <div className="text-sm text-gray-600 dark:text-gray-300">{filteredLabel}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{boletos.length} resultados</div>
         </div>
 
-        {error && <div className="px-4 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200">{error}</div>}
+        {error && <div className="px-4 py-3 text-sm text-red-700 bg-red-50 dark:bg-red-900/30 dark:text-red-100 border-b border-red-200 dark:border-red-800">{error}</div>}
 
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600">
+            <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">Empresa</th>
                 <th className="px-4 py-3 text-left font-semibold">Título / Nosso Nº</th>
@@ -163,46 +163,46 @@ const BoletoMonitorPage = () => {
                 <th className="px-4 py-3 text-left font-semibold">Atualizado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading && (
                 <tr>
-                  <td colSpan="8" className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan="8" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                     Carregando...
                   </td>
                 </tr>
               )}
               {!loading && boletos.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="px-4 py-6 text-center text-gray-500">
+                  <td colSpan="8" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                     Nenhum boleto encontrado.
                   </td>
                 </tr>
               )}
               {!loading &&
                 boletos.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50">
+                  <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/60">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-gray-900">{b.empresa_nome}</div>
-                      <div className="text-xs text-gray-500">ID {b.empresa}</div>
+                      <div className="font-semibold text-gray-900 dark:text-gray-100">{b.empresa_nome}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">ID {b.empresa}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-gray-900 font-semibold">{b.numero_titulo_cliente || '-'}</div>
-                      <div className="text-xs text-gray-500">Nosso nº: {b.nosso_numero || '-'}</div>
+                      <div className="text-gray-900 dark:text-gray-100 font-semibold">{b.numero_titulo_cliente || '-'}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Nosso nº: {b.nosso_numero || '-'}</div>
                     </td>
                     <td className="px-4 py-3">
                       <div>{formatMoney(b.valor_original)}</div>
-                      <div className="text-xs text-gray-500">Pago: {formatMoney(b.valor_pago)}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Pago: {formatMoney(b.valor_pago)}</div>
                     </td>
                     <td className="px-4 py-3">{formatDate(b.data_vencimento)}</td>
                     <td className="px-4 py-3">{formatDate(b.data_pagamento)}</td>
                     <td className="px-4 py-3">{statusBadge(b.status)}</td>
                     <td className="px-4 py-3">
                       <div>Convênio: {b.numero_convenio || '-'}</div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
                         Cart/Var: {b.carteira || '-'} / {b.variacao_carteira || '-'}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">
                       {new Date(b.atualizado_em).toLocaleString('pt-BR')}
                     </td>
                   </tr>
