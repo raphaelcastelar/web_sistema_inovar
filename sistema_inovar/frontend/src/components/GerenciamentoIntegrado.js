@@ -523,11 +523,11 @@ const GerenciamentoIntegrado = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 md:p-8 font-sans">
+        <div className="min-h-screen bg-gray-50 px-4 py-4 font-sans dark:bg-gray-900 sm:px-6 sm:py-6 lg:px-8">
             <div className="max-w-7xl mx-auto space-y-8">
 
                 {/* Header & Stats */}
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
                         <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
                             Gerenciamento Integrado
@@ -538,7 +538,7 @@ const GerenciamentoIntegrado = () => {
                     </div>
                     <Link
                         to="/empresas/cadastrar"
-                        className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg hover:shadow-indigo-500/30 transition-all transform hover:-translate-y-0.5"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-indigo-500/30 sm:w-auto"
                     >
                         <PlusIcon className="h-5 w-5" />
                         <span className="font-semibold">Nova Empresa</span>
@@ -546,7 +546,7 @@ const GerenciamentoIntegrado = () => {
                 </header>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Empresas</p>
@@ -607,7 +607,7 @@ const GerenciamentoIntegrado = () => {
                 </section>
 
                 {/* Controls Area (Search & Filter) */}
-                <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex flex-col gap-4 md:flex-row">
                     <div className="relative flex-grow">
                         <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute top-1/2 left-3 transform -translate-y-1/2" />
                         <input
@@ -618,11 +618,11 @@ const GerenciamentoIntegrado = () => {
                             className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-white transition-shadow shadow-sm"
                         />
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex w-full gap-2 md:w-auto">
                         <select
                             value={filterStatus}
                             onChange={(e) => setFilterStatus(e.target.value)}
-                            className="px-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-white shadow-sm cursor-pointer"
+                            className="w-full cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 shadow-sm focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white md:w-auto"
                         >
                             <option value="all">Todos os Status</option>
                             <option value="active">Apenas Ativas</option>
@@ -686,7 +686,7 @@ const GerenciamentoIntegrado = () => {
                 )}
 
                 {/* Table View */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     {filteredEmpresas.length === 0 ? (
                         <div className="text-center py-16 px-4">
                             <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" />
@@ -694,7 +694,81 @@ const GerenciamentoIntegrado = () => {
                             <p className="text-gray-500 dark:text-gray-400">Tente ajustar seus filtros de busca.</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <>
+                            <div className="divide-y divide-gray-200 dark:divide-gray-700 xl:hidden">
+                                {filteredEmpresas.map((empresa) => (
+                                    <div key={empresa.id} className="space-y-4 px-4 py-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-sm font-bold text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400">
+                                                {empresa.nome.substring(0, 2).toUpperCase()}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-sm font-medium text-gray-900 dark:text-white">{empresa.nome}</div>
+                                                <div className="mt-0.5 text-xs font-mono text-gray-500 dark:text-gray-400">{empresa.cnpj}</div>
+                                                <div className="mt-2 break-all text-sm text-gray-500 dark:text-gray-400">{empresa.email}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-3 sm:grid-cols-3">
+                                            <div>
+                                                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Honorario</div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleHonorario(empresa.id, empresa.honorario)}
+                                                    disabled={updatingHonorarioIds.includes(empresa.id)}
+                                                    className="mt-1 inline-flex items-center justify-center rounded-lg p-1 disabled:cursor-not-allowed"
+                                                    title={empresa.honorario ? 'Honorario concluido' : 'Marcar honorario'}
+                                                >
+                                                    <CheckCircleIcon
+                                                        className={`h-5 w-5 ${empresa.honorario ? 'text-green-500' : 'text-gray-300 dark:text-gray-600'} ${updatingHonorarioIds.includes(empresa.id) ? 'opacity-50' : 'cursor-pointer'}`}
+                                                    />
+                                                </button>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Status</div>
+                                                <span className={`mt-1 inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${empresa.ativo
+                                                    ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                                    : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300'
+                                                    }`}>
+                                                    {empresa.ativo ? 'Ativa' : 'Inativa'}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Acoes</div>
+                                                <div className="mt-1 flex flex-wrap gap-2">
+                                                    <button
+                                                        onClick={() => handleConfiguracoes(empresa.id)}
+                                                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30"
+                                                        title="Configuracoes"
+                                                    >
+                                                        <CogIcon className="h-5 w-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleAbrirModalBoleto(empresa)}
+                                                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-blue-900/30"
+                                                        title="Gerar/baixar boleto"
+                                                        disabled={generatingBoletoId === empresa.id}
+                                                    >
+                                                        {generatingBoletoId === empresa.id ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <DocumentArrowDownIcon className="h-5 w-5" />}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleToggleAtivo(empresa.id, empresa.ativo)}
+                                                        className={`rounded-lg p-2 transition-colors ${empresa.ativo
+                                                            ? 'text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30'
+                                                            : 'text-gray-400 hover:bg-green-50 hover:text-green-500 dark:hover:bg-green-900/30'
+                                                            }`}
+                                                        title={empresa.ativo ? 'Desativar Empresa' : 'Ativar Empresa'}
+                                                    >
+                                                        {empresa.ativo ? <XCircleIcon className="h-5 w-5" /> : <CheckCircleIcon className="h-5 w-5" />}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="hidden overflow-x-auto xl:block">
                             <table className="w-full text-left">
                                 <thead className="bg-gray-50 dark:bg-gray-700/50">
                                     <tr>
@@ -782,7 +856,8 @@ const GerenciamentoIntegrado = () => {
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
+                            </div>
+                        </>
                     )}
                 </div>
 
@@ -793,7 +868,7 @@ const GerenciamentoIntegrado = () => {
                             className="absolute inset-0"
                             onClick={() => !boletoActionLoading && setBoletoActionModal(null)}
                         />
-                        <div className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
                             <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-700 flex items-start justify-between">
                                 <div>
                                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Boleto Avulso</p>
@@ -844,7 +919,7 @@ const GerenciamentoIntegrado = () => {
                             className="absolute inset-0"
                             onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
                         />
-                        <div className="relative w-full max-w-4xl rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
                             <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-700">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="max-w-2xl">
@@ -864,7 +939,7 @@ const GerenciamentoIntegrado = () => {
                                 </div>
                             </div>
 
-                            <div className="grid gap-6 p-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+                            <div className="grid max-h-[calc(100vh-10rem)] gap-6 overflow-y-auto p-4 sm:p-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                                 <aside className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800">
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Resumo</div>
@@ -960,7 +1035,7 @@ const GerenciamentoIntegrado = () => {
                                                 ? 'Nenhuma empresa selecionada.'
                                                 : `${selectedEmpresasCount} empresa(s) pronta(s) para gerar e enviar honorario.`}
                                         </p>
-                                        <div className="flex gap-3">
+                                        <div className="flex flex-col gap-3 sm:flex-row">
                                             <button
                                                 onClick={() => setBoletoModalOpen(false)}
                                                 className="rounded-xl px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -989,7 +1064,7 @@ const GerenciamentoIntegrado = () => {
                             className="absolute inset-0 bg-black/40"
                             onClick={() => setConfigModalOpen(false)}
                         />
-                        <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-lg w-full max-w-lg p-8 border border-gray-100 dark:border-gray-700">
+                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-100 bg-white p-5 shadow-lg dark:border-gray-700 dark:bg-gray-800 sm:p-8">
                             <div className="flex items-center justify-between mb-8">
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1032,7 +1107,7 @@ const GerenciamentoIntegrado = () => {
                                 ))}
                             </div>
 
-                            <div className="mt-10 flex justify-end gap-3">
+                            <div className="mt-10 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                                 <button
                                     onClick={() => setConfigModalOpen(false)}
                                     className="px-6 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-xl transition-colors"
@@ -1056,7 +1131,7 @@ const GerenciamentoIntegrado = () => {
                             className="absolute inset-0"
                             onClick={() => setResultsModalOpen(false)}
                         />
-                        <div className="relative w-full max-w-5xl rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
+                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
                             <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-700">
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
@@ -1090,7 +1165,7 @@ const GerenciamentoIntegrado = () => {
                                 </div>
                             </div>
 
-                            <div className="grid gap-4 p-6 lg:grid-cols-2">
+                            <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-2">
                                 <section className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
                                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                                         <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
