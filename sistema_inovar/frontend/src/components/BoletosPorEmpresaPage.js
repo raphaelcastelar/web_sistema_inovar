@@ -44,8 +44,7 @@ function formatMonthLabel(monthKey) {
   if (!monthKey) return '-';
   const [year, month] = monthKey.split('-').map(Number);
   if (!year || !month) return monthKey;
-  const date = new Date(year, month - 1, 1);
-  return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  return `${String(month).padStart(2, '0')}/${year}`;
 }
 
 function buildEmptySummary() {
@@ -295,7 +294,7 @@ const BoletosPorEmpresaPage = () => {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <section className="self-start rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
             <div className="mb-2 text-sm font-semibold">Empresas</div>
             <input
@@ -416,9 +415,6 @@ const BoletosPorEmpresaPage = () => {
             <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
               Historico geral (outros meses)
             </h3>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Menus iniciando abaixo do ultimo boleto do mes atual.
-            </p>
           </div>
 
           <div className="space-y-3 px-4 pb-4">
@@ -440,18 +436,15 @@ const BoletosPorEmpresaPage = () => {
                         [group.monthKey]: !prev[group.monthKey],
                       }))
                     }
-                    className={`flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition ${
+                    className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition ${
                       isOpen
                         ? 'bg-indigo-50 dark:bg-indigo-900/30'
                         : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-800/40 dark:hover:bg-gray-800/70'
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-base font-semibold capitalize text-gray-900 dark:text-gray-100">
+                      <div className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
                         {group.label}
-                      </div>
-                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Clique para {isOpen ? 'ocultar' : 'ver'} os boletos deste mes
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
