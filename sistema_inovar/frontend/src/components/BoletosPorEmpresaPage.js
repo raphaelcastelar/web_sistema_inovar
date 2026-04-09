@@ -41,6 +41,34 @@ function normalizeRows(data) {
   return [];
 }
 
+async function fetchAllBoletosFromApi() {
+  let nextUrl = '/api/boletos-bb/';
+  let firstRequest = true;
+  let guard = 0;
+  const allRows = [];
+
+  while (nextUrl && guard < 100) {
+    const response = await axiosInstance.get(nextUrl, {
+      params: firstRequest ? { _ts: Date.now() } : undefined,
+      headers: { 'Cache-Control': 'no-cache' },
+    });
+
+    const data = response?.data;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) {
+      allRows.push(...data.results);
+      nextUrl = data.next || null;
+      firstRequest = false;
+      guard += 1;
+      continue;
+    }
+
+    return normalizeRows(data);
+  }
+
+  return allRows;
+}
+
 function formatMoney(v) {
   if (v === null || v === undefined) return '-';
   const n = Number(v);
@@ -140,12 +168,11 @@ const BoletosPorEmpresaPage = () => {
   const fetchData = useCallback(async (showLoading = true) => {
     if (showLoading) { setLoading(true); setError(''); }
     try {
-      const [empresasRes, boletosRes] = await Promise.all([
+      const [empresasRes, boletosData] = await Promise.all([
         axiosInstance.get('/api/empresas/'),
-        axiosInstance.get('/api/boletos-bb/', { params: { _ts: Date.now() } }),
+        fetchAllBoletosFromApi(),
       ]);
       const empresasData = Array.isArray(empresasRes.data) ? empresasRes.data : [];
-      const boletosData = normalizeRows(boletosRes.data);
       setEmpresas(empresasData);
       setBoletos(boletosData);
       setLastUpdated(new Date());
@@ -164,7 +191,7 @@ const BoletosPorEmpresaPage = () => {
 
   useEffect(() => { fetchData(true); }, [fetchData]);
   useEffect(() => {
-    const interval = setInterval(() => fetchData(false), 30000);
+    const interval = setInterval(() => fetchData(false), 15000);
     return () => clearInterval(interval);
   }, [fetchData]);
 
