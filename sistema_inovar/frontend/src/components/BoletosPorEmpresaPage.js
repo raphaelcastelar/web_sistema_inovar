@@ -163,6 +163,7 @@ const BoletosPorEmpresaPage = () => {
   }, [boletosDaEmpresa, searchBoleto, statusFilter]);
 
   const mesAtualKey = useMemo(() => getMonthKey(new Date().toISOString()), []);
+  const anoAtual = useMemo(() => new Date().getFullYear(), []);
 
   const boletosMesAtual = useMemo(
     () => boletosFiltrados.filter((b) => getMonthKey(b.criado_em) === mesAtualKey),
@@ -174,18 +175,24 @@ const BoletosPorEmpresaPage = () => {
     boletosFiltrados.forEach((b) => {
       const monthKey = getMonthKey(b.criado_em);
       if (!monthKey || monthKey === mesAtualKey) return;
+      if (!monthKey.startsWith(`${anoAtual}-`)) return;
       if (!groups[monthKey]) groups[monthKey] = [];
       groups[monthKey].push(b);
     });
 
-    return Object.keys(groups)
-      .sort((a, b) => (a > b ? -1 : 1))
-      .map((monthKey) => ({
-        monthKey,
-        label: formatMonthLabel(monthKey),
-        boletos: groups[monthKey].sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em)),
-      }));
-  }, [boletosFiltrados, mesAtualKey]);
+    // Sempre exibe todos os meses já passados do ano atual, mesmo sem boleto.
+    const currentMonth = new Date().getMonth() + 1; // 1-12
+    const previousMonthsKeys = [];
+    for (let month = currentMonth - 1; month >= 1; month -= 1) {
+      previousMonthsKeys.push(`${anoAtual}-${String(month).padStart(2, '0')}`);
+    }
+
+    return previousMonthsKeys.map((monthKey) => ({
+      monthKey,
+      label: formatMonthLabel(monthKey),
+      boletos: (groups[monthKey] || []).sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em)),
+    }));
+  }, [boletosFiltrados, mesAtualKey, anoAtual]);
 
   useEffect(() => {
     setHistoricoMesesAbertos({});
@@ -417,7 +424,7 @@ const BoletosPorEmpresaPage = () => {
           <div className="space-y-3 px-4 pb-4">
             {empresaSelecionada && boletosHistoricoPorMes.length === 0 && (
               <div className="rounded-xl border border-dashed border-gray-300 px-4 py-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                Nao existem boletos de meses anteriores para esta empresa.
+                Ainda nao existem meses anteriores neste ano para exibicao.
               </div>
             )}
 
