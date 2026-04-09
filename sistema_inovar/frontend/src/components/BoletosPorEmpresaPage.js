@@ -3,10 +3,10 @@ import axiosInstance from '../api/axiosInstance';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 const statusMeta = {
-  registrado: { label: 'Registrado', pill: 'bg-amber-100 text-amber-800 ring-amber-200' },
-  pago: { label: 'Pago', pill: 'bg-emerald-100 text-emerald-800 ring-emerald-200' },
-  baixado: { label: 'Baixado', pill: 'bg-sky-100 text-sky-800 ring-sky-200' },
-  cancelado: { label: 'Cancelado', pill: 'bg-rose-100 text-rose-800 ring-rose-200' },
+  registrado: { label: 'Registrado', pill: 'bg-amber-100 text-amber-800 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900' },
+  pago: { label: 'Pago', pill: 'bg-emerald-100 text-emerald-800 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900' },
+  baixado: { label: 'Baixado', pill: 'bg-sky-100 text-sky-800 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900' },
+  cancelado: { label: 'Cancelado', pill: 'bg-rose-100 text-rose-800 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900' },
 };
 
 function normalizeRows(data) {
@@ -203,7 +203,10 @@ const BoletosPorEmpresaPage = () => {
   }, [resumoPorEmpresa, selectedEmpresaId]);
 
   const renderStatusPill = (status) => {
-    const meta = statusMeta[status] || { label: status || 'desconhecido', pill: 'bg-gray-100 text-gray-700 ring-gray-200' };
+    const meta = statusMeta[status] || {
+      label: status || 'desconhecido',
+      pill: 'bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700',
+    };
     return (
       <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ring-1 ${meta.pill}`}>
         {meta.label}
@@ -294,7 +297,7 @@ const BoletosPorEmpresaPage = () => {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-        <section className="self-start rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <section className="self-start rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900/90">
           <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
             <div className="mb-2 text-sm font-semibold">Empresas</div>
             <input
@@ -323,20 +326,20 @@ const BoletosPorEmpresaPage = () => {
                     onClick={() => setSelectedEmpresaId(String(empresa.id))}
                     className={`w-full rounded-xl border px-3 py-3 text-left transition ${
                       isActive
-                        ? 'border-indigo-400 bg-indigo-50 dark:border-indigo-500 dark:bg-indigo-900/30'
-                        : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/70'
+                        ? 'border-indigo-400 bg-indigo-50 dark:border-indigo-500/80 dark:bg-indigo-950/40'
+                        : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900/70 dark:hover:bg-gray-800/80'
                     }`}
                   >
                     <div className="truncate text-sm font-semibold">{empresa.nome}</div>
                     <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{empresa.cnpj || '-'}</div>
                     <div className="mt-2 flex flex-wrap items-center gap-1 text-[11px]">
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                         Total {summary.total}
                       </span>
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">{summary.registrado}</span>
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">{summary.pago}</span>
-                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-800">{summary.baixado}</span>
-                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-rose-800">{summary.cancelado}</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{summary.registrado}</span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">{summary.pago}</span>
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">{summary.baixado}</span>
+                      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300">{summary.cancelado}</span>
                     </div>
                   </button>
                 );
@@ -345,7 +348,7 @@ const BoletosPorEmpresaPage = () => {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900/90">
           <div className="border-b border-gray-200 px-4 py-4 dark:border-gray-800">
             {empresaSelecionada ? (
               <>
@@ -357,23 +360,23 @@ const BoletosPorEmpresaPage = () => {
             )}
 
             <div className="mt-4 grid gap-2 sm:grid-cols-5">
-              <div className="rounded-xl bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800">
+              <div className="rounded-xl bg-gray-100 px-3 py-2 text-sm dark:bg-gray-800 dark:ring-1 dark:ring-gray-700">
                 <div className="text-xs text-gray-500 dark:text-gray-400">Total</div>
                 <div className="font-semibold">{resumeEmpresaSelecionada.total}</div>
               </div>
-              <div className="rounded-xl bg-amber-100 px-3 py-2 text-sm text-amber-900">
+              <div className="rounded-xl bg-amber-100 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-1 dark:ring-amber-900">
                 <div className="text-xs">Registrado</div>
                 <div className="font-semibold">{resumeEmpresaSelecionada.registrado}</div>
               </div>
-              <div className="rounded-xl bg-emerald-100 px-3 py-2 text-sm text-emerald-900">
+              <div className="rounded-xl bg-emerald-100 px-3 py-2 text-sm text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-1 dark:ring-emerald-900">
                 <div className="text-xs">Pago</div>
                 <div className="font-semibold">{resumeEmpresaSelecionada.pago}</div>
               </div>
-              <div className="rounded-xl bg-sky-100 px-3 py-2 text-sm text-sky-900">
+              <div className="rounded-xl bg-sky-100 px-3 py-2 text-sm text-sky-900 dark:bg-sky-950/40 dark:text-sky-200 dark:ring-1 dark:ring-sky-900">
                 <div className="text-xs">Baixado</div>
                 <div className="font-semibold">{resumeEmpresaSelecionada.baixado}</div>
               </div>
-              <div className="rounded-xl bg-rose-100 px-3 py-2 text-sm text-rose-900">
+              <div className="rounded-xl bg-rose-100 px-3 py-2 text-sm text-rose-900 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-1 dark:ring-rose-900">
                 <div className="text-xs">Cancelado</div>
                 <div className="font-semibold">{resumeEmpresaSelecionada.cancelado}</div>
               </div>
@@ -439,7 +442,7 @@ const BoletosPorEmpresaPage = () => {
                     className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition ${
                       isOpen
                         ? 'bg-indigo-50 dark:bg-indigo-900/30'
-                        : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-800/40 dark:hover:bg-gray-800/70'
+                        : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-800/50 dark:hover:bg-gray-800/80'
                     }`}
                   >
                     <div className="min-w-0">
@@ -448,13 +451,13 @@ const BoletosPorEmpresaPage = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
+                      <span className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700">
                         {group.boletos.length}
                       </span>
                       {isOpen ? (
-                        <ChevronDownIcon className="h-4 w-4 text-gray-500" />
+                        <ChevronDownIcon className="h-4 w-4 text-gray-500 dark:text-gray-300" />
                       ) : (
-                        <ChevronRightIcon className="h-4 w-4 text-gray-500" />
+                        <ChevronRightIcon className="h-4 w-4 text-gray-500 dark:text-gray-300" />
                       )}
                     </div>
                   </button>
