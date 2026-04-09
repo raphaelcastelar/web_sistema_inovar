@@ -1130,8 +1130,41 @@ def current_user(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def gerar_pro_labore_docx_view(request):
+    payload = dict(request.data or {})
+
+    empresa_id = payload.get('empresa_id')
+    if empresa_id:
+        try:
+            empresa = Empresa.objects.get(id=empresa_id)
+
+            endereco_full = (empresa.endereco or '').strip()
+            endereco = endereco_full
+            numero = ''
+            if endereco_full:
+                match = re.search(r'(.+?),\s*(?:n(?:u|ú)?m(?:ero)?\.?\s*)?(\d+)\s*$', endereco_full, re.IGNORECASE)
+                if match:
+                    endereco = match.group(1).strip()
+                    numero = match.group(2).strip()
+
+            db_defaults = {
+                'empresa_nome': empresa.nome or '',
+                'empresa_cnpj': empresa.cnpj or '',
+                'empresa_endereco': endereco,
+                'empresa_numero': numero,
+                'empresa_bairro': empresa.bairro or '',
+                'empresa_municipio': empresa.cidade or '',
+                'empresa_estado': empresa.uf or '',
+                'empresa_cep': empresa.cep or '',
+            }
+
+            for key, value in db_defaults.items():
+                if not str(payload.get(key, '')).strip():
+                    payload[key] = value
+        except Empresa.DoesNotExist:
+            return Response({'error': 'Empresa não encontrada para o empresa_id informado.'}, status=status.HTTP_404_NOT_FOUND)
+
     try:
-        arquivo_docx, nome_arquivo = build_pro_labore_docx(request.data or {})
+        arquivo_docx, nome_arquivo = build_pro_labore_docx(payload)
     except ValueError as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
