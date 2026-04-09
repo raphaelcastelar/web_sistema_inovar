@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axiosInstance from '../api/axiosInstance';
+import { Bars3Icon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 const statusMeta = {
   registrado: { label: 'Registrado', pill: 'bg-amber-100 text-amber-800 ring-amber-200' },
@@ -31,6 +32,22 @@ function formatDateTime(v) {
   return new Date(v).toLocaleString('pt-BR');
 }
 
+function getMonthKey(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${d.getFullYear()}-${month}`;
+}
+
+function formatMonthLabel(monthKey) {
+  if (!monthKey) return '-';
+  const [year, month] = monthKey.split('-').map(Number);
+  if (!year || !month) return monthKey;
+  const date = new Date(year, month - 1, 1);
+  return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+}
+
 function buildEmptySummary() {
   return {
     total: 0,
@@ -51,6 +68,7 @@ const BoletosPorEmpresaPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [historicoMesesAbertos, setHistoricoMesesAbertos] = useState({});
 
   const fetchData = useCallback(async (showLoading = true) => {
     if (showLoading) {
@@ -144,6 +162,35 @@ const BoletosPorEmpresaPage = () => {
     });
   }, [boletosDaEmpresa, searchBoleto, statusFilter]);
 
+  const mesAtualKey = useMemo(() => getMonthKey(new Date().toISOString()), []);
+
+  const boletosMesAtual = useMemo(
+    () => boletosFiltrados.filter((b) => getMonthKey(b.criado_em) === mesAtualKey),
+    [boletosFiltrados, mesAtualKey]
+  );
+
+  const boletosHistoricoPorMes = useMemo(() => {
+    const groups = {};
+    boletosFiltrados.forEach((b) => {
+      const monthKey = getMonthKey(b.criado_em);
+      if (!monthKey || monthKey === mesAtualKey) return;
+      if (!groups[monthKey]) groups[monthKey] = [];
+      groups[monthKey].push(b);
+    });
+
+    return Object.keys(groups)
+      .sort((a, b) => (a > b ? -1 : 1))
+      .map((monthKey) => ({
+        monthKey,
+        label: formatMonthLabel(monthKey),
+        boletos: groups[monthKey].sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em)),
+      }));
+  }, [boletosFiltrados, mesAtualKey]);
+
+  useEffect(() => {
+    setHistoricoMesesAbertos({});
+  }, [selectedEmpresaId]);
+
   const resumeEmpresaSelecionada = useMemo(() => {
     if (!selectedEmpresaId) return buildEmptySummary();
     return resumoPorEmpresa.get(String(selectedEmpresaId)) || buildEmptySummary();
@@ -157,6 +204,61 @@ const BoletosPorEmpresaPage = () => {
       </span>
     );
   };
+
+  const renderBoletosTable = (rows, emptyMessage) => (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+          <tr>
+            <th className="px-4 py-3 text-left font-semibold">Titulo</th>
+            <th className="px-4 py-3 text-left font-semibold">Nosso numero</th>
+            <th className="px-4 py-3 text-left font-semibold">Valor</th>
+            <th className="px-4 py-3 text-left font-semibold">Vencimento</th>
+            <th className="px-4 py-3 text-left font-semibold">Pagamento</th>
+            <th className="px-4 py-3 text-left font-semibold">Status</th>
+            <th className="px-4 py-3 text-left font-semibold">Atualizado</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          {!empresaSelecionada && (
+            <tr>
+              <td colSpan="7" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                Selecione uma empresa para visualizar os boletos.
+              </td>
+            </tr>
+          )}
+
+          {empresaSelecionada && rows.length === 0 && (
+            <tr>
+              <td colSpan="7" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                {emptyMessage}
+              </td>
+            </tr>
+          )}
+
+          {empresaSelecionada && rows.map((b) => (
+            <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/70">
+              <td className="px-4 py-3">
+                <div className="font-semibold">{b.numero_titulo_cliente || '-'}</div>
+                <div className="mt-1 max-w-[220px] truncate text-xs text-gray-500 dark:text-gray-400" title={b.linha_digitavel || '-'}>
+                  {b.linha_digitavel || '-'}
+                </div>
+              </td>
+              <td className="px-4 py-3">{b.nosso_numero || '-'}</td>
+              <td className="px-4 py-3">
+                <div>{formatMoney(b.valor_original)}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Pago: {formatMoney(b.valor_pago)}</div>
+              </td>
+              <td className="px-4 py-3">{formatDate(b.data_vencimento)}</td>
+              <td className="px-4 py-3">{formatDate(b.data_pagamento)}</td>
+              <td className="px-4 py-3">{renderStatusPill(b.status)}</td>
+              <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{formatDateTime(b.atualizado_em)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-4 text-gray-900 dark:text-gray-100 sm:px-6 sm:py-6 lg:px-8">
@@ -292,57 +394,69 @@ const BoletosPorEmpresaPage = () => {
             </select>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Titulo</th>
-                  <th className="px-4 py-3 text-left font-semibold">Nosso numero</th>
-                  <th className="px-4 py-3 text-left font-semibold">Valor</th>
-                  <th className="px-4 py-3 text-left font-semibold">Vencimento</th>
-                  <th className="px-4 py-3 text-left font-semibold">Pagamento</th>
-                  <th className="px-4 py-3 text-left font-semibold">Status</th>
-                  <th className="px-4 py-3 text-left font-semibold">Atualizado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {!empresaSelecionada && (
-                  <tr>
-                    <td colSpan="7" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
-                      Selecione uma empresa para visualizar os boletos.
-                    </td>
-                  </tr>
-                )}
+          <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+              Tabela do mes atual
+            </h3>
+          </div>
 
-                {empresaSelecionada && boletosFiltrados.length === 0 && (
-                  <tr>
-                    <td colSpan="7" className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
-                      Nenhum boleto encontrado para os filtros aplicados.
-                    </td>
-                  </tr>
-                )}
+          {renderBoletosTable(
+            boletosMesAtual,
+            'Nenhum boleto gerado no mes atual para os filtros aplicados.'
+          )}
 
-                {empresaSelecionada && boletosFiltrados.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/70">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold">{b.numero_titulo_cliente || '-'}</div>
-                      <div className="mt-1 max-w-[220px] truncate text-xs text-gray-500 dark:text-gray-400" title={b.linha_digitavel || '-'}>
-                        {b.linha_digitavel || '-'}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">{b.nosso_numero || '-'}</td>
-                    <td className="px-4 py-3">
-                      <div>{formatMoney(b.valor_original)}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">Pago: {formatMoney(b.valor_pago)}</div>
-                    </td>
-                    <td className="px-4 py-3">{formatDate(b.data_vencimento)}</td>
-                    <td className="px-4 py-3">{formatDate(b.data_pagamento)}</td>
-                    <td className="px-4 py-3">{renderStatusPill(b.status)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{formatDateTime(b.atualizado_em)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-800">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+              Historico geral (outros meses)
+            </h3>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Menus iniciando abaixo do ultimo boleto do mes atual.
+            </p>
+          </div>
+
+          <div className="space-y-2 px-4 pb-4">
+            {empresaSelecionada && boletosHistoricoPorMes.length === 0 && (
+              <div className="rounded-xl border border-dashed border-gray-300 px-4 py-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                Nao existem boletos de meses anteriores para esta empresa.
+              </div>
+            )}
+
+            {boletosHistoricoPorMes.map((group) => {
+              const isOpen = Boolean(historicoMesesAbertos[group.monthKey]);
+              return (
+                <div key={group.monthKey} className="rounded-xl border border-gray-200 dark:border-gray-800">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setHistoricoMesesAbertos((prev) => ({
+                        ...prev,
+                        [group.monthKey]: !prev[group.monthKey],
+                      }))
+                    }
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/70"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Bars3Icon className="h-4 w-4 text-indigo-500" />
+                      <span className="truncate text-sm font-semibold capitalize">{group.label}</span>
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                        {group.boletos.length}
+                      </span>
+                    </div>
+                    {isOpen ? (
+                      <ChevronDownIcon className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <ChevronRightIcon className="h-4 w-4 text-gray-500" />
+                    )}
+                  </button>
+
+                  {isOpen && (
+                    <div className="border-t border-gray-200 dark:border-gray-800">
+                      {renderBoletosTable(group.boletos, 'Nenhum boleto encontrado neste mes.')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       </div>
