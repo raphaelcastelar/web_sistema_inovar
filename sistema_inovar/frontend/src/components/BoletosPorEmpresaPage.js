@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axiosInstance from '../api/axiosInstance';
-import { Bars3Icon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 const statusMeta = {
   registrado: { label: 'Registrado', pill: 'bg-amber-100 text-amber-800 ring-amber-200' },
@@ -414,7 +414,7 @@ const BoletosPorEmpresaPage = () => {
             </p>
           </div>
 
-          <div className="space-y-2 px-4 pb-4">
+          <div className="space-y-3 px-4 pb-4">
             {empresaSelecionada && boletosHistoricoPorMes.length === 0 && (
               <div className="rounded-xl border border-dashed border-gray-300 px-4 py-4 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
                 Nao existem boletos de meses anteriores para esta empresa.
@@ -424,7 +424,7 @@ const BoletosPorEmpresaPage = () => {
             {boletosHistoricoPorMes.map((group) => {
               const isOpen = Boolean(historicoMesesAbertos[group.monthKey]);
               return (
-                <div key={group.monthKey} className="rounded-xl border border-gray-200 dark:border-gray-800">
+                <div key={group.monthKey} className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                   <button
                     type="button"
                     onClick={() =>
@@ -433,24 +433,34 @@ const BoletosPorEmpresaPage = () => {
                         [group.monthKey]: !prev[group.monthKey],
                       }))
                     }
-                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/70"
+                    className={`flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition ${
+                      isOpen
+                        ? 'bg-indigo-50 dark:bg-indigo-900/30'
+                        : 'bg-gray-50 hover:bg-gray-100 dark:bg-gray-800/40 dark:hover:bg-gray-800/70'
+                    }`}
                   >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <Bars3Icon className="h-4 w-4 text-indigo-500" />
-                      <span className="truncate text-sm font-semibold capitalize">{group.label}</span>
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                    <div className="min-w-0">
+                      <div className="truncate text-base font-semibold capitalize text-gray-900 dark:text-gray-100">
+                        {group.label}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Clique para {isOpen ? 'ocultar' : 'ver'} os boletos deste mes
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-white px-2 py-0.5 text-xs text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
                         {group.boletos.length}
                       </span>
+                      {isOpen ? (
+                        <ChevronDownIcon className="h-4 w-4 text-gray-500" />
+                      ) : (
+                        <ChevronRightIcon className="h-4 w-4 text-gray-500" />
+                      )}
                     </div>
-                    {isOpen ? (
-                      <ChevronDownIcon className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <ChevronRightIcon className="h-4 w-4 text-gray-500" />
-                    )}
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-gray-200 dark:border-gray-800">
+                    <div className="border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                       {renderBoletosTable(group.boletos, 'Nenhum boleto encontrado neste mes.')}
                     </div>
                   )}
