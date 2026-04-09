@@ -3,6 +3,7 @@ import smtplib
 import tempfile
 import urllib.parse
 import re
+import uuid
 import datetime
 import unidecode
 import logging
@@ -1519,6 +1520,11 @@ def gerar_boleto_view(request):
     except Empresa.DoesNotExist:
         return Response({"error": "Empresa não encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
+    # Garante que o usuário só gere boleto para empresas que ele enxerga/gerencia
+    if request.user and request.user.is_authenticated and not (request.user.is_staff or request.user.is_superuser):
+        if not empresa.gerenciada_por.filter(id=request.user.id).exists():
+            return Response({"error": "Você não tem permissão para gerar boleto para esta empresa."}, status=status.HTTP_403_FORBIDDEN)
+
     # Controle para manter apenas 1 boleto por mês por empresa
     agora = timezone.now()
     mes_atual = str(agora.month).zfill(2)
@@ -1580,6 +1586,9 @@ def gerar_boleto_view(request):
         data_desc_dt = data_vencimento_dt - timedelta(days=empresa.dias_para_desconto)
         data_desconto_str = data_desc_dt.strftime('%d.%m.%Y')
 
+    unique_suffix = f"{int(timezone.now().timestamp() * 1_000_000) % 10**10:010d}"
+    fallback_beneficiario = f"{timezone.now().strftime('%H%M%S%f')}{uuid.uuid4().hex[:4]}".upper()
+
     default_payload = {
         "numeroConvenio": SEU_NUMERO_CONVENIO,
         "carteira": SUA_CARTEIRA,
@@ -1600,10 +1609,10 @@ def gerar_boleto_view(request):
         "descricaoTipoTitulo": "DM",
         "indicadorPermissaoRecebimentoParcial": "N",
         # Gera um número de controle único para cada teste
-        "numeroTituloBeneficiario": f"{int(timezone.now().timestamp())}",
+        "numeroTituloBeneficiario": fallback_beneficiario,
         "campoUtilizacaoBeneficiario": "EMISSAO WEB",
         # Gera um "Nosso Número" de 20 dígitos, único para cada teste
-        "numeroTituloCliente": f"000{SEU_NUMERO_CONVENIO}{int(timezone.now().timestamp()) % 10**10:010d}",
+        "numeroTituloCliente": f"000{SEU_NUMERO_CONVENIO}{unique_suffix}",
         "mensagemBloquetoOcorrencia": "Boleto de Cobrança",
         "indicadorPix": "S",
     }
@@ -1836,15 +1845,29 @@ def gerar_boleto_view(request):
     except Exception:
         venc_dt = None
 
+    numero_titulo_cliente_db = str(
+        boleto_response.get('id')
+        or boleto_response.get('numeroTituloCliente')
+        or final_payload.get('numeroTituloCliente')
+        or f"fallback-{timezone.now().strftime('%Y%m%d%H%M%S%f')}"
+    ).strip()
+
+    nosso_numero_db = str(
+        numero_boleto
+        or boleto_response.get('nossoNumero')
+        or boleto_response.get('id')
+        or numero_titulo_cliente_db
+    ).strip()
+
     BoletoBB.objects.update_or_create(
-        numero_titulo_cliente=final_payload.get('numeroTituloCliente'),
+        numero_titulo_cliente=numero_titulo_cliente_db,
         defaults={
             'empresa': empresa,
             'numero_convenio': str(final_payload.get('numeroConvenio', '')),
             'carteira': str(final_payload.get('carteira', '')),
             'variacao_carteira': str(final_payload.get('variacaoCarteira', '') or final_payload.get('variacao_carteira', '')),
             'numero_operacao': str(boleto_response.get('numeroOperacao') or final_payload.get('numeroOperacao') or ''),
-            'nosso_numero': numero_boleto,
+            'nosso_numero': nosso_numero_db,
             'linha_digitavel': linha_digitavel or '',
             'codigo_barra': codigo_barra_numerico or '',
             'valor_original': Decimal(str(final_payload.get('valorOriginal', 0))) if final_payload.get('valorOriginal') is not None else Decimal('0'),
@@ -1973,6 +1996,14 @@ def bb_cobranca_webhook(request):
     except Exception:
         payload = {}
 
+    # Fallback para payload url-encoded (ex.: testes com curl)
+    if not payload and raw_body and "=" in raw_body:
+        try:
+            parsed_form = urllib.parse.parse_qs(raw_body, keep_blank_values=True)
+            payload = {k: (v[0] if isinstance(v, list) and len(v) == 1 else v) for k, v in parsed_form.items()}
+        except Exception:
+            payload = {}
+
     # Aceita objeto ou lista de objetos
     if isinstance(payload, list):
         payload_items = payload
@@ -2083,7 +2114,7 @@ def bb_cobranca_webhook(request):
             boleto_qs = boleto_qs.filter(numero_convenio=str(numero_convenio))
 
         lookup_candidates = []
-        for candidate in (nosso_numero, numero_operacao):
+        for candidate in (nosso_numero,):
             if candidate not in (None, ""):
                 lookup_candidates.append(str(candidate))
 
@@ -2092,11 +2123,20 @@ def bb_cobranca_webhook(request):
             for candidate in lookup_candidates:
                 boleto = boleto_qs.filter(
                     models.Q(nosso_numero=str(candidate)) |
-                    models.Q(numero_titulo_cliente=str(candidate)) |
-                    models.Q(numero_operacao=str(candidate))
+                    models.Q(numero_titulo_cliente=str(candidate))
                 ).first()
                 if boleto:
+                    log_entry["boleto_match_strategy"] = "id_or_nosso_numero"
                     break
+
+        if not boleto and numero_operacao:
+            op_qs = boleto_qs.filter(numero_operacao=str(numero_operacao)).order_by('-criado_em')
+            op_count = op_qs.count()
+            if op_count == 1:
+                boleto = op_qs.first()
+                log_entry["boleto_match_strategy"] = "numero_operacao_single_match"
+            else:
+                log_entry["numero_operacao_match_count"] = op_count
 
         if boleto:
             changed_fields = []

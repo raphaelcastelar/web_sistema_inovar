@@ -59,7 +59,7 @@ const GerarBoletoPage = () => {
     const [showPreview, setShowPreview] = useState(true);
 
     useEffect(() => {
-        axiosInstance.get('/api/empresas/?all=true')
+        axiosInstance.get('/api/empresas/')
             .then(res => setEmpresas(res.data))
             .catch(() => setMsg({ type: 'error', text: 'Erro ao buscar empresas.' }));
     }, []);
