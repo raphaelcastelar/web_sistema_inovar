@@ -390,10 +390,13 @@ class PendenciaAPIView(APIView):
 class BoletoBBViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = BoletoBBSerializer
-    queryset = BoletoBB.objects.select_related('empresa').all().order_by('-atualizado_em', '-criado_em')
+    queryset = BoletoBB.objects.none()
 
     def get_queryset(self):
-        qs = self.queryset
+        # Importante: nao reutilizar `self.queryset` aqui.
+        # Em DRF, um queryset avaliado pode ficar em cache no processo e servir
+        # dados desatualizados ate o backend reiniciar.
+        qs = BoletoBB.objects.select_related('empresa').order_by('-atualizado_em', '-criado_em')
         empresa_id = self.request.query_params.get('empresa_id')
         status_param = self.request.query_params.get('status')
         search = self.request.query_params.get('search')
@@ -2060,8 +2063,7 @@ def bb_cobranca_webhook(request):
         'nosso_numero',
         'numeroTituloBeneficiario',
         'numeroTituloCliente',
-        'id',
-        'numeroOperacao'
+        'id'
     )
 
     valor_pago = pick(
@@ -2114,19 +2116,29 @@ def bb_cobranca_webhook(request):
             boleto_qs = boleto_qs.filter(numero_convenio=str(numero_convenio))
 
         lookup_candidates = []
-        for candidate in (nosso_numero,):
-            if candidate not in (None, ""):
-                lookup_candidates.append(str(candidate))
+        for candidate in (
+            pick(payload_obj, 'id'),
+            pick(payload_obj, 'nossoNumero', 'nosso_numero'),
+            pick(payload_obj, 'numeroTituloBeneficiario'),
+            pick(payload_obj, 'numeroTituloCliente'),
+            nosso_numero,
+        ):
+            if candidate in (None, ""):
+                continue
+            candidate_str = str(candidate).strip()
+            if candidate_str and candidate_str not in lookup_candidates:
+                lookup_candidates.append(candidate_str)
 
         boleto = None
         if lookup_candidates:
             for candidate in lookup_candidates:
-                boleto = boleto_qs.filter(
-                    models.Q(nosso_numero=str(candidate)) |
-                    models.Q(numero_titulo_cliente=str(candidate))
-                ).first()
+                boleto = (
+                    boleto_qs.filter(nosso_numero=str(candidate)).order_by('-atualizado_em', '-criado_em').first()
+                    or boleto_qs.filter(numero_titulo_cliente=str(candidate)).order_by('-atualizado_em', '-criado_em').first()
+                )
                 if boleto:
                     log_entry["boleto_match_strategy"] = "id_or_nosso_numero"
+                    log_entry["boleto_match_value"] = candidate
                     break
 
         if not boleto and numero_operacao:

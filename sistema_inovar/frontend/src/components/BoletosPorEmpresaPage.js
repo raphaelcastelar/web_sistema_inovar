@@ -41,12 +41,19 @@ function normalizeRows(data) {
   return [];
 }
 
+function getBoletoReferenceDateValue(boleto) {
+  return boleto?.atualizado_em || boleto?.criado_em || null;
+}
+
+function sortBoletosByRecent(a, b) {
+  return new Date(getBoletoReferenceDateValue(b)) - new Date(getBoletoReferenceDateValue(a));
+}
+
 async function fetchAllBoletosFromApi() {
   try {
     let nextUrl = '/api/boletos-bb/';
-    let firstRequest = true;
     let guard = 0;
-    const allRows = [];
+    const allRowsMap = new Map();
 
     const toRelativeApiPath = (url) => {
       if (!url) return null;
@@ -62,15 +69,16 @@ async function fetchAllBoletosFromApi() {
 
     while (nextUrl && guard < 100) {
       const response = await axiosInstance.get(nextUrl, {
-        params: firstRequest ? { _ts: Date.now() } : undefined,
+        params: { _ts: Date.now() },
       });
 
       const data = response?.data;
       if (Array.isArray(data)) return data;
       if (Array.isArray(data?.results)) {
-        allRows.push(...data.results);
+        data.results.forEach((row) => {
+          allRowsMap.set(String(row.id), row);
+        });
         nextUrl = toRelativeApiPath(data.next);
-        firstRequest = false;
         guard += 1;
         continue;
       }
@@ -78,13 +86,13 @@ async function fetchAllBoletosFromApi() {
       return normalizeRows(data);
     }
 
-    return allRows;
+    return Array.from(allRowsMap.values()).sort(sortBoletosByRecent);
   } catch (err) {
     // Fallback seguro: mantém a tela funcionando mesmo se a paginação completa falhar.
     const fallback = await axiosInstance.get('/api/boletos-bb/', {
       params: { _ts: Date.now() },
     });
-    return normalizeRows(fallback?.data);
+    return normalizeRows(fallback?.data).sort(sortBoletosByRecent);
   }
 }
 
@@ -242,7 +250,9 @@ const BoletosPorEmpresaPage = () => {
 
   const boletosDaEmpresa = useMemo(() => {
     if (!selectedEmpresaId) return [];
-    return boletos.filter((b) => String(b.empresa) === String(selectedEmpresaId));
+    return boletos
+      .filter((b) => String(b.empresa) === String(selectedEmpresaId))
+      .sort(sortBoletosByRecent);
   }, [boletos, selectedEmpresaId]);
 
   const boletosFiltrados = useMemo(() => {
@@ -261,18 +271,18 @@ const BoletosPorEmpresaPage = () => {
     });
   }, [boletosDaEmpresa, searchBoleto, statusFilter]);
 
-  const mesAtualKey = useMemo(() => getMonthKey(new Date().toISOString()), []);
+  const mesAtualKey = useMemo(() => getMonthKey(new Date()), []);
   const anoAtual = useMemo(() => new Date().getFullYear(), []);
 
   const boletosMesAtual = useMemo(
-    () => boletosFiltrados.filter((b) => getMonthKey(b.criado_em) === mesAtualKey),
+    () => boletosFiltrados.filter((b) => getMonthKey(getBoletoReferenceDateValue(b)) === mesAtualKey),
     [boletosFiltrados, mesAtualKey]
   );
 
   const boletosHistoricoPorMes = useMemo(() => {
     const groups = {};
     boletosFiltrados.forEach((b) => {
-      const monthKey = getMonthKey(b.criado_em);
+      const monthKey = getMonthKey(getBoletoReferenceDateValue(b));
       if (!monthKey || monthKey === mesAtualKey || !monthKey.startsWith(`${anoAtual}-`)) return;
       if (!groups[monthKey]) groups[monthKey] = [];
       groups[monthKey].push(b);
@@ -285,9 +295,17 @@ const BoletosPorEmpresaPage = () => {
     return previousMonthsKeys.map((monthKey) => ({
       monthKey,
       label: formatMonthLabel(monthKey),
-      boletos: (groups[monthKey] || []).sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em)),
+      boletos: (groups[monthKey] || []).sort(sortBoletosByRecent),
     }));
   }, [boletosFiltrados, mesAtualKey, anoAtual]);
+
+  const boletosOutrosPeriodos = useMemo(
+    () => boletosFiltrados.filter((b) => {
+      const monthKey = getMonthKey(getBoletoReferenceDateValue(b));
+      return !monthKey || (!monthKey.startsWith(`${anoAtual}-`) && monthKey !== mesAtualKey);
+    }),
+    [anoAtual, boletosFiltrados, mesAtualKey]
+  );
 
   useEffect(() => { setHistoricoMesesAbertos({}); }, [selectedEmpresaId]);
 
@@ -659,6 +677,20 @@ const BoletosPorEmpresaPage = () => {
                 </div>
               );
             })}
+
+            {empresaSelecionada && boletosOutrosPeriodos.length > 0 && (
+              <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+                <div className="flex items-center justify-between gap-3 bg-white px-4 py-3 dark:bg-gray-900">
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Outros periodos</span>
+                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                    {boletosOutrosPeriodos.length}
+                  </span>
+                </div>
+                <div className="border-t border-gray-100 dark:border-gray-800">
+                  {renderBoletosTable(boletosOutrosPeriodos, 'Nenhum boleto encontrado em outros periodos.')}
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
