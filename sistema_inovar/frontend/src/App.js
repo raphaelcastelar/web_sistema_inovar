@@ -25,6 +25,7 @@ import GerenciamentoIntegrado from './components/GerenciamentoIntegrado';
 import CentralDoSimples from './components/CentralDoSimples';
 import BoletoMonitorPage from './components/BoletoMonitorPage';
 import BoletosPorEmpresaPage from './components/BoletosPorEmpresaPage';
+import GerarProLaborePage from './components/GerarProLaborePage';
 
 import './App.css';
 
@@ -55,6 +56,7 @@ function App() {
             <Route path="/gerar-boleto" element={<GerarBoletoPage />} />
             <Route path="/monitor-boletos" element={<BoletoMonitorPage />} />
             <Route path="/boletos-por-empresa" element={<BoletosPorEmpresaPage />} />
+            <Route path="/gerar-pro-labore" element={<GerarProLaborePage />} />
 
             {/* Unified Management Route (Replaces separate pages) */}
             <Route path="/gerenciamento-integrado" element={<GerenciamentoIntegrado />} />

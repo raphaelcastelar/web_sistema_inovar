@@ -86,6 +86,7 @@ from .serpro_service import (
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
+from .pro_labore_docx import build_pro_labore_docx
 
 WKHTMLTOPDF_PATH = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
 
@@ -1124,6 +1125,25 @@ def current_user(request):
     except Exception as e:
         logger.error(f"Error in current_user: {str(e)}")
         return Response({'error': f'Erro ao obter dados do usuário: {str(e)}'}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def gerar_pro_labore_docx_view(request):
+    try:
+        arquivo_docx, nome_arquivo = build_pro_labore_docx(request.data or {})
+    except ValueError as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.exception("Erro ao gerar DOCX de pro-labore")
+        return Response({'error': f'Erro ao gerar documento: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    response = HttpResponse(
+        arquivo_docx,
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
+    return response
 
 
 @api_view(['GET', 'POST'])
