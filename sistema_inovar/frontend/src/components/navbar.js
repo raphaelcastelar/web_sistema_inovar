@@ -75,6 +75,7 @@ const Navbar = () => {
                 <NavLink to="/pendencias" icon={ExclamationTriangleIcon} text="Pendências" />
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
                 <NavLink to="/monitor-boletos" icon={ClipboardDocumentCheckIcon} text="Monitor Boletos" />
+                <NavLink to="/boletos-por-empresa" icon={BanknotesIcon} text="Boletos por Empresa" />
 
                                                                                                                                                     </nav>
 
