@@ -42,31 +42,50 @@ function normalizeRows(data) {
 }
 
 async function fetchAllBoletosFromApi() {
-  let nextUrl = '/api/boletos-bb/';
-  let firstRequest = true;
-  let guard = 0;
-  const allRows = [];
+  try {
+    let nextUrl = '/api/boletos-bb/';
+    let firstRequest = true;
+    let guard = 0;
+    const allRows = [];
 
-  while (nextUrl && guard < 100) {
-    const response = await axiosInstance.get(nextUrl, {
-      params: firstRequest ? { _ts: Date.now() } : undefined,
-      headers: { 'Cache-Control': 'no-cache' },
-    });
+    const toRelativeApiPath = (url) => {
+      if (!url) return null;
+      if (url.startsWith('/')) return url;
+      // Se vier URL absoluta do DRF (data.next), converte para path relativo.
+      try {
+        const parsed = new URL(url);
+        return `${parsed.pathname}${parsed.search || ''}`;
+      } catch (e) {
+        return null;
+      }
+    };
 
-    const data = response?.data;
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data?.results)) {
-      allRows.push(...data.results);
-      nextUrl = data.next || null;
-      firstRequest = false;
-      guard += 1;
-      continue;
+    while (nextUrl && guard < 100) {
+      const response = await axiosInstance.get(nextUrl, {
+        params: firstRequest ? { _ts: Date.now() } : undefined,
+      });
+
+      const data = response?.data;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.results)) {
+        allRows.push(...data.results);
+        nextUrl = toRelativeApiPath(data.next);
+        firstRequest = false;
+        guard += 1;
+        continue;
+      }
+
+      return normalizeRows(data);
     }
 
-    return normalizeRows(data);
+    return allRows;
+  } catch (err) {
+    // Fallback seguro: mantém a tela funcionando mesmo se a paginação completa falhar.
+    const fallback = await axiosInstance.get('/api/boletos-bb/', {
+      params: { _ts: Date.now() },
+    });
+    return normalizeRows(fallback?.data);
   }
-
-  return allRows;
 }
 
 function formatMoney(v) {
