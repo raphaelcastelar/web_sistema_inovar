@@ -125,7 +125,7 @@ from datetime import timedelta
 # SimpleJWT Configuration (deve vir após REST_FRAMEWORK)
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),  # Mantém o padrão de 5 minutos
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),   # Aumenta para 7 dias
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),  # Mantém o usuário autenticado por mais tempo sem novo login
     'ROTATE_REFRESH_TOKENS': False,
     'BLACKLIST_AFTER_ROTATION': False,
 }

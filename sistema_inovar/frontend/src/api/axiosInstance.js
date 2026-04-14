@@ -10,6 +10,45 @@ const axiosInstance = axios.create({
     headers: { 'Content-Type': 'application/json' },
 });
 
+const getStoredTokens = () => {
+    if (typeof window === 'undefined') return null;
+
+    try {
+        const storedTokens = localStorage.getItem('authTokens');
+        return storedTokens ? JSON.parse(storedTokens) : null;
+    } catch (error) {
+        console.warn('Falha ao ler tokens salvos. Limpando armazenamento local.', error);
+        localStorage.removeItem('authTokens');
+        return null;
+    }
+};
+
+const saveTokens = (nextTokens) => {
+    if (typeof window === 'undefined' || !nextTokens?.access) return null;
+
+    const currentTokens = getStoredTokens();
+    const mergedTokens = {
+        ...currentTokens,
+        ...nextTokens,
+        refresh: nextTokens.refresh || currentTokens?.refresh,
+    };
+
+    localStorage.setItem('authTokens', JSON.stringify(mergedTokens));
+    return mergedTokens;
+};
+
+const refreshAccessToken = async () => {
+    const authTokens = getStoredTokens();
+    const refresh = authTokens?.refresh;
+
+    if (!refresh) {
+        throw new Error('Refresh token ausente.');
+    }
+
+    const response = await axios.post(`${baseURL}/api/token/refresh/`, { refresh });
+    return saveTokens(response.data);
+};
+
 // Renovação automática para manter sessão ativa
 const setupAutoRefresh = () => {
     if (typeof window === 'undefined') return;
@@ -17,9 +56,7 @@ const setupAutoRefresh = () => {
 
     window.__axiosRefreshInterval = setInterval(async () => {
         try {
-            const stored = localStorage.getItem('authTokens');
-            if (!stored) return;
-            const authTokens = JSON.parse(stored);
+            const authTokens = getStoredTokens();
             const { access, refresh } = authTokens || {};
             if (!access || !refresh) return;
 
@@ -33,9 +70,7 @@ const setupAutoRefresh = () => {
 
             if (expiresInMs > 2 * 60 * 1000) return;
 
-            const response = await axios.post(`${baseURL}/api/token/refresh/`, { refresh });
-            const newAuthTokens = response.data;
-            localStorage.setItem('authTokens', JSON.stringify(newAuthTokens));
+            await refreshAccessToken();
         } catch (err) {
             console.warn('Falha ao renovar token automaticamente. Tentará novamente.', err);
         }
@@ -49,9 +84,7 @@ setupAutoRefresh();
 axiosInstance.interceptors.request.use(
     async (config) => {
         // 1. Pega os tokens do localStorage
-        const authTokens = localStorage.getItem('authTokens')
-            ? JSON.parse(localStorage.getItem('authTokens'))
-            : null;
+        const authTokens = getStoredTokens();
 
         if (!authTokens) {
             // Se não houver tokens, a requisição segue sem autenticação
@@ -60,8 +93,14 @@ axiosInstance.interceptors.request.use(
 
         // 2. Verifica se o token de acesso expirou
         const accessToken = authTokens.access;
-        const decodedToken = jwtDecode(accessToken);
-        const isExpired = decodedToken.exp * 1000 < Date.now();
+        let isExpired = true;
+
+        try {
+            const decodedToken = jwtDecode(accessToken);
+            isExpired = decodedToken.exp * 1000 < Date.now();
+        } catch (decodeError) {
+            console.warn('Token de acesso inválido. Tentando renovar antes da requisição.', decodeError);
+        }
 
         if (!isExpired) {
             // 3. Se NÃO expirou, anexa o token ao cabeçalho e envia a requisição
@@ -72,13 +111,7 @@ axiosInstance.interceptors.request.use(
         // 4. Se o token EXPIROU, tenta renová-lo
         try {
             console.log('Token de acesso expirado, tentando renovar...');
-            const response = await axios.post(`${baseURL}/api/token/refresh/`, {
-                refresh: authTokens.refresh,
-            });
-
-            // 5. Salva os novos tokens no localStorage
-            const newAuthTokens = response.data;
-            localStorage.setItem('authTokens', JSON.stringify(newAuthTokens));
+            const newAuthTokens = await refreshAccessToken();
 
             // 6. Anexa o NOVO token de acesso ao cabeçalho da requisição original
             config.headers.Authorization = `Bearer ${newAuthTokens.access}`;
