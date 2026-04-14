@@ -134,10 +134,10 @@ const calcularProLabore = (valorBruto) => {
     const irrfSemReducao = Math.max(0, calcIrrfSemReducao(baseIrrf));
     let irrf = irrfSemReducao;
 
-    if (bruto <= IR_FAIXA_ISENCAO_TOTAL) {
+    if (baseIrrf <= IR_FAIXA_ISENCAO_TOTAL) {
         irrf = 0;
-    } else if (bruto <= IR_FAIXA_REDUCAO) {
-        const reducao = Math.max(0, IR_REDUCAO_INTERCEPT - (IR_REDUCAO_SLOPE * bruto));
+    } else if (baseIrrf <= IR_FAIXA_REDUCAO) {
+        const reducao = Math.max(0, IR_REDUCAO_INTERCEPT - (IR_REDUCAO_SLOPE * baseIrrf));
         irrf = Math.max(0, irrfSemReducao - reducao);
     }
 

@@ -60,12 +60,12 @@ def _calcular_impostos_pro_labore(valor_bruto: Decimal) -> tuple[Decimal, Decima
     base_irrf = max(Decimal("0.00"), bruto - valor_inss)
     irrf_sem_reducao = max(Decimal("0.00"), _calc_irrf_sem_reducao(base_irrf))
 
-    if bruto <= IR_FAIXA_ISENCAO_TOTAL:
+    if base_irrf <= IR_FAIXA_ISENCAO_TOTAL:
         valor_irrf = Decimal("0.00")
-    elif bruto <= IR_FAIXA_REDUCAO:
+    elif base_irrf <= IR_FAIXA_REDUCAO:
         reducao = max(
             Decimal("0.00"),
-            IR_REDUCAO_INTERCEPT - (IR_REDUCAO_SLOPE * bruto),
+            IR_REDUCAO_INTERCEPT - (IR_REDUCAO_SLOPE * base_irrf),
         )
         valor_irrf = max(Decimal("0.00"), irrf_sem_reducao - reducao)
     else:
