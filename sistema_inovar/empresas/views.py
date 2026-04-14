@@ -5,6 +5,7 @@ import urllib.parse
 import re
 import uuid
 import datetime
+import mimetypes
 import unidecode
 import logging
 import requests
@@ -21,7 +22,7 @@ from email.utils import formatdate
 from dateutil.relativedelta import relativedelta
 
 from django.conf import settings
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.core.files.base import ContentFile
@@ -197,6 +198,73 @@ MODEL_CONFIG_MAP_SYNC = {
         'fs_folder_name': 'OUTROS', 'has_year_month': False
     },
 }
+
+
+def _resolve_document_file_path(doc, empresa, tipo_pasta):
+    file_path_on_server = None
+    config_sync = MODEL_CONFIG_MAP_SYNC.get(tipo_pasta)
+
+    if config_sync:
+        company_folder = gerar_nome_pasta_empresa_padronizado(empresa.nome)
+        fs_folder_name = config_sync['fs_folder_name']
+        base_path = os.path.join(settings.MEDIA_ROOT, company_folder, fs_folder_name)
+
+        if config_sync['has_year_month']:
+            doc_ano = str(getattr(doc, 'ano', '') or '')
+            doc_mes = str(getattr(doc, 'mes', '') or '').zfill(2)
+            if doc_ano and doc_mes:
+                folder_month_year = f"{doc_mes}{doc_ano}"
+                base_path = os.path.join(base_path, doc_ano, folder_month_year)
+
+        possible_path = os.path.join(base_path, doc.nome_arquivo)
+        if os.path.exists(possible_path):
+            file_path_on_server = possible_path
+            logger.info(f"Arquivo encontrado compondo caminho manual: {file_path_on_server}")
+        else:
+            logger.warning(
+                f"Arquivo não encontrado no caminho manual: {possible_path}. "
+                "Tentando fallback para doc.caminho_arquivo.path"
+            )
+            if doc.caminho_arquivo and hasattr(doc.caminho_arquivo, 'path') and os.path.exists(doc.caminho_arquivo.path):
+                file_path_on_server = doc.caminho_arquivo.path
+
+    if not file_path_on_server and doc.caminho_arquivo and hasattr(doc.caminho_arquivo, 'path'):
+        file_path_on_server = doc.caminho_arquivo.path
+
+    return file_path_on_server
+
+
+@api_view(['GET'])
+def visualizar_arquivo_empresa(request, tipo_pasta, arquivo_id):
+    if tipo_pasta not in MODEL_CONFIG_MAP_SYNC:
+        return JsonResponse({"error": f"Tipo de pasta '{tipo_pasta}' não suportado."}, status=status.HTTP_400_BAD_REQUEST)
+
+    config = MODEL_CONFIG_MAP_SYNC[tipo_pasta]
+    DocumentModel = config['model']
+
+    try:
+        doc = DocumentModel.objects.get(id=arquivo_id)
+    except DocumentModel.DoesNotExist:
+        return JsonResponse({"error": "Arquivo não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+    empresa_nome = getattr(doc, 'nome_empresa', None)
+    empresa = Empresa.objects.filter(nome=empresa_nome).first() if empresa_nome else None
+
+    if not empresa and hasattr(doc, 'cnpj_empresa'):
+        empresa = Empresa.objects.filter(cnpj=getattr(doc, 'cnpj_empresa', None)).first()
+
+    if not empresa:
+        return JsonResponse({"error": "Empresa vinculada ao arquivo não foi encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+    file_path_on_server = _resolve_document_file_path(doc, empresa, tipo_pasta)
+    if not file_path_on_server or not os.path.exists(file_path_on_server):
+        logger.error(f"Arquivo FÍSICO não encontrado para visualização. ID {doc.id}: {doc.nome_arquivo}")
+        return JsonResponse({"error": "Arquivo físico não encontrado no servidor."}, status=status.HTTP_404_NOT_FOUND)
+
+    content_type, _ = mimetypes.guess_type(file_path_on_server)
+    response = FileResponse(open(file_path_on_server, 'rb'), content_type=content_type or 'application/octet-stream')
+    response['Content-Disposition'] = f'inline; filename="{urllib.parse.quote(doc.nome_arquivo)}"'
+    return response
 
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all().order_by('nome')
@@ -774,51 +842,7 @@ def enviar_documentos_whatsapp_api(request):
             failed_sends.append({"filename": doc.nome_arquivo, "reason": "Caminho do arquivo inválido."})
             continue
         
-        # FIX: Reconstruir o caminho do arquivo manualmente para garantir que pegamos o arquivo REAL no disco (raw filename)
-        # e não o caminho sanitizado que o Django salva no banco (caminho_arquivo.path)
-        
-        # 1. Tenta pegar a config de sync para saber a estrutura de pastas
-        config_sync = MODEL_CONFIG_MAP_SYNC.get(tipo_pasta)
-        
-        file_path_on_server = None
-        if config_sync:
-            # Reconstroi o caminho da pasta
-            company_folder = gerar_nome_pasta_empresa_padronizado(empresa.nome)
-            fs_folder_name = config_sync['fs_folder_name']
-            
-            base_path = os.path.join(settings.MEDIA_ROOT, company_folder, fs_folder_name)
-            
-            # Adiciona Ano e Mês se necessário
-            if config_sync['has_year_month']:
-                doc_ano = str(doc.ano)
-                doc_mes = str(doc.mes)
-                # Verifica se mes já vem com 2 digitos ou não, garante formato MM
-                if len(doc_mes) == 1:
-                    doc_mes = f"0{doc_mes}"
-                
-                # Formato da pasta mensal: MMYYYY (ex: 012025)
-                # IMPORTANTE: Verificar se doc.mes e doc.ano estão preenchidos.
-                if doc_ano and doc_mes:
-                    folder_month_year = f"{doc_mes}{doc_ano}"
-                    base_path = os.path.join(base_path, doc_ano, folder_month_year)
-            
-            # Junta com o nome do arquivo ORIGINAL (doc.nome_arquivo)
-            # doc.nome_arquivo é o nome EXATO que está no disco (raw), enquanto doc.caminho_arquivo é sanitizado pelo Django
-            possible_path = os.path.join(base_path, doc.nome_arquivo)
-            
-            if os.path.exists(possible_path):
-                file_path_on_server = possible_path
-                logger.info(f"Arquivo encontrado compondo caminho manual: {file_path_on_server}")
-            else:
-                 # Fallback: Se não achar com o nome original (o que seria estranho dado o problema), tenta o path do django
-                logger.warning(f"Arquivo não encontrado no caminho manual: {possible_path}. Tentando fallback para doc.caminho_arquivo.path")
-                if doc.caminho_arquivo and hasattr(doc.caminho_arquivo, 'path') and os.path.exists(doc.caminho_arquivo.path):
-                     file_path_on_server = doc.caminho_arquivo.path
-        
-        if not file_path_on_server:
-             # Última tentativa direto do objeto, caso a lógica acima falhe ou config não exista
-             if doc.caminho_arquivo and hasattr(doc.caminho_arquivo, 'path'):
-                file_path_on_server = doc.caminho_arquivo.path
+        file_path_on_server = _resolve_document_file_path(doc, empresa, tipo_pasta)
 
         if not file_path_on_server or not os.path.exists(file_path_on_server):
             logger.error(f"Arquivo FÍSICO não encontrado para ID {doc.id}: {doc.nome_arquivo}")

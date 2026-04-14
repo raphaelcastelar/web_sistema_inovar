@@ -25,6 +25,7 @@ const pastaConfig = {
 };
 const pastaTypes = Object.keys(pastaConfig);
 const monthOrder = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const buildFileViewUrl = (tipoPasta, arquivoId) => `${SERVER_FILE_URL_BASE}/api/arquivos/${tipoPasta}/${arquivoId}/visualizar/`;
 
 const groupFilesByYearAndMonth = (files) => {
     if (!files || files.length === 0) return {};
@@ -90,7 +91,7 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection }) => {
                                                 <input type="checkbox" checked={selectedFiles.includes(file.id)} onChange={() => toggleFileSelection(file.id)} className="form-checkbox h-4 w-4 rounded bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-indigo-600 focus:ring-indigo-500"/>
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                                <a href={`${SERVER_FILE_URL_BASE}${file.caminho_arquivo}`} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+                                                <a href={buildFileViewUrl(file.tipo_documento.replace(/-/g, '_'), file.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
                                             </li>
                                         ))}
                                     </ul>
@@ -322,7 +323,7 @@ const PastaManager = () => {
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
                                                 {file.hasOwnProperty('entregue') && (<span className={`text-xs px-2 py-0.5 font-semibold rounded-full ${file.entregue ? 'bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
-                                                <a href={`${SERVER_FILE_URL_BASE}${file.caminho_arquivo}`} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+                                                <a href={buildFileViewUrl(file.tipo_documento.replace(/-/g, '_'), file.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
                                             </li>
                                         ))}</ul>
                                     )
