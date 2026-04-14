@@ -1,14 +1,67 @@
 from rest_framework import serializers
-from .models import Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
+from .models import Empresa, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
 import re
 import logging
 
 logger = logging.getLogger(__name__)
 
+class SocioSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
+
+    class Meta:
+        model = Socio
+        fields = ['id', 'nome', 'cpf']
+
+    def validate_nome(self, value):
+        nome = str(value or '').strip()
+        if not nome:
+            raise serializers.ValidationError("O nome do sócio é obrigatório.")
+        return nome
+
+    def validate_cpf(self, value):
+        cleaned_value = re.sub(r'\D', '', str(value or ''))
+        if len(cleaned_value) != 11:
+            raise serializers.ValidationError("O CPF do sócio deve conter 11 dígitos numéricos.")
+        return cleaned_value
+
+
 class EmpresaSerializer(serializers.ModelSerializer):
+    socios = SocioSerializer(many=True, required=False)
+
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto']
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto', 'socios']
+
+    def _sync_socios(self, empresa, socios_data):
+        socios_data = socios_data or []
+        existing_socios = {socio.id: socio for socio in empresa.socios.all()}
+        kept_ids = set()
+        cpfs_payload = set()
+
+        for socio_data in socios_data:
+            socio_id = socio_data.get('id')
+            nome = socio_data.get('nome')
+            cpf = socio_data.get('cpf')
+
+            if cpf in cpfs_payload:
+                raise serializers.ValidationError({'socios': ['Não é permitido repetir CPF entre os sócios da mesma empresa.']})
+            cpfs_payload.add(cpf)
+
+            if socio_id:
+                socio = existing_socios.get(socio_id)
+                if not socio:
+                    raise serializers.ValidationError({'socios': [f'Sócio id={socio_id} não pertence à empresa informada.']})
+                socio.nome = nome
+                socio.cpf = cpf
+                socio.save(update_fields=['nome', 'cpf', 'atualizado_em'])
+                kept_ids.add(socio.id)
+            else:
+                novo_socio = Socio.objects.create(empresa=empresa, nome=nome, cpf=cpf)
+                kept_ids.add(novo_socio.id)
+
+        for socio_id, socio in existing_socios.items():
+            if socio_id not in kept_ids:
+                socio.delete()
         
     def validate_telefone(self, value):
         """
@@ -43,16 +96,20 @@ class EmpresaSerializer(serializers.ModelSerializer):
         """
         Chamado ao criar uma nova Empresa.
         """
+        socios_data = validated_data.pop('socios', [])
         telefone_ddd_num = validated_data.get('telefone') # Vem limpo de validate_telefone
         if telefone_ddd_num:
             validated_data['telefone'] = self._prefix_country_code(telefone_ddd_num)
-        
-        return super().create(validated_data)
+
+        empresa = super().create(validated_data)
+        self._sync_socios(empresa, socios_data)
+        return empresa
 
     def update(self, instance, validated_data):
         """
         Chamado ao atualizar uma Empresa existente.
         """
+        socios_data = validated_data.pop('socios', None)
         # Verifica se o campo 'telefone' foi incluído nos dados da requisição de atualização
         if 'telefone' in validated_data:
             telefone_ddd_num = validated_data.get('telefone') # Vem limpo de validate_telefone
@@ -60,8 +117,11 @@ class EmpresaSerializer(serializers.ModelSerializer):
                 validated_data['telefone'] = self._prefix_country_code(telefone_ddd_num)
             # Se telefone_ddd_num for None ou vazio e o campo fosse opcional, você trataria aqui.
             # Mas como tornamos obrigatório, validate_telefone não deve permitir isso.
-        
-        return super().update(instance, validated_data)
+
+        instance = super().update(instance, validated_data)
+        if socios_data is not None:
+            self._sync_socios(instance, socios_data)
+        return instance
 
 class DocumentosConstitutivosSerializer(serializers.ModelSerializer):
     class Meta:

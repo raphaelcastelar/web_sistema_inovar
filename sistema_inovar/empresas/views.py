@@ -69,7 +69,7 @@ from django.template.loader import render_to_string
 from .utils import get_bb_access_token
 
 from .models import (
-    Empresa, DocumentosConstitutivos, XML, DepartamentoPessoal, 
+    Empresa, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
     SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
     UltimoResultadoSessao, BoletoBB
 )
@@ -267,7 +267,7 @@ def visualizar_arquivo_empresa(request, tipo_pasta, arquivo_id):
     return response
 
 class EmpresaViewSet(viewsets.ModelViewSet):
-    queryset = Empresa.objects.all().order_by('nome')
+    queryset = Empresa.objects.prefetch_related('socios').all().order_by('nome')
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
 
@@ -1188,6 +1188,23 @@ def gerar_pro_labore_docx_view(request):
             for key, value in db_defaults.items():
                 if not str(payload.get(key, '')).strip():
                     payload[key] = value
+
+            socio_id = payload.get('socio_id')
+            socio = None
+
+            if socio_id:
+                try:
+                    socio = Socio.objects.get(id=socio_id, empresa=empresa)
+                except Socio.DoesNotExist:
+                    return Response({'error': 'Sócio não encontrado para a empresa informada.'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                socio = empresa.socios.order_by('nome').first()
+
+            if socio:
+                if not str(payload.get('colaborador_nome', '')).strip():
+                    payload['colaborador_nome'] = socio.nome or ''
+                if not str(payload.get('colaborador_cpf', '')).strip():
+                    payload['colaborador_cpf'] = socio.cpf or ''
         except Empresa.DoesNotExist:
             return Response({'error': 'Empresa não encontrada para o empresa_id informado.'}, status=status.HTTP_404_NOT_FOUND)
 

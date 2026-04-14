@@ -59,6 +59,24 @@ class Empresa(models.Model):
                 funcionario.empresas_gerenciadas.add(self)
             logger.info(f"Empresa {self.nome} criada e atribuída a todos os funcionários.")
 
+class Socio(models.Model):
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='socios')
+    nome = models.CharField(max_length=255)
+    cpf = models.CharField(max_length=11)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'socios'
+        ordering = ['nome']
+        constraints = [
+            models.UniqueConstraint(fields=['empresa', 'cpf'], name='unique_socio_cpf_por_empresa'),
+        ]
+
+    def __str__(self):
+        return f"{self.nome} ({self.cpf}) - {self.empresa.nome}"
+
+
 def get_document_company_folder_name_for_upload(document_instance):
     """
     Obtém o nome da empresa da instância do documento e o formata para nome de pasta.

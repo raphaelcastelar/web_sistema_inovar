@@ -18,6 +18,7 @@ const emptyForm = {
     empresa_estado: '',
     empresa_cep: '',
     empresa_cnpj: '',
+    socio_id: '',
     colaborador_nome: '',
     colaborador_cpf: '',
     referencia_mes_ano: '',
@@ -154,6 +155,8 @@ const GerarProLaborePage = () => {
     const [loading, setLoading] = useState(false);
     const [empresas, setEmpresas] = useState([]);
     const [selectedEmpresaId, setSelectedEmpresaId] = useState('');
+    const [sociosEmpresa, setSociosEmpresa] = useState([]);
+    const [selectedSocioId, setSelectedSocioId] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [formData, setFormData] = useState(emptyForm);
 
@@ -208,6 +211,12 @@ const GerarProLaborePage = () => {
                     numero = match[2].trim();
                 }
 
+                const socios = Array.isArray(data.socios) ? data.socios : [];
+                const primeiroSocio = socios[0];
+                const proximoSocioId = primeiroSocio ? String(primeiroSocio.id) : '';
+                setSociosEmpresa(socios);
+                setSelectedSocioId(proximoSocioId);
+
                 setFormData((prev) => ({
                     ...prev,
                     empresa_nome: data.nome || '',
@@ -218,6 +227,9 @@ const GerarProLaborePage = () => {
                     empresa_municipio: data.cidade || '',
                     empresa_estado: data.uf || '',
                     empresa_cep: data.cep || '',
+                    socio_id: proximoSocioId,
+                    colaborador_nome: primeiroSocio?.nome || '',
+                    colaborador_cpf: primeiroSocio?.cpf || '',
                 }));
             } catch {
                 setMsg({ type: 'error', text: 'Nao foi possivel carregar os dados desta empresa.' });
@@ -226,6 +238,19 @@ const GerarProLaborePage = () => {
 
         loadEmpresa();
     }, [mode, selectedEmpresaId]);
+
+    useEffect(() => {
+        if (mode !== 'empresa') return;
+        const socioSelecionado = sociosEmpresa.find((s) => String(s.id) === String(selectedSocioId));
+        if (!socioSelecionado) return;
+
+        setFormData((prev) => ({
+            ...prev,
+            socio_id: String(socioSelecionado.id),
+            colaborador_nome: socioSelecionado.nome || '',
+            colaborador_cpf: socioSelecionado.cpf || '',
+        }));
+    }, [mode, selectedSocioId, sociosEmpresa]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -242,6 +267,8 @@ const GerarProLaborePage = () => {
         setMsg({ type: '', text: '' });
         if (nextMode === 'avulso') {
             setSelectedEmpresaId('');
+            setSociosEmpresa([]);
+            setSelectedSocioId('');
             setFormData((prev) => ({ ...prev, ...emptyForm }));
         }
     };
@@ -263,6 +290,7 @@ const GerarProLaborePage = () => {
                     }
                     : {}),
                 ...(mode === 'empresa' && selectedEmpresaId ? { empresa_id: selectedEmpresaId } : {}),
+                ...(mode === 'empresa' && selectedSocioId ? { socio_id: selectedSocioId } : {}),
             };
 
             const response = await axiosInstance.post('/api/gerar-pro-labore-docx/', payload, {
@@ -385,7 +413,20 @@ const GerarProLaborePage = () => {
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Empresa</label>
                                         <select
                                             value={selectedEmpresaId}
-                                            onChange={(e) => setSelectedEmpresaId(e.target.value)}
+                                            onChange={(e) => {
+                                                const nextEmpresaId = e.target.value;
+                                                setSelectedEmpresaId(nextEmpresaId);
+                                                if (!nextEmpresaId) {
+                                                    setSociosEmpresa([]);
+                                                    setSelectedSocioId('');
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        socio_id: '',
+                                                        colaborador_nome: '',
+                                                        colaborador_cpf: '',
+                                                    }));
+                                                }
+                                            }}
                                             className={inputClass}
                                         >
                                             <option value="">Selecione...</option>
@@ -415,6 +456,33 @@ const GerarProLaborePage = () => {
                         {activeSection === 'socio' && (
                             <section className={cardClass}>
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Dados do Socio</h2>
+
+                                {mode === 'empresa' && (
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Socio</label>
+                                        <select
+                                            value={selectedSocioId}
+                                            onChange={(e) => setSelectedSocioId(e.target.value)}
+                                            className={inputClass}
+                                            disabled={!selectedEmpresaId || sociosEmpresa.length === 0}
+                                        >
+                                            <option value="">
+                                                {selectedEmpresaId
+                                                    ? (sociosEmpresa.length ? 'Selecione...' : 'Empresa sem socios cadastrados')
+                                                    : 'Selecione uma empresa primeiro'}
+                                            </option>
+                                            {sociosEmpresa.map((socio) => (
+                                                <option key={socio.id} value={socio.id}>
+                                                    {socio.nome}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">
+                                            Ao selecionar um socio, nome e CPF sao preenchidos automaticamente.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <input className={inputClass} name="colaborador_nome" value={formData.colaborador_nome} onChange={handleChange} placeholder="Nome completo" />
                                     <input className={inputClass} name="colaborador_cpf" value={formData.colaborador_cpf} onChange={handleChange} placeholder="CPF" />
