@@ -38,6 +38,115 @@ const sections = [
     { id: 'documento', label: 'Documento', icon: DocumentTextIcon },
 ];
 
+const INSS_ALIQUOTA = 0.11;
+const INSS_TETO_BASE = 8475.55;
+const IR_FAIXA_ISENCAO_TOTAL = 5000;
+const IR_FAIXA_REDUCAO = 7350;
+const IR_REDUCAO_INTERCEPT = 978.62;
+const IR_REDUCAO_SLOPE = 0.133145;
+
+const roundCurrency = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+const formatCurrencyInput = (value) => roundCurrency(value).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
+
+const calcIrrfSemReducao = (baseCalculo) => {
+    if (baseCalculo <= 2428.80) return 0;
+    if (baseCalculo <= 2826.65) return roundCurrency(baseCalculo * 0.075 - 182.16);
+    if (baseCalculo <= 3751.05) return roundCurrency(baseCalculo * 0.15 - 394.16);
+    if (baseCalculo <= 4664.68) return roundCurrency(baseCalculo * 0.225 - 675.49);
+    return roundCurrency(baseCalculo * 0.275 - 908.73);
+};
+
+const UNIDADES = ['zero', 'um', 'dois', 'tres', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+const DEZ_A_DEZENOVE = ['dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+const DEZENAS = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+const CENTENAS = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+
+const numeroAte999PorExtenso = (n) => {
+    if (n === 0) return '';
+    if (n < 10) return UNIDADES[n];
+    if (n < 20) return DEZ_A_DEZENOVE[n - 10];
+    if (n < 100) {
+        const dezena = Math.floor(n / 10);
+        const unidade = n % 10;
+        return unidade ? `${DEZENAS[dezena]} e ${UNIDADES[unidade]}` : DEZENAS[dezena];
+    }
+    if (n === 100) return 'cem';
+    const centena = Math.floor(n / 100);
+    const resto = n % 100;
+    return resto ? `${CENTENAS[centena]} e ${numeroAte999PorExtenso(resto)}` : CENTENAS[centena];
+};
+
+const numeroInteiroPorExtenso = (n) => {
+    if (n === 0) return 'zero';
+
+    const bilhoes = Math.floor(n / 1000000000);
+    const milhoes = Math.floor((n % 1000000000) / 1000000);
+    const milhares = Math.floor((n % 1000000) / 1000);
+    const centenas = n % 1000;
+    const partes = [];
+
+    if (bilhoes > 0) {
+        partes.push(`${numeroAte999PorExtenso(bilhoes)} ${bilhoes === 1 ? 'bilhao' : 'bilhoes'}`);
+    }
+    if (milhoes > 0) {
+        partes.push(`${numeroAte999PorExtenso(milhoes)} ${milhoes === 1 ? 'milhao' : 'milhoes'}`);
+    }
+    if (milhares > 0) {
+        partes.push(milhares === 1 ? 'mil' : `${numeroAte999PorExtenso(milhares)} mil`);
+    }
+    if (centenas > 0) {
+        partes.push(numeroAte999PorExtenso(centenas));
+    }
+
+    if (partes.length === 1) return partes[0];
+    return `${partes.slice(0, -1).join(' e ')} e ${partes[partes.length - 1]}`;
+};
+
+const valorMonetarioPorExtenso = (valor) => {
+    const valorNormalizado = Math.max(0, roundCurrency(Number(valor) || 0));
+    const [inteiroStr, centavosStr] = valorNormalizado.toFixed(2).split('.');
+    const inteiro = Number(inteiroStr);
+    const centavos = Number(centavosStr);
+
+    const partes = [];
+    if (inteiro > 0) {
+        partes.push(`${numeroInteiroPorExtenso(inteiro)} ${inteiro === 1 ? 'real' : 'reais'}`);
+    }
+    if (centavos > 0) {
+        partes.push(`${numeroInteiroPorExtenso(centavos)} ${centavos === 1 ? 'centavo' : 'centavos'}`);
+    }
+
+    if (!partes.length) return 'zero real';
+    if (partes.length === 1) return partes[0];
+    return `${partes[0]} e ${partes[1]}`;
+};
+
+const calcularProLabore = (valorBruto) => {
+    const bruto = Math.max(0, Number(valorBruto) || 0);
+    const baseInss = Math.min(bruto, INSS_TETO_BASE);
+    const inss = roundCurrency(baseInss * INSS_ALIQUOTA);
+
+    const baseIrrf = Math.max(0, bruto - inss);
+    const irrfSemReducao = Math.max(0, calcIrrfSemReducao(baseIrrf));
+    let irrf = irrfSemReducao;
+
+    if (bruto <= IR_FAIXA_ISENCAO_TOTAL) {
+        irrf = 0;
+    } else if (bruto <= IR_FAIXA_REDUCAO) {
+        const reducao = Math.max(0, IR_REDUCAO_INTERCEPT - (IR_REDUCAO_SLOPE * bruto));
+        irrf = Math.max(0, irrfSemReducao - reducao);
+    }
+
+    irrf = roundCurrency(irrf);
+    const liquido = roundCurrency(Math.max(0, bruto - inss - irrf));
+
+    return { inss, irrf, liquido };
+};
+
 const GerarProLaborePage = () => {
     const [mode, setMode] = useState('empresa');
     const [menuOpen, setMenuOpen] = useState(false);
@@ -62,12 +171,20 @@ const GerarProLaborePage = () => {
         return Number.isFinite(v) ? v : 0;
     };
 
+    const brutoInformado = String(formData.valor_bruto || '').trim() !== '';
+    const calculoValores = useMemo(() => calcularProLabore(toNumber(formData.valor_bruto)), [formData.valor_bruto]);
+    const valorLiquidoExtensoAuto = useMemo(
+        () => (brutoInformado ? valorMonetarioPorExtenso(calculoValores.liquido) : ''),
+        [brutoInformado, calculoValores.liquido]
+    );
+
     const totalDescontosPreview = useMemo(() => {
-        return (toNumber(formData.valor_inss) + toNumber(formData.valor_irrf)).toLocaleString('pt-BR', {
+        const totalDescontos = brutoInformado ? (calculoValores.inss + calculoValores.irrf) : 0;
+        return totalDescontos.toLocaleString('pt-BR', {
             style: 'currency',
             currency: 'BRL',
         });
-    }, [formData.valor_inss, formData.valor_irrf]);
+    }, [brutoInformado, calculoValores.inss, calculoValores.irrf]);
 
     useEffect(() => {
         axiosInstance.get('/api/empresas/')
@@ -137,6 +254,14 @@ const GerarProLaborePage = () => {
         try {
             const payload = {
                 ...formData,
+                ...(brutoInformado
+                    ? {
+                        valor_inss: formatCurrencyInput(calculoValores.inss),
+                        valor_irrf: formatCurrencyInput(calculoValores.irrf),
+                        valor_liquido: formatCurrencyInput(calculoValores.liquido),
+                        valor_liquido_extenso: valorLiquidoExtensoAuto,
+                    }
+                    : {}),
                 ...(mode === 'empresa' && selectedEmpresaId ? { empresa_id: selectedEmpresaId } : {}),
             };
 
@@ -305,19 +430,40 @@ const GerarProLaborePage = () => {
                                 <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Valores</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <input className={inputClass} name="valor_bruto" value={formData.valor_bruto} onChange={handleChange} placeholder="Valor bruto" />
-                                    <input className={inputClass} name="valor_inss" value={formData.valor_inss} onChange={handleChange} placeholder="INSS" />
-                                    <input className={inputClass} name="valor_irrf" value={formData.valor_irrf} onChange={handleChange} placeholder="IRRF" />
-                                    <input className={inputClass} name="valor_liquido" value={formData.valor_liquido} onChange={handleChange} placeholder="Liquido (opcional)" />
+                                    <input
+                                        className={`${inputClass} bg-gray-100 dark:bg-gray-700`}
+                                        name="valor_inss"
+                                        value={brutoInformado ? formatCurrencyInput(calculoValores.inss) : ''}
+                                        readOnly
+                                        placeholder="INSS (calculado automaticamente)"
+                                    />
+                                    <input
+                                        className={`${inputClass} bg-gray-100 dark:bg-gray-700`}
+                                        name="valor_irrf"
+                                        value={brutoInformado ? formatCurrencyInput(calculoValores.irrf) : ''}
+                                        readOnly
+                                        placeholder="IRRF (calculado automaticamente)"
+                                    />
+                                    <input
+                                        className={`${inputClass} bg-gray-100 dark:bg-gray-700`}
+                                        name="valor_liquido"
+                                        value={brutoInformado ? formatCurrencyInput(calculoValores.liquido) : ''}
+                                        readOnly
+                                        placeholder="Liquido (calculado automaticamente)"
+                                    />
                                 </div>
                                 <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
                                     Total de descontos: <strong>{totalDescontosPreview}</strong>
                                 </p>
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    Regra aplicada: INSS de 11% com teto (R$ 8.475,55) e IRRF com reducao mensal da tabela 2026.
+                                </p>
                                 <textarea
-                                    className={`${inputClass} mt-4 min-h-24`}
+                                    className={`${inputClass} mt-4 min-h-24 bg-gray-100 dark:bg-gray-700`}
                                     name="valor_liquido_extenso"
-                                    value={formData.valor_liquido_extenso}
-                                    onChange={handleChange}
-                                    placeholder="Valor liquido por extenso"
+                                    value={valorLiquidoExtensoAuto}
+                                    readOnly
+                                    placeholder="Valor liquido por extenso (calculado automaticamente)"
                                 />
                             </section>
                         )}

@@ -2,12 +2,24 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from io import BytesIO
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
+
+
+INSS_ALIQUOTA = Decimal("0.11")
+INSS_TETO_BASE = Decimal("8475.55")
+IR_FAIXA_ISENCAO_TOTAL = Decimal("5000.00")
+IR_FAIXA_REDUCAO = Decimal("7350.00")
+IR_REDUCAO_INTERCEPT = Decimal("978.62")
+IR_REDUCAO_SLOPE = Decimal("0.133145")
+
+
+def _round_currency(value: Decimal) -> Decimal:
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _to_decimal(value, field_name: str, required: bool = True) -> Decimal:
@@ -27,8 +39,45 @@ def _to_decimal(value, field_name: str, required: bool = True) -> Decimal:
         raise ValueError(f"O campo '{field_name}' deve ser numerico.")
 
 
+def _calc_irrf_sem_reducao(base_calculo: Decimal) -> Decimal:
+    if base_calculo <= Decimal("2428.80"):
+        return Decimal("0.00")
+    if base_calculo <= Decimal("2826.65"):
+        return _round_currency((base_calculo * Decimal("0.075")) - Decimal("182.16"))
+    if base_calculo <= Decimal("3751.05"):
+        return _round_currency((base_calculo * Decimal("0.15")) - Decimal("394.16"))
+    if base_calculo <= Decimal("4664.68"):
+        return _round_currency((base_calculo * Decimal("0.225")) - Decimal("675.49"))
+    return _round_currency((base_calculo * Decimal("0.275")) - Decimal("908.73"))
+
+
+def _calcular_impostos_pro_labore(valor_bruto: Decimal) -> tuple[Decimal, Decimal, Decimal]:
+    bruto = max(valor_bruto, Decimal("0.00"))
+
+    base_inss = min(bruto, INSS_TETO_BASE)
+    valor_inss = _round_currency(base_inss * INSS_ALIQUOTA)
+
+    base_irrf = max(Decimal("0.00"), bruto - valor_inss)
+    irrf_sem_reducao = max(Decimal("0.00"), _calc_irrf_sem_reducao(base_irrf))
+
+    if bruto <= IR_FAIXA_ISENCAO_TOTAL:
+        valor_irrf = Decimal("0.00")
+    elif bruto <= IR_FAIXA_REDUCAO:
+        reducao = max(
+            Decimal("0.00"),
+            IR_REDUCAO_INTERCEPT - (IR_REDUCAO_SLOPE * bruto),
+        )
+        valor_irrf = max(Decimal("0.00"), irrf_sem_reducao - reducao)
+    else:
+        valor_irrf = irrf_sem_reducao
+
+    valor_irrf = _round_currency(valor_irrf)
+    valor_liquido = _round_currency(max(Decimal("0.00"), bruto - valor_inss - valor_irrf))
+    return valor_inss, valor_irrf, valor_liquido
+
+
 def _format_currency_br(value: Decimal) -> str:
-    value = value.quantize(Decimal("0.01"))
+    value = _round_currency(value)
     inteiro, decimal = f"{value:.2f}".split(".")
     inteiro = f"{int(inteiro):,}".replace(",", ".")
     return f"R$ {inteiro},{decimal}"
@@ -73,19 +122,7 @@ def build_pro_labore_docx(payload: dict) -> tuple[bytes, str]:
     valor_liquido_extenso = _required_text(payload, "valor_liquido_extenso", "valor_liquido_extenso")
 
     valor_bruto = _to_decimal(payload.get("valor_bruto"), "valor_bruto")
-    valor_inss = _to_decimal(payload.get("valor_inss"), "valor_inss", required=False)
-    valor_irrf = _to_decimal(payload.get("valor_irrf"), "valor_irrf", required=False)
-    valor_liquido = _to_decimal(
-        payload.get("valor_liquido"),
-        "valor_liquido",
-        required=False,
-    )
-
-    if payload.get("valor_liquido") in (None, ""):
-        valor_liquido = valor_bruto - valor_inss - valor_irrf
-
-    if valor_liquido < Decimal("0.00"):
-        raise ValueError("O valor_liquido nao pode ser negativo.")
+    valor_inss, valor_irrf, valor_liquido = _calcular_impostos_pro_labore(valor_bruto)
 
     doc = Document()
 
