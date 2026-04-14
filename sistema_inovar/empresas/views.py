@@ -1167,8 +1167,8 @@ def gerar_pro_labore_docx_view(request):
 
             endereco_full = (empresa.endereco or '').strip()
             endereco = endereco_full
-            numero = ''
-            if endereco_full:
+            numero = (empresa.numero or '').strip()
+            if not numero and endereco_full:
                 match = re.search(r'(.+?),\s*(?:n(?:u|ú)?m(?:ero)?\.?\s*)?(\d+)\s*$', endereco_full, re.IGNORECASE)
                 if match:
                     endereco = match.group(1).strip()

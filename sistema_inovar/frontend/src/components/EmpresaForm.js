@@ -19,6 +19,7 @@ const emptyEmpresa = {
     email: '',
     telefone: '',
     endereco: '',
+    numero: '',
     cep: '',
     cidade: '',
     bairro: '',
@@ -82,6 +83,7 @@ const EmpresaForm = () => {
                         email: response.data.email || '',
                         telefone: displayTelefone,
                         endereco: response.data.endereco || '',
+                        numero: response.data.numero || '',
                         cep: response.data.cep || '',
                         cidade: response.data.cidade || '',
                         bairro: response.data.bairro || '',
@@ -286,6 +288,11 @@ const EmpresaForm = () => {
                             <input type="text" name="endereco" id="endereco" value={empresa.endereco} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
                         </div>
                         <div className="relative">
+                            <label htmlFor="numero" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Número</label>
+                            <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
+                            <input type="text" name="numero" id="numero" value={empresa.numero || ''} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                        </div>
+                        <div className="relative">
                             <label htmlFor="cep" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">CEP</label>
                             <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
                             <input type="text" name="cep" id="cep" value={empresa.cep} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" placeholder="Ex.: 12345678" maxLength="8" />
@@ -391,3 +398,4 @@ const EmpresaForm = () => {
 };
 
 export default EmpresaForm;
+

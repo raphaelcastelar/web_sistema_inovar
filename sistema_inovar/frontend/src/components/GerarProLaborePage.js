@@ -203,14 +203,15 @@ const GerarProLaborePage = () => {
                 const { data } = await axiosInstance.get(`/api/empresas/${selectedEmpresaId}/`);
                 const enderecoRaw = (data.endereco || '').trim();
                 let endereco = enderecoRaw;
-                let numero = '';
+                let numero = (data.numero || '').trim();
 
-                const match = enderecoRaw.match(/(.+?),\s*(?:n(?:u|ú)?m(?:ero)?\.?\s*)?(\d+)\s*$/i);
-                if (match) {
-                    endereco = match[1].trim();
-                    numero = match[2].trim();
+                if (!numero) {
+                    const match = enderecoRaw.match(/(.+?),\s*(?:n(?:u|ú)?m(?:ero)?\.?\s*)?(\d+)\s*$/i);
+                    if (match) {
+                        endereco = match[1].trim();
+                        numero = match[2].trim();
+                    }
                 }
-
                 const socios = Array.isArray(data.socios) ? data.socios : [];
                 const primeiroSocio = socios[0];
                 const proximoSocioId = primeiroSocio ? String(primeiroSocio.id) : '';
@@ -574,3 +575,4 @@ const GerarProLaborePage = () => {
 };
 
 export default GerarProLaborePage;
+

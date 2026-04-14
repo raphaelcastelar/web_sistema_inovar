@@ -20,6 +20,7 @@ class Empresa(models.Model):
     email = models.CharField(max_length=255, null=False)
     telefone = models.CharField(max_length=20, null=True, blank=False)
     endereco = models.CharField(max_length=255, null=True, blank=True, help_text="Endereço completo da empresa")
+    numero = models.CharField(max_length=20, null=True, blank=True, help_text="Numero do endereco da empresa")
     cep = models.CharField(max_length=9, null=True, blank=True, help_text="CEP sem hífen (ex.: 12345678)")
     cidade = models.CharField(max_length=100, null=True, blank=True, help_text="Cidade da empresa")
     bairro = models.CharField(max_length=100, null=True, blank=True, help_text="Bairro da empresa")
@@ -432,3 +433,4 @@ class BoletoBB(models.Model):
 
     def __str__(self):
         return f"{self.numero_titulo_cliente} - {self.empresa.nome}"
+
