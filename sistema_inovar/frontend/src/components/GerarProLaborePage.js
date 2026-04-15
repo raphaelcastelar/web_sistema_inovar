@@ -39,6 +39,33 @@ const sections = [
     { id: 'documento', label: 'Documento', icon: DocumentTextIcon },
 ];
 
+const MESES_PT_BR = [
+    'janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+];
+
+const getReferenciaMesAnterior = (baseDate = new Date()) => {
+    const anoAtual = baseDate.getFullYear();
+    const mesAtual = baseDate.getMonth(); // 0-11
+    const mesAnterior = mesAtual === 0 ? 11 : mesAtual - 1;
+    const anoReferencia = mesAtual === 0 ? anoAtual - 1 : anoAtual;
+    return `${String(mesAnterior + 1).padStart(2, '0')}-${anoReferencia}`;
+};
+
+const getDataAtualPorExtenso = (baseDate = new Date()) => {
+    const dia = baseDate.getDate();
+    const mes = MESES_PT_BR[baseDate.getMonth()];
+    const ano = baseDate.getFullYear();
+    return `${dia} de ${mes} de ${ano}`;
+};
+
+const montarLocalAssinatura = (cidade, uf) => {
+    const cidadeLimpa = String(cidade || '').trim();
+    const ufLimpa = String(uf || '').trim().toUpperCase();
+    if (cidadeLimpa && ufLimpa) return `${cidadeLimpa}-${ufLimpa}`;
+    return '';
+};
+
 const INSS_ALIQUOTA = 0.11;
 const INSS_TETO_BASE = 8475.55;
 const IR_FAIXA_ISENCAO_TOTAL = 5000;
@@ -159,6 +186,8 @@ const GerarProLaborePage = () => {
     const [selectedSocioId, setSelectedSocioId] = useState('');
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [formData, setFormData] = useState(emptyForm);
+    const referenciaMesAnteriorAuto = useMemo(() => getReferenciaMesAnterior(), []);
+    const dataAtualExtensoAuto = useMemo(() => getDataAtualPorExtenso(), []);
 
     const inputClass =
         'w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 ' +
@@ -196,6 +225,14 @@ const GerarProLaborePage = () => {
     }, []);
 
     useEffect(() => {
+        setFormData((prev) => ({
+            ...prev,
+            referencia_mes_ano: referenciaMesAnteriorAuto,
+            data_assinatura: dataAtualExtensoAuto,
+        }));
+    }, [referenciaMesAnteriorAuto, dataAtualExtensoAuto]);
+
+    useEffect(() => {
         if (mode !== 'empresa' || !selectedEmpresaId) return;
 
         const loadEmpresa = async () => {
@@ -231,6 +268,9 @@ const GerarProLaborePage = () => {
                     socio_id: proximoSocioId,
                     colaborador_nome: primeiroSocio?.nome || '',
                     colaborador_cpf: primeiroSocio?.cpf || '',
+                    referencia_mes_ano: referenciaMesAnteriorAuto,
+                    local_assinatura: montarLocalAssinatura(data.cidade, data.uf),
+                    data_assinatura: dataAtualExtensoAuto,
                 }));
             } catch {
                 setMsg({ type: 'error', text: 'Nao foi possivel carregar os dados desta empresa.' });
@@ -238,7 +278,7 @@ const GerarProLaborePage = () => {
         };
 
         loadEmpresa();
-    }, [mode, selectedEmpresaId]);
+    }, [mode, selectedEmpresaId, referenciaMesAnteriorAuto, dataAtualExtensoAuto]);
 
     useEffect(() => {
         if (mode !== 'empresa') return;
@@ -270,7 +310,12 @@ const GerarProLaborePage = () => {
             setSelectedEmpresaId('');
             setSociosEmpresa([]);
             setSelectedSocioId('');
-            setFormData((prev) => ({ ...prev, ...emptyForm }));
+            setFormData((prev) => ({
+                ...prev,
+                ...emptyForm,
+                referencia_mes_ano: referenciaMesAnteriorAuto,
+                data_assinatura: dataAtualExtensoAuto,
+            }));
         }
     };
 
@@ -425,6 +470,9 @@ const GerarProLaborePage = () => {
                                                         socio_id: '',
                                                         colaborador_nome: '',
                                                         colaborador_cpf: '',
+                                                        local_assinatura: '',
+                                                        referencia_mes_ano: referenciaMesAnteriorAuto,
+                                                        data_assinatura: dataAtualExtensoAuto,
                                                     }));
                                                 }
                                             }}
@@ -487,9 +535,9 @@ const GerarProLaborePage = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <input className={inputClass} name="colaborador_nome" value={formData.colaborador_nome} onChange={handleChange} placeholder="Nome completo" />
                                     <input className={inputClass} name="colaborador_cpf" value={formData.colaborador_cpf} onChange={handleChange} placeholder="CPF" />
-                                    <input className={inputClass} name="referencia_mes_ano" value={formData.referencia_mes_ano} onChange={handleChange} placeholder="Referencia (MM/AAAA)" />
-                                    <input className={inputClass} name="local_assinatura" value={formData.local_assinatura} onChange={handleChange} placeholder="Local de assinatura" />
-                                    <input className={inputClass} name="data_assinatura" value={formData.data_assinatura} onChange={handleChange} placeholder="Data por extenso" />
+                                    <input className={`${inputClass} bg-gray-100 dark:bg-gray-700`} name="referencia_mes_ano" value={formData.referencia_mes_ano} readOnly placeholder="Referencia (MM-AAAA)" />
+                                    <input className={`${inputClass} ${mode === 'empresa' ? 'bg-gray-100 dark:bg-gray-700' : ''}`} name="local_assinatura" value={formData.local_assinatura} onChange={handleChange} readOnly={mode === 'empresa'} placeholder="Cidade-UF" />
+                                    <input className={`${inputClass} bg-gray-100 dark:bg-gray-700`} name="data_assinatura" value={formData.data_assinatura} readOnly placeholder="Data por extenso" />
                                 </div>
                             </section>
                         )}
