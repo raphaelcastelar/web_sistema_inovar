@@ -535,6 +535,7 @@ const InicioPage = () => {
   const filteredEmpresas = empresasSelecionadas.filter((empresa) =>
     empresa.nome.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  const empresasAtivasCount = empresasSelecionadas.filter((empresa) => empresa.ativo).length;
 
   return (
     <motion.div
@@ -576,8 +577,8 @@ const InicioPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <StatCard
           icon={UsersIcon}
-          title="Total de Clientes"
-          value={empresasSelecionadas.length}
+          title="Empresas Ativas"
+          value={empresasAtivasCount}
           color="bg-blue-500"
         />
         <StatCard
