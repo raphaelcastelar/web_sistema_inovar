@@ -347,7 +347,7 @@ const EmpresaForm = () => {
                                             type="text"
                                             value={socio.nome || ''}
                                             onChange={(e) => handleSocioChange(index, 'nome', e.target.value)}
-                                            className="w-full p-3 rounded-md bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            className="w-full p-3 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                                             placeholder="Nome completo"
                                         />
                                     </div>
@@ -357,7 +357,7 @@ const EmpresaForm = () => {
                                             type="text"
                                             value={socio.cpf || ''}
                                             onChange={(e) => handleSocioChange(index, 'cpf', e.target.value)}
-                                            className="w-full p-3 rounded-md bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            className="w-full p-3 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                                             placeholder="00000000000"
                                         />
                                     </div>
