@@ -3,6 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from .models import (
     Empresa, 
+    Tag,
     Socio,
     Funcionario, 
     ObrigacaoMensal, 
@@ -36,6 +37,13 @@ class EmpresaAdmin(admin.ModelAdmin):
     list_display = ('nome', 'cnpj', 'email', 'telefone', 'monitorar_simples')
     search_fields = ('nome', 'cnpj')
     list_filter = ('monitorar_simples',)
+    filter_horizontal = ('tags',)
+
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'cor', 'criado_em')
+    search_fields = ('nome',)
 
 @admin.register(Socio)
 class SocioAdmin(admin.ModelAdmin):

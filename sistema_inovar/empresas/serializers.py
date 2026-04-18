@@ -1,9 +1,29 @@
 from rest_framework import serializers
-from .models import Empresa, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
+from .models import Empresa, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
 import re
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['id', 'nome', 'cor', 'criado_em']
+        read_only_fields = ['id', 'criado_em']
+
+    def validate_nome(self, value):
+        nome = str(value or '').strip()
+        if not nome:
+            raise serializers.ValidationError("O nome da tag é obrigatório.")
+        return nome
+
+    def validate_cor(self, value):
+        cor = str(value or '').strip()
+        if not re.fullmatch(r'^#[0-9A-Fa-f]{6}$', cor):
+            raise serializers.ValidationError("A cor da tag deve estar no formato hexadecimal. Ex: #10B981")
+        return cor
+
 
 class SocioSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
@@ -27,10 +47,18 @@ class SocioSerializer(serializers.ModelSerializer):
 
 class EmpresaSerializer(serializers.ModelSerializer):
     socios = SocioSerializer(many=True, required=False)
+    tags = TagSerializer(many=True, read_only=True)
+    tag_ids = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Tag.objects.all(),
+        required=False,
+        source='tags',
+        write_only=True,
+    )
 
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'numero', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto', 'socios']
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'numero', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto', 'socios', 'tags', 'tag_ids']
 
     def _sync_socios(self, empresa, socios_data):
         socios_data = socios_data or []

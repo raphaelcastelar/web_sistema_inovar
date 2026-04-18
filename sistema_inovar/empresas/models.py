@@ -32,6 +32,7 @@ class Empresa(models.Model):
     honorario = models.BooleanField(default=False, null=True)
     monitorar_simples = models.BooleanField(default=True, null=True)
     usuarios = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='empresas')
+    tags = models.ManyToManyField('Tag', related_name='empresas', blank=True)
     ativo = models.BooleanField(default=True, null = True)
 
     # Configurações de Boleto
@@ -59,6 +60,19 @@ class Empresa(models.Model):
                 )
                 funcionario.empresas_gerenciadas.add(self)
             logger.info(f"Empresa {self.nome} criada e atribuída a todos os funcionários.")
+
+
+class Tag(models.Model):
+    nome = models.CharField(max_length=50, unique=True)
+    cor = models.CharField(max_length=7, default='#3B82F6')
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'tags'
+        ordering = ['nome']
+
+    def __str__(self):
+        return self.nome
 
 class Socio(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='socios')

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, BuildingOffice2Icon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, BuildingOffice2Icon, TagIcon } from '@heroicons/react/24/outline';
 
 
 
@@ -12,6 +12,8 @@ const EmpresaList = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isAdmin, setIsAdmin] = useState(null);
+    const [tags, setTags] = useState([]);
+    const [selectedTagId, setSelectedTagId] = useState('');
     const [activeTab, setActiveTab] = useState('ativadas'); // 'ativadas' ou 'nao-ativadas'
 
     // Estado para controle do Infinite Scroll
@@ -45,14 +47,24 @@ const EmpresaList = () => {
             }
         };
 
+        const fetchTags = async () => {
+            try {
+                const response = await axiosInstance.get('/api/tags/');
+                setTags(Array.isArray(response.data) ? response.data : []);
+            } catch (err) {
+                console.error('Erro ao carregar tags:', err.response?.data || err.message);
+            }
+        };
+
         fetchUser();
+        fetchTags();
         fetchEmpresas();
     }, []);
 
     // Resetar a contagem visível quando mudar a busca ou a aba
     useEffect(() => {
         setVisibleCount(24);
-    }, [search, activeTab]);
+    }, [search, activeTab, selectedTagId]);
 
     const handleDelete = (id) => {
         if (window.confirm('Tem certeza que deseja excluir esta empresa? Esta ação apaga também a pasta da empresa no servidor.')) {
@@ -83,10 +95,11 @@ const EmpresaList = () => {
                 const cleanedEmpresaCnpj = empresa.cnpj?.replace(/\D/g, '');
                 matchCnpj = cleanedEmpresaCnpj?.includes(searchDigits);
             }
+            const matchTag = !selectedTagId || (empresa.tags || []).some((tag) => String(tag.id) === selectedTagId);
             const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
-            return (matchNome || matchEmail || matchCnpj) && isInTab;
+            return (matchNome || matchEmail || matchCnpj) && isInTab && matchTag;
         });
-    }, [empresas, search, activeTab]);
+    }, [empresas, search, activeTab, selectedTagId]);
 
     // Intersection Observer para carregar mais itens
     useEffect(() => {
@@ -143,6 +156,21 @@ const EmpresaList = () => {
                             onChange={(e) => setSearch(e.target.value)}
                             className="p-3 pl-10 w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg shadow-sm border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                         />
+                    </div>
+                    <div className="relative w-full md:w-56">
+                        <TagIcon className="h-5 w-5 text-gray-400 absolute top-1/2 left-3 transform -translate-y-1/2" />
+                        <select
+                            value={selectedTagId}
+                            onChange={(e) => setSelectedTagId(e.target.value)}
+                            className="p-3 pl-10 w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg shadow-sm border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                        >
+                            <option value="">Todas as tags</option>
+                            {tags.map((tag) => (
+                                <option key={tag.id} value={String(tag.id)}>
+                                    {tag.nome}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                     {isAdmin && (
                         <Link
@@ -220,6 +248,19 @@ const EmpresaList = () => {
                                             </div>
                                         </div>
                                         <p className="text-sm text-gray-600 dark:text-gray-400 break-all">{empresa.email}</p>
+                                        {(empresa.tags || []).length > 0 && (
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {(empresa.tags || []).map((tag) => (
+                                                    <span
+                                                        key={tag.id}
+                                                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                                                    >
+                                                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.cor }} />
+                                                        {tag.nome}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="flex space-x-2 bg-gray-50 dark:bg-gray-700/50 p-3 border-t border-gray-200 dark:border-gray-700">

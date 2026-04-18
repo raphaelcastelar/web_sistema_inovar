@@ -9,6 +9,7 @@ import {
     EnvelopeIcon,
     PhoneIcon,
     MapPinIcon,
+    TagIcon,
     PlusIcon,
     TrashIcon,
 } from '@heroicons/react/24/outline';
@@ -25,6 +26,7 @@ const emptyEmpresa = {
     bairro: '',
     uf: '',
     usuarios: [],
+    tag_ids: [],
     socios: [],
 };
 
@@ -37,6 +39,10 @@ const EmpresaForm = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [telefoneFeedback, setTelefoneFeedback] = useState({ message: '', type: 'hint' });
+    const [availableTags, setAvailableTags] = useState([]);
+    const [newTagName, setNewTagName] = useState('');
+    const [newTagColor, setNewTagColor] = useState('#3B82F6');
+    const [creatingTag, setCreatingTag] = useState(false);
 
     const validateAndSetTelefoneFeedback = useCallback((inputValue) => {
         const cleanedValue = inputValue.replace(/\D/g, '');
@@ -65,6 +71,19 @@ const EmpresaForm = () => {
     }, []);
 
     useEffect(() => {
+        const fetchTags = async () => {
+            try {
+                const response = await axiosInstance.get('/api/tags/');
+                setAvailableTags(Array.isArray(response.data) ? response.data : []);
+            } catch (err) {
+                console.error('Erro ao carregar tags:', err.response?.data || err.message);
+            }
+        };
+
+        fetchTags();
+    }, []);
+
+    useEffect(() => {
         const fetchEmpresa = async () => {
             if (isEditing) {
                 setLoading(true);
@@ -89,6 +108,7 @@ const EmpresaForm = () => {
                         bairro: response.data.bairro || '',
                         uf: response.data.uf || '',
                         usuarios: response.data.usuarios || [],
+                        tag_ids: Array.isArray(response.data.tags) ? response.data.tags.map((tag) => tag.id) : [],
                         socios: Array.isArray(response.data.socios)
                             ? response.data.socios.map((s) => ({ id: s.id, nome: s.nome || '', cpf: s.cpf || '' }))
                             : [],
@@ -156,6 +176,53 @@ const EmpresaForm = () => {
         }));
     };
 
+    const toggleTagSelection = (tagId) => {
+        setEmpresa((prev) => {
+            const selectedTagIds = Array.isArray(prev.tag_ids) ? prev.tag_ids : [];
+            const hasTag = selectedTagIds.includes(tagId);
+            return {
+                ...prev,
+                tag_ids: hasTag
+                    ? selectedTagIds.filter((id) => id !== tagId)
+                    : [...selectedTagIds, tagId],
+            };
+        });
+    };
+
+    const handleCreateTag = async () => {
+        const nome = newTagName.trim();
+        if (!nome) {
+            setError('Informe um nome para criar a tag.');
+            return;
+        }
+
+        setCreatingTag(true);
+        setError(null);
+        try {
+            const response = await axiosInstance.post('/api/tags/', {
+                nome,
+                cor: newTagColor,
+            });
+            const createdTag = response.data;
+            setAvailableTags((prev) => [...prev, createdTag].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')));
+            setEmpresa((prev) => ({
+                ...prev,
+                tag_ids: [...(prev.tag_ids || []), createdTag.id],
+            }));
+            setNewTagName('');
+        } catch (err) {
+            const apiError = err.response?.data;
+            if (apiError && typeof apiError === 'object') {
+                const errorMessages = Object.entries(apiError).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`);
+                setError(errorMessages.join(' | '));
+            } else {
+                setError('Não foi possível criar a tag.');
+            }
+        } finally {
+            setCreatingTag(false);
+        }
+    };
+
     const sanitizeSociosForPayload = () => {
         const socios = Array.isArray(empresa.socios) ? empresa.socios : [];
         const sociosComConteudo = socios.filter((s) => (s.nome || '').trim() || (s.cpf || '').trim());
@@ -200,6 +267,7 @@ const EmpresaForm = () => {
                 ...empresa,
                 telefone: telefoneLimpoParaEnvio,
                 usuarios: empresa.usuarios.length > 0 ? empresa.usuarios : [1],
+                tag_ids: Array.isArray(empresa.tag_ids) ? empresa.tag_ids : [],
                 socios: sociosSanitizados,
             };
 
@@ -319,6 +387,69 @@ const EmpresaForm = () => {
                                     ))}
                             </select>
                         </div>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                            <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                <TagIcon className="h-5 w-5" />
+                                Tags
+                            </h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_auto] gap-3 items-end mb-4">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Nome da tag</label>
+                                <input
+                                    type="text"
+                                    value={newTagName}
+                                    onChange={(e) => setNewTagName(e.target.value)}
+                                    className="w-full p-3 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                    placeholder="Ex.: Prioridade alta"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Cor</label>
+                                <input
+                                    type="color"
+                                    value={newTagColor}
+                                    onChange={(e) => setNewTagColor(e.target.value)}
+                                    className="w-full h-11 p-1 rounded-md bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600"
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={handleCreateTag}
+                                disabled={creatingTag}
+                                className="h-11 px-4 inline-flex items-center justify-center rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                            >
+                                {creatingTag ? 'Criando...' : 'Criar Tag'}
+                            </button>
+                        </div>
+
+                        {(availableTags || []).length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma tag criada ainda.</p>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                {availableTags.map((tag) => {
+                                    const selected = (empresa.tag_ids || []).includes(tag.id);
+                                    return (
+                                        <button
+                                            key={tag.id}
+                                            type="button"
+                                            onClick={() => toggleTagSelection(tag.id)}
+                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition-colors ${selected ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-200' : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}
+                                        >
+                                            <span
+                                                className="h-2.5 w-2.5 rounded-full"
+                                                style={{ backgroundColor: tag.cor }}
+                                            />
+                                            {tag.nome}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">

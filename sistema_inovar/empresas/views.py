@@ -71,9 +71,11 @@ from .utils import get_bb_access_token
 from .models import (
     Empresa, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
     SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
+    Tag,
     UltimoResultadoSessao, BoletoBB
 )
 from .serializers import (
+    TagSerializer,
     EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
@@ -267,7 +269,7 @@ def visualizar_arquivo_empresa(request, tipo_pasta, arquivo_id):
     return response
 
 class EmpresaViewSet(viewsets.ModelViewSet):
-    queryset = Empresa.objects.prefetch_related('socios').all().order_by('nome')
+    queryset = Empresa.objects.prefetch_related('socios', 'tags').all().order_by('nome')
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
 
@@ -282,11 +284,21 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        tag_id = self.request.query_params.get('tag') or self.request.query_params.get('tag_id')
+        if tag_id:
+            queryset = queryset.filter(tags__id=tag_id)
+
+        tag_ids = self.request.query_params.get('tags')
+        if tag_ids:
+            parsed_tag_ids = [value.strip() for value in tag_ids.split(',') if value.strip().isdigit()]
+            if parsed_tag_ids:
+                queryset = queryset.filter(tags__id__in=parsed_tag_ids)
+
         if self.request.query_params.get('all') == 'true':
-            return queryset
+            return queryset.distinct()
         if not self.request.user.is_staff and not self.request.user.is_superuser:
             queryset = queryset.filter(gerenciada_por=self.request.user)
-        return queryset
+        return queryset.distinct()
 
     def destroy(self, request, *args, **kwargs):
         try:
@@ -406,6 +418,12 @@ class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = HistoricoEnviosSerializer
     filter_backends = [DjangoFilterBackend] # Adicione esta linha
     filterset_class = HistoricoEnviosFilter   # Adicione esta linha
+
+
+class TagViewSet(viewsets.ModelViewSet):
+    queryset = Tag.objects.all().order_by('nome')
+    serializer_class = TagSerializer
+    permission_classes = [IsAuthenticated]
 
 class FuncionarioViewSet(viewsets.ModelViewSet):
     queryset = Funcionario.objects.prefetch_related('empresas_gerenciadas').all().order_by('first_name')
