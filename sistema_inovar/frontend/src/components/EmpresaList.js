@@ -82,9 +82,11 @@ const EmpresaList = () => {
     const filteredEmpresas = useMemo(() => {
         const lowercasedSearch = search.toLowerCase().trim();
         if (!lowercasedSearch) {
-            return activeTab === 'ativadas'
-                ? empresas.filter(empresa => empresa.ativo)
-                : empresas.filter(empresa => !empresa.ativo);
+            return empresas.filter((empresa) => {
+                const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
+                const matchTag = !selectedTagId || (empresa.tags || []).some((tag) => String(tag.id) === selectedTagId);
+                return isInTab && matchTag;
+            });
         }
         const searchDigits = search.replace(/\D/g, '');
         return empresas.filter(empresa => {
@@ -179,15 +181,6 @@ const EmpresaList = () => {
                         >
                             <PlusIcon className="h-6 w-6" />
                             <span className="hidden sm:inline">Nova Empresa</span>
-                        </Link>
-                    )}
-                    {isAdmin && (
-                        <Link
-                            to="/empresas/gerenciar"
-                            className="p-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition-all duration-300 flex items-center space-x-2 flex-shrink-0"
-                        >
-                            <FolderIcon className="h-6 w-6" />
-                            <span className="hidden sm:inline">Gerenciar Empresas</span>
                         </Link>
                     )}
                 </div>
