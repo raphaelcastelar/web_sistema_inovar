@@ -122,7 +122,25 @@ def build_pro_labore_docx(payload: dict) -> tuple[bytes, str]:
     valor_liquido_extenso = _required_text(payload, "valor_liquido_extenso", "valor_liquido_extenso")
 
     valor_bruto = _to_decimal(payload.get("valor_bruto"), "valor_bruto")
-    valor_inss, valor_irrf, valor_liquido = _calcular_impostos_pro_labore(valor_bruto)
+    valor_inss_calculado, valor_irrf_calculado, valor_liquido_calculado = _calcular_impostos_pro_labore(valor_bruto)
+    valor_inss_payload = payload.get("valor_inss")
+    valor_irrf_payload = payload.get("valor_irrf")
+    valor_liquido_payload = payload.get("valor_liquido")
+    valor_inss = (
+        _to_decimal(valor_inss_payload, "valor_inss", required=False)
+        if valor_inss_payload not in (None, "")
+        else valor_inss_calculado
+    )
+    valor_irrf = (
+        _to_decimal(valor_irrf_payload, "valor_irrf", required=False)
+        if valor_irrf_payload not in (None, "")
+        else valor_irrf_calculado
+    )
+    valor_liquido = (
+        _to_decimal(valor_liquido_payload, "valor_liquido", required=False)
+        if valor_liquido_payload not in (None, "")
+        else valor_liquido_calculado
+    )
 
     doc = Document()
 

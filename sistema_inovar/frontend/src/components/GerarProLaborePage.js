@@ -211,12 +211,22 @@ const GerarProLaborePage = () => {
     );
 
     const totalDescontosPreview = useMemo(() => {
-        const totalDescontos = brutoInformado ? (calculoValores.inss + calculoValores.irrf) : 0;
+        const totalDescontos = toNumber(formData.valor_inss) + toNumber(formData.valor_irrf);
         return totalDescontos.toLocaleString('pt-BR', {
             style: 'currency',
             currency: 'BRL',
         });
-    }, [brutoInformado, calculoValores.inss, calculoValores.irrf]);
+    }, [formData.valor_inss, formData.valor_irrf]);
+
+    useEffect(() => {
+        setFormData((prev) => ({
+            ...prev,
+            valor_inss: brutoInformado ? formatCurrencyInput(calculoValores.inss) : '',
+            valor_irrf: brutoInformado ? formatCurrencyInput(calculoValores.irrf) : '',
+            valor_liquido: brutoInformado ? formatCurrencyInput(calculoValores.liquido) : '',
+            valor_liquido_extenso: valorLiquidoExtensoAuto,
+        }));
+    }, [brutoInformado, calculoValores.inss, calculoValores.irrf, calculoValores.liquido, valorLiquidoExtensoAuto]);
 
     useEffect(() => {
         axiosInstance.get('/api/empresas/')
@@ -327,14 +337,6 @@ const GerarProLaborePage = () => {
         try {
             const payload = {
                 ...formData,
-                ...(brutoInformado
-                    ? {
-                        valor_inss: formatCurrencyInput(calculoValores.inss),
-                        valor_irrf: formatCurrencyInput(calculoValores.irrf),
-                        valor_liquido: formatCurrencyInput(calculoValores.liquido),
-                        valor_liquido_extenso: valorLiquidoExtensoAuto,
-                    }
-                    : {}),
                 ...(mode === 'empresa' && selectedEmpresaId ? { empresa_id: selectedEmpresaId } : {}),
                 ...(mode === 'empresa' && selectedSocioId ? { socio_id: selectedSocioId } : {}),
             };
@@ -548,25 +550,25 @@ const GerarProLaborePage = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <input className={inputClass} name="valor_bruto" value={formData.valor_bruto} onChange={handleChange} placeholder="Valor bruto" />
                                     <input
-                                        className={`${inputClass} bg-gray-100 dark:bg-gray-700`}
+                                        className={inputClass}
                                         name="valor_inss"
-                                        value={brutoInformado ? formatCurrencyInput(calculoValores.inss) : ''}
-                                        readOnly
-                                        placeholder="INSS (calculado automaticamente)"
+                                        value={formData.valor_inss}
+                                        onChange={handleChange}
+                                        placeholder="INSS"
                                     />
                                     <input
-                                        className={`${inputClass} bg-gray-100 dark:bg-gray-700`}
+                                        className={inputClass}
                                         name="valor_irrf"
-                                        value={brutoInformado ? formatCurrencyInput(calculoValores.irrf) : ''}
-                                        readOnly
-                                        placeholder="IRRF (calculado automaticamente)"
+                                        value={formData.valor_irrf}
+                                        onChange={handleChange}
+                                        placeholder="IRRF"
                                     />
                                     <input
-                                        className={`${inputClass} bg-gray-100 dark:bg-gray-700`}
+                                        className={inputClass}
                                         name="valor_liquido"
-                                        value={brutoInformado ? formatCurrencyInput(calculoValores.liquido) : ''}
-                                        readOnly
-                                        placeholder="Liquido (calculado automaticamente)"
+                                        value={formData.valor_liquido}
+                                        onChange={handleChange}
+                                        placeholder="Liquido"
                                     />
                                 </div>
                                 <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
@@ -576,11 +578,11 @@ const GerarProLaborePage = () => {
                                     Regra aplicada: INSS de 11% com teto (R$ 8.475,55) e IRRF com reducao mensal da tabela 2026.
                                 </p>
                                 <textarea
-                                    className={`${inputClass} mt-4 min-h-24 bg-gray-100 dark:bg-gray-700`}
+                                    className={`${inputClass} mt-4 min-h-24`}
                                     name="valor_liquido_extenso"
-                                    value={valorLiquidoExtensoAuto}
-                                    readOnly
-                                    placeholder="Valor liquido por extenso (calculado automaticamente)"
+                                    value={formData.valor_liquido_extenso}
+                                    onChange={handleChange}
+                                    placeholder="Valor liquido por extenso"
                                 />
                             </section>
                         )}
