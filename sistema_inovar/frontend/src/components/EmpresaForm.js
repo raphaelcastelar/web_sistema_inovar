@@ -43,6 +43,7 @@ const EmpresaForm = () => {
     const [newTagName, setNewTagName] = useState('');
     const [newTagColor, setNewTagColor] = useState('#3B82F6');
     const [creatingTag, setCreatingTag] = useState(false);
+    const [deletingTagId, setDeletingTagId] = useState(null);
 
     const validateAndSetTelefoneFeedback = useCallback((inputValue) => {
         const cleanedValue = inputValue.replace(/\D/g, '');
@@ -220,6 +221,33 @@ const EmpresaForm = () => {
             }
         } finally {
             setCreatingTag(false);
+        }
+    };
+
+    const handleDeleteTag = async (tag) => {
+        if (!window.confirm(`Excluir a tag "${tag.nome}"? Ela será removida de todas as empresas.`)) {
+            return;
+        }
+
+        setDeletingTagId(tag.id);
+        setError(null);
+        try {
+            await axiosInstance.delete(`/api/tags/${tag.id}/`);
+            setAvailableTags((prev) => prev.filter((currentTag) => currentTag.id !== tag.id));
+            setEmpresa((prev) => ({
+                ...prev,
+                tag_ids: (prev.tag_ids || []).filter((id) => id !== tag.id),
+            }));
+        } catch (err) {
+            const apiError = err.response?.data;
+            if (apiError && typeof apiError === 'object') {
+                const errorMessages = Object.entries(apiError).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`);
+                setError(errorMessages.join(' | '));
+            } else {
+                setError('Não foi possível excluir a tag.');
+            }
+        } finally {
+            setDeletingTagId(null);
         }
     };
 
@@ -433,19 +461,34 @@ const EmpresaForm = () => {
                             <div className="flex flex-wrap gap-2">
                                 {availableTags.map((tag) => {
                                     const selected = (empresa.tag_ids || []).includes(tag.id);
+                                    const isDeleting = deletingTagId === tag.id;
                                     return (
-                                        <button
+                                        <div
                                             key={tag.id}
-                                            type="button"
-                                            onClick={() => toggleTagSelection(tag.id)}
-                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm transition-colors ${selected ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-200' : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}
+                                            className={`inline-flex items-center overflow-hidden rounded-full border text-sm transition-colors ${selected ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-200' : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}
                                         >
-                                            <span
-                                                className="h-2.5 w-2.5 rounded-full"
-                                                style={{ backgroundColor: tag.cor }}
-                                            />
-                                            {tag.nome}
-                                        </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleTagSelection(tag.id)}
+                                                className="inline-flex items-center gap-2 px-3 py-1 hover:bg-gray-100 dark:hover:bg-gray-600"
+                                            >
+                                                <span
+                                                    className="h-2.5 w-2.5 rounded-full"
+                                                    style={{ backgroundColor: tag.cor }}
+                                                />
+                                                {tag.nome}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteTag(tag)}
+                                                disabled={isDeleting}
+                                                className="inline-flex h-7 w-8 items-center justify-center border-l border-current/20 text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-900/30"
+                                                title="Excluir tag"
+                                                aria-label={`Excluir tag ${tag.nome}`}
+                                            >
+                                                <TrashIcon className="h-4 w-4" />
+                                            </button>
+                                        </div>
                                     );
                                 })}
                             </div>
@@ -529,4 +572,3 @@ const EmpresaForm = () => {
 };
 
 export default EmpresaForm;
-
