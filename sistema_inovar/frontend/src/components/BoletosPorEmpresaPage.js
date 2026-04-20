@@ -191,6 +191,7 @@ const BoletosPorEmpresaPage = () => {
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState(null);
   const [historicoMesesAbertos, setHistoricoMesesAbertos] = useState({});
+  const [updatingStatusIds, setUpdatingStatusIds] = useState([]);
 
   const fetchData = useCallback(async (showLoading = true) => {
     if (showLoading) { setLoading(true); setError(''); }
@@ -314,6 +315,28 @@ const BoletosPorEmpresaPage = () => {
     return resumoPorEmpresa.get(String(selectedEmpresaId)) || buildEmptySummary();
   }, [resumoPorEmpresa, selectedEmpresaId]);
 
+  const handleStatusChange = async (boletoId, nextStatus) => {
+    const id = String(boletoId);
+    setUpdatingStatusIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setError('');
+
+    try {
+      const response = await axiosInstance.patch(`/api/boletos-bb/${boletoId}/`, {
+        status: nextStatus,
+      });
+      const updatedBoleto = response.data;
+
+      setBoletos((prev) => prev.map((boleto) => (
+        String(boleto.id) === id ? updatedBoleto : boleto
+      )));
+      setLastUpdated(new Date());
+    } catch (err) {
+      setError(err?.response?.data?.error || err?.response?.data?.detail || 'Falha ao atualizar o status do boleto.');
+    } finally {
+      setUpdatingStatusIds((prev) => prev.filter((currentId) => currentId !== id));
+    }
+  };
+
   /* ─── Table renderer ─────────────────────────────────────────────────────── */
   const renderBoletosTable = (rows, emptyMessage) => (
     <div className="overflow-x-auto">
@@ -371,7 +394,22 @@ const BoletosPorEmpresaPage = () => {
               </td>
               <td className="px-5 py-3.5 tabular-nums text-gray-700 dark:text-gray-300">{formatDate(b.data_vencimento)}</td>
               <td className="px-5 py-3.5 tabular-nums text-gray-700 dark:text-gray-300">{formatDate(b.data_pagamento)}</td>
-              <td className="px-5 py-3.5"><StatusPill status={b.status} /></td>
+              <td className="px-5 py-3.5">
+                <div className="flex min-w-[150px] flex-col gap-2">
+                  <StatusPill status={b.status} />
+                  <select
+                    value={b.status || ''}
+                    onChange={(e) => handleStatusChange(b.id, e.target.value)}
+                    disabled={updatingStatusIds.includes(String(b.id))}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-indigo-900/40"
+                    title="Alterar status do boleto"
+                  >
+                    {Object.entries(statusMeta).map(([statusKey, meta]) => (
+                      <option key={statusKey} value={statusKey}>{meta.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </td>
               <td className="px-5 py-3.5 text-[11px] text-gray-400 dark:text-gray-500">{formatDateTime(b.atualizado_em)}</td>
             </tr>
           ))}

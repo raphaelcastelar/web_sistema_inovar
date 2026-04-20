@@ -473,10 +473,11 @@ class PendenciaAPIView(APIView):
         return Response(created_pendencias, status=status.HTTP_201_CREATED)
 
 
-class BoletoBBViewSet(viewsets.ReadOnlyModelViewSet):
+class BoletoBBViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = BoletoBBSerializer
     queryset = BoletoBB.objects.none()
+    http_method_names = ['get', 'patch', 'head', 'options']
 
     def get_queryset(self):
         # Importante: nao reutilizar `self.queryset` aqui.
@@ -501,6 +502,34 @@ class BoletoBBViewSet(viewsets.ReadOnlyModelViewSet):
                 models.Q(empresa__nome__icontains=search)
             )
         return qs
+
+    def partial_update(self, request, *args, **kwargs):
+        boleto = self.get_object()
+        allowed_fields = {'status', 'data_pagamento', 'valor_pago'}
+        payload = {key: value for key, value in request.data.items() if key in allowed_fields}
+
+        if not payload:
+            return Response(
+                {'error': 'Envie ao menos um destes campos: status, data_pagamento ou valor_pago.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        next_status = payload.get('status', boleto.status)
+        valid_statuses = {choice[0] for choice in BoletoBB.STATUS_CHOICES}
+        if next_status not in valid_statuses:
+            return Response({'error': 'Status de boleto inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if payload.get('status') == 'pago':
+            payload.setdefault('data_pagamento', boleto.data_pagamento or timezone.localdate())
+            payload.setdefault('valor_pago', boleto.valor_pago or boleto.valor_original)
+        elif payload.get('status') and payload.get('status') != 'pago':
+            payload.setdefault('data_pagamento', None)
+            payload.setdefault('valor_pago', None)
+
+        serializer = self.get_serializer(boleto, data=payload, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
 class NotificacaoViewSet(viewsets.ModelViewSet):
     serializer_class = NotificacaoSerializer
