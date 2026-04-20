@@ -535,9 +535,9 @@ const GerarProLaborePage = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <input className={inputClass} name="colaborador_nome" value={formData.colaborador_nome} onChange={handleChange} placeholder="Nome completo" />
                                     <input className={inputClass} name="colaborador_cpf" value={formData.colaborador_cpf} onChange={handleChange} placeholder="CPF" />
-                                    <input className={`${inputClass} bg-gray-100 dark:bg-gray-700`} name="referencia_mes_ano" value={formData.referencia_mes_ano} readOnly placeholder="Referencia (MM-AAAA)" />
+                                    <input className={inputClass} name="referencia_mes_ano" value={formData.referencia_mes_ano} onChange={handleChange} placeholder="Referencia (MM-AAAA)" />
                                     <input className={`${inputClass} ${mode === 'empresa' ? 'bg-gray-100 dark:bg-gray-700' : ''}`} name="local_assinatura" value={formData.local_assinatura} onChange={handleChange} readOnly={mode === 'empresa'} placeholder="Cidade-UF" />
-                                    <input className={`${inputClass} bg-gray-100 dark:bg-gray-700`} name="data_assinatura" value={formData.data_assinatura} readOnly placeholder="Data por extenso" />
+                                    <input className={inputClass} name="data_assinatura" value={formData.data_assinatura} onChange={handleChange} placeholder="Data por extenso" />
                                 </div>
                             </section>
                         )}
@@ -623,4 +623,3 @@ const GerarProLaborePage = () => {
 };
 
 export default GerarProLaborePage;
-
