@@ -5,13 +5,15 @@ import {
     BuildingStorefrontIcon,
     CalculatorIcon,
     ChartBarSquareIcon,
+    Cog6ToothIcon,
     CurrencyDollarIcon,
     InformationCircleIcon,
+    ArrowPathIcon,
     UserGroupIcon,
     UsersIcon,
 } from '@heroicons/react/24/outline';
 
-const atividades = [
+const atividadesBase = [
     {
         id: 'servico',
         label: 'Servico',
@@ -62,10 +64,24 @@ const faixasFaturamento = [
     { id: 'acima300', label: '301 mil +' },
 ];
 
-const adicionaisTipoAtividade = {
-    1: 0,
-    2: 0.2,
-    3: 0.45,
+const configuracaoPadrao = {
+    atividades: atividadesBase.map((atividade) => ({
+        id: atividade.id,
+        honorarios: { ...atividade.honorarios },
+    })),
+    percentuaisAtividade: {
+        1: 0,
+        2: 20,
+        3: 45,
+    },
+    folha: {
+        ate2: 0,
+        tresAte9: 42.4,
+        dezMais: 24.6,
+    },
+    socios: {
+        tresMais: 50,
+    },
 };
 
 const formatCurrency = (value) => Number(value || 0).toLocaleString('pt-BR', {
@@ -81,23 +97,46 @@ const clampNumber = (value, min = 0, max = 999) => {
     return Math.min(max, Math.max(min, parsed));
 };
 
-const getAdicionalFolha = (funcionarios) => {
+const parseConfigNumber = (value, fallback = 0) => {
+    const parsed = Number(String(value ?? '').replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getAdicionalFolha = (funcionarios, folhaConfig) => {
+    const quantidadeCobrada = Math.max(0, funcionarios - 2);
+
     if (funcionarios <= 2) {
-        return { faixa: 'Ate 2', valorUnitario: 0, total: 0 };
+        const valorUnitario = parseConfigNumber(folhaConfig.ate2);
+        return { faixa: 'Ate 2', valorUnitario, quantidadeCobrada: 0, total: 0 };
     }
 
     if (funcionarios <= 9) {
+        const valorUnitario = parseConfigNumber(folhaConfig.tresAte9);
         return {
             faixa: '3 a 9',
-            valorUnitario: 42.4,
-            total: funcionarios * 42.4,
+            valorUnitario,
+            quantidadeCobrada,
+            total: quantidadeCobrada * valorUnitario,
         };
     }
 
+    const valorUnitario = parseConfigNumber(folhaConfig.dezMais);
     return {
         faixa: '10+',
-        valorUnitario: 24.6,
-        total: funcionarios * 24.6,
+        valorUnitario,
+        quantidadeCobrada,
+        total: quantidadeCobrada * valorUnitario,
+    };
+};
+
+const getAdicionalSocios = (socios, sociosConfig) => {
+    const quantidadeCobrada = Math.max(0, socios - 2);
+    const valorUnitario = parseConfigNumber(sociosConfig.tresMais);
+
+    return {
+        quantidadeCobrada,
+        valorUnitario,
+        total: quantidadeCobrada * valorUnitario,
     };
 };
 
@@ -106,6 +145,18 @@ const CalculadoraHonorariosPage = () => {
     const [faturamento, setFaturamento] = useState('ate50');
     const [funcionarios, setFuncionarios] = useState(0);
     const [socios, setSocios] = useState(1);
+    const [configOpen, setConfigOpen] = useState(false);
+    const [configuracao, setConfiguracao] = useState(configuracaoPadrao);
+
+    const atividades = useMemo(() => (
+        atividadesBase.map((atividade) => {
+            const atividadeConfig = configuracao.atividades.find((item) => item.id === atividade.id);
+            return {
+                ...atividade,
+                honorarios: atividadeConfig?.honorarios || atividade.honorarios,
+            };
+        })
+    ), [configuracao.atividades]);
 
     const toggleAtividade = (atividadeId) => {
         setAtividadesSelecionadas((selecionadasAtuais) => {
@@ -116,6 +167,65 @@ const CalculadoraHonorariosPage = () => {
             }
 
             return [...selecionadasAtuais, atividadeId].slice(0, 3);
+        });
+    };
+
+    const updateHonorarioConfig = (atividadeId, faixaId, value) => {
+        setConfiguracao((configAtual) => ({
+            ...configAtual,
+            atividades: configAtual.atividades.map((atividade) => (
+                atividade.id === atividadeId
+                    ? {
+                        ...atividade,
+                        honorarios: {
+                            ...atividade.honorarios,
+                            [faixaId]: parseConfigNumber(value),
+                        },
+                    }
+                    : atividade
+            )),
+        }));
+    };
+
+    const updatePercentualConfig = (quantidade, value) => {
+        setConfiguracao((configAtual) => ({
+            ...configAtual,
+            percentuaisAtividade: {
+                ...configAtual.percentuaisAtividade,
+                [quantidade]: parseConfigNumber(value),
+            },
+        }));
+    };
+
+    const updateFolhaConfig = (campo, value) => {
+        setConfiguracao((configAtual) => ({
+            ...configAtual,
+            folha: {
+                ...configAtual.folha,
+                [campo]: parseConfigNumber(value),
+            },
+        }));
+    };
+
+    const updateSociosConfig = (campo, value) => {
+        setConfiguracao((configAtual) => ({
+            ...configAtual,
+            socios: {
+                ...configAtual.socios,
+                [campo]: parseConfigNumber(value),
+            },
+        }));
+    };
+
+    const resetConfiguracao = () => {
+        setConfiguracao({
+            atividades: configuracaoPadrao.atividades.map((atividade) => ({
+                id: atividade.id,
+                honorarios: { ...atividade.honorarios },
+            })),
+            percentuaisAtividade: { ...configuracaoPadrao.percentuaisAtividade },
+            folha: { ...configuracaoPadrao.folha },
+            socios: { ...configuracaoPadrao.socios },
         });
     };
 
@@ -134,9 +244,9 @@ const CalculadoraHonorariosPage = () => {
         const qtdFuncionarios = clampNumber(funcionarios);
         const qtdTiposAtividade = clampNumber(selecionadas.length, 1, 3);
         const qtdSocios = clampNumber(socios, 1);
-        const folha = getAdicionalFolha(qtdFuncionarios);
-        const percentualTipoAtividade = adicionaisTipoAtividade[qtdTiposAtividade] ?? 0.45;
-        const adicionalSocios = qtdSocios >= 3 ? 50 : 0;
+        const folha = getAdicionalFolha(qtdFuncionarios, configuracao.folha);
+        const percentualTipoAtividade = parseConfigNumber(configuracao.percentuaisAtividade[qtdTiposAtividade]) / 100;
+        const sociosAdicional = getAdicionalSocios(qtdSocios, configuracao.socios);
 
         if (exigePlanejamento) {
             return {
@@ -148,7 +258,8 @@ const CalculadoraHonorariosPage = () => {
                 folha,
                 percentualTipoAtividade,
                 adicionalTipoAtividade: 0,
-                adicionalSocios,
+                sociosAdicional,
+                adicionalSocios: sociosAdicional.total,
                 honorarioComAtividades: 0,
                 total: 0,
             };
@@ -157,7 +268,7 @@ const CalculadoraHonorariosPage = () => {
         const baseAumentoAtividades = honorarioBase;
         const adicionalTipoAtividade = roundCurrency(baseAumentoAtividades * percentualTipoAtividade);
         const honorarioComAtividades = roundCurrency(honorarioBase + adicionalTipoAtividade);
-        const total = roundCurrency(honorarioComAtividades + folha.total + adicionalSocios);
+        const total = roundCurrency(honorarioComAtividades + folha.total + sociosAdicional.total);
 
         return {
             atividadesSelecionadas: selecionadas,
@@ -168,11 +279,12 @@ const CalculadoraHonorariosPage = () => {
             folha,
             percentualTipoAtividade,
             adicionalTipoAtividade,
-            adicionalSocios,
+            sociosAdicional,
+            adicionalSocios: sociosAdicional.total,
             honorarioComAtividades,
             total,
         };
-    }, [atividadesSelecionadas, faturamento, funcionarios, socios]);
+    }, [atividades, atividadesSelecionadas, faturamento, funcionarios, socios, configuracao.folha, configuracao.percentuaisAtividade, configuracao.socios]);
 
     const inputClass =
         'w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 shadow-sm outline-none transition ' +
@@ -197,13 +309,161 @@ const CalculadoraHonorariosPage = () => {
                     </div>
                 </div>
 
-                <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-100">
-                    <div className="flex items-start gap-2">
-                        <InformationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0" />
-                        <span>Faturamento acima de 301 mil exige planejamento tributario.</span>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button
+                        type="button"
+                        onClick={() => setConfigOpen((open) => !open)}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    >
+                        <Cog6ToothIcon className="h-5 w-5" />
+                        Configuracoes
+                    </button>
+
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-100">
+                        <div className="flex items-start gap-2">
+                            <InformationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                            <span>Faturamento acima de 301 mil exige planejamento tributario.</span>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {configOpen && (
+                <section className="rounded-xl border border-indigo-200 bg-white p-5 shadow-sm dark:border-indigo-800 dark:bg-gray-800">
+                    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-950 dark:text-white">Configuracoes da calculadora</h2>
+                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                Altere os valores usados no calculo. As mudancas valem enquanto esta pagina estiver aberta.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={resetConfiguracao}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
+                        >
+                            <ArrowPathIcon className="h-5 w-5" />
+                            Restaurar planilha
+                        </button>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div>
+                            <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Honorarios base</h3>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full border-collapse text-sm">
+                                    <thead>
+                                        <tr className="bg-gray-100 text-left text-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                            <th className="border border-gray-200 px-3 py-2 dark:border-gray-700">Atividade</th>
+                                            {faixasFaturamento.filter((faixa) => faixa.id !== 'acima300').map((faixa) => (
+                                                <th key={faixa.id} className="border border-gray-200 px-3 py-2 dark:border-gray-700">{faixa.label}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {atividades.map((atividade) => (
+                                            <tr key={atividade.id}>
+                                                <td className="border border-gray-200 px-3 py-2 font-semibold dark:border-gray-700">{atividade.label}</td>
+                                                {faixasFaturamento.filter((faixa) => faixa.id !== 'acima300').map((faixa) => (
+                                                    <td key={faixa.id} className="border border-gray-200 px-3 py-2 dark:border-gray-700">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            step="0.01"
+                                                            value={atividade.honorarios[faixa.id]}
+                                                            onChange={(event) => updateHonorarioConfig(atividade.id, faixa.id, event.target.value)}
+                                                            className="w-28 rounded-md border border-gray-300 bg-white px-2 py-2 text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                                                        />
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 lg:grid-cols-3">
+                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                                <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Percentual por atividade</h3>
+                                <div className="grid gap-3">
+                                    {[1, 2, 3].map((quantidade) => (
+                                        <label key={quantidade} className="block">
+                                            <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                                {quantidade} atividade{quantidade > 1 ? 's' : ''} (%)
+                                            </span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={configuracao.percentuaisAtividade[quantidade]}
+                                                onChange={(event) => updatePercentualConfig(quantidade, event.target.value)}
+                                                className={inputClass}
+                                            />
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                                <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Folha de pagamento</h3>
+                                <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros funcionarios sao isentos.</p>
+                                <div className="grid gap-3">
+                                    <label className="block">
+                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">Ate 2</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={configuracao.folha.ate2}
+                                            onChange={(event) => updateFolhaConfig('ate2', event.target.value)}
+                                            className={inputClass}
+                                        />
+                                    </label>
+                                    <label className="block">
+                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">3 a 9</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={configuracao.folha.tresAte9}
+                                            onChange={(event) => updateFolhaConfig('tresAte9', event.target.value)}
+                                            className={inputClass}
+                                        />
+                                    </label>
+                                    <label className="block">
+                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">10+</span>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            value={configuracao.folha.dezMais}
+                                            onChange={(event) => updateFolhaConfig('dezMais', event.target.value)}
+                                            className={inputClass}
+                                        />
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                                <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Socios</h3>
+                                <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros socios sao isentos.</p>
+                                <label className="block">
+                                    <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">3 ou mais</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={configuracao.socios.tresMais}
+                                        onChange={(event) => updateSociosConfig('tresMais', event.target.value)}
+                                        className={inputClass}
+                                    />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            )}
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
                 <section className="space-y-6">
@@ -277,7 +537,7 @@ const CalculadoraHonorariosPage = () => {
                                 onChange={(event) => setFuncionarios(event.target.value)}
                                 className={inputClass}
                             />
-                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Quantidade de funcionarios.</p>
+                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros funcionarios sao isentos.</p>
                         </div>
 
                         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -295,7 +555,7 @@ const CalculadoraHonorariosPage = () => {
                                 onChange={(event) => setSocios(event.target.value)}
                                 className={inputClass}
                             />
-                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">3 ou mais acrescenta R$ 50,00.</p>
+                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros socios sao isentos.</p>
                         </div>
                     </div>
 
@@ -375,12 +635,14 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
                                     <span className="text-gray-500 dark:text-gray-400">
-                                        Folha ({calculo.folha.faixa} x {formatCurrency(calculo.folha.valorUnitario)})
+                                        Folha ({calculo.folha.quantidadeCobrada} x {formatCurrency(calculo.folha.valorUnitario)})
                                     </span>
                                     <strong>{formatCurrency(calculo.folha.total)}</strong>
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
-                                    <span className="text-gray-500 dark:text-gray-400">Aumento por socios</span>
+                                    <span className="text-gray-500 dark:text-gray-400">
+                                        Aumento por socios ({calculo.sociosAdicional.quantidadeCobrada} x {formatCurrency(calculo.sociosAdicional.valorUnitario)})
+                                    </span>
                                     <strong>{formatCurrency(calculo.adicionalSocios)}</strong>
                                 </div>
                             </div>
