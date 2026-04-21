@@ -75,6 +75,13 @@ const formatCurrencyInput = (value) => {
     return number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const formatMoneyTyping = (value) => {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (!digits) return '';
+
+    return formatCurrencyInput(Number(digits) / 100);
+};
+
 const formatCpfCnpj = (value) => {
     const digits = String(value || '').replace(/\D/g, '');
     if (digits.length !== 14) return value || '';
@@ -246,6 +253,10 @@ const RelacaoFaturamentoPage = () => {
             type: 'success',
             text: `Faturamentos gerados entre ${formatCurrency(min)} e ${formatCurrency(max)}.`,
         });
+    };
+
+    const handleFaturamentoMedioChange = (value) => {
+        setFaturamentoMedio(formatMoneyTyping(value));
     };
 
     const updateEmpresaData = (field, value) => {
@@ -524,9 +535,10 @@ th { background: #e5e7eb; }
                             <input
                                 id="faturamento-medio"
                                 value={faturamentoMedio}
-                                onChange={(event) => setFaturamentoMedio(event.target.value)}
+                                onChange={(event) => handleFaturamentoMedioChange(event.target.value)}
                                 className={`${inputClass} sm:w-52`}
-                                placeholder="Faturamento médio"
+                                inputMode="numeric"
+                                placeholder="0,00"
                             />
                             <button
                                 type="button"
