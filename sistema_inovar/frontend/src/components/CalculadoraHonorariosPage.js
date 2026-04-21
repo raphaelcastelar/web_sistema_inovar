@@ -73,6 +73,8 @@ const formatCurrency = (value) => Number(value || 0).toLocaleString('pt-BR', {
     currency: 'BRL',
 });
 
+const roundCurrency = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+
 const clampNumber = (value, min = 0, max = 999) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return min;
@@ -142,29 +144,32 @@ const CalculadoraHonorariosPage = () => {
                 atividadeBase,
                 exigePlanejamento,
                 honorarioBase,
+                baseAumentoAtividades: honorarioBase,
                 folha,
                 percentualTipoAtividade,
                 adicionalTipoAtividade: 0,
                 adicionalSocios,
-                subtotal: 0,
+                honorarioComAtividades: 0,
                 total: 0,
             };
         }
 
-        const subtotal = honorarioBase + folha.total;
-        const adicionalTipoAtividade = subtotal * percentualTipoAtividade;
-        const total = subtotal + adicionalTipoAtividade + adicionalSocios;
+        const baseAumentoAtividades = honorarioBase;
+        const adicionalTipoAtividade = roundCurrency(baseAumentoAtividades * percentualTipoAtividade);
+        const honorarioComAtividades = roundCurrency(honorarioBase + adicionalTipoAtividade);
+        const total = roundCurrency(honorarioComAtividades + folha.total + adicionalSocios);
 
         return {
             atividadesSelecionadas: selecionadas,
             atividadeBase,
             exigePlanejamento,
             honorarioBase,
+            baseAumentoAtividades,
             folha,
             percentualTipoAtividade,
             adicionalTipoAtividade,
             adicionalSocios,
-            subtotal,
+            honorarioComAtividades,
             total,
         };
     }, [atividadesSelecionadas, faturamento, funcionarios, socios]);
@@ -360,19 +365,19 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
                                     <span className="text-gray-500 dark:text-gray-400">
-                                        Folha ({calculo.folha.faixa} x {formatCurrency(calculo.folha.valorUnitario)})
+                                        Aumento por quantidade de atividades ({Math.round(calculo.percentualTipoAtividade * 100)}% de {formatCurrency(calculo.baseAumentoAtividades)})
                                     </span>
-                                    <strong>{formatCurrency(calculo.folha.total)}</strong>
+                                    <strong>{formatCurrency(calculo.adicionalTipoAtividade)}</strong>
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
-                                    <span className="text-gray-500 dark:text-gray-400">Subtotal</span>
-                                    <strong>{formatCurrency(calculo.subtotal)}</strong>
+                                    <span className="text-gray-500 dark:text-gray-400">Honorario com atividades</span>
+                                    <strong>{formatCurrency(calculo.honorarioComAtividades)}</strong>
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
                                     <span className="text-gray-500 dark:text-gray-400">
-                                        Aumento por quantidade de atividades ({Math.round(calculo.percentualTipoAtividade * 100)}%)
+                                        Folha ({calculo.folha.faixa} x {formatCurrency(calculo.folha.valorUnitario)})
                                     </span>
-                                    <strong>{formatCurrency(calculo.adicionalTipoAtividade)}</strong>
+                                    <strong>{formatCurrency(calculo.folha.total)}</strong>
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
                                     <span className="text-gray-500 dark:text-gray-400">Aumento por socios</span>
