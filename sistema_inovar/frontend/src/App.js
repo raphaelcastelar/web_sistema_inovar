@@ -27,6 +27,7 @@ import BoletoMonitorPage from './components/BoletoMonitorPage';
 import BoletosPorEmpresaPage from './components/BoletosPorEmpresaPage';
 import GerarProLaborePage from './components/GerarProLaborePage';
 import CalculadoraHonorariosPage from './components/CalculadoraHonorariosPage';
+import RelacaoFaturamentoPage from './components/RelacaoFaturamentoPage';
 
 import './App.css';
 
@@ -59,6 +60,7 @@ function App() {
             <Route path="/boletos-por-empresa" element={<BoletosPorEmpresaPage />} />
             <Route path="/gerar-pro-labore" element={<GerarProLaborePage />} />
             <Route path="/calculadora-honorarios" element={<CalculadoraHonorariosPage />} />
+            <Route path="/relacao-faturamento" element={<RelacaoFaturamentoPage />} />
 
             {/* Unified Management Route (Replaces separate pages) */}
             <Route path="/gerenciamento-integrado" element={<GerenciamentoIntegrado />} />
