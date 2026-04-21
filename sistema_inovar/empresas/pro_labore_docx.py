@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import re
+import zlib
 from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from io import BytesIO
+from pathlib import Path
+
+from PIL import Image
 
 
 INSS_ALIQUOTA = Decimal("0.11")
@@ -16,6 +20,7 @@ IR_REDUCAO_SLOPE = Decimal("0.133145")
 PDF_PAGE_WIDTH = 595.28
 PDF_PAGE_HEIGHT = 841.89
 PDF_MARGIN_X = 50
+LOGO_PATH = Path(__file__).resolve().parents[1] / "frontend" / "src" / "assets" / "logo_contabilidade.png"
 
 
 def _round_currency(value: Decimal) -> Decimal:
@@ -160,6 +165,46 @@ def _pdf_text_line(
     )
 
 
+def _load_logo_xobject(max_width: float = 110, max_height: float = 78) -> dict | None:
+    if not LOGO_PATH.exists():
+        return None
+
+    try:
+        with Image.open(LOGO_PATH) as image:
+            image = image.convert("RGBA")
+            background = Image.new("RGBA", image.size, (255, 255, 255, 255))
+            background.alpha_composite(image)
+            rgb_image = background.convert("RGB")
+            width_px, height_px = rgb_image.size
+            scale = min(max_width / width_px, max_height / height_px)
+            draw_width = width_px * scale
+            draw_height = height_px * scale
+            raw_data = rgb_image.tobytes()
+    except Exception:
+        return None
+
+    return {
+        "width_px": width_px,
+        "height_px": height_px,
+        "draw_width": draw_width,
+        "draw_height": draw_height,
+        "data": zlib.compress(raw_data),
+    }
+
+
+def _pdf_image(
+    commands: list[bytes],
+    image_name: str,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+) -> None:
+    commands.append(
+        f"q {width:.2f} 0 0 {height:.2f} {x:.2f} {y:.2f} cm /{image_name} Do Q\n".encode("ascii")
+    )
+
+
 def _pdf_wrapped_text(
     commands: list[bytes],
     x: float,
@@ -196,17 +241,39 @@ def _draw_table_cell(
     _pdf_text_line(commands, text_x, y - 16, text, size=size, bold=bold, align=align)
 
 
-def _build_simple_pdf(commands: list[bytes]) -> bytes:
+def _build_simple_pdf(commands: list[bytes], logo_xobject: dict | None = None) -> bytes:
     stream = b"".join(commands)
+    image_resource = b""
+    content_object_number = 6
+    extra_objects: list[bytes] = []
+
+    if logo_xobject:
+        content_object_number = 7
+        image_resource = b"/XObject << /ImLogo 6 0 R >> "
+        image_object = (
+            b"<< /Type /XObject /Subtype /Image "
+            + f"/Width {logo_xobject['width_px']} /Height {logo_xobject['height_px']} ".encode("ascii")
+            + b"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode "
+            + b"/Length "
+            + str(len(logo_xobject["data"])).encode("ascii")
+            + b" >>\nstream\n"
+            + logo_xobject["data"]
+            + b"\nendstream"
+        )
+        extra_objects.append(image_object)
+
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         (
             b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] "
-            b"/Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>"
+            b"/Resources << /Font << /F1 4 0 R /F2 5 0 R >> "
+            + image_resource
+            + f">> /Contents {content_object_number} 0 R >>".encode("ascii")
         ),
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+        *extra_objects,
         b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"endstream",
     ]
 
@@ -268,8 +335,15 @@ def build_pro_labore_pdf(payload: dict) -> tuple[bytes, str]:
         else valor_liquido_calculado
     )
 
+    logo_xobject = _load_logo_xobject()
     commands: list[bytes] = [b"0 0 0 RG 0 0 0 rg 0.8 w\n"]
-    y = PDF_PAGE_HEIGHT - 72
+    y = PDF_PAGE_HEIGHT - 56
+
+    if logo_xobject:
+        logo_x = (PDF_PAGE_WIDTH - logo_xobject["draw_width"]) / 2
+        logo_y = y - logo_xobject["draw_height"]
+        _pdf_image(commands, "ImLogo", logo_x, logo_y, logo_xobject["draw_width"], logo_xobject["draw_height"])
+        y = logo_y - 28
 
     _pdf_text_line(commands, PDF_PAGE_WIDTH / 2, y, "RECIBO DE PRO-LABORE", size=16, bold=True, align="center")
     y -= 42
@@ -336,4 +410,4 @@ def build_pro_labore_pdf(payload: dict) -> tuple[bytes, str]:
     if not filename.lower().endswith(".pdf"):
         filename = f"{filename}.pdf"
 
-    return _build_simple_pdf(commands), filename
+    return _build_simple_pdf(commands, logo_xobject=logo_xobject), filename

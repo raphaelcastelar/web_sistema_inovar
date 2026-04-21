@@ -9,6 +9,7 @@ import {
     PrinterIcon,
     TrashIcon
 } from '@heroicons/react/24/outline';
+import LogoContabilidade from '../assets/logo_contabilidade.png';
 
 const monthNames = [
     'janeiro',
@@ -282,6 +283,7 @@ table { width: 100%; border-collapse: collapse; }
 th, td { border: 1px solid #111827; padding: 6px; font-size: 12px; }
 th { background: #e5e7eb; }
 .report-title { text-align: center; font-size: 20px; font-weight: 700; margin: 16px 0; }
+.report-logo { width: 120px; height: auto; object-fit: contain; }
 .report-line { border-bottom: 1px solid #111827; min-height: 22px; }
 .report-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .report-label { font-size: 11px; font-weight: 700; text-transform: uppercase; }
@@ -600,8 +602,13 @@ th { background: #e5e7eb; }
             </section>
 
             <section id="relacao-faturamento-report" className="mt-6 bg-white p-8 text-gray-950 shadow-lg print:mt-0">
-                <div className="text-right text-sm font-semibold uppercase">{mode}</div>
-                <div className="mt-6 text-right text-sm">{localidade}, {issueDateText}</div>
+                <div className="flex items-start justify-between gap-4">
+                    <img src={LogoContabilidade} alt="Inovar Contabilidade" className="report-logo h-auto w-32 object-contain" />
+                    <div className="text-right">
+                        <div className="text-sm font-semibold uppercase">{mode}</div>
+                        <div className="mt-6 text-sm">{localidade}, {issueDateText}</div>
+                    </div>
+                </div>
 
                 <h2 className="report-title my-6 text-center text-2xl font-bold">Relação de Faturamento</h2>
 
