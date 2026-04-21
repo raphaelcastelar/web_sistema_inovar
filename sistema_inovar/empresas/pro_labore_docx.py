@@ -5,10 +5,6 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from io import BytesIO
 
-from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt
-
 
 INSS_ALIQUOTA = Decimal("0.11")
 INSS_TETO_BASE = Decimal("8475.55")
@@ -16,6 +12,10 @@ IR_FAIXA_ISENCAO_TOTAL = Decimal("5000.00")
 IR_FAIXA_REDUCAO = Decimal("7350.00")
 IR_REDUCAO_INTERCEPT = Decimal("978.62")
 IR_REDUCAO_SLOPE = Decimal("0.133145")
+
+PDF_PAGE_WIDTH = 595.28
+PDF_PAGE_HEIGHT = 841.89
+PDF_MARGIN_X = 50
 
 
 def _round_currency(value: Decimal) -> Decimal:
@@ -101,10 +101,136 @@ def _default_filename(nome_colaborador: str, referencia: str) -> str:
         safe_name = "colaborador"
     if not safe_ref:
         safe_ref = datetime.now().strftime("%m_%Y")
-    return f"recibo_pro_labore_{safe_name}_{safe_ref}.docx"
+    return f"recibo_pro_labore_{safe_name}_{safe_ref}.pdf"
 
 
-def build_pro_labore_docx(payload: dict) -> tuple[bytes, str]:
+def _pdf_escape(value: str) -> bytes:
+    return (
+        str(value)
+        .encode("cp1252", errors="replace")
+        .replace(b"\\", b"\\\\")
+        .replace(b"(", b"\\(")
+        .replace(b")", b"\\)")
+    )
+
+
+def _text_width(text: str, size: int, bold: bool = False) -> float:
+    multiplier = 0.56 if bold else 0.52
+    return len(str(text)) * size * multiplier
+
+
+def _wrap_text(text: str, max_width: float, size: int = 11, bold: bool = False) -> list[str]:
+    words = str(text).split()
+    if not words:
+        return [""]
+
+    lines: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if _text_width(candidate, size, bold) <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
+
+
+def _pdf_text_line(
+    commands: list[bytes],
+    x: float,
+    y: float,
+    text: str,
+    size: int = 11,
+    bold: bool = False,
+    align: str = "left",
+) -> None:
+    font = "F2" if bold else "F1"
+    draw_x = x
+    if align == "center":
+        draw_x = x - (_text_width(text, size, bold) / 2)
+    elif align == "right":
+        draw_x = x - _text_width(text, size, bold)
+
+    commands.append(
+        f"BT /{font} {size} Tf 1 0 0 1 {draw_x:.2f} {y:.2f} Tm (".encode("ascii")
+        + _pdf_escape(text)
+        + b") Tj ET\n"
+    )
+
+
+def _pdf_wrapped_text(
+    commands: list[bytes],
+    x: float,
+    y: float,
+    text: str,
+    max_width: float,
+    size: int = 11,
+    leading: int = 15,
+) -> float:
+    current_y = y
+    for line in _wrap_text(text, max_width, size):
+        _pdf_text_line(commands, x, current_y, line, size=size)
+        current_y -= leading
+    return current_y
+
+
+def _draw_table_cell(
+    commands: list[bytes],
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    text: str,
+    size: int = 9,
+    bold: bool = False,
+    align: str = "left",
+) -> None:
+    commands.append(f"{x:.2f} {y - height:.2f} {width:.2f} {height:.2f} re S\n".encode("ascii"))
+    text_x = x + 6
+    if align == "center":
+        text_x = x + (width / 2)
+    elif align == "right":
+        text_x = x + width - 6
+    _pdf_text_line(commands, text_x, y - 16, text, size=size, bold=bold, align=align)
+
+
+def _build_simple_pdf(commands: list[bytes]) -> bytes:
+    stream = b"".join(commands)
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        (
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] "
+            b"/Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>"
+        ),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"endstream",
+    ]
+
+    output = BytesIO()
+    output.write(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets: list[int] = [0]
+    for index, obj in enumerate(objects, start=1):
+        offsets.append(output.tell())
+        output.write(f"{index} 0 obj\n".encode("ascii"))
+        output.write(obj)
+        output.write(b"\nendobj\n")
+
+    xref_offset = output.tell()
+    output.write(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.write(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.write(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.write(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF".encode("ascii")
+    )
+    return output.getvalue()
+
+
+def build_pro_labore_pdf(payload: dict) -> tuple[bytes, str]:
     empresa_nome = _required_text(payload, "empresa_nome", "empresa_nome")
     empresa_endereco = _required_text(payload, "empresa_endereco", "empresa_endereco")
     empresa_numero = _required_text(payload, "empresa_numero", "empresa_numero")
@@ -142,50 +268,40 @@ def build_pro_labore_docx(payload: dict) -> tuple[bytes, str]:
         else valor_liquido_calculado
     )
 
-    doc = Document()
+    commands: list[bytes] = [b"0 0 0 RG 0 0 0 rg 0.8 w\n"]
+    y = PDF_PAGE_HEIGHT - 72
 
-    normal_style = doc.styles["Normal"]
-    normal_style.font.name = "Calibri"
-    normal_style.font.size = Pt(11)
+    _pdf_text_line(commands, PDF_PAGE_WIDTH / 2, y, "RECIBO DE PRO-LABORE", size=16, bold=True, align="center")
+    y -= 42
 
-    titulo = doc.add_paragraph()
-    titulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_titulo = titulo.add_run("RECIBO DE PRO-LABORE")
-    run_titulo.bold = True
-    run_titulo.font.size = Pt(16)
+    table_x = PDF_MARGIN_X
+    table_y = y
+    row_h = 28
+    widths = [205, 75, 105, 105]
+    headers = ["Verba", "Referencia", "Vencimentos", "Descontos"]
+    rows = [
+        ["0702 - Retirada Pro-Labore Diretor", referencia_mes_ano, _format_currency_br(valor_bruto), "-"],
+        ["0526 - INSS Contribuinte Individual", referencia_mes_ano, "-", _format_currency_br(valor_inss)],
+        ["0530 - Desconto de IRRF", referencia_mes_ano, "-", _format_currency_br(valor_irrf)],
+    ]
 
-    doc.add_paragraph()
+    current_y = table_y
+    current_x = table_x
+    for index, header in enumerate(headers):
+        _draw_table_cell(commands, current_x, current_y, widths[index], row_h, header, size=9, bold=True, align="center")
+        current_x += widths[index]
 
-    tabela = doc.add_table(rows=1, cols=4)
-    tabela.style = "Table Grid"
-    cabecalho = tabela.rows[0].cells
-    cabecalho[0].text = "Verba"
-    cabecalho[1].text = "Referencia"
-    cabecalho[2].text = "Vencimentos"
-    cabecalho[3].text = "Descontos"
+    for row in rows:
+        current_y -= row_h
+        current_x = table_x
+        for index, value in enumerate(row):
+            align = "left" if index == 0 else "center"
+            _draw_table_cell(commands, current_x, current_y, widths[index], row_h, value, size=9, align=align)
+            current_x += widths[index]
 
-    linha_bruto = tabela.add_row().cells
-    linha_bruto[0].text = "0702 - Retirada Pro-Labore Diretor"
-    linha_bruto[1].text = referencia_mes_ano
-    linha_bruto[2].text = _format_currency_br(valor_bruto)
-    linha_bruto[3].text = "-"
-
-    linha_inss = tabela.add_row().cells
-    linha_inss[0].text = "0526 - INSS Contribuinte Individual"
-    linha_inss[1].text = referencia_mes_ano
-    linha_inss[2].text = "-"
-    linha_inss[3].text = _format_currency_br(valor_inss)
-
-    linha_irrf = tabela.add_row().cells
-    linha_irrf[0].text = "0530 - Desconto de IRRF"
-    linha_irrf[1].text = referencia_mes_ano
-    linha_irrf[2].text = "-"
-    linha_irrf[3].text = _format_currency_br(valor_irrf)
-
-    doc.add_paragraph()
-    p_liquido = doc.add_paragraph()
-    p_liquido.add_run("Liquido Recebido: ").bold = True
-    p_liquido.add_run(_format_currency_br(valor_liquido))
+    y = current_y - 44
+    _pdf_text_line(commands, PDF_MARGIN_X, y, f"Liquido Recebido: {_format_currency_br(valor_liquido)}", size=11, bold=True)
+    y -= 34
 
     texto = (
         f"Recebi de {empresa_nome}, sediada no {empresa_endereco}, n. {empresa_numero}, "
@@ -195,28 +311,29 @@ def build_pro_labore_docx(payload: dict) -> tuple[bytes, str]:
         f"Pro-Labore do mes {referencia_mes_ano}, com os descontos exigidos em lei. "
         "Para maior clareza e devidos fins de direito, firmo o presente."
     )
-    doc.add_paragraph(texto)
+    y = _pdf_wrapped_text(commands, PDF_MARGIN_X, y, texto, PDF_PAGE_WIDTH - (PDF_MARGIN_X * 2), size=11, leading=16)
+    y -= 44
 
-    doc.add_paragraph()
-    p_local_data = doc.add_paragraph(f"{local_assinatura}, {data_assinatura}.")
-    p_local_data.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    doc.add_paragraph()
-    assinatura = doc.add_paragraph("________________________________________")
-    assinatura.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    nome = doc.add_paragraph(colaborador_nome)
-    nome.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    cpf = doc.add_paragraph(f"CPF: {colaborador_cpf}")
-    cpf.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    output = BytesIO()
-    doc.save(output)
-    output.seek(0)
+    _pdf_text_line(
+        commands,
+        PDF_PAGE_WIDTH / 2,
+        y,
+        f"{local_assinatura}, {data_assinatura}.",
+        size=11,
+        align="center",
+    )
+    y -= 70
+    _pdf_text_line(commands, PDF_PAGE_WIDTH / 2, y, "________________________________________", size=11, align="center")
+    y -= 18
+    _pdf_text_line(commands, PDF_PAGE_WIDTH / 2, y, colaborador_nome, size=11, align="center")
+    y -= 16
+    _pdf_text_line(commands, PDF_PAGE_WIDTH / 2, y, f"CPF: {colaborador_cpf}", size=11, align="center")
 
     filename = _optional_text(payload, "nome_arquivo")
     if not filename:
         filename = _default_filename(colaborador_nome, referencia_mes_ano)
-    if not filename.lower().endswith(".docx"):
-        filename = f"{filename}.docx"
+    filename = re.sub(r"\.docx$", "", filename, flags=re.IGNORECASE)
+    if not filename.lower().endswith(".pdf"):
+        filename = f"{filename}.pdf"
 
-    return output.getvalue(), filename
+    return _build_simple_pdf(commands), filename

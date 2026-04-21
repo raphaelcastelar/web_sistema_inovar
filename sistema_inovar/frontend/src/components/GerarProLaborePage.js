@@ -346,17 +346,17 @@ const GerarProLaborePage = () => {
                 ...(mode === 'empresa' && selectedSocioId ? { socio_id: selectedSocioId } : {}),
             };
 
-            const response = await axiosInstance.post('/api/gerar-pro-labore-docx/', payload, {
+            const response = await axiosInstance.post('/api/gerar-pro-labore-pdf/', payload, {
                 responseType: 'blob',
             });
 
             const blob = new Blob([response.data], {
-                type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                type: 'application/pdf',
             });
 
             const disposition = response.headers['content-disposition'] || '';
             const fileNameFromHeader = disposition.match(/filename="?([^";]+)"?/i)?.[1];
-            const fileName = fileNameFromHeader || 'recibo_pro_labore.docx';
+            const fileName = fileNameFromHeader || 'recibo_pro_labore.pdf';
 
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -367,7 +367,7 @@ const GerarProLaborePage = () => {
             a.remove();
             window.URL.revokeObjectURL(url);
 
-            setMsg({ type: 'success', text: 'DOCX gerado com sucesso.' });
+            setMsg({ type: 'success', text: 'PDF gerado com sucesso.' });
         } catch (error) {
             let errorMessage = 'Erro ao gerar documento.';
             if (error.response?.data instanceof Blob) {
@@ -627,7 +627,7 @@ const GerarProLaborePage = () => {
                                             : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                                     }`}
                                 >
-                                    {loading ? 'Gerando...' : 'Gerar DOCX'}
+                                    {loading ? 'Gerando...' : 'Gerar PDF'}
                                 </button>
 
                                 {msg.text && (

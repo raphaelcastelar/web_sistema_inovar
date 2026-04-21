@@ -17,7 +17,7 @@ from .views import (
     gerar_boleto_view,
     ultimo_resultado_sessao,
     bb_cobranca_webhook,
-    gerar_pro_labore_docx_view,
+    gerar_pro_labore_pdf_view,
     visualizar_arquivo_empresa,
 )
 
@@ -39,6 +39,7 @@ urlpatterns = [
     path('gerar-boleto/', gerar_boleto_view, name='gerar_boleto'),
     path('ultimo-resultado-sessao/', ultimo_resultado_sessao, name='ultimo_resultado_sessao'),
     path('webhook/bb-cobranca/', bb_cobranca_webhook, name='bb_cobranca_webhook'),
-    path('gerar-pro-labore-docx/', gerar_pro_labore_docx_view, name='gerar_pro_labore_docx'),
+    path('gerar-pro-labore-pdf/', gerar_pro_labore_pdf_view, name='gerar_pro_labore_pdf'),
+    path('gerar-pro-labore-docx/', gerar_pro_labore_pdf_view, name='gerar_pro_labore_docx'),
     path('arquivos/<str:tipo_pasta>/<int:arquivo_id>/visualizar/', visualizar_arquivo_empresa, name='visualizar_arquivo_empresa'),
 ]

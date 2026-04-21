@@ -90,7 +90,7 @@ from .serpro_service import (
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
-from .pro_labore_docx import build_pro_labore_docx
+from .pro_labore_docx import build_pro_labore_pdf
 
 WKHTMLTOPDF_PATH = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
 
@@ -1204,7 +1204,7 @@ def current_user(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def gerar_pro_labore_docx_view(request):
+def gerar_pro_labore_pdf_view(request):
     payload = dict(request.data or {})
 
     empresa_id = payload.get('empresa_id')
@@ -1256,16 +1256,16 @@ def gerar_pro_labore_docx_view(request):
             return Response({'error': 'Empresa não encontrada para o empresa_id informado.'}, status=status.HTTP_404_NOT_FOUND)
 
     try:
-        arquivo_docx, nome_arquivo = build_pro_labore_docx(payload)
+        arquivo_pdf, nome_arquivo = build_pro_labore_pdf(payload)
     except ValueError as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        logger.exception("Erro ao gerar DOCX de pro-labore")
+        logger.exception("Erro ao gerar PDF de pro-labore")
         return Response({'error': f'Erro ao gerar documento: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     response = HttpResponse(
-        arquivo_docx,
-        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        arquivo_pdf,
+        content_type='application/pdf',
     )
     response['Content-Disposition'] = f'attachment; filename="{nome_arquivo}"'
     return response

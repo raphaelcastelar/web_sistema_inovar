@@ -79,7 +79,7 @@ const Navbar = () => {
                 <NavLink to="/monitor-boletos" icon={ClipboardDocumentCheckIcon} text="Monitor Boletos" />
                 <NavLink to="/boletos-por-empresa" icon={BanknotesIcon} text="Boletos por Empresa" />
                 <NavLink to="/calculadora-honorarios" icon={CalculatorIcon} text="Honorários" />
-                <NavLink to="/gerar-pro-labore" icon={DocumentTextIcon} text="Pró-labore DOCX" />
+                <NavLink to="/gerar-pro-labore" icon={DocumentTextIcon} text="Pró-labore PDF" />
 
                                                                                                                                                     </nav>
 
