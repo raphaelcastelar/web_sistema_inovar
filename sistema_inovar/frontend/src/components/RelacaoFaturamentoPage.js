@@ -202,6 +202,16 @@ const RelacaoFaturamentoPage = () => {
         setRows(createRows(baseMonth, mode));
     };
 
+    const handleModeChange = (nextMode) => {
+        setMode(nextMode);
+        setRows(createRows(baseMonth, nextMode));
+    };
+
+    const handleBaseMonthChange = (nextBaseMonth) => {
+        setBaseMonth(nextBaseMonth);
+        setRows(createRows(nextBaseMonth, mode));
+    };
+
     const updateRow = (id, field, value) => {
         setRows((prev) => prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
     };
@@ -409,7 +419,7 @@ th { background: #e5e7eb; }
                                 <button
                                     key={item}
                                     type="button"
-                                    onClick={() => setMode(item)}
+                                    onClick={() => handleModeChange(item)}
                                     className={`rounded px-3 py-2 text-sm font-semibold transition ${mode === item ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'}`}
                                 >
                                     {item}
@@ -420,7 +430,7 @@ th { background: #e5e7eb; }
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
                                 <label className={labelClass}>Mês base</label>
-                                <input type="month" value={baseMonth} onChange={(event) => setBaseMonth(event.target.value)} className={inputClass} />
+                                <input type="month" value={baseMonth} onChange={(event) => handleBaseMonthChange(event.target.value)} className={inputClass} />
                             </div>
                             <div>
                                 <label className={labelClass}>Data</label>
