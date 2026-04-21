@@ -35,7 +35,7 @@ const createMonthLabel = (date) => {
 
 const createRows = (baseMonth, mode) => {
     const baseDate = new Date(`${baseMonth}-01T00:00:00`);
-    const firstOffset = mode === 'Realizado' ? -11 : 0;
+    const firstOffset = mode === 'Realizado' ? -12 : 0;
 
     return Array.from({ length: 12 }, (_, index) => {
         const date = new Date(baseDate);
