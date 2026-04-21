@@ -12,7 +12,8 @@ import {
     ExclamationTriangleIcon,
     BanknotesIcon,
     ClipboardDocumentCheckIcon,
-    DocumentTextIcon
+    DocumentTextIcon,
+    CalculatorIcon
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade.png';
 import ThemeToggle from './ThemeToggle';
@@ -77,6 +78,7 @@ const Navbar = () => {
                 <NavLink to="/historico-whatsapp" icon={ClockIcon} text="Histórico" />
                 <NavLink to="/monitor-boletos" icon={ClipboardDocumentCheckIcon} text="Monitor Boletos" />
                 <NavLink to="/boletos-por-empresa" icon={BanknotesIcon} text="Boletos por Empresa" />
+                <NavLink to="/calculadora-honorarios" icon={CalculatorIcon} text="Honorários" />
                 <NavLink to="/gerar-pro-labore" icon={DocumentTextIcon} text="Pró-labore DOCX" />
 
                                                                                                                                                     </nav>

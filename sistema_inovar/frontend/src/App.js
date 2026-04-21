@@ -26,6 +26,7 @@ import CentralDoSimples from './components/CentralDoSimples';
 import BoletoMonitorPage from './components/BoletoMonitorPage';
 import BoletosPorEmpresaPage from './components/BoletosPorEmpresaPage';
 import GerarProLaborePage from './components/GerarProLaborePage';
+import CalculadoraHonorariosPage from './components/CalculadoraHonorariosPage';
 
 import './App.css';
 
@@ -57,6 +58,7 @@ function App() {
             <Route path="/monitor-boletos" element={<BoletoMonitorPage />} />
             <Route path="/boletos-por-empresa" element={<BoletosPorEmpresaPage />} />
             <Route path="/gerar-pro-labore" element={<GerarProLaborePage />} />
+            <Route path="/calculadora-honorarios" element={<CalculadoraHonorariosPage />} />
 
             {/* Unified Management Route (Replaces separate pages) */}
             <Route path="/gerenciamento-integrado" element={<GerenciamentoIntegrado />} />
