@@ -24,9 +24,51 @@ from django.core.exceptions import ObjectDoesNotExist
 logger = logging.getLogger(__name__)
 Funcionario = get_user_model()
 
-AUTH_URL = 'https://autenticacao.sapi.serpro.gov.br/authenticate'
-GATEWAY_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1'
+AUTH_URL = getattr(settings, 'SERPRO_AUTH_URL', 'https://autenticacao.sapi.serpro.gov.br/authenticate')
+GATEWAY_URL = getattr(settings, 'SERPRO_GATEWAY_URL', 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1')
 SERPRO_TOKEN_CACHE_KEY = 'serpro_api_tokens_dict'
+SERPRO_AUTH_ERROR_CACHE_KEY = 'serpro_api_auth_error'
+SERPRO_TIMEOUT = 30
+
+
+def _set_serpro_auth_error(erro, detalhes=None):
+    error_data = {"erro": erro, "detalhes": detalhes}
+    cache.set(SERPRO_AUTH_ERROR_CACHE_KEY, error_data, timeout=300)
+    return error_data
+
+
+def _get_serpro_auth_error(default_message="Falha na autenticação com a API Serpro."):
+    return cache.get(SERPRO_AUTH_ERROR_CACHE_KEY) or {"erro": default_message, "detalhes": None}
+
+
+def _resolve_serpro_cert_info():
+    cert_public_path = os.path.expandvars(os.path.expanduser(getattr(settings, 'SERPRO_CERT_PUBLIC_PATH', '') or ''))
+    cert_private_key_path = os.path.expandvars(os.path.expanduser(getattr(settings, 'SERPRO_CERT_PRIVATE_KEY_PATH', '') or ''))
+
+    missing_config = []
+    if not getattr(settings, 'SERPRO_CONSUMER_KEY', ''):
+        missing_config.append('SERPRO_CONSUMER_KEY')
+    if not getattr(settings, 'SERPRO_CONSUMER_SECRET', ''):
+        missing_config.append('SERPRO_CONSUMER_SECRET')
+    if not cert_public_path:
+        missing_config.append('SERPRO_CERT_PUBLIC_PATH')
+    if not cert_private_key_path:
+        missing_config.append('SERPRO_CERT_PRIVATE_KEY_PATH')
+    if missing_config:
+        return None, _set_serpro_auth_error(
+            "Configuração SERPRO incompleta.",
+            f"Variáveis ausentes: {', '.join(missing_config)}."
+        )
+
+    missing_files = [path for path in (cert_public_path, cert_private_key_path) if not os.path.exists(path)]
+    if missing_files:
+        return None, _set_serpro_auth_error(
+            "Certificado SERPRO não encontrado.",
+            "Confira os caminhos em SERPRO_CERT_PUBLIC_PATH e SERPRO_CERT_PRIVATE_KEY_PATH: "
+            + "; ".join(missing_files)
+        )
+
+    return (cert_public_path, cert_private_key_path), None
 
 def get_serpro_token():
     """Obtém e gerencia os tokens de autenticação da API Serpro."""
@@ -36,24 +78,58 @@ def get_serpro_token():
         return tokens
     logger.info("Tokens não encontrados ou expirados. Solicitando novos tokens...")
     try:
+        cert_info, cert_error = _resolve_serpro_cert_info()
+        if cert_error:
+            logger.error(f"{cert_error['erro']} {cert_error.get('detalhes') or ''}")
+            return None
+
         credentials = f"{settings.SERPRO_CONSUMER_KEY}:{settings.SERPRO_CONSUMER_SECRET}"
         encoded_credentials = base64.b64encode(credentials.encode()).decode()
         headers = { "Authorization": f"Basic {encoded_credentials}", "Content-Type": "application/x-www-form-urlencoded", "Role-Type": "TERCEIROS" }
         data = {"grant_type": "client_credentials"}
-        cert_info = (settings.SERPRO_CERT_PUBLIC_PATH, settings.SERPRO_CERT_PRIVATE_KEY_PATH)
-        response = requests.post(AUTH_URL, headers=headers, data=data, cert=cert_info)
+        response = requests.post(AUTH_URL, headers=headers, data=data, cert=cert_info, timeout=SERPRO_TIMEOUT)
         response.raise_for_status()
         token_data = response.json()
         tokens = {'access_token': token_data.get('access_token'), 'jwt_token': token_data.get('jwt_token')}
         if not all(tokens.values()):
             logger.error(f"Falha ao extrair tokens da resposta: {token_data}")
+            _set_serpro_auth_error("Falha ao extrair tokens da resposta do SERPRO.", token_data)
             return None
         expires_in = token_data.get('expires_in', 3600)
+        cache.delete(SERPRO_AUTH_ERROR_CACHE_KEY)
         cache.set(SERPRO_TOKEN_CACHE_KEY, tokens, timeout=(expires_in - 60))
         logger.info("Novos tokens da API Serpro obtidos com sucesso.")
         return tokens
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else None
+        response_text = e.response.text if e.response is not None else str(e)
+        if status_code == 495:
+            error = _set_serpro_auth_error(
+                "Certificado digital recusado pelo SERPRO.",
+                "O endpoint de autenticação retornou 495 SSL Certificate Error. "
+                "Verifique se o certificado A1 está válido, pertence ao contratante/autorizado, "
+                "e se o PEM público corresponde exatamente à chave privada configurada."
+            )
+        else:
+            error = _set_serpro_auth_error("Erro HTTP ao solicitar token SERPRO.", response_text)
+        logger.error(f"Erro ao solicitar token: {error['erro']} {error.get('detalhes') or ''}")
+        return None
+    except requests.exceptions.SSLError as e:
+        error = _set_serpro_auth_error(
+            "Erro SSL ao conectar no SERPRO.",
+            "Confira o certificado cliente e a chave privada configurados. "
+            f"Detalhes técnicos: {e}"
+        )
+        logger.error(f"Erro ao solicitar token: {error['erro']} {error.get('detalhes') or ''}")
+        return None
+    except requests.exceptions.RequestException as e:
+        detalhes = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
+        error = _set_serpro_auth_error("Erro de comunicação ao solicitar token SERPRO.", detalhes)
+        logger.error(f"Erro ao solicitar token: {error['erro']} {error.get('detalhes') or ''}")
+        return None
     except Exception as e:
-        logger.error(f"Erro ao solicitar token: {e}")
+        error = _set_serpro_auth_error("Erro inesperado ao solicitar token SERPRO.", str(e))
+        logger.error(f"Erro ao solicitar token: {error['erro']} {error.get('detalhes') or ''}")
         return None
 
 def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
@@ -65,7 +141,7 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
     """
     tokens = get_serpro_token()
     if not tokens:
-        return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
+        return {"sucesso": False, **_get_serpro_auth_error()}
     
     # --- PASSO A: Buscar a lista de declarações do ano ---
     ano_calendario = periodo_apuracao[:4] # Extrai o ano "YYYY" de "YYYYMM"
@@ -91,7 +167,7 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
 
     try:
         logger.info(f"Passo A - Buscando lista de declarações para o ano {ano_calendario}")
-        response_lista = requests.post(url_consulta_ano, json=payload_lista_declaracoes, headers=headers)
+        response_lista = requests.post(url_consulta_ano, json=payload_lista_declaracoes, headers=headers, timeout=SERPRO_TIMEOUT)
         response_lista.raise_for_status()
         response_data_lista = response_lista.json()
         logger.info(f"Resposta do Passo A (Lista): {response_data_lista}")
@@ -127,7 +203,7 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
         }
 
         logger.info(f"Passo C - Buscando PDF do extrato para o DAS '{numero_das_alvo}'")
-        response_pdf = requests.post(url_extrato, json=payload_extrato, headers=headers)
+        response_pdf = requests.post(url_extrato, json=payload_extrato, headers=headers, timeout=SERPRO_TIMEOUT)
         response_pdf.raise_for_status()
         
         # O serviço CONSEXTRATO16 retorna um JSON com o PDF em Base64
@@ -156,7 +232,7 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     """
     tokens = get_serpro_token()
     if not tokens:
-        return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
+        return {"sucesso": False, **_get_serpro_auth_error()}
 
     url = f"{GATEWAY_URL}/Emitir"
     headers = {
@@ -182,17 +258,17 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     logger.info(f"Enviando payload para GERAR DAS: {json.dumps(payload, indent=2)}")
 
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
         
         if response.status_code == 401:
             logger.warning("Token expirado (401). Renovando e tentando novamente.")
             cache.delete(SERPRO_TOKEN_CACHE_KEY)
             tokens = get_serpro_token()
             if not tokens:
-                return {"sucesso": False, "erro": "Falha ao renovar token."}
+                return {"sucesso": False, **_get_serpro_auth_error("Falha ao renovar token.")}
             headers["Authorization"] = f"Bearer {tokens['access_token']}"
             headers["jwt_token"] = tokens['jwt_token']
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
 
         response.raise_for_status()
 
@@ -261,7 +337,7 @@ def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
     """
     tokens = get_serpro_token()
     if not tokens:
-        return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro."}
+        return {"sucesso": False, **_get_serpro_auth_error()}
 
     url = f"{GATEWAY_URL}/Emitir" # O serviço GERARDAS12 usa o endpoint /Emitir
     headers = {
@@ -286,16 +362,16 @@ def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
     logger.info(f"Enviando payload para obter dados de extrato: {json.dumps(payload, indent=2)}")
 
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
         
         if response.status_code == 401:
             logger.warning("Token expirado (401). Renovando...")
             cache.delete(SERPRO_TOKEN_CACHE_KEY)
             tokens = get_serpro_token()
-            if not tokens: return {"sucesso": False, "erro": "Falha ao renovar token."}
+            if not tokens: return {"sucesso": False, **_get_serpro_auth_error("Falha ao renovar token.")}
             headers["Authorization"] = f"Bearer {tokens['access_token']}"
             headers["jwt_token"] = tokens['jwt_token']
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
 
         response.raise_for_status()
         
@@ -353,7 +429,7 @@ def obter_numero_declaracao_original(tokens, cnpj_empresa, periodo_apuracao):
       }
     }
     logger.info(f"Passo A - Buscando número da declaração original para {periodo_apuracao}")
-    response = requests.post(url, json=payload, headers=headers)
+    response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
     response.raise_for_status()
     response_data = response.json()
 
@@ -380,7 +456,7 @@ def obter_extrato_pdf_serpro(cnpj_empresa, numero_das):
     tokens = get_serpro_token()
     if not tokens:
         # A get_serpro_token já loga o erro, aqui apenas retornamos o resultado
-        return {"sucesso": False, "erro": "Falha na autenticação com a API Serpro ao buscar extrato."}
+        return {"sucesso": False, **_get_serpro_auth_error("Falha na autenticação com a API Serpro ao buscar extrato.")}
 
     url = f"{GATEWAY_URL}/Consultar"
     headers = {
@@ -406,7 +482,7 @@ def obter_extrato_pdf_serpro(cnpj_empresa, numero_das):
 
     try:
         # ... O restante da lógica desta função (o bloco try/except) permanece EXATAMENTE O MESMO ...
-        response = requests.post(url, json=payload, headers=headers)
+        response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
         response.raise_for_status()
 
         response_data = response.json()

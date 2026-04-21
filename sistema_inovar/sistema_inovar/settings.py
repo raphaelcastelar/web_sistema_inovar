@@ -186,8 +186,12 @@ try:
     SERPRO_CONSUMER_SECRET = config('SERPRO_CONSUMER_SECRET')
     SERPRO_CERT_PASSWORD = config('SERPRO_CERT_PASSWORD')
 
-    SERPRO_TOKEN_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1/token'
-    SERPRO_API_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador-trial/v1/Consultar'
+    SERPRO_AUTH_URL = config('SERPRO_AUTH_URL', default='https://autenticacao.sapi.serpro.gov.br/authenticate')
+    SERPRO_GATEWAY_URL = config('SERPRO_GATEWAY_URL', default='https://gateway.apiserpro.serpro.gov.br/integra-contador/v1')
+    SERPRO_TOKEN_URL = config('SERPRO_TOKEN_URL', default='https://gateway.apiserpro.serpro.gov.br/integra-contador/v1/token')
+    SERPRO_API_URL = config('SERPRO_API_URL', default='https://gateway.apiserpro.serpro.gov.br/integra-contador-trial/v1/Consultar')
+    SERPRO_CERT_PUBLIC_PATH = config('SERPRO_CERT_PUBLIC_PATH', default=r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\certificado_publico.pem')
+    SERPRO_CERT_PRIVATE_KEY_PATH = config('SERPRO_CERT_PRIVATE_KEY_PATH', default=r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\chave_privada_sem_senha.pem')
 
     MEU_ESCRITORIO_CNPJ = config('MEU_ESCRITORIO_CNPJ')
 except ImportError as e:
@@ -198,6 +202,12 @@ except ImportError as e:
     SERPRO_CONSUMER_KEY = ''
     SERPRO_CONSUMER_SECRET = ''
     SERPRO_CERT_PASSWORD = ''
+    SERPRO_AUTH_URL = 'https://autenticacao.sapi.serpro.gov.br/authenticate'
+    SERPRO_GATEWAY_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1'
+    SERPRO_TOKEN_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1/token'
+    SERPRO_API_URL = 'https://gateway.apiserpro.serpro.gov.br/integra-contador-trial/v1/Consultar'
+    SERPRO_CERT_PUBLIC_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\certificado_publico.pem'
+    SERPRO_CERT_PRIVATE_KEY_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\chave_privada_sem_senha.pem'
     MEU_ESCRITORIO_CNPJ = ''
 
 
@@ -208,9 +218,6 @@ WHATSAPP_TEMPLATE_NAME_DOCS = 'envio_documento_com_contato'
 
 
 AUTH_USER_MODEL = 'empresas.Funcionario'
-
-SERPRO_CERT_PUBLIC_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\certificado_publico.pem'
-SERPRO_CERT_PRIVATE_KEY_PATH = r'\\servidor\SERVIDOR INOVAR\CERTIFICADO\chave_privada_sem_senha.pem'
 
 # Configurações do Banco do Brasil (Sandbox)
 BB_API_BASE_URL = 'https://api.bb.com.br/cobrancas/v2'

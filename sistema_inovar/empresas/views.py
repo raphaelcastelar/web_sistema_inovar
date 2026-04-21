@@ -84,7 +84,6 @@ from .serializers import (
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
     gerar_das_serpro, 
-    obter_dados_extrato_serpro, 
     obter_extrato_pdf_serpro,
     orquestrar_consulta_extrato,
 )
@@ -992,27 +991,6 @@ def gerar_das_api(request):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
     else:
-        return Response(
-            {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def consultar_extrato_api(request):
-    cnpj = request.data.get('cnpj')
-    periodo = request.data.get('periodo') # Esperado no formato "YYYYMM"
-
-    if not cnpj or not periodo:
-        return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
-
-    resultado = obter_dados_extrato_serpro(cnpj_empresa=cnpj, periodo_apuracao=periodo)
-
-    if resultado.get("sucesso"):
-        # Retorna os dados do extrato em JSON para o frontend renderizar
-        return Response(resultado.get("extrato_data"), status=status.HTTP_200_OK)
-    else:
-        # Retorna a mensagem de erro em JSON
         return Response(
             {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
             status=status.HTTP_400_BAD_REQUEST
