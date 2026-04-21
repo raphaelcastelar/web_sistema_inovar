@@ -9,7 +9,7 @@ import {
     PrinterIcon,
     TrashIcon
 } from '@heroicons/react/24/outline';
-import LogoContabilidade from '../assets/logo_contabilidade.png';
+import LogoContabilidade from '../assets/logo_contabilidade2.png';
 
 const monthNames = [
     'janeiro',

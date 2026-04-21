@@ -20,7 +20,7 @@ IR_REDUCAO_SLOPE = Decimal("0.133145")
 PDF_PAGE_WIDTH = 595.28
 PDF_PAGE_HEIGHT = 841.89
 PDF_MARGIN_X = 50
-LOGO_PATH = Path(__file__).resolve().parents[1] / "frontend" / "src" / "assets" / "logo_contabilidade.png"
+LOGO_PATH = Path(__file__).resolve().parents[1] / "frontend" / "src" / "assets" / "logo_contabilidade2.png"
 
 
 def _round_currency(value: Decimal) -> Decimal:
