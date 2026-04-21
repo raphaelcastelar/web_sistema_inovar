@@ -100,18 +100,37 @@ const getAdicionalFolha = (funcionarios) => {
 };
 
 const CalculadoraHonorariosPage = () => {
-    const [atividade, setAtividade] = useState('servico');
+    const [atividadesSelecionadas, setAtividadesSelecionadas] = useState(['servico']);
     const [faturamento, setFaturamento] = useState('ate50');
     const [funcionarios, setFuncionarios] = useState(0);
-    const [tiposAtividade, setTiposAtividade] = useState(1);
     const [socios, setSocios] = useState(1);
 
+    const toggleAtividade = (atividadeId) => {
+        setAtividadesSelecionadas((selecionadasAtuais) => {
+            if (selecionadasAtuais.includes(atividadeId)) {
+                return selecionadasAtuais.length === 1
+                    ? selecionadasAtuais
+                    : selecionadasAtuais.filter((id) => id !== atividadeId);
+            }
+
+            return [...selecionadasAtuais, atividadeId].slice(0, 3);
+        });
+    };
+
     const calculo = useMemo(() => {
-        const atividadeSelecionada = atividades.find((item) => item.id === atividade) || atividades[0];
-        const honorarioBase = atividadeSelecionada.honorarios[faturamento];
-        const exigePlanejamento = honorarioBase === null;
+        const selecionadas = atividades.filter((item) => atividadesSelecionadas.includes(item.id));
+        const atividadesComValor = selecionadas.map((item) => ({
+            ...item,
+            valorFaixa: item.honorarios[faturamento],
+        }));
+        const exigePlanejamento = atividadesComValor.some((item) => item.valorFaixa === null);
+        const atividadeBase = atividadesComValor.reduce((maior, item) => {
+            if (!maior) return item;
+            return Number(item.valorFaixa || 0) > Number(maior.valorFaixa || 0) ? item : maior;
+        }, null);
+        const honorarioBase = atividadeBase?.valorFaixa ?? 0;
         const qtdFuncionarios = clampNumber(funcionarios);
-        const qtdTiposAtividade = clampNumber(tiposAtividade, 1, 3);
+        const qtdTiposAtividade = clampNumber(selecionadas.length, 1, 3);
         const qtdSocios = clampNumber(socios, 1);
         const folha = getAdicionalFolha(qtdFuncionarios);
         const percentualTipoAtividade = adicionaisTipoAtividade[qtdTiposAtividade] ?? 0.45;
@@ -119,7 +138,8 @@ const CalculadoraHonorariosPage = () => {
 
         if (exigePlanejamento) {
             return {
-                atividadeSelecionada,
+                atividadesSelecionadas: selecionadas,
+                atividadeBase,
                 exigePlanejamento,
                 honorarioBase,
                 folha,
@@ -136,7 +156,8 @@ const CalculadoraHonorariosPage = () => {
         const total = subtotal + adicionalTipoAtividade + adicionalSocios;
 
         return {
-            atividadeSelecionada,
+            atividadesSelecionadas: selecionadas,
+            atividadeBase,
             exigePlanejamento,
             honorarioBase,
             folha,
@@ -146,7 +167,7 @@ const CalculadoraHonorariosPage = () => {
             subtotal,
             total,
         };
-    }, [atividade, faturamento, funcionarios, tiposAtividade, socios]);
+    }, [atividadesSelecionadas, faturamento, funcionarios, socios]);
 
     const inputClass =
         'w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 shadow-sm outline-none transition ' +
@@ -182,16 +203,26 @@ const CalculadoraHonorariosPage = () => {
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
                 <section className="space-y-6">
                     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                        <label className={labelClass}>Atividade</label>
+                        <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <label className={labelClass}>Atividades</label>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Selecione uma ou mais. A atividade de maior valor prevalece como honorario base.
+                                </p>
+                            </div>
+                            <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                                {atividadesSelecionadas.length} de 3 selecionada{atividadesSelecionadas.length > 1 ? 's' : ''}
+                            </span>
+                        </div>
                         <div className="grid gap-3 md:grid-cols-3">
                             {atividades.map((item) => {
                                 const Icon = item.icon;
-                                const active = atividade === item.id;
+                                const active = atividadesSelecionadas.includes(item.id);
                                 return (
                                     <button
                                         key={item.id}
                                         type="button"
-                                        onClick={() => setAtividade(item.id)}
+                                        onClick={() => toggleAtividade(item.id)}
                                         className={`flex min-h-24 items-center gap-3 rounded-lg border p-4 text-left transition ${active
                                             ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-sm dark:border-indigo-400 dark:bg-indigo-950/60 dark:text-indigo-100'
                                             : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
@@ -199,6 +230,12 @@ const CalculadoraHonorariosPage = () => {
                                     >
                                         <Icon className="h-7 w-7 flex-shrink-0" />
                                         <span className="font-semibold">{item.label}</span>
+                                        <span className={`ml-auto flex h-5 w-5 items-center justify-center rounded border ${active
+                                            ? 'border-indigo-600 bg-indigo-600 dark:border-indigo-300'
+                                            : 'border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800'
+                                            }`}>
+                                            {active && <span className="h-2.5 w-2.5 rounded-sm bg-white" />}
+                                        </span>
                                     </button>
                                 );
                             })}
@@ -219,7 +256,7 @@ const CalculadoraHonorariosPage = () => {
                         </select>
                     </div>
 
-                    <div className="grid gap-6 lg:grid-cols-3">
+                    <div className="grid gap-6 lg:grid-cols-2">
                         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                             <div className="mb-3 flex items-center gap-2">
                                 <UsersIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
@@ -236,26 +273,6 @@ const CalculadoraHonorariosPage = () => {
                                 className={inputClass}
                             />
                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Quantidade de funcionarios.</p>
-                        </div>
-
-                        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                            <div className="mb-3 flex items-center gap-2">
-                                <BriefcaseIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
-                                <label htmlFor="tiposAtividade" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                                    Tipos de atividade
-                                </label>
-                            </div>
-                            <select
-                                id="tiposAtividade"
-                                value={tiposAtividade}
-                                onChange={(event) => setTiposAtividade(Number(event.target.value))}
-                                className={inputClass}
-                            >
-                                <option value={1}>1 tipo</option>
-                                <option value={2}>2 tipos</option>
-                                <option value={3}>3 tipos</option>
-                            </select>
-                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Aumento de 0%, 20% ou 45%.</p>
                         </div>
 
                         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -328,6 +345,16 @@ const CalculadoraHonorariosPage = () => {
                         <>
                             <div className="space-y-3">
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
+                                    <span className="text-gray-500 dark:text-gray-400">Atividades escolhidas</span>
+                                    <strong className="text-right">
+                                        {calculo.atividadesSelecionadas.map((item) => item.label).join(', ')}
+                                    </strong>
+                                </div>
+                                <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
+                                    <span className="text-gray-500 dark:text-gray-400">Atividade base</span>
+                                    <strong>{calculo.atividadeBase?.label || '-'}</strong>
+                                </div>
+                                <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
                                     <span className="text-gray-500 dark:text-gray-400">Honorario base</span>
                                     <strong>{formatCurrency(calculo.honorarioBase)}</strong>
                                 </div>
@@ -343,7 +370,7 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
                                     <span className="text-gray-500 dark:text-gray-400">
-                                        Aumento por atividade ({Math.round(calculo.percentualTipoAtividade * 100)}%)
+                                        Aumento por quantidade de atividades ({Math.round(calculo.percentualTipoAtividade * 100)}%)
                                     </span>
                                     <strong>{formatCurrency(calculo.adicionalTipoAtividade)}</strong>
                                 </div>
