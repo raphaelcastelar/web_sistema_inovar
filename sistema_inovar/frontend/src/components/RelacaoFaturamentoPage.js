@@ -70,6 +70,11 @@ const parseCurrency = (value) => {
     return Number.isFinite(number) ? number : 0;
 };
 
+const formatCurrencyInput = (value) => {
+    const number = Number(value || 0);
+    return number.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 const formatCpfCnpj = (value) => {
     const digits = String(value || '').replace(/\D/g, '');
     if (digits.length !== 14) return value || '';
@@ -122,6 +127,7 @@ const RelacaoFaturamentoPage = () => {
     const [duplicatas, setDuplicatas] = useState('0');
     const [responsavelEmpresa, setResponsavelEmpresa] = useState('');
     const [contadorResponsavel, setContadorResponsavel] = useState('');
+    const [faturamentoMedio, setFaturamentoMedio] = useState('');
     const [empresaData, setEmpresaData] = useState(emptyEmpresaData);
     const [rows, setRows] = useState(() => createRows(getCurrentMonthInput(), 'Realizado'));
 
@@ -206,6 +212,30 @@ const RelacaoFaturamentoPage = () => {
 
     const removeRow = (id) => {
         setRows((prev) => prev.filter((row) => row.id !== id));
+    };
+
+    const handleGenerateAverageRevenue = () => {
+        const average = parseCurrency(faturamentoMedio);
+
+        if (average <= 0) {
+            setMsg({ type: 'error', text: 'Informe um faturamento medio maior que zero.' });
+            return;
+        }
+
+        const min = Math.max(0, average - 15000);
+        const max = average + 15000;
+
+        setRows((prev) => prev.map((row) => {
+            const generatedValue = min + Math.random() * (max - min);
+            return {
+                ...row,
+                faturamento: formatCurrencyInput(generatedValue),
+            };
+        }));
+        setMsg({
+            type: 'success',
+            text: `Faturamentos gerados entre ${formatCurrency(min)} e ${formatCurrency(max)}.`,
+        });
     };
 
     const updateEmpresaData = (field, value) => {
@@ -478,14 +508,34 @@ th { background: #e5e7eb; }
             <section className={`${sectionClass} print-hidden mt-5`}>
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h2 className="text-lg font-semibold">Faturamento mensal</h2>
-                    <button
-                        type="button"
-                        onClick={addRow}
-                        className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-700"
-                    >
-                        <PlusIcon className="h-5 w-5" />
-                        Linha
-                    </button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <label className="sr-only" htmlFor="faturamento-medio">Faturamento médio</label>
+                            <input
+                                id="faturamento-medio"
+                                value={faturamentoMedio}
+                                onChange={(event) => setFaturamentoMedio(event.target.value)}
+                                className={`${inputClass} sm:w-52`}
+                                placeholder="Faturamento médio"
+                            />
+                            <button
+                                type="button"
+                                onClick={handleGenerateAverageRevenue}
+                                className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                            >
+                                <ArrowPathIcon className="h-5 w-5" />
+                                Gerar faturamento
+                            </button>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={addRow}
+                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-700"
+                        >
+                            <PlusIcon className="h-5 w-5" />
+                            Linha
+                        </button>
+                    </div>
                 </div>
 
                 <div className="overflow-x-auto">
