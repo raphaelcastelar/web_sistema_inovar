@@ -66,6 +66,11 @@ const montarLocalAssinatura = (cidade, uf) => {
     return '';
 };
 
+const manterValorEditavel = (valorAtual, valorPadrao) => {
+    const valorLimpo = String(valorAtual || '').trim();
+    return valorLimpo ? valorAtual : valorPadrao;
+};
+
 const INSS_ALIQUOTA = 0.11;
 const INSS_TETO_BASE = 8475.55;
 const IR_FAIXA_ISENCAO_TOTAL = 5000;
@@ -278,9 +283,9 @@ const GerarProLaborePage = () => {
                     socio_id: proximoSocioId,
                     colaborador_nome: primeiroSocio?.nome || '',
                     colaborador_cpf: primeiroSocio?.cpf || '',
-                    referencia_mes_ano: referenciaMesAnteriorAuto,
-                    local_assinatura: montarLocalAssinatura(data.cidade, data.uf),
-                    data_assinatura: dataAtualExtensoAuto,
+                    referencia_mes_ano: manterValorEditavel(prev.referencia_mes_ano, referenciaMesAnteriorAuto),
+                    local_assinatura: manterValorEditavel(prev.local_assinatura, montarLocalAssinatura(data.cidade, data.uf)),
+                    data_assinatura: manterValorEditavel(prev.data_assinatura, dataAtualExtensoAuto),
                 }));
             } catch {
                 setMsg({ type: 'error', text: 'Nao foi possivel carregar os dados desta empresa.' });
@@ -535,11 +540,26 @@ const GerarProLaborePage = () => {
                                 )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <input className={inputClass} name="colaborador_nome" value={formData.colaborador_nome} onChange={handleChange} placeholder="Nome completo" />
-                                    <input className={inputClass} name="colaborador_cpf" value={formData.colaborador_cpf} onChange={handleChange} placeholder="CPF" />
-                                    <input className={inputClass} name="referencia_mes_ano" value={formData.referencia_mes_ano} onChange={handleChange} placeholder="Referencia (MM-AAAA)" />
-                                    <input className={`${inputClass} ${mode === 'empresa' ? 'bg-gray-100 dark:bg-gray-700' : ''}`} name="local_assinatura" value={formData.local_assinatura} onChange={handleChange} readOnly={mode === 'empresa'} placeholder="Cidade-UF" />
-                                    <input className={inputClass} name="data_assinatura" value={formData.data_assinatura} onChange={handleChange} placeholder="Data por extenso" />
+                                    <label className="block">
+                                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nome completo</span>
+                                        <input className={inputClass} name="colaborador_nome" value={formData.colaborador_nome} onChange={handleChange} placeholder="Nome completo" />
+                                    </label>
+                                    <label className="block">
+                                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CPF</span>
+                                        <input className={inputClass} name="colaborador_cpf" value={formData.colaborador_cpf} onChange={handleChange} placeholder="CPF" />
+                                    </label>
+                                    <label className="block">
+                                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Referencia do pro-labore</span>
+                                        <input className={inputClass} name="referencia_mes_ano" value={formData.referencia_mes_ano} onChange={handleChange} placeholder="MM-AAAA" />
+                                    </label>
+                                    <label className="block">
+                                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Local da assinatura</span>
+                                        <input className={inputClass} name="local_assinatura" value={formData.local_assinatura} onChange={handleChange} placeholder="Cidade-UF" />
+                                    </label>
+                                    <label className="block md:col-span-2">
+                                        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data da assinatura</span>
+                                        <input className={inputClass} name="data_assinatura" value={formData.data_assinatura} onChange={handleChange} placeholder="Ex.: 21 de abril de 2026" />
+                                    </label>
                                 </div>
                             </section>
                         )}
