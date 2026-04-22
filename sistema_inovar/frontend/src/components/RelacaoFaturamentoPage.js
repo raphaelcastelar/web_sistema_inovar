@@ -115,6 +115,8 @@ const emptyEmpresaData = {
     regime: 'Simples Nacional',
 };
 
+const createEmptyEmpresaData = () => ({ ...emptyEmpresaData });
+
 const inputClass = 'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100';
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
 const sectionClass = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
@@ -136,8 +138,17 @@ const RelacaoFaturamentoPage = () => {
     const [responsavelEmpresa, setResponsavelEmpresa] = useState('');
     const [contadorResponsavel, setContadorResponsavel] = useState('');
     const [faturamentoMedio, setFaturamentoMedio] = useState('');
-    const [empresaData, setEmpresaData] = useState(emptyEmpresaData);
+    const [empresaData, setEmpresaData] = useState(() => createEmptyEmpresaData());
     const [rows, setRows] = useState(() => createRows(getCurrentMonthInput(), 'Realizado'));
+
+    useEffect(() => {
+        const previousTitle = document.title;
+        document.title = 'Relação de Faturamento';
+
+        return () => {
+            document.title = previousTitle;
+        };
+    }, []);
 
     useEffect(() => {
         axiosInstance.get('/api/empresas/')
@@ -150,7 +161,7 @@ const RelacaoFaturamentoPage = () => {
         const selected = empresas.find((empresa) => String(empresa.id) === String(selectedEmpresaId));
         if (!selected) return;
 
-        setEmpresaData({
+        setEmpresaData((prev) => ({
             nome: selected.nome || '',
             cnpj: formatCpfCnpj(selected.cnpj),
             inscricaoEstadual: '',
@@ -160,10 +171,9 @@ const RelacaoFaturamentoPage = () => {
             cidade: selected.cidade || '',
             uf: selected.uf || '',
             cep: formatCep(selected.cep),
-            regime: selected.simples_nacional ? 'Simples Nacional' : empresaData.regime,
-        });
+            regime: selected.simples_nacional ? 'Simples Nacional' : prev.regime,
+        }));
         setMsg({ type: '', text: '' });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedEmpresaId, empresas]);
 
     const percentPrazo = useMemo(() => {
@@ -264,8 +274,19 @@ const RelacaoFaturamentoPage = () => {
         setEmpresaData((prev) => ({ ...prev, [field]: value }));
     };
 
+    const handleEmpresaInputChange = (field) => (event) => {
+        updateEmpresaData(field, event.currentTarget.value);
+    };
+
     const handleEmpresaSemNumeroChange = (checked) => {
         setEmpresaData((prev) => ({ ...prev, numero: checked ? 'S/N' : '' }));
+    };
+
+    const handleSelectedEmpresaChange = (value) => {
+        setSelectedEmpresaId(value);
+        if (!value) {
+            setEmpresaData(createEmptyEmpresaData());
+        }
     };
 
     const handlePrint = () => {
@@ -369,7 +390,7 @@ th { background: #e5e7eb; }
                             <label className={labelClass}>Cadastro</label>
                             <select
                                 value={selectedEmpresaId}
-                                onChange={(event) => setSelectedEmpresaId(event.target.value)}
+                                onChange={(event) => handleSelectedEmpresaChange(event.target.value)}
                                 className={inputClass}
                                 disabled={loadingEmpresas}
                             >
@@ -382,28 +403,28 @@ th { background: #e5e7eb; }
 
                         <div>
                             <label className={labelClass}>Nome</label>
-                            <input value={empresaData.nome} onChange={(event) => updateEmpresaData('nome', event.target.value)} className={inputClass} />
+                            <input value={empresaData.nome} onChange={handleEmpresaInputChange('nome')} className={inputClass} />
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
                                 <label className={labelClass}>CNPJ</label>
-                                <input value={empresaData.cnpj} onChange={(event) => updateEmpresaData('cnpj', event.target.value)} className={inputClass} />
+                                <input value={empresaData.cnpj} onChange={handleEmpresaInputChange('cnpj')} className={inputClass} />
                             </div>
                             <div>
                                 <label className={labelClass}>Inscrição Estadual</label>
-                                <input value={empresaData.inscricaoEstadual} onChange={(event) => updateEmpresaData('inscricaoEstadual', event.target.value)} className={inputClass} />
+                                <input value={empresaData.inscricaoEstadual} onChange={handleEmpresaInputChange('inscricaoEstadual')} className={inputClass} />
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <div className="sm:col-span-2">
                                 <label className={labelClass}>Logradouro</label>
-                                <input value={empresaData.endereco} onChange={(event) => updateEmpresaData('endereco', event.target.value)} className={inputClass} />
+                                <input value={empresaData.endereco} onChange={handleEmpresaInputChange('endereco')} className={inputClass} />
                             </div>
                             <div>
                                 <label className={labelClass}>Número</label>
-                                <input value={empresaData.numero} onChange={(event) => updateEmpresaData('numero', event.target.value)} disabled={empresaData.numero === 'S/N'} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-70`} />
+                                <input value={empresaData.numero} onChange={handleEmpresaInputChange('numero')} disabled={empresaData.numero === 'S/N'} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-70`} />
                                 <label className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                                     <input
                                         type="checkbox"
@@ -419,11 +440,11 @@ th { background: #e5e7eb; }
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
                             <div>
                                 <label className={labelClass}>Bairro</label>
-                                <input value={empresaData.bairro} onChange={(event) => updateEmpresaData('bairro', event.target.value)} className={inputClass} />
+                                <input value={empresaData.bairro} onChange={handleEmpresaInputChange('bairro')} className={inputClass} />
                             </div>
                             <div>
                                 <label className={labelClass}>Município</label>
-                                <input value={empresaData.cidade} onChange={(event) => updateEmpresaData('cidade', event.target.value)} className={inputClass} />
+                                <input value={empresaData.cidade} onChange={handleEmpresaInputChange('cidade')} className={inputClass} />
                             </div>
                             <div>
                                 <label className={labelClass}>UF</label>
@@ -431,7 +452,7 @@ th { background: #e5e7eb; }
                             </div>
                             <div>
                                 <label className={labelClass}>CEP</label>
-                                <input value={empresaData.cep} onChange={(event) => updateEmpresaData('cep', event.target.value)} className={inputClass} />
+                                <input value={empresaData.cep} onChange={handleEmpresaInputChange('cep')} className={inputClass} />
                             </div>
                         </div>
                     </div>
