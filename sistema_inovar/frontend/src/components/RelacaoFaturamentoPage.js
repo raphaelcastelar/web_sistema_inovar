@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { motion } from 'framer-motion';
 import {
@@ -123,8 +123,12 @@ const sectionClass = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm d
 
 const RelacaoFaturamentoPage = () => {
     const [empresas, setEmpresas] = useState([]);
+    const [empresasAvulsas, setEmpresasAvulsas] = useState([]);
+    const [empresaSource, setEmpresaSource] = useState('cadastrada');
     const [selectedEmpresaId, setSelectedEmpresaId] = useState('');
     const [loadingEmpresas, setLoadingEmpresas] = useState(true);
+    const [loadingAvulsas, setLoadingAvulsas] = useState(true);
+    const [savingAvulsa, setSavingAvulsa] = useState(false);
     const [msg, setMsg] = useState({ type: '', text: '' });
     const [mode, setMode] = useState('Realizado');
     const [baseMonth, setBaseMonth] = useState(getCurrentMonthInput());
@@ -157,24 +161,43 @@ const RelacaoFaturamentoPage = () => {
             .finally(() => setLoadingEmpresas(false));
     }, []);
 
+    const fetchEmpresasAvulsas = useCallback(async () => {
+        setLoadingAvulsas(true);
+        try {
+            const response = await axiosInstance.get('/api/empresas-avulsas-faturamento/');
+            setEmpresasAvulsas(response.data || []);
+        } catch {
+            setMsg({ type: 'error', text: 'Nao foi possivel carregar empresas avulsas.' });
+        } finally {
+            setLoadingAvulsas(false);
+        }
+    }, []);
+
     useEffect(() => {
-        const selected = empresas.find((empresa) => String(empresa.id) === String(selectedEmpresaId));
+        fetchEmpresasAvulsas();
+    }, [fetchEmpresasAvulsas]);
+
+    useEffect(() => {
+        if (!selectedEmpresaId) return;
+
+        const list = empresaSource === 'avulsa' ? empresasAvulsas : empresas;
+        const selected = list.find((empresa) => String(empresa.id) === String(selectedEmpresaId));
         if (!selected) return;
 
         setEmpresaData((prev) => ({
             nome: selected.nome || '',
             cnpj: formatCpfCnpj(selected.cnpj),
-            inscricaoEstadual: '',
+            inscricaoEstadual: selected.inscricaoEstadual || '',
             endereco: selected.endereco || '',
             numero: selected.numero || '',
             bairro: selected.bairro || '',
             cidade: selected.cidade || '',
             uf: selected.uf || '',
             cep: formatCep(selected.cep),
-            regime: selected.simples_nacional ? 'Simples Nacional' : prev.regime,
+            regime: selected.regime || (selected.simples_nacional ? 'Simples Nacional' : prev.regime),
         }));
         setMsg({ type: '', text: '' });
-    }, [selectedEmpresaId, empresas]);
+    }, [selectedEmpresaId, empresaSource, empresas, empresasAvulsas]);
 
     const percentPrazo = useMemo(() => {
         const vista = Math.max(0, Math.min(100, Number(percentVista || 0)));
@@ -282,6 +305,13 @@ const RelacaoFaturamentoPage = () => {
         setEmpresaData((prev) => ({ ...prev, numero: checked ? 'S/N' : '' }));
     };
 
+    const handleEmpresaSourceChange = (nextSource) => {
+        setEmpresaSource(nextSource);
+        setSelectedEmpresaId('');
+        setEmpresaData(createEmptyEmpresaData());
+        setMsg({ type: '', text: '' });
+    };
+
     const handleSelectedEmpresaChange = (value) => {
         setSelectedEmpresaId(value);
         if (!value) {
@@ -289,11 +319,72 @@ const RelacaoFaturamentoPage = () => {
         }
     };
 
-    const handlePrint = () => {
+    const persistEmpresaAvulsa = async ({ silent = false } = {}) => {
+        if (empresaSource !== 'avulsa') return null;
+
+        const nome = (empresaData.nome || '').trim();
+        if (!nome) {
+            if (!silent) {
+                setMsg({ type: 'error', text: 'Informe o nome da empresa avulsa antes de salvar.' });
+            }
+            return null;
+        }
+
+        const payload = {
+            nome,
+            cnpj: empresaData.cnpj || '',
+            inscricaoEstadual: empresaData.inscricaoEstadual || '',
+            endereco: empresaData.endereco || '',
+            numero: empresaData.numero || '',
+            bairro: empresaData.bairro || '',
+            cidade: empresaData.cidade || '',
+            uf: empresaData.uf || '',
+            cep: empresaData.cep || '',
+            regime: empresaData.regime || 'Simples Nacional',
+        };
+
+        setSavingAvulsa(true);
+        try {
+            const response = selectedEmpresaId
+                ? await axiosInstance.patch(`/api/empresas-avulsas-faturamento/${selectedEmpresaId}/`, payload)
+                : await axiosInstance.post('/api/empresas-avulsas-faturamento/', payload);
+
+            const saved = response.data;
+            setEmpresasAvulsas((prev) => {
+                const exists = prev.some((item) => String(item.id) === String(saved.id));
+                const next = exists
+                    ? prev.map((item) => (String(item.id) === String(saved.id) ? saved : item))
+                    : [...prev, saved];
+                return next.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+            });
+            setSelectedEmpresaId(String(saved.id));
+            if (!silent) {
+                setMsg({ type: 'success', text: 'Empresa avulsa salva para futuras relações de faturamento.' });
+            }
+            return saved;
+        } catch (err) {
+            const apiErrors = err.response?.data;
+            const errorText = apiErrors && typeof apiErrors === 'object'
+                ? Object.entries(apiErrors).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`).join(' | ')
+                : 'Nao foi possivel salvar a empresa avulsa.';
+            setMsg({ type: 'error', text: errorText });
+            return null;
+        } finally {
+            setSavingAvulsa(false);
+        }
+    };
+
+    const handleSaveAvulsa = () => {
+        persistEmpresaAvulsa();
+    };
+
+    const handlePrint = async () => {
+        await persistEmpresaAvulsa({ silent: true });
         window.print();
     };
 
-    const handleDownloadHtml = () => {
+    const handleDownloadHtml = async () => {
+        await persistEmpresaAvulsa({ silent: true });
         const report = document.getElementById('relacao-faturamento-report');
         if (!report) return;
 
@@ -326,6 +417,9 @@ th { background: #e5e7eb; }
         link.click();
         URL.revokeObjectURL(url);
     };
+
+    const cadastroOptions = empresaSource === 'avulsa' ? empresasAvulsas : empresas;
+    const loadingCadastro = empresaSource === 'avulsa' ? loadingAvulsas : loadingEmpresas;
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 md:p-8 text-gray-900 dark:text-gray-100">
@@ -392,10 +486,10 @@ th { background: #e5e7eb; }
                                 value={selectedEmpresaId}
                                 onChange={(event) => handleSelectedEmpresaChange(event.target.value)}
                                 className={inputClass}
-                                disabled={loadingEmpresas}
+                                disabled={loadingCadastro}
                             >
-                                <option value="">{loadingEmpresas ? 'Carregando...' : 'Preencher manualmente'}</option>
-                                {empresas.map((empresa) => (
+                                <option value="">{loadingCadastro ? 'Carregando...' : 'Preencher manualmente'}</option>
+                                {cadastroOptions.map((empresa) => (
                                     <option key={empresa.id} value={empresa.id}>{empresa.nome}</option>
                                 ))}
                             </select>
@@ -455,12 +549,42 @@ th { background: #e5e7eb; }
                                 <input value={empresaData.cep} onChange={handleEmpresaInputChange('cep')} className={inputClass} />
                             </div>
                         </div>
+
+                        {empresaSource === 'avulsa' && (
+                            <button
+                                type="button"
+                                onClick={handleSaveAvulsa}
+                                disabled={savingAvulsa}
+                                className="inline-flex w-full items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {savingAvulsa ? 'Salvando...' : (selectedEmpresaId ? 'Atualizar empresa avulsa' : 'Salvar empresa avulsa')}
+                            </button>
+                        )}
                     </div>
                 </section>
 
                 <section className={sectionClass}>
                     <h2 className="mb-4 text-lg font-semibold">Configuração</h2>
                     <div className="space-y-4">
+                        <div>
+                            <label className={labelClass}>Origem da empresa</label>
+                            <div className="grid grid-cols-2 gap-2 rounded-md bg-gray-100 p-1 dark:bg-gray-900">
+                                {[
+                                    { value: 'cadastrada', label: 'Cadastrada' },
+                                    { value: 'avulsa', label: 'Avulsa' },
+                                ].map((item) => (
+                                    <button
+                                        key={item.value}
+                                        type="button"
+                                        onClick={() => handleEmpresaSourceChange(item.value)}
+                                        className={`rounded px-3 py-2 text-sm font-semibold transition ${empresaSource === item.value ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'}`}
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-2 rounded-md bg-gray-100 p-1 dark:bg-gray-900">
                             {['Realizado', 'Previsto'].map((item) => (
                                 <button

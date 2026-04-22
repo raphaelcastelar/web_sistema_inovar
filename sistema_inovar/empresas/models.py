@@ -74,6 +74,28 @@ class Tag(models.Model):
     def __str__(self):
         return self.nome
 
+
+class EmpresaAvulsaFaturamento(models.Model):
+    nome = models.CharField(max_length=255)
+    cnpj = models.CharField(max_length=18, null=True, blank=True)
+    inscricao_estadual = models.CharField(max_length=50, null=True, blank=True)
+    endereco = models.CharField(max_length=255, null=True, blank=True)
+    numero = models.CharField(max_length=20, null=True, blank=True)
+    bairro = models.CharField(max_length=100, null=True, blank=True)
+    cidade = models.CharField(max_length=100, null=True, blank=True)
+    uf = models.CharField(max_length=2, null=True, blank=True)
+    cep = models.CharField(max_length=9, null=True, blank=True)
+    regime = models.CharField(max_length=50, default='Simples Nacional')
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'empresas_avulsas_faturamento'
+        ordering = ['nome']
+
+    def __str__(self):
+        return self.nome
+
 class Socio(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='socios')
     nome = models.CharField(max_length=255)
@@ -447,4 +469,3 @@ class BoletoBB(models.Model):
 
     def __str__(self):
         return f"{self.numero_titulo_cliente} - {self.empresa.nome}"
-

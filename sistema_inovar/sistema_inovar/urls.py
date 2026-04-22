@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
 from empresas.views import (
-    EmpresaViewSet, DocumentosConstitutivosViewSet, XMLViewSet,
+    EmpresaViewSet, EmpresaAvulsaFaturamentoViewSet, DocumentosConstitutivosViewSet, XMLViewSet,
     DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet,
     enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet,
     current_user,  gerar_e_enviar_das_view, NotificacaoViewSet, BoletoBBViewSet, TagViewSet
@@ -16,6 +16,7 @@ from rest_framework_simplejwt.views import (
 
 router = routers.DefaultRouter()
 router.register(r'empresas', EmpresaViewSet, basename='empresas')
+router.register(r'empresas-avulsas-faturamento', EmpresaAvulsaFaturamentoViewSet, basename='empresas-avulsas-faturamento')
 router.register(r'documentos-constitutivos', DocumentosConstitutivosViewSet)
 router.register(r'xml', XMLViewSet)
 router.register(r'departamento-pessoal', DepartamentoPessoalViewSet)

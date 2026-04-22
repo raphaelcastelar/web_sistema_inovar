@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
+from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
 import re
 import logging
 
@@ -150,6 +150,40 @@ class EmpresaSerializer(serializers.ModelSerializer):
         if socios_data is not None:
             self._sync_socios(instance, socios_data)
         return instance
+
+
+class EmpresaAvulsaFaturamentoSerializer(serializers.ModelSerializer):
+    inscricaoEstadual = serializers.CharField(source='inscricao_estadual', required=False, allow_blank=True, allow_null=True)
+
+    class Meta:
+        model = EmpresaAvulsaFaturamento
+        fields = [
+            'id',
+            'nome',
+            'cnpj',
+            'inscricaoEstadual',
+            'endereco',
+            'numero',
+            'bairro',
+            'cidade',
+            'uf',
+            'cep',
+            'regime',
+            'criado_em',
+            'atualizado_em',
+        ]
+        read_only_fields = ['id', 'criado_em', 'atualizado_em']
+
+    def validate_nome(self, value):
+        nome = str(value or '').strip()
+        if not nome:
+            raise serializers.ValidationError("O nome da empresa avulsa é obrigatório.")
+        return nome
+
+    def validate_uf(self, value):
+        if value in (None, ''):
+            return value
+        return str(value).strip().upper()[:2]
 
 class DocumentosConstitutivosSerializer(serializers.ModelSerializer):
     class Meta:

@@ -69,14 +69,14 @@ from django.template.loader import render_to_string
 from .utils import get_bb_access_token
 
 from .models import (
-    Empresa, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
+    Empresa, EmpresaAvulsaFaturamento, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
     SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
     Tag,
     UltimoResultadoSessao, BoletoBB
 )
 from .serializers import (
     TagSerializer,
-    EmpresaSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
+    EmpresaSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
     UltimoResultadoSessaoSerializer, BoletoBBSerializer
@@ -341,6 +341,12 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         # Notificações são criadas automaticamente pelo signal post_save em signals.py
         logger.info(f"Empresa '{instance.nome}' atualizada.")
         return Response(serializer.data)
+
+
+class EmpresaAvulsaFaturamentoViewSet(viewsets.ModelViewSet):
+    queryset = EmpresaAvulsaFaturamento.objects.all().order_by('nome')
+    serializer_class = EmpresaAvulsaFaturamentoSerializer
+    permission_classes = [IsAuthenticated]
         
 class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
     queryset = DocumentosConstitutivos.objects.all()  # Defina o queryset base

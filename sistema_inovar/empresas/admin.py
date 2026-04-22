@@ -3,6 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
 from .models import (
     Empresa, 
+    EmpresaAvulsaFaturamento,
     Tag,
     Socio,
     Funcionario, 
@@ -38,6 +39,13 @@ class EmpresaAdmin(admin.ModelAdmin):
     search_fields = ('nome', 'cnpj')
     list_filter = ('monitorar_simples',)
     filter_horizontal = ('tags',)
+
+
+@admin.register(EmpresaAvulsaFaturamento)
+class EmpresaAvulsaFaturamentoAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'cnpj', 'cidade', 'uf', 'regime', 'atualizado_em')
+    search_fields = ('nome', 'cnpj', 'cidade')
+    list_filter = ('regime', 'uf')
 
 
 @admin.register(Tag)
@@ -102,5 +110,4 @@ class HistoricoEnviosAdmin(admin.ModelAdmin):
 # Modelos registrados com o decorador @admin.register não precisam ser registrados aqui
 
 # 2. Registra o seu modelo Funcionario com a configuração personalizada
-
 
