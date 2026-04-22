@@ -4,3 +4,4 @@ sistema_inovar/sistema_inovar/.env
 /.idea
 sistema_inovar/sistema_inovar/settings.py
 /node_modules
+/sistema_inovar/empresas/__pycache__
