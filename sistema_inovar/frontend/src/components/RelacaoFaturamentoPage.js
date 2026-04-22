@@ -83,6 +83,14 @@ const formatMoneyTyping = (value) => {
     return formatCurrencyInput(Number(digits) / 100);
 };
 
+const getRevenueVariation = (average) => {
+    if (average <= 10000) return 1500;
+    if (average <= 30000) return 3000;
+    if (average <= 60000) return 6000;
+    if (average <= 100000) return 10000;
+    return 15000;
+};
+
 const formatCpfCnpj = (value) => {
     const digits = String(value || '').replace(/\D/g, '');
     if (digits.length !== 14) return value || '';
@@ -273,8 +281,9 @@ const RelacaoFaturamentoPage = () => {
             return;
         }
 
-        const min = Math.max(0, average - 15000);
-        const max = average + 15000;
+        const variation = getRevenueVariation(average);
+        const min = Math.max(0, average - variation);
+        const max = Math.min(300000, average + variation);
 
         setRows((prev) => prev.map((row) => {
             const generatedValue = min + Math.random() * (max - min);
