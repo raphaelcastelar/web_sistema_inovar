@@ -158,6 +158,10 @@ const EmpresaForm = () => {
         }
     };
 
+    const handleNumeroSemNumeroChange = (checked) => {
+        setEmpresa((prev) => ({ ...prev, numero: checked ? 'S/N' : '' }));
+    };
+
     const handleSocioChange = (index, field, value) => {
         setEmpresa((prev) => {
             const socios = [...(prev.socios || [])];
@@ -386,7 +390,16 @@ const EmpresaForm = () => {
                         <div className="relative">
                             <label htmlFor="numero" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Número</label>
                             <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <input type="text" name="numero" id="numero" value={empresa.numero || ''} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
+                            <input type="text" name="numero" id="numero" value={empresa.numero || ''} onChange={handleChange} disabled={empresa.numero === 'S/N'} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors disabled:cursor-not-allowed disabled:opacity-70" />
+                            <label className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                <input
+                                    type="checkbox"
+                                    checked={empresa.numero === 'S/N'}
+                                    onChange={(event) => handleNumeroSemNumeroChange(event.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                Sem número
+                            </label>
                         </div>
                         <div className="relative">
                             <label htmlFor="cep" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">CEP</label>

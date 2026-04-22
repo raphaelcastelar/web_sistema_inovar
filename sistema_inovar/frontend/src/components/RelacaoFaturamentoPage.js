@@ -264,6 +264,10 @@ const RelacaoFaturamentoPage = () => {
         setEmpresaData((prev) => ({ ...prev, [field]: value }));
     };
 
+    const handleEmpresaSemNumeroChange = (checked) => {
+        setEmpresaData((prev) => ({ ...prev, numero: checked ? 'S/N' : '' }));
+    };
+
     const handlePrint = () => {
         window.print();
     };
@@ -399,7 +403,16 @@ th { background: #e5e7eb; }
                             </div>
                             <div>
                                 <label className={labelClass}>Número</label>
-                                <input value={empresaData.numero} onChange={(event) => updateEmpresaData('numero', event.target.value)} className={inputClass} />
+                                <input value={empresaData.numero} onChange={(event) => updateEmpresaData('numero', event.target.value)} disabled={empresaData.numero === 'S/N'} className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-70`} />
+                                <label className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                    <input
+                                        type="checkbox"
+                                        checked={empresaData.numero === 'S/N'}
+                                        onChange={(event) => handleEmpresaSemNumeroChange(event.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    Sem número
+                                </label>
                             </div>
                         </div>
 
