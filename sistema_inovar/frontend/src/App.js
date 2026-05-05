@@ -7,7 +7,6 @@ import MainLayout from './layouts/MainLayout';
 import PrivateRoute from './utils/PrivateRoute';
 
 // Componentes e Páginas (caminhos a partir de src/)
-import Navbar from './components/navbar';
 import InicioPage from './components/InicioPage';
 import EmpresaList from './components/EmpresaList';
 import EmpresaForm from './components/EmpresaForm';
@@ -17,10 +16,10 @@ import LoginPage from './components/LoginPage';
 import FuncionarioList from './components/FuncionarioList';
 import FuncionarioForm from './components/FuncionarioForm';
 import GerarDasPage from './components/GerarDasPage';
+import ConsultarExtratoPage from './components/ConsultarExtratoPage';
 import GerenciamentoSimplesPage from './components/GerenciamentoSimplesPage';
 import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
 import PendenciasPage from './components/PendenciasPage';
-import GerarBoletoPage from './components/GerarBoletoPage';
 import GerenciamentoIntegrado from './components/GerenciamentoIntegrado';
 import CentralDoSimples from './components/CentralDoSimples';
 import BoletoMonitorPage from './components/BoletoMonitorPage';
@@ -55,7 +54,8 @@ function App() {
             <Route path="/gerenciamento/simples-nacional" element={<GerenciamentoSimplesPage />} />
             <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
             <Route path="/central-simples" element={<CentralDoSimples />} />
-            <Route path="/gerar-boleto" element={<GerarBoletoPage />} />
+            <Route path="/gerar-das" element={<GerarDasPage />} />
+            <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
             <Route path="/monitor-boletos" element={<BoletoMonitorPage />} />
             <Route path="/boletos-por-empresa" element={<BoletosPorEmpresaPage />} />
             <Route path="/gerar-pro-labore" element={<GerarProLaborePage />} />
@@ -66,9 +66,6 @@ function App() {
             <Route path="/gerenciamento-integrado" element={<GerenciamentoIntegrado />} />
 
             <Route path="/pendencias" element={<PendenciasPage />} />
-
-            {/* Rota padrão para usuários logados */}
-            <Route path="/" element={<EmpresaList />} />
           </Route>
         </Route>
       </Routes>

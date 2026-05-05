@@ -5,10 +5,10 @@ import Navbar from '../components/navbar'; // Ajuste o caminho se necessário
 
 const MainLayout = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white flex">
+    <div className="min-h-screen bg-gray-100 text-white dark:bg-gray-900">
       <Navbar />
       {/* O <Outlet/> é um placeholder onde o React Router irá renderizar a página da rota atual (ex: EmpresaList) */}
-      <main className="flex-1 ml-56 p-6 bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+      <main className="min-h-screen bg-gray-100 p-4 pt-20 transition-colors duration-300 dark:bg-gray-900 sm:p-6 sm:pt-24 lg:ml-72 lg:pt-6">
         <Outlet />
       </main>
     </div>
