@@ -76,8 +76,7 @@ const configuracaoPadrao = {
     },
     folha: {
         ate2: 0,
-        tresAte9: 42.4,
-        dezMais: 24.6,
+        tresMais: 42.4,
     },
     socios: {
         tresMais: 50,
@@ -103,29 +102,17 @@ const parseConfigNumber = (value, fallback = 0) => {
 };
 
 const getAdicionalFolha = (funcionarios, folhaConfig) => {
-    const quantidadeCobrada = Math.max(0, funcionarios - 2);
-
     if (funcionarios <= 2) {
         const valorUnitario = parseConfigNumber(folhaConfig.ate2);
         return { faixa: 'Ate 2', valorUnitario, quantidadeCobrada: 0, total: 0 };
     }
 
-    if (funcionarios <= 9) {
-        const valorUnitario = parseConfigNumber(folhaConfig.tresAte9);
-        return {
-            faixa: '3 a 9',
-            valorUnitario,
-            quantidadeCobrada,
-            total: quantidadeCobrada * valorUnitario,
-        };
-    }
-
-    const valorUnitario = parseConfigNumber(folhaConfig.dezMais);
+    const valorUnitario = parseConfigNumber(folhaConfig.tresMais);
     return {
-        faixa: '10+',
+        faixa: '3 ou mais',
         valorUnitario,
-        quantidadeCobrada,
-        total: quantidadeCobrada * valorUnitario,
+        quantidadeCobrada: 1,
+        total: valorUnitario,
     };
 };
 
@@ -421,24 +408,13 @@ const CalculadoraHonorariosPage = () => {
                                         />
                                     </label>
                                     <label className="block">
-                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">3 a 9</span>
+                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">3 ou mais</span>
                                         <input
                                             type="number"
                                             min="0"
                                             step="0.01"
-                                            value={configuracao.folha.tresAte9}
-                                            onChange={(event) => updateFolhaConfig('tresAte9', event.target.value)}
-                                            className={inputClass}
-                                        />
-                                    </label>
-                                    <label className="block">
-                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">10+</span>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step="0.01"
-                                            value={configuracao.folha.dezMais}
-                                            onChange={(event) => updateFolhaConfig('dezMais', event.target.value)}
+                                            value={configuracao.folha.tresMais}
+                                            onChange={(event) => updateFolhaConfig('tresMais', event.target.value)}
                                             className={inputClass}
                                         />
                                     </label>
@@ -635,7 +611,7 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
                                     <span className="text-gray-500 dark:text-gray-400">
-                                        Folha ({calculo.folha.quantidadeCobrada} x {formatCurrency(calculo.folha.valorUnitario)})
+                                        Folha ({calculo.folha.faixa})
                                     </span>
                                     <strong>{formatCurrency(calculo.folha.total)}</strong>
                                 </div>
