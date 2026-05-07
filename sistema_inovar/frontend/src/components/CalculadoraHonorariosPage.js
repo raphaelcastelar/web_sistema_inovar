@@ -102,6 +102,8 @@ const parseConfigNumber = (value, fallback = 0) => {
 };
 
 const getAdicionalFolha = (funcionarios, folhaConfig) => {
+    const quantidadeCobrada = Math.max(0, funcionarios - 2);
+
     if (funcionarios <= 2) {
         const valorUnitario = parseConfigNumber(folhaConfig.ate2);
         return { faixa: 'Ate 2', valorUnitario, quantidadeCobrada: 0, total: 0 };
@@ -111,8 +113,8 @@ const getAdicionalFolha = (funcionarios, folhaConfig) => {
     return {
         faixa: '3 ou mais',
         valorUnitario,
-        quantidadeCobrada: 1,
-        total: valorUnitario,
+        quantidadeCobrada,
+        total: quantidadeCobrada * valorUnitario,
     };
 };
 
@@ -611,7 +613,7 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
                                     <span className="text-gray-500 dark:text-gray-400">
-                                        Folha ({calculo.folha.faixa})
+                                        Folha ({calculo.folha.faixa}: {calculo.folha.quantidadeCobrada} x {formatCurrency(calculo.folha.valorUnitario)})
                                     </span>
                                     <strong>{formatCurrency(calculo.folha.total)}</strong>
                                 </div>
