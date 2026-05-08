@@ -25,9 +25,30 @@ const emptyEmpresa = {
     cidade: '',
     bairro: '',
     uf: '',
+    regime_tributario: '',
+    porte_empresa: '',
+    carteira_clientes: '',
+    grupo_atividade: [],
+    anexo_simples: '',
     usuarios: [],
     tag_ids: [],
     socios: [],
+};
+
+const regimeTributarioOptions = ['SIMPLES NACIONAL', 'LUCRO REAL', 'LUCRO PRESUMIDO', 'OUTROS'];
+const porteEmpresaOptions = ['MEI', 'ME', 'EPP', 'MEDIO PORTE', 'GRANDE PORTE'];
+const carteiraClientesOptions = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
+const grupoAtividadeOptions = ['SERVICO', 'COMERCIO', 'INDUSTRIA'];
+const anexoSimplesOptions = ['I', 'II', 'III', 'IV', 'V'];
+
+const formatOptionLabel = (value) => {
+    const labels = {
+        'MEDIO PORTE': 'Medio Porte',
+        SERVICO: 'Servico',
+        COMERCIO: 'Comercio',
+        INDUSTRIA: 'Industria',
+    };
+    return labels[value] || value;
 };
 
 const EmpresaForm = () => {
@@ -108,6 +129,11 @@ const EmpresaForm = () => {
                         cidade: response.data.cidade || '',
                         bairro: response.data.bairro || '',
                         uf: response.data.uf || '',
+                        regime_tributario: response.data.regime_tributario || '',
+                        porte_empresa: response.data.porte_empresa || '',
+                        carteira_clientes: response.data.carteira_clientes || '',
+                        grupo_atividade: Array.isArray(response.data.grupo_atividade) ? response.data.grupo_atividade : [],
+                        anexo_simples: response.data.anexo_simples || '',
                         usuarios: response.data.usuarios || [],
                         tag_ids: Array.isArray(response.data.tags) ? response.data.tags.map((tag) => tag.id) : [],
                         socios: Array.isArray(response.data.socios)
@@ -190,6 +216,19 @@ const EmpresaForm = () => {
                 tag_ids: hasTag
                     ? selectedTagIds.filter((id) => id !== tagId)
                     : [...selectedTagIds, tagId],
+            };
+        });
+    };
+
+    const toggleGrupoAtividade = (grupo) => {
+        setEmpresa((prev) => {
+            const gruposAtuais = Array.isArray(prev.grupo_atividade) ? prev.grupo_atividade : [];
+            const hasGrupo = gruposAtuais.includes(grupo);
+            return {
+                ...prev,
+                grupo_atividade: hasGrupo
+                    ? gruposAtuais.filter((item) => item !== grupo)
+                    : [...gruposAtuais, grupo],
             };
         });
     };
@@ -300,6 +339,7 @@ const EmpresaForm = () => {
                 telefone: telefoneLimpoParaEnvio,
                 usuarios: empresa.usuarios.length > 0 ? empresa.usuarios : [1],
                 tag_ids: Array.isArray(empresa.tag_ids) ? empresa.tag_ids : [],
+                grupo_atividade: Array.isArray(empresa.grupo_atividade) ? empresa.grupo_atividade : [],
                 socios: sociosSanitizados,
             };
 
@@ -427,6 +467,72 @@ const EmpresaForm = () => {
                                         <option key={uf} value={uf}>{uf}</option>
                                     ))}
                             </select>
+                        </div>
+                    </div>
+
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
+                        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">Informações da empresa</h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label htmlFor="regime_tributario" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Regime tributário</label>
+                                <select name="regime_tributario" id="regime_tributario" value={empresa.regime_tributario} onChange={handleChange} className="w-full mt-1 p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                    <option value="">Selecione</option>
+                                    {regimeTributarioOptions.map((option) => (
+                                        <option key={option} value={option}>{formatOptionLabel(option)}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label htmlFor="porte_empresa" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Porte da empresa</label>
+                                <select name="porte_empresa" id="porte_empresa" value={empresa.porte_empresa} onChange={handleChange} className="w-full mt-1 p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                    <option value="">Selecione</option>
+                                    {porteEmpresaOptions.map((option) => (
+                                        <option key={option} value={option}>{formatOptionLabel(option)}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label htmlFor="carteira_clientes" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Carteira de clientes</label>
+                                <select name="carteira_clientes" id="carteira_clientes" value={empresa.carteira_clientes} onChange={handleChange} className="w-full mt-1 p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                    <option value="">Selecione</option>
+                                    {carteiraClientesOptions.map((option) => (
+                                        <option key={option} value={option}>{formatOptionLabel(option)}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label htmlFor="anexo_simples" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Anexo do simples</label>
+                                <select name="anexo_simples" id="anexo_simples" value={empresa.anexo_simples} onChange={handleChange} className="w-full mt-1 p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                    <option value="">Selecione</option>
+                                    {anexoSimplesOptions.map((option) => (
+                                        <option key={option} value={option}>{option}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="mt-6">
+                            <span className="block text-sm font-medium text-gray-700 dark:text-indigo-300 mb-2">Grupo de atividade</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {grupoAtividadeOptions.map((option) => {
+                                    const checked = (empresa.grupo_atividade || []).includes(option);
+                                    return (
+                                        <label key={option} className={`flex items-center gap-3 rounded-md border p-3 text-sm font-medium transition-colors ${checked ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-200' : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}>
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => toggleGrupoAtividade(option)}
+                                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            {formatOptionLabel(option)}
+                                        </label>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
 

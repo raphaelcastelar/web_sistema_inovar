@@ -14,6 +14,32 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 class Empresa(models.Model):
+    REGIME_TRIBUTARIO_CHOICES = [
+        ('SIMPLES NACIONAL', 'Simples Nacional'),
+        ('LUCRO REAL', 'Lucro Real'),
+        ('LUCRO PRESUMIDO', 'Lucro Presumido'),
+        ('OUTROS', 'Outros'),
+    ]
+    PORTE_EMPRESA_CHOICES = [
+        ('MEI', 'MEI'),
+        ('ME', 'ME'),
+        ('EPP', 'EPP'),
+        ('MEDIO PORTE', 'Medio Porte'),
+        ('GRANDE PORTE', 'Grande Porte'),
+    ]
+    CARTEIRA_CLIENTES_CHOICES = [
+        ('INOVAR ES', 'Inovar ES'),
+        ('INOVAR MG', 'Inovar MG'),
+        ('NOVVA', 'Novva'),
+    ]
+    ANEXO_SIMPLES_CHOICES = [
+        ('I', 'I'),
+        ('II', 'II'),
+        ('III', 'III'),
+        ('IV', 'IV'),
+        ('V', 'V'),
+    ]
+
     id = models.AutoField(primary_key=True)
     nome = models.CharField(max_length=100, null=False)
     cnpj = models.CharField(max_length=18, unique=True, null=False)
@@ -26,6 +52,11 @@ class Empresa(models.Model):
     bairro = models.CharField(max_length=100, null=True, blank=True, help_text="Bairro da empresa")
     uf = models.CharField(max_length=2, null=True, blank=True, help_text="UF da empresa (ex.: SP)")
     simples_nacional = models.BooleanField(default=False, null = True)
+    regime_tributario = models.CharField(max_length=30, choices=REGIME_TRIBUTARIO_CHOICES, null=True, blank=True)
+    porte_empresa = models.CharField(max_length=20, choices=PORTE_EMPRESA_CHOICES, null=True, blank=True)
+    carteira_clientes = models.CharField(max_length=20, choices=CARTEIRA_CLIENTES_CHOICES, null=True, blank=True)
+    grupo_atividade = models.JSONField(default=list, blank=True)
+    anexo_simples = models.CharField(max_length=3, choices=ANEXO_SIMPLES_CHOICES, null=True, blank=True)
     inss = models.BooleanField(default=False, null=True)
     fgts = models.BooleanField(default=False, null=True)
     folha = models.BooleanField(default=False, null=True)

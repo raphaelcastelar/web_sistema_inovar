@@ -46,6 +46,8 @@ class SocioSerializer(serializers.ModelSerializer):
 
 
 class EmpresaSerializer(serializers.ModelSerializer):
+    GRUPO_ATIVIDADE_CHOICES = {'SERVICO', 'COMERCIO', 'INDUSTRIA'}
+
     socios = SocioSerializer(many=True, required=False)
     tags = TagSerializer(many=True, read_only=True)
     tag_ids = serializers.PrimaryKeyRelatedField(
@@ -58,7 +60,23 @@ class EmpresaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'numero', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto', 'socios', 'tags', 'tag_ids']
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'numero', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'regime_tributario', 'porte_empresa', 'carteira_clientes', 'grupo_atividade', 'anexo_simples', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto', 'socios', 'tags', 'tag_ids']
+
+    def validate_grupo_atividade(self, value):
+        if value in (None, ''):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Grupo de atividade deve ser uma lista.")
+
+        grupos = []
+        for item in value:
+            grupo = str(item or '').strip().upper()
+            if grupo not in self.GRUPO_ATIVIDADE_CHOICES:
+                raise serializers.ValidationError("Grupo de atividade inválido.")
+            if grupo not in grupos:
+                grupos.append(grupo)
+
+        return grupos
 
     def _sync_socios(self, empresa, socios_data):
         socios_data = socios_data or []
