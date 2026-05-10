@@ -10,6 +10,8 @@ def visible_tags_for_request(request):
     queryset = Tag.objects.all()
     user = getattr(request, 'user', None)
     cargo = getattr(user, 'cargo', None)
+    if cargo == 'admin':
+        return queryset
     if not cargo:
         return queryset.none()
     return queryset.filter(cargo=cargo)

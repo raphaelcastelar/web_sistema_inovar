@@ -445,7 +445,7 @@ class TagViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.cargo != getattr(request.user, 'cargo', None):
+        if getattr(request.user, 'cargo', None) != 'admin' and instance.cargo != getattr(request.user, 'cargo', None):
             return Response(
                 {'error': 'Você só pode excluir tags da sua própria função.'},
                 status=status.HTTP_403_FORBIDDEN,
