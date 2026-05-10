@@ -13,7 +13,7 @@ const EmpresaList = () => {
     const [error, setError] = useState('');
     const [isAdmin, setIsAdmin] = useState(null);
     const [tags, setTags] = useState([]);
-    const [selectedTagId, setSelectedTagId] = useState('');
+    const [selectedTagIds, setSelectedTagIds] = useState([]);
     const [activeTab, setActiveTab] = useState('ativadas'); // 'ativadas' ou 'nao-ativadas'
 
     // Estado para controle do Infinite Scroll
@@ -64,7 +64,7 @@ const EmpresaList = () => {
     // Resetar a contagem visível quando mudar a busca ou a aba
     useEffect(() => {
         setVisibleCount(24);
-    }, [search, activeTab, selectedTagId]);
+    }, [search, activeTab, selectedTagIds]);
 
     const handleDelete = (id) => {
         if (window.confirm('Tem certeza que deseja excluir esta empresa? Esta ação apaga também a pasta da empresa no servidor.')) {
@@ -79,24 +79,41 @@ const EmpresaList = () => {
         }
     };
 
+    const toggleTagFilter = (tagId) => {
+        setSelectedTagIds((prev) => (
+            prev.includes(tagId)
+                ? prev.filter((id) => id !== tagId)
+                : [...prev, tagId]
+        ));
+    };
+
     const filteredEmpresas = useMemo(() => {
         const lowercasedSearch = search.toLowerCase().trim();
-        const selectedTag = tags.find((tag) => String(tag.id) === selectedTagId);
-        const selectedTagName = selectedTag?.nome?.toLowerCase().trim();
-        const matchesSelectedTag = (empresa) => {
-            if (!selectedTagId) return true;
-            return (empresa.tags || []).some((tag) => {
-                if (selectedTagName) {
-                    return tag.nome?.toLowerCase().trim() === selectedTagName;
-                }
-                return String(tag.id) === selectedTagId;
+        const selectedTagNameById = tags.reduce((acc, tag) => {
+            acc[String(tag.id)] = tag.nome?.toLowerCase().trim();
+            return acc;
+        }, {});
+
+        const matchesSelectedTags = (empresa) => {
+            if (selectedTagIds.length === 0) return true;
+
+            const empresaTagNames = new Set(
+                (empresa.tags || [])
+                    .map((tag) => tag.nome?.toLowerCase().trim())
+                    .filter(Boolean)
+            );
+            const empresaTagIds = new Set((empresa.tags || []).map((tag) => String(tag.id)));
+
+            return selectedTagIds.every((tagId) => {
+                const tagName = selectedTagNameById[tagId];
+                return tagName ? empresaTagNames.has(tagName) : empresaTagIds.has(tagId);
             });
         };
 
         if (!lowercasedSearch) {
             return empresas.filter((empresa) => {
                 const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
-                const matchTag = matchesSelectedTag(empresa);
+                const matchTag = matchesSelectedTags(empresa);
                 return isInTab && matchTag;
             });
         }
@@ -109,11 +126,11 @@ const EmpresaList = () => {
                 const cleanedEmpresaCnpj = empresa.cnpj?.replace(/\D/g, '');
                 matchCnpj = cleanedEmpresaCnpj?.includes(searchDigits);
             }
-            const matchTag = matchesSelectedTag(empresa);
+            const matchTag = matchesSelectedTags(empresa);
             const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
             return (matchNome || matchEmail || matchCnpj) && isInTab && matchTag;
         });
-    }, [empresas, search, activeTab, selectedTagId, tags]);
+    }, [empresas, search, activeTab, selectedTagIds, tags]);
 
     // Intersection Observer para carregar mais itens
     useEffect(() => {
@@ -171,20 +188,33 @@ const EmpresaList = () => {
                             className="p-3 pl-10 w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg shadow-sm border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                         />
                     </div>
-                    <div className="relative w-full md:w-56">
-                        <TagIcon className="h-5 w-5 text-gray-400 absolute top-1/2 left-3 transform -translate-y-1/2" />
-                        <select
-                            value={selectedTagId}
-                            onChange={(e) => setSelectedTagId(e.target.value)}
-                            className="p-3 pl-10 w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg shadow-sm border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                        >
-                            <option value="">Todas as tags</option>
-                            {tags.map((tag) => (
-                                <option key={tag.id} value={String(tag.id)}>
-                                    {tag.nome}
-                                </option>
-                            ))}
-                        </select>
+                    <div className="w-full md:w-72 rounded-lg shadow-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
+                        <div className="flex items-center gap-2 mb-2">
+                            <TagIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                            <button
+                                type="button"
+                                onClick={() => setSelectedTagIds([])}
+                                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${selectedTagIds.length === 0 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'}`}
+                            >
+                                Todas
+                            </button>
+                        </div>
+                        <div className="flex max-h-24 flex-wrap gap-2 overflow-y-auto pr-1">
+                            {tags.map((tag) => {
+                                const selected = selectedTagIds.includes(String(tag.id));
+                                return (
+                                    <button
+                                        key={tag.id}
+                                        type="button"
+                                        onClick={() => toggleTagFilter(String(tag.id))}
+                                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${selected ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'}`}
+                                    >
+                                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.cor }} />
+                                        {tag.nome}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                     {isAdmin && (
                         <Link
