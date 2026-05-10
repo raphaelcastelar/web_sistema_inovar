@@ -371,95 +371,179 @@ const EmpresaForm = () => {
         return <p className="text-center text-gray-500 dark:text-gray-400 mt-10">Carregando dados da empresa...</p>;
     }
 
+    const selectedTagsCount = Array.isArray(empresa.tag_ids) ? empresa.tag_ids.length : 0;
+    const sociosCount = Array.isArray(empresa.socios) ? empresa.socios.length : 0;
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="p-6 md:p-8"
+            className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900 sm:p-6 lg:p-8"
         >
-            <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
-                <h2 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-8 text-center">
-                    {isEditing ? 'Editar Empresa' : 'Cadastrar Nova Empresa'}
-                </h2>
+            <div className="mx-auto max-w-7xl space-y-6">
+                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <div className="flex flex-col gap-4 border-b border-gray-200 px-5 py-5 dark:border-gray-700 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-300">
+                                Cadastro de empresa
+                            </p>
+                            <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
+                                {isEditing ? 'Editar Empresa' : 'Cadastrar Nova Empresa'}
+                            </h2>
+                            <p className="mt-2 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                                Dados cadastrais, endereço, classificação, tags e sócios em uma tela organizada para edição rápida.
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
+                            <div className="rounded-xl bg-gray-50 px-3 py-3 text-center dark:bg-gray-900">
+                                <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Tags</div>
+                                <div className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{selectedTagsCount}</div>
+                            </div>
+                            <div className="rounded-xl bg-gray-50 px-3 py-3 text-center dark:bg-gray-900">
+                                <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Sócios</div>
+                                <div className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{sociosCount}</div>
+                            </div>
+                            <div className="rounded-xl bg-gray-50 px-3 py-3 text-center dark:bg-gray-900">
+                                <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Status</div>
+                                <div className="mt-1 text-sm font-bold text-emerald-600 dark:text-emerald-300">Em edição</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
+                <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+                    <aside className="h-fit rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:sticky lg:top-6">
+                        <div className="space-y-2">
+                            {[
+                                ['dados', 'Dados', BuildingOfficeIcon],
+                                ['endereco', 'Endereço', MapPinIcon],
+                                ['classificacao', 'Classificação', InformationCircleIcon],
+                                ['tags', 'Tags', TagIcon],
+                                ['socios', 'Sócios', UserIcon],
+                            ].map(([id, label, Icon]) => (
+                                <a
+                                    key={id}
+                                    href={`#${id}`}
+                                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:text-gray-300 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-200"
+                                >
+                                    <Icon className="h-5 w-5" />
+                                    {label}
+                                </a>
+                            ))}
+                        </div>
+
+                        <div className="mt-5 rounded-xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                            <div className="font-semibold text-gray-900 dark:text-white">Resumo rápido</div>
+                            <div className="mt-3 space-y-2">
+                                <div className="flex justify-between gap-3">
+                                    <span>Carteira</span>
+                                    <span className="font-semibold">{empresa.carteira_clientes || '-'}</span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                    <span>Regime</span>
+                                    <span className="font-semibold">{empresa.regime_tributario || '-'}</span>
+                                </div>
+                                <div className="flex justify-between gap-3">
+                                    <span>UF</span>
+                                    <span className="font-semibold">{empresa.uf || '-'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+
+                    <div className="space-y-6">
                 {error && (
-                    <div className="bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 px-4 py-3 rounded-md relative mb-6 flex items-center gap-3" role="alert">
+                            <div className="flex items-center gap-3 rounded-xl border border-red-300 bg-red-100 px-4 py-3 text-red-700 dark:border-red-700 dark:bg-red-900/30 dark:text-red-300" role="alert">
                         <InformationCircleIcon className="h-6 w-6" />
                         <span className="block sm:inline">{error}</span>
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="relative">
-                        <label htmlFor="nome" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Nome da Empresa</label>
-                        <BuildingOfficeIcon className="h-5 w-5 text-gray-400 absolute top-[2.4rem] left-3" />
-                        <input type="text" name="nome" id="nome" value={empresa.nome} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" required />
-                    </div>
+                        <section id="dados" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                            <div className="mb-5 flex items-center gap-3">
+                                <div className="rounded-xl bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
+                                    <BuildingOfficeIcon className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Dados principais</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">Identificação e contato da empresa.</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-4 xl:grid-cols-6">
+                                <div className="relative xl:col-span-3">
+                                    <label htmlFor="nome" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Nome da Empresa</label>
+                                    <BuildingOfficeIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                    <input type="text" name="nome" id="nome" value={empresa.nome} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required />
+                                </div>
+                                <div className="relative xl:col-span-3">
+                                    <label htmlFor="cnpj" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">CNPJ</label>
+                                    <UserIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                    <input type="text" name="cnpj" id="cnpj" value={empresa.cnpj} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required />
+                                </div>
+                                <div className="relative xl:col-span-3">
+                                    <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email</label>
+                                    <EnvelopeIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                    <input type="email" name="email" id="email" value={empresa.email} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required />
+                                </div>
+                                <div className="relative xl:col-span-3">
+                                    <label htmlFor="telefone" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Telefone</label>
+                                    <PhoneIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                    <input type="tel" name="telefone" id="telefone" value={empresa.telefone} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="(XX) XXXXX-XXXX" aria-describedby="telefone-feedback-message" required />
+                                    {telefoneFeedback.message && (
+                                        <p id="telefone-feedback-message" className={`mt-2 text-xs ${getFeedbackColor()}`}>
+                                            {telefoneFeedback.message}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </section>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="relative">
-                            <label htmlFor="cnpj" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">CNPJ</label>
-                            <UserIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <input type="text" name="cnpj" id="cnpj" value={empresa.cnpj} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" required />
-                        </div>
-                        <div className="relative">
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Email</label>
-                            <EnvelopeIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <input type="email" name="email" id="email" value={empresa.email} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" required />
-                        </div>
-                    </div>
-
-                    <div className="relative">
-                        <label htmlFor="telefone" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Telefone</label>
-                        <PhoneIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                        <input type="tel" name="telefone" id="telefone" value={empresa.telefone} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" placeholder="(XX) XXXXX-XXXX" aria-describedby="telefone-feedback-message" required />
-                        {telefoneFeedback.message && (
-                            <p id="telefone-feedback-message" className={`text-xs mt-2 ${getFeedbackColor()}`}>
-                                {telefoneFeedback.message}
-                            </p>
-                        )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="relative">
-                            <label htmlFor="endereco" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Endereço</label>
-                            <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <input type="text" name="endereco" id="endereco" value={empresa.endereco} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
-                        </div>
-                        <div className="relative">
-                            <label htmlFor="numero" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Número</label>
-                            <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <input type="text" name="numero" id="numero" value={empresa.numero || ''} onChange={handleChange} disabled={empresa.numero === 'S/N'} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors disabled:cursor-not-allowed disabled:opacity-70" />
-                            <label className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                                <input
-                                    type="checkbox"
-                                    checked={empresa.numero === 'S/N'}
-                                    onChange={(event) => handleNumeroSemNumeroChange(event.target.checked)}
-                                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                                />
-                                Sem número
-                            </label>
-                        </div>
-                        <div className="relative">
-                            <label htmlFor="cep" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">CEP</label>
-                            <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <input type="text" name="cep" id="cep" value={empresa.cep} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" placeholder="Ex.: 12345678" maxLength="8" />
-                        </div>
-                        <div className="relative">
-                            <label htmlFor="cidade" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Cidade</label>
-                            <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <input type="text" name="cidade" id="cidade" value={empresa.cidade} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
-                        </div>
-                        <div className="relative">
-                            <label htmlFor="bairro" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Bairro</label>
-                            <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <input type="text" name="bairro" id="bairro" value={empresa.bairro} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors" />
-                        </div>
-                        <div className="relative">
-                            <label htmlFor="uf" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">UF</label>
-                            <MapPinIcon className="h-5 w-5 text-gray-400 absolute top-10 left-3" />
-                            <select name="uf" id="uf" value={empresa.uf} onChange={handleChange} className="w-full mt-1 p-3 pl-10 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                        <div className="grid gap-6 xl:grid-cols-2">
+                            <section id="endereco" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <div className="mb-5 flex items-center gap-3">
+                                    <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">
+                                        <MapPinIcon className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Endereço</h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">CEP, cidade e localização.</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div className="relative sm:col-span-2">
+                                        <label htmlFor="endereco" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Endereço</label>
+                                        <MapPinIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                        <input type="text" name="endereco" id="endereco" value={empresa.endereco} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                    </div>
+                                    <div className="relative">
+                                        <label htmlFor="numero" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Número</label>
+                                        <MapPinIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                        <input type="text" name="numero" id="numero" value={empresa.numero || ''} onChange={handleChange} disabled={empresa.numero === 'S/N'} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                        <label className="mt-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                            <input type="checkbox" checked={empresa.numero === 'S/N'} onChange={(event) => handleNumeroSemNumeroChange(event.target.checked)} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                            Sem número
+                                        </label>
+                                    </div>
+                                    <div className="relative">
+                                        <label htmlFor="cep" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">CEP</label>
+                                        <MapPinIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                        <input type="text" name="cep" id="cep" value={empresa.cep} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="Ex.: 12345678" maxLength="8" />
+                                    </div>
+                                    <div className="relative">
+                                        <label htmlFor="cidade" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Cidade</label>
+                                        <MapPinIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                        <input type="text" name="cidade" id="cidade" value={empresa.cidade} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                    </div>
+                                    <div className="relative">
+                                        <label htmlFor="bairro" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Bairro</label>
+                                        <MapPinIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                        <input type="text" name="bairro" id="bairro" value={empresa.bairro} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                    </div>
+                                    <div className="relative sm:col-span-2">
+                                        <label htmlFor="uf" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">UF</label>
+                                        <MapPinIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                        <select name="uf" id="uf" value={empresa.uf} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                                 <option value="">Selecione uma UF</option>
                                 {['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
                                     .sort()
@@ -467,16 +551,25 @@ const EmpresaForm = () => {
                                         <option key={uf} value={uf}>{uf}</option>
                                     ))}
                             </select>
+                                    </div>
                         </div>
-                    </div>
+                            </section>
 
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
-                        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 mb-4">Informações da empresa</h3>
+                            <section id="classificacao" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <div className="mb-5 flex items-center gap-3">
+                                    <div className="rounded-xl bg-amber-50 p-2 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300">
+                                        <InformationCircleIcon className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Classificação</h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Regime, porte e atividade.</p>
+                                    </div>
+                                </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
-                                <label htmlFor="regime_tributario" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Regime tributário</label>
-                                <select name="regime_tributario" id="regime_tributario" value={empresa.regime_tributario} onChange={handleChange} className="w-full mt-1 p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                        <label htmlFor="regime_tributario" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Regime tributário</label>
+                                        <select name="regime_tributario" id="regime_tributario" value={empresa.regime_tributario} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                                     <option value="">Selecione</option>
                                     {regimeTributarioOptions.map((option) => (
                                         <option key={option} value={option}>{formatOptionLabel(option)}</option>
@@ -485,8 +578,8 @@ const EmpresaForm = () => {
                             </div>
 
                             <div>
-                                <label htmlFor="porte_empresa" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Porte da empresa</label>
-                                <select name="porte_empresa" id="porte_empresa" value={empresa.porte_empresa} onChange={handleChange} className="w-full mt-1 p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                        <label htmlFor="porte_empresa" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Porte da empresa</label>
+                                        <select name="porte_empresa" id="porte_empresa" value={empresa.porte_empresa} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                                     <option value="">Selecione</option>
                                     {porteEmpresaOptions.map((option) => (
                                         <option key={option} value={option}>{formatOptionLabel(option)}</option>
@@ -495,8 +588,8 @@ const EmpresaForm = () => {
                             </div>
 
                             <div>
-                                <label htmlFor="carteira_clientes" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Carteira de clientes</label>
-                                <select name="carteira_clientes" id="carteira_clientes" value={empresa.carteira_clientes} onChange={handleChange} className="w-full mt-1 p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                        <label htmlFor="carteira_clientes" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Carteira de clientes</label>
+                                        <select name="carteira_clientes" id="carteira_clientes" value={empresa.carteira_clientes} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                                     <option value="">Selecione</option>
                                     {carteiraClientesOptions.map((option) => (
                                         <option key={option} value={option}>{formatOptionLabel(option)}</option>
@@ -505,8 +598,8 @@ const EmpresaForm = () => {
                             </div>
 
                             <div>
-                                <label htmlFor="anexo_simples" className="block text-sm font-medium text-gray-700 dark:text-indigo-300">Anexo do simples</label>
-                                <select name="anexo_simples" id="anexo_simples" value={empresa.anexo_simples} onChange={handleChange} className="w-full mt-1 p-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                                        <label htmlFor="anexo_simples" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Anexo do simples</label>
+                                        <select name="anexo_simples" id="anexo_simples" value={empresa.anexo_simples} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                                     <option value="">Selecione</option>
                                     {anexoSimplesOptions.map((option) => (
                                         <option key={option} value={option}>{option}</option>
@@ -515,13 +608,13 @@ const EmpresaForm = () => {
                             </div>
                         </div>
 
-                        <div className="mt-6">
-                            <span className="block text-sm font-medium text-gray-700 dark:text-indigo-300 mb-2">Grupo de atividade</span>
+                                <div className="mt-5">
+                                    <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Grupo de atividade</span>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 {grupoAtividadeOptions.map((option) => {
                                     const checked = (empresa.grupo_atividade || []).includes(option);
                                     return (
-                                        <label key={option} className={`flex items-center gap-3 rounded-md border p-3 text-sm font-medium transition-colors ${checked ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-200' : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}>
+                                                <label key={option} className={`flex items-center gap-3 rounded-xl border p-3 text-sm font-medium transition-colors ${checked ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-200' : 'border-gray-300 bg-white text-gray-700 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}>
                                             <input
                                                 type="checkbox"
                                                 checked={checked}
@@ -534,11 +627,13 @@ const EmpresaForm = () => {
                                 })}
                             </div>
                         </div>
-                    </div>
+                            </section>
+                        </div>
 
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
+                        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                            <section id="tags" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                         <div className="flex items-center justify-between gap-3 mb-3">
-                            <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                    <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
                                 <TagIcon className="h-5 w-5" />
                                 Tags
                             </h3>
@@ -551,7 +646,7 @@ const EmpresaForm = () => {
                                     type="text"
                                     value={newTagName}
                                     onChange={(e) => setNewTagName(e.target.value)}
-                                    className="w-full p-3 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                            className="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                                     placeholder="Ex.: Prioridade alta"
                                 />
                             </div>
@@ -561,14 +656,14 @@ const EmpresaForm = () => {
                                     type="color"
                                     value={newTagColor}
                                     onChange={(e) => setNewTagColor(e.target.value)}
-                                    className="w-full h-11 p-1 rounded-md bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600"
+                                            className="h-11 w-full rounded-xl border border-gray-300 bg-gray-50 p-1 dark:border-gray-600 dark:bg-gray-700"
                                 />
                             </div>
                             <button
                                 type="button"
                                 onClick={handleCreateTag}
                                 disabled={creatingTag}
-                                className="h-11 px-4 inline-flex items-center justify-center rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60"
+                                        className="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-4 text-white hover:bg-indigo-700 disabled:opacity-60"
                             >
                                 {creatingTag ? 'Criando...' : 'Criar Tag'}
                             </button>
@@ -612,15 +707,15 @@ const EmpresaForm = () => {
                                 })}
                             </div>
                         )}
-                    </div>
+                            </section>
 
-                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30">
+                            <section id="socios" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                         <div className="flex items-center justify-between gap-3 mb-3">
-                            <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">Sócios</h3>
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sócios</h3>
                             <button
                                 type="button"
                                 onClick={addSocio}
-                                className="inline-flex items-center gap-1 px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                                        className="inline-flex items-center gap-1 rounded-xl bg-indigo-600 px-3 py-2 text-sm text-white transition-colors hover:bg-indigo-700"
                             >
                                 <PlusIcon className="h-4 w-4" />
                                 Adicionar sócio
@@ -631,16 +726,16 @@ const EmpresaForm = () => {
                             <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum sócio adicionado.</p>
                         )}
 
-                        <div className="space-y-3">
+                                <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
                             {(empresa.socios || []).map((socio, index) => (
-                                <div key={`${socio.id || 'novo'}-${index}`} className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3 items-end">
+                                        <div key={`${socio.id || 'novo'}-${index}`} className="grid grid-cols-1 gap-3 rounded-xl border border-gray-200 p-3 dark:border-gray-700 md:grid-cols-[1fr_170px_auto] md:items-end">
                                     <div>
                                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Nome do sócio</label>
                                         <input
                                             type="text"
                                             value={socio.nome || ''}
                                             onChange={(e) => handleSocioChange(index, 'nome', e.target.value)}
-                                            className="w-full p-3 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                                    className="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 placeholder:text-gray-500 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
                                             placeholder="Nome completo"
                                         />
                                     </div>
@@ -650,14 +745,14 @@ const EmpresaForm = () => {
                                             type="text"
                                             value={socio.cpf || ''}
                                             onChange={(e) => handleSocioChange(index, 'cpf', e.target.value)}
-                                            className="w-full p-3 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                                    className="w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 placeholder:text-gray-500 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400"
                                             placeholder="00000000000"
                                         />
                                     </div>
                                     <button
                                         type="button"
                                         onClick={() => removeSocio(index)}
-                                        className="h-11 px-3 inline-flex items-center justify-center rounded-md bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
+                                                className="inline-flex h-11 items-center justify-center rounded-xl bg-red-100 px-3 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
                                         title="Remover sócio"
                                     >
                                         <TrashIcon className="h-5 w-5" />
@@ -665,24 +760,26 @@ const EmpresaForm = () => {
                                 </div>
                             ))}
                         </div>
-                    </div>
+                            </section>
+                        </div>
 
-                    <div className="flex items-center justify-end space-x-4 pt-4">
+                        <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-800/95 sm:flex-row sm:items-center sm:justify-end">
                         <button
                             type="button"
                             onClick={() => navigate('/empresas')}
-                            className="px-6 py-3 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
+                                className="rounded-xl bg-gray-200 px-6 py-3 font-semibold text-gray-800 transition-colors hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500"
                             disabled={loading}
                         >
                             Cancelar
                         </button>
                         <button
                             type="submit"
-                            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-800 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="rounded-xl bg-indigo-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-gray-800"
                             disabled={loading}
                         >
                             {loading ? 'Salvando...' : (isEditing ? 'Atualizar Empresa' : 'Cadastrar Empresa')}
                         </button>
+                    </div>
                     </div>
                 </form>
             </div>
