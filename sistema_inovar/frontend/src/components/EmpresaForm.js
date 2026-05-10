@@ -474,7 +474,7 @@ const EmpresaForm = () => {
                     </div>
                 )}
 
-                        <section id="dados" className={`${activeSection === 'dados' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
+                        <section id="dados" className={`${activeSection === 'dados' ? '' : 'hidden'} min-h-[430px] rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
                             <div className="mb-5 flex items-center gap-3">
                                 <div className="rounded-xl bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
                                     <BuildingOfficeIcon className="h-5 w-5" />
@@ -513,8 +513,8 @@ const EmpresaForm = () => {
                             </div>
                         </section>
 
-                        <div className="grid gap-6 xl:grid-cols-2">
-                            <section id="endereco" className={`${activeSection === 'endereco' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2`}>
+                        <div className="contents">
+                            <section id="endereco" className={`${activeSection === 'endereco' ? '' : 'hidden'} min-h-[430px] rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
                                 <div className="mb-5 flex items-center gap-3">
                                     <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">
                                         <MapPinIcon className="h-5 w-5" />
@@ -569,7 +569,7 @@ const EmpresaForm = () => {
                         </div>
                             </section>
 
-                            <section id="classificacao" className={`${activeSection === 'classificacao' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2`}>
+                            <section id="classificacao" className={`${activeSection === 'classificacao' ? '' : 'hidden'} min-h-[430px] rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
                                 <div className="mb-5 flex items-center gap-3">
                                     <div className="rounded-xl bg-amber-50 p-2 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300">
                                         <InformationCircleIcon className="h-5 w-5" />
@@ -644,8 +644,8 @@ const EmpresaForm = () => {
                             </section>
                         </div>
 
-                        <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                            <section id="tags" className={`${activeSection === 'tags' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2`}>
+                        <div className="contents">
+                            <section id="tags" className={`${activeSection === 'tags' ? '' : 'hidden'} min-h-[430px] rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
                         <div className="flex items-center justify-between gap-3 mb-3">
                                     <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
                                 <TagIcon className="h-5 w-5" />
@@ -723,7 +723,7 @@ const EmpresaForm = () => {
                         )}
                             </section>
 
-                            <section id="socios" className={`${activeSection === 'socios' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2`}>
+                            <section id="socios" className={`${activeSection === 'socios' ? '' : 'hidden'} min-h-[430px] rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
                         <div className="flex items-center justify-between gap-3 mb-3">
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sócios</h3>
                             <button
