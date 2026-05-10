@@ -94,13 +94,23 @@ class Empresa(models.Model):
 
 
 class Tag(models.Model):
-    nome = models.CharField(max_length=50, unique=True)
+    CARGO_CHOICES = [
+        ('pessoal', 'Departamento Pessoal'),
+        ('fiscal', 'Departamento Fiscal'),
+        ('admin', 'Administrador'),
+    ]
+
+    nome = models.CharField(max_length=50)
     cor = models.CharField(max_length=7, default='#3B82F6')
+    cargo = models.CharField(max_length=100, choices=CARGO_CHOICES)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'tags'
         ordering = ['nome']
+        constraints = [
+            models.UniqueConstraint(fields=['nome', 'cargo'], name='unique_tag_nome_por_cargo'),
+        ]
 
     def __str__(self):
         return self.nome

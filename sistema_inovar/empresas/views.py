@@ -79,7 +79,7 @@ from .serializers import (
     EmpresaSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
-    UltimoResultadoSessaoSerializer, BoletoBBSerializer
+    UltimoResultadoSessaoSerializer, BoletoBBSerializer, visible_tags_for_request
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
@@ -283,15 +283,22 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        visible_tag_ids = visible_tags_for_request(self.request).values_list('id', flat=True)
         tag_id = self.request.query_params.get('tag') or self.request.query_params.get('tag_id')
-        if tag_id:
+        if tag_id and str(tag_id).isdigit():
+            if not visible_tags_for_request(self.request).filter(id=tag_id).exists():
+                return queryset.none()
             queryset = queryset.filter(tags__id=tag_id)
 
         tag_ids = self.request.query_params.get('tags')
         if tag_ids:
             parsed_tag_ids = [value.strip() for value in tag_ids.split(',') if value.strip().isdigit()]
             if parsed_tag_ids:
-                queryset = queryset.filter(tags__id__in=parsed_tag_ids)
+                visible_ids = set(str(tag_id) for tag_id in visible_tag_ids)
+                scoped_tag_ids = [tag_id for tag_id in parsed_tag_ids if tag_id in visible_ids]
+                if not scoped_tag_ids:
+                    return queryset.none()
+                queryset = queryset.filter(tags__id__in=scoped_tag_ids)
 
         if self.request.query_params.get('all') == 'true':
             return queryset.distinct()
@@ -429,6 +436,21 @@ class TagViewSet(viewsets.ModelViewSet):
     queryset = Tag.objects.all().order_by('nome')
     serializer_class = TagSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return visible_tags_for_request(self.request).order_by('nome')
+
+    def perform_create(self, serializer):
+        serializer.save(cargo=getattr(self.request.user, 'cargo', 'pessoal') or 'pessoal')
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.cargo != getattr(request.user, 'cargo', None):
+            return Response(
+                {'error': 'Você só pode excluir tags da sua própria função.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().destroy(request, *args, **kwargs)
 
 class FuncionarioViewSet(viewsets.ModelViewSet):
     queryset = Funcionario.objects.prefetch_related('empresas_gerenciadas').all().order_by('first_name')

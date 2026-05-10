@@ -50,8 +50,9 @@ class EmpresaAvulsaFaturamentoAdmin(admin.ModelAdmin):
 
 @admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'cor', 'criado_em')
+    list_display = ('nome', 'cor', 'cargo', 'criado_em')
     search_fields = ('nome',)
+    list_filter = ('cargo',)
 
 @admin.register(Socio)
 class SocioAdmin(admin.ModelAdmin):
@@ -110,4 +111,3 @@ class HistoricoEnviosAdmin(admin.ModelAdmin):
 # Modelos registrados com o decorador @admin.register não precisam ser registrados aqui
 
 # 2. Registra o seu modelo Funcionario com a configuração personalizada
-

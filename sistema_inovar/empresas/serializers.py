@@ -6,11 +6,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def visible_tags_for_request(request):
+    queryset = Tag.objects.all()
+    user = getattr(request, 'user', None)
+    cargo = getattr(user, 'cargo', None)
+    if not cargo:
+        return queryset.none()
+    return queryset.filter(cargo=cargo)
+
+
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
-        fields = ['id', 'nome', 'cor', 'criado_em']
-        read_only_fields = ['id', 'criado_em']
+        fields = ['id', 'nome', 'cor', 'cargo', 'criado_em']
+        read_only_fields = ['id', 'cargo', 'criado_em']
 
     def validate_nome(self, value):
         nome = str(value or '').strip()
@@ -23,6 +32,20 @@ class TagSerializer(serializers.ModelSerializer):
         if not re.fullmatch(r'^#[0-9A-Fa-f]{6}$', cor):
             raise serializers.ValidationError("A cor da tag deve estar no formato hexadecimal. Ex: #10B981")
         return cor
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        cargo = getattr(getattr(request, 'user', None), 'cargo', None)
+        nome = attrs.get('nome', getattr(self.instance, 'nome', None))
+
+        if nome and cargo:
+            queryset = Tag.objects.filter(nome=nome, cargo=cargo)
+            if self.instance:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise serializers.ValidationError({'nome': ['Já existe uma tag com esse nome para a sua função.']})
+
+        return attrs
 
 
 class SocioSerializer(serializers.ModelSerializer):
@@ -49,7 +72,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
     GRUPO_ATIVIDADE_CHOICES = {'SERVICO', 'COMERCIO', 'INDUSTRIA'}
 
     socios = SocioSerializer(many=True, required=False)
-    tags = TagSerializer(many=True, read_only=True)
+    tags = serializers.SerializerMethodField()
     tag_ids = serializers.PrimaryKeyRelatedField(
         many=True,
         queryset=Tag.objects.all(),
@@ -61,6 +84,17 @@ class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
         fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'numero', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'regime_tributario', 'porte_empresa', 'carteira_clientes', 'grupo_atividade', 'anexo_simples', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto', 'socios', 'tags', 'tag_ids']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        self.fields['tag_ids'].queryset = visible_tags_for_request(request)
+
+    def get_tags(self, obj):
+        request = self.context.get('request')
+        visible_tag_ids = visible_tags_for_request(request).values_list('id', flat=True)
+        tags = obj.tags.filter(id__in=visible_tag_ids).order_by('nome')
+        return TagSerializer(tags, many=True, context=self.context).data
 
     def validate_grupo_atividade(self, value):
         if value in (None, ''):
