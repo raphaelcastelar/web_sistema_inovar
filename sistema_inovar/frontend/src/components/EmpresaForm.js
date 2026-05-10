@@ -381,8 +381,6 @@ const EmpresaForm = () => {
         { id: 'tags', label: 'Tags', description: 'Marcadores operacionais', icon: TagIcon },
         { id: 'socios', label: 'Sócios', description: 'Quadro societário', icon: UserIcon },
     ];
-    const currentSection = formSections.find((section) => section.id === activeSection) || formSections[0];
-    const CurrentSectionIcon = currentSection.icon;
 
     return (
         <motion.div
@@ -475,18 +473,6 @@ const EmpresaForm = () => {
                         <span className="block sm:inline">{error}</span>
                     </div>
                 )}
-
-                        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                            <div className="flex items-center gap-3">
-                                <div className="rounded-xl bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
-                                    <CurrentSectionIcon className="h-5 w-5" />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{currentSection.label}</h3>
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">{currentSection.description}</p>
-                                </div>
-                            </div>
-                        </div>
 
                         <section id="dados" className={`${activeSection === 'dados' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
                             <div className="mb-5 flex items-center gap-3">
