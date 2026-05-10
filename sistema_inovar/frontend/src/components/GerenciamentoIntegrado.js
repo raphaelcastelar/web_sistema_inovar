@@ -24,7 +24,6 @@ const GerenciamentoIntegrado = () => {
     const [success, setSuccess] = useState('');
     const [search, setSearch] = useState('');
     const [isAdmin, setIsAdmin] = useState(null);
-    const [filterStatus, setFilterStatus] = useState('all'); // all, active, inactive
     const [boletoModalOpen, setBoletoModalOpen] = useState(false);
     const [boletoBatchSearch, setBoletoBatchSearch] = useState('');
     const [tags, setTags] = useState([]);
@@ -461,9 +460,7 @@ const GerenciamentoIntegrado = () => {
     // --- Filtering ---
     const filteredEmpresas = useMemo(() => {
         return empresas.filter(empresa => {
-            // Status Filter
-            if (filterStatus === 'active' && !empresa.ativo) return false;
-            if (filterStatus === 'inactive' && empresa.ativo) return false;
+            if (!empresa.ativo) return false;
 
             // Search Filter
             const lowercasedSearch = search.toLowerCase().trim();
@@ -479,7 +476,7 @@ const GerenciamentoIntegrado = () => {
             }
             return matchNome || matchEmail || matchCnpj;
         });
-    }, [empresas, search, filterStatus]);
+    }, [empresas, search]);
 
     const activeEmpresas = useMemo(() => {
         return empresas
@@ -538,9 +535,9 @@ const GerenciamentoIntegrado = () => {
 
     // --- Stats ---
     const stats = useMemo(() => {
-        const total = empresas.length;
         const active = empresas.filter(e => e.ativo).length;
-        return { total, active, inactive: total - active };
+        const honorariosMarcados = empresas.filter(e => e.ativo && e.honorario).length;
+        return { active, honorariosMarcados };
     }, [empresas]);
 
     if (loading) {
@@ -593,11 +590,11 @@ const GerenciamentoIntegrado = () => {
                 </header>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
                         <div>
-                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total de Empresas</p>
-                            <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.total}</p>
+                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Empresas Ativas</p>
+                            <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.active}</p>
                         </div>
                         <div className="h-12 w-12 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                             <BuildingOffice2Icon className="h-6 w-6" />
@@ -605,20 +602,11 @@ const GerenciamentoIntegrado = () => {
                     </div>
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
                         <div>
-                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Ativas</p>
-                            <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{stats.active}</p>
+                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Honorarios Marcados</p>
+                            <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{stats.honorariosMarcados}</p>
                         </div>
                         <div className="h-12 w-12 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                             <CheckCircleIcon className="h-6 w-6" />
-                        </div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Inativas</p>
-                            <p className="text-3xl font-bold text-red-500 dark:text-red-400 mt-1">{stats.inactive}</p>
-                        </div>
-                        <div className="h-12 w-12 bg-red-50 dark:bg-red-900/20 rounded-xl flex items-center justify-center text-red-500 dark:text-red-400">
-                            <XCircleIcon className="h-6 w-6" />
                         </div>
                     </div>
                 </div>
@@ -664,17 +652,6 @@ const GerenciamentoIntegrado = () => {
                             onChange={(e) => setSearch(e.target.value)}
                             className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-white transition-shadow shadow-sm"
                         />
-                    </div>
-                    <div className="flex w-full gap-2 md:w-auto">
-                        <select
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                            className="w-full cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 shadow-sm focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white md:w-auto"
-                        >
-                            <option value="all">Todos os Status</option>
-                            <option value="active">Apenas Ativas</option>
-                            <option value="inactive">Apenas Inativas</option>
-                        </select>
                     </div>
                 </div>
 
