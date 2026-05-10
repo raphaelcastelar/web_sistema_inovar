@@ -556,8 +556,7 @@ const EmpresaForm = () => {
                                     </div>
                                     <div className="relative sm:col-span-2">
                                         <label htmlFor="uf" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">UF</label>
-                                        <MapPinIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
-                                        <select name="uf" id="uf" value={empresa.uf} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                        <select name="uf" id="uf" value={empresa.uf} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                                 <option value="">Selecione uma UF</option>
                                 {['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
                                     .sort()
