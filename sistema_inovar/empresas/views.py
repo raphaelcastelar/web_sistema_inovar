@@ -79,7 +79,7 @@ from .serializers import (
     EmpresaSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
-    UltimoResultadoSessaoSerializer, BoletoBBSerializer, visible_tags_for_request
+    UltimoResultadoSessaoSerializer, BoletoBBSerializer, visible_tags_for_request, unique_tags_by_name
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .serpro_service import (
@@ -438,13 +438,23 @@ class TagViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return visible_tags_for_request(self.request).order_by('nome')
+        return visible_tags_for_request(self.request).order_by('nome', 'cargo', 'id')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        if getattr(request.user, 'cargo', None) == 'admin':
+            serializer = self.get_serializer(unique_tags_by_name(queryset), many=True)
+            return Response(serializer.data)
+        return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         serializer.save(cargo=getattr(self.request.user, 'cargo', 'pessoal') or 'pessoal')
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+        if getattr(request.user, 'cargo', None) == 'admin':
+            Tag.objects.filter(nome=instance.nome).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
         if getattr(request.user, 'cargo', None) != 'admin' and instance.cargo != getattr(request.user, 'cargo', None):
             return Response(
                 {'error': 'Você só pode excluir tags da sua própria função.'},

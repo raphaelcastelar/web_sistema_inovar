@@ -81,10 +81,22 @@ const EmpresaList = () => {
 
     const filteredEmpresas = useMemo(() => {
         const lowercasedSearch = search.toLowerCase().trim();
+        const selectedTag = tags.find((tag) => String(tag.id) === selectedTagId);
+        const selectedTagName = selectedTag?.nome?.toLowerCase().trim();
+        const matchesSelectedTag = (empresa) => {
+            if (!selectedTagId) return true;
+            return (empresa.tags || []).some((tag) => {
+                if (selectedTagName) {
+                    return tag.nome?.toLowerCase().trim() === selectedTagName;
+                }
+                return String(tag.id) === selectedTagId;
+            });
+        };
+
         if (!lowercasedSearch) {
             return empresas.filter((empresa) => {
                 const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
-                const matchTag = !selectedTagId || (empresa.tags || []).some((tag) => String(tag.id) === selectedTagId);
+                const matchTag = matchesSelectedTag(empresa);
                 return isInTab && matchTag;
             });
         }
@@ -97,11 +109,11 @@ const EmpresaList = () => {
                 const cleanedEmpresaCnpj = empresa.cnpj?.replace(/\D/g, '');
                 matchCnpj = cleanedEmpresaCnpj?.includes(searchDigits);
             }
-            const matchTag = !selectedTagId || (empresa.tags || []).some((tag) => String(tag.id) === selectedTagId);
+            const matchTag = matchesSelectedTag(empresa);
             const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
             return (matchNome || matchEmail || matchCnpj) && isInTab && matchTag;
         });
-    }, [empresas, search, activeTab, selectedTagId]);
+    }, [empresas, search, activeTab, selectedTagId, tags]);
 
     // Intersection Observer para carregar mais itens
     useEffect(() => {

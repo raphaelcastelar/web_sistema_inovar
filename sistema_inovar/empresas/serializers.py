@@ -17,6 +17,15 @@ def visible_tags_for_request(request):
     return queryset.filter(cargo=cargo)
 
 
+def unique_tags_by_name(tags):
+    unique_tags = {}
+    for tag in tags:
+        key = str(tag.nome or '').strip().casefold()
+        if key and key not in unique_tags:
+            unique_tags[key] = tag
+    return list(unique_tags.values())
+
+
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
@@ -41,7 +50,9 @@ class TagSerializer(serializers.ModelSerializer):
         nome = attrs.get('nome', getattr(self.instance, 'nome', None))
 
         if nome and cargo:
-            queryset = Tag.objects.filter(nome=nome, cargo=cargo)
+            queryset = Tag.objects.filter(nome=nome)
+            if cargo != 'admin':
+                queryset = queryset.filter(cargo=cargo)
             if self.instance:
                 queryset = queryset.exclude(pk=self.instance.pk)
             if queryset.exists():
@@ -95,7 +106,9 @@ class EmpresaSerializer(serializers.ModelSerializer):
     def get_tags(self, obj):
         request = self.context.get('request')
         visible_tag_ids = visible_tags_for_request(request).values_list('id', flat=True)
-        tags = obj.tags.filter(id__in=visible_tag_ids).order_by('nome')
+        tags = obj.tags.filter(id__in=visible_tag_ids).order_by('nome', 'cargo', 'id')
+        if getattr(getattr(request, 'user', None), 'cargo', None) == 'admin':
+            tags = unique_tags_by_name(tags)
         return TagSerializer(tags, many=True, context=self.context).data
 
     def validate_grupo_atividade(self, value):
