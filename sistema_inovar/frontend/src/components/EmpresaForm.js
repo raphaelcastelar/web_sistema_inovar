@@ -65,6 +65,7 @@ const EmpresaForm = () => {
     const [newTagColor, setNewTagColor] = useState('#3B82F6');
     const [creatingTag, setCreatingTag] = useState(false);
     const [deletingTagId, setDeletingTagId] = useState(null);
+    const [activeSection, setActiveSection] = useState('dados');
 
     const validateAndSetTelefoneFeedback = useCallback((inputValue) => {
         const cleanedValue = inputValue.replace(/\D/g, '');
@@ -373,6 +374,15 @@ const EmpresaForm = () => {
 
     const selectedTagsCount = Array.isArray(empresa.tag_ids) ? empresa.tag_ids.length : 0;
     const sociosCount = Array.isArray(empresa.socios) ? empresa.socios.length : 0;
+    const formSections = [
+        { id: 'dados', label: 'Dados', description: 'Identificação e contato', icon: BuildingOfficeIcon },
+        { id: 'endereco', label: 'Endereço', description: 'Localização da empresa', icon: MapPinIcon },
+        { id: 'classificacao', label: 'Classificação', description: 'Regime, porte e atividades', icon: InformationCircleIcon },
+        { id: 'tags', label: 'Tags', description: 'Marcadores operacionais', icon: TagIcon },
+        { id: 'socios', label: 'Sócios', description: 'Quadro societário', icon: UserIcon },
+    ];
+    const currentSection = formSections.find((section) => section.id === activeSection) || formSections[0];
+    const CurrentSectionIcon = currentSection.icon;
 
     return (
         <motion.div
@@ -412,25 +422,31 @@ const EmpresaForm = () => {
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+                <form noValidate onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                     <aside className="h-fit rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:sticky lg:top-6">
                         <div className="space-y-2">
-                            {[
-                                ['dados', 'Dados', BuildingOfficeIcon],
-                                ['endereco', 'Endereço', MapPinIcon],
-                                ['classificacao', 'Classificação', InformationCircleIcon],
-                                ['tags', 'Tags', TagIcon],
-                                ['socios', 'Sócios', UserIcon],
-                            ].map(([id, label, Icon]) => (
-                                <a
-                                    key={id}
-                                    href={`#${id}`}
-                                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-indigo-50 hover:text-indigo-700 dark:text-gray-300 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-200"
-                                >
-                                    <Icon className="h-5 w-5" />
-                                    {label}
-                                </a>
-                            ))}
+                            {formSections.map(({ id, label, description, icon: Icon }) => {
+                                const selected = activeSection === id;
+                                return (
+                                    <button
+                                        key={id}
+                                        type="button"
+                                        onClick={() => setActiveSection(id)}
+                                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors ${selected
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 dark:text-gray-300 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-200'
+                                            }`}
+                                    >
+                                        <Icon className="h-5 w-5 flex-shrink-0" />
+                                        <span className="min-w-0">
+                                            <span className="block text-sm font-semibold">{label}</span>
+                                            <span className={`block truncate text-xs ${selected ? 'text-indigo-100' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                {description}
+                                            </span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
                         </div>
 
                         <div className="mt-5 rounded-xl bg-gray-50 p-4 text-sm text-gray-600 dark:bg-gray-900 dark:text-gray-300">
@@ -460,7 +476,19 @@ const EmpresaForm = () => {
                     </div>
                 )}
 
-                        <section id="dados" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                            <div className="flex items-center gap-3">
+                                <div className="rounded-xl bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
+                                    <CurrentSectionIcon className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900 dark:text-white">{currentSection.label}</h3>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">{currentSection.description}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <section id="dados" className={`${activeSection === 'dados' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
                             <div className="mb-5 flex items-center gap-3">
                                 <div className="rounded-xl bg-indigo-50 p-2 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-300">
                                     <BuildingOfficeIcon className="h-5 w-5" />
@@ -500,7 +528,7 @@ const EmpresaForm = () => {
                         </section>
 
                         <div className="grid gap-6 xl:grid-cols-2">
-                            <section id="endereco" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                            <section id="endereco" className={`${activeSection === 'endereco' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2`}>
                                 <div className="mb-5 flex items-center gap-3">
                                     <div className="rounded-xl bg-emerald-50 p-2 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300">
                                         <MapPinIcon className="h-5 w-5" />
@@ -555,7 +583,7 @@ const EmpresaForm = () => {
                         </div>
                             </section>
 
-                            <section id="classificacao" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                            <section id="classificacao" className={`${activeSection === 'classificacao' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2`}>
                                 <div className="mb-5 flex items-center gap-3">
                                     <div className="rounded-xl bg-amber-50 p-2 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300">
                                         <InformationCircleIcon className="h-5 w-5" />
@@ -631,7 +659,7 @@ const EmpresaForm = () => {
                         </div>
 
                         <div className="grid gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-                            <section id="tags" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                            <section id="tags" className={`${activeSection === 'tags' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2`}>
                         <div className="flex items-center justify-between gap-3 mb-3">
                                     <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white">
                                 <TagIcon className="h-5 w-5" />
@@ -709,7 +737,7 @@ const EmpresaForm = () => {
                         )}
                             </section>
 
-                            <section id="socios" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                            <section id="socios" className={`${activeSection === 'socios' ? '' : 'hidden'} rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:col-span-2`}>
                         <div className="flex items-center justify-between gap-3 mb-3">
                                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sócios</h3>
                             <button
