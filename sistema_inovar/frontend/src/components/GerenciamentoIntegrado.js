@@ -12,7 +12,8 @@ import {
     DocumentArrowDownIcon,
     ArrowPathIcon,
     EyeIcon,
-    PaperAirplaneIcon
+    PaperAirplaneIcon,
+    TagIcon
 } from '@heroicons/react/24/outline';
 
 const GerenciamentoIntegrado = () => {
@@ -26,6 +27,8 @@ const GerenciamentoIntegrado = () => {
     const [filterStatus, setFilterStatus] = useState('all'); // all, active, inactive
     const [boletoModalOpen, setBoletoModalOpen] = useState(false);
     const [boletoBatchSearch, setBoletoBatchSearch] = useState('');
+    const [tags, setTags] = useState([]);
+    const [boletoSelectedTagIds, setBoletoSelectedTagIds] = useState([]);
     const [selectedEmpresaIds, setSelectedEmpresaIds] = useState([]);
     const [isGeneratingBoletos, setIsGeneratingBoletos] = useState(false);
     const [generatingBoletoId, setGeneratingBoletoId] = useState(null);
@@ -84,8 +87,18 @@ const GerenciamentoIntegrado = () => {
             }
         };
 
+        const fetchTags = async () => {
+            try {
+                const response = await axiosInstance.get('/api/tags/');
+                setTags(Array.isArray(response.data) ? response.data : []);
+            } catch (err) {
+                console.error('Erro ao carregar tags:', err.response?.data || err.message);
+            }
+        };
+
         fetchUser();
         fetchEmpresas();
+        fetchTags();
         fetchLastSessionResult();
     }, []);
 
@@ -264,8 +277,17 @@ const GerenciamentoIntegrado = () => {
         setError('');
         setSuccess('');
         setBoletoBatchSearch('');
+        setBoletoSelectedTagIds([]);
         setSelectedEmpresaIds([]);
         setBoletoModalOpen(true);
+    };
+
+    const handleToggleBoletoTagFilter = (tagId) => {
+        setBoletoSelectedTagIds((currentIds) => (
+            currentIds.includes(tagId)
+                ? currentIds.filter((id) => id !== tagId)
+                : [...currentIds, tagId]
+        ));
     };
 
     const handleToggleEmpresaSelection = (empresaId) => {
@@ -467,14 +489,31 @@ const GerenciamentoIntegrado = () => {
 
     const filteredActiveEmpresasForModal = useMemo(() => {
         const normalizedSearch = boletoBatchSearch.toLowerCase().trim();
-
-        if (!normalizedSearch) {
-            return activeEmpresas;
-        }
+        const selectedTagNameById = tags.reduce((acc, tag) => {
+            acc[String(tag.id)] = tag.nome?.toLowerCase().trim();
+            return acc;
+        }, {});
 
         const searchDigits = boletoBatchSearch.replace(/\D/g, '');
 
         return activeEmpresas.filter((empresa) => {
+            const matchTags = boletoSelectedTagIds.length === 0 || boletoSelectedTagIds.every((tagId) => {
+                const tagName = selectedTagNameById[tagId];
+                if (!tagName) {
+                    return (empresa.tags || []).some((tag) => String(tag.id) === tagId);
+                }
+
+                return (empresa.tags || []).some((tag) => tag.nome?.toLowerCase().trim() === tagName);
+            });
+
+            if (!matchTags) {
+                return false;
+            }
+
+            if (!normalizedSearch) {
+                return true;
+            }
+
             const matchNome = empresa.nome?.toLowerCase().includes(normalizedSearch);
             const matchEmail = empresa.email?.toLowerCase().includes(normalizedSearch);
             const matchCnpj = searchDigits.length > 0
@@ -483,7 +522,15 @@ const GerenciamentoIntegrado = () => {
 
             return matchNome || matchEmail || matchCnpj;
         });
-    }, [activeEmpresas, boletoBatchSearch]);
+    }, [activeEmpresas, boletoBatchSearch, boletoSelectedTagIds, tags]);
+
+    useEffect(() => {
+        if (!boletoModalOpen || boletoSelectedTagIds.length === 0) {
+            return;
+        }
+
+        setSelectedEmpresaIds(filteredActiveEmpresasForModal.map((empresa) => empresa.id));
+    }, [boletoModalOpen, boletoSelectedTagIds, filteredActiveEmpresasForModal]);
 
     const selectedEmpresasCount = selectedEmpresaIds.length;
     const allModalEmpresasSelected = filteredActiveEmpresasForModal.length > 0
@@ -969,6 +1016,56 @@ const GerenciamentoIntegrado = () => {
                                                 className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:ring-indigo-500/20"
                                             />
                                         </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                                                <TagIcon className="h-4 w-4" />
+                                                Tags
+                                            </label>
+                                            {boletoSelectedTagIds.length > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setBoletoSelectedTagIds([])}
+                                                    disabled={isGeneratingBoletos}
+                                                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-indigo-300 dark:hover:text-indigo-200"
+                                                >
+                                                    Limpar
+                                                </button>
+                                            )}
+                                        </div>
+                                        {tags.length === 0 ? (
+                                            <div className="rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                                Nenhuma tag disponivel.
+                                            </div>
+                                        ) : (
+                                            <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-600 dark:bg-gray-900">
+                                                {tags.map((tag) => {
+                                                    const selected = boletoSelectedTagIds.includes(String(tag.id));
+                                                    return (
+                                                        <button
+                                                            key={tag.id}
+                                                            type="button"
+                                                            onClick={() => handleToggleBoletoTagFilter(String(tag.id))}
+                                                            disabled={isGeneratingBoletos}
+                                                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${selected
+                                                                ? 'bg-indigo-600 text-white'
+                                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                                                                }`}
+                                                        >
+                                                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.cor }} />
+                                                            {tag.nome}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                        {boletoSelectedTagIds.length > 0 && (
+                                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                Empresas com todas as tags selecionadas sao filtradas e marcadas automaticamente.
+                                            </p>
+                                        )}
                                     </div>
 
                                     <button
