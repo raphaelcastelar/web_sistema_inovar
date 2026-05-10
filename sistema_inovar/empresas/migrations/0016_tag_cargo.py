@@ -37,6 +37,7 @@ def duplicar_tags_existentes_por_cargo(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False
 
     dependencies = [
         ('empresas', '0015_empresa_informacoes_cadastrais'),
