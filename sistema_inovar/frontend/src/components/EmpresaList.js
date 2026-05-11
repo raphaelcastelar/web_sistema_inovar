@@ -5,19 +5,31 @@ import { motion } from 'framer-motion';
 import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, BuildingOffice2Icon, TagIcon } from '@heroicons/react/24/outline';
 
 
+const EMPRESA_LIST_STATE_KEY = 'empresaListState';
+
+const getSavedListState = () => {
+    try {
+        return JSON.parse(sessionStorage.getItem(EMPRESA_LIST_STATE_KEY) || 'null');
+    } catch {
+        return null;
+    }
+};
 
 const EmpresaList = () => {
+    const savedListStateRef = React.useRef(getSavedListState());
+    const skipInitialVisibleResetRef = React.useRef(Boolean(savedListStateRef.current));
+    const savedListState = savedListStateRef.current;
     const [empresas, setEmpresas] = useState([]);
-    const [search, setSearch] = useState('');
+    const [search, setSearch] = useState(savedListState?.search || '');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isAdmin, setIsAdmin] = useState(null);
     const [tags, setTags] = useState([]);
-    const [selectedTagIds, setSelectedTagIds] = useState([]);
-    const [activeTab, setActiveTab] = useState('ativadas'); // 'ativadas' ou 'nao-ativadas'
+    const [selectedTagIds, setSelectedTagIds] = useState(Array.isArray(savedListState?.selectedTagIds) ? savedListState.selectedTagIds : []);
+    const [activeTab, setActiveTab] = useState(savedListState?.activeTab || 'ativadas'); // 'ativadas' ou 'nao-ativadas'
 
     // Estado para controle do Infinite Scroll
-    const [visibleCount, setVisibleCount] = useState(24); // Começa mostrando 24
+    const [visibleCount, setVisibleCount] = useState(Math.max(Number(savedListState?.visibleCount) || 24, 24)); // Começa mostrando 24
     const observerTarget = React.useRef(null);
 
     useEffect(() => {
@@ -63,6 +75,10 @@ const EmpresaList = () => {
 
     // Resetar a contagem visível quando mudar a busca ou a aba
     useEffect(() => {
+        if (skipInitialVisibleResetRef.current) {
+            skipInitialVisibleResetRef.current = false;
+            return;
+        }
         setVisibleCount(24);
     }, [search, activeTab, selectedTagIds]);
 
@@ -77,6 +93,16 @@ const EmpresaList = () => {
                     alert(`Falha ao excluir a empresa: ${error.response?.data?.error || error.message}`);
                 });
         }
+    };
+
+    const saveListPosition = () => {
+        sessionStorage.setItem(EMPRESA_LIST_STATE_KEY, JSON.stringify({
+            scrollY: window.scrollY,
+            search,
+            activeTab,
+            selectedTagIds,
+            visibleCount,
+        }));
     };
 
     const toggleTagFilter = (tagId) => {
@@ -155,6 +181,18 @@ const EmpresaList = () => {
     }, [filteredEmpresas.length, visibleCount]);
 
     const visibleEmpresas = filteredEmpresas.slice(0, visibleCount);
+
+    useEffect(() => {
+        const stateToRestore = savedListStateRef.current;
+        if (loading || !stateToRestore) return;
+
+        const scrollY = Number(stateToRestore.scrollY) || 0;
+        window.requestAnimationFrame(() => {
+            window.scrollTo({ top: scrollY, left: 0, behavior: 'auto' });
+            sessionStorage.removeItem(EMPRESA_LIST_STATE_KEY);
+            savedListStateRef.current = null;
+        });
+    }, [loading, filteredEmpresas.length, visibleCount]);
 
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -299,7 +337,7 @@ const EmpresaList = () => {
                                     </div>
 
                                     <div className="flex space-x-2 bg-gray-50 dark:bg-gray-700/50 p-3 border-t border-gray-200 dark:border-gray-700">
-                                        <Link to={`/empresas/editar/${empresa.id}`} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors" title="Editar">
+                                        <Link to={`/empresas/editar/${empresa.id}`} onClick={saveListPosition} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors" title="Editar">
                                             <PencilIcon className="h-5 w-5 mx-auto" />
                                         </Link>
                                         {isAdmin && (
