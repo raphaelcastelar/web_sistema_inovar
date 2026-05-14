@@ -96,6 +96,123 @@ WKHTMLTOPDF_PATH = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
 
 logger = logging.getLogger(__name__)
 
+MONTH_NAME_TO_NUMBER = {
+    'janeiro': '01',
+    'fevereiro': '02',
+    'marco': '03',
+    'abril': '04',
+    'maio': '05',
+    'junho': '06',
+    'julho': '07',
+    'agosto': '08',
+    'setembro': '09',
+    'outubro': '10',
+    'novembro': '11',
+    'dezembro': '12',
+}
+
+
+def _relative_media_path(*path_parts):
+    return os.path.join(*path_parts).replace(os.sep, '/')
+
+
+def _normalize_fs_name(value):
+    value = unidecode.unidecode(str(value or '')).lower().strip()
+    return re.sub(r'\s+', ' ', value)
+
+
+def _resolve_existing_child_folder(parent_path, expected_name):
+    exact_path = os.path.join(parent_path, expected_name)
+    if os.path.isdir(exact_path):
+        return exact_path, expected_name, False
+
+    expected_normalized = _normalize_fs_name(expected_name)
+    if not os.path.isdir(parent_path):
+        return exact_path, expected_name, False
+
+    try:
+        child_names = os.listdir(parent_path)
+    except OSError as exc:
+        logger.warning(f"SYNC: Nao foi possivel listar {parent_path} para localizar {expected_name}: {exc}")
+        return exact_path, expected_name, False
+
+    for child_name in child_names:
+        child_path = os.path.join(parent_path, child_name)
+        if os.path.isdir(child_path) and _normalize_fs_name(child_name) == expected_normalized:
+            return child_path, child_name, True
+
+    return exact_path, expected_name, False
+
+
+def _extract_year_month_from_relative_parts(relative_parts):
+    year = None
+    month = None
+
+    for part in relative_parts:
+        normalized_part = unidecode.unidecode(str(part or '')).lower()
+        compact_part = re.sub(r'\D+', '', normalized_part)
+
+        if not year:
+            year_match = re.search(r'(20\d{2}|19\d{2})', normalized_part)
+            if year_match:
+                year = year_match.group(1)
+
+        if not month:
+            if len(compact_part) == 6 and compact_part[:2].isdigit() and compact_part[2:].isdigit():
+                possible_month = int(compact_part[:2])
+                if 1 <= possible_month <= 12:
+                    month = f"{possible_month:02d}"
+                    if not year:
+                        year = compact_part[2:]
+                    continue
+
+            if len(compact_part) == 6 and compact_part[:4].isdigit() and compact_part[4:].isdigit():
+                possible_month = int(compact_part[4:])
+                if 1 <= possible_month <= 12:
+                    month = f"{possible_month:02d}"
+                    if not year:
+                        year = compact_part[:4]
+                    continue
+
+            month_match = re.search(r'(?<!\d)(0?[1-9]|1[0-2])(?!\d)', normalized_part)
+            if month_match:
+                month = f"{int(month_match.group(1)):02d}"
+                continue
+
+            for month_name, month_number in MONTH_NAME_TO_NUMBER.items():
+                if month_name in normalized_part:
+                    month = month_number
+                    break
+
+    return year, month
+
+
+def _format_sync_month_summary(month_counts):
+    if not month_counts:
+        return "nenhum arquivo com mês/ano identificado"
+
+    summary_parts = []
+    for year, month in sorted(month_counts.keys()):
+        summary_parts.append(f"{month}/{year}: {month_counts[(year, month)]}")
+    return ", ".join(summary_parts)
+
+
+IGNORED_SYNC_FILENAMES = {
+    'thumbs.db',
+    'desktop.ini',
+    '.ds_store',
+}
+
+
+def _is_ignored_sync_file(filename):
+    return str(filename or '').strip().lower() in IGNORED_SYNC_FILENAMES
+
+
+def _exclude_ignored_sync_files(queryset):
+    for ignored_filename in IGNORED_SYNC_FILENAMES:
+        queryset = queryset.exclude(nome_arquivo__iexact=ignored_filename)
+    return queryset
+
 
 def _parse_bb_decimal(value):
     if value in (None, ""):
@@ -176,20 +293,20 @@ MODEL_CONFIG_MAP_SYNC = {
     },
     'departamento_pessoal': {
         'model': DepartamentoPessoal, 'serializer': DepartamentoPessoalSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
-        'company_attr_in_empresa_model': 'nome', 
+        'company_field_name_in_doc_model': 'cnpj_empresa',
+        'company_attr_in_empresa_model': 'cnpj',
         'fs_folder_name': 'DEPARTAMENTO PESSOAL', 'has_year_month': True
     },
     'simples_nacional': {
         'model': SimplesNacional, 'serializer': SimplesNacionalSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
-        'company_attr_in_empresa_model': 'nome',
+        'company_field_name_in_doc_model': 'cnpj_empresa',
+        'company_attr_in_empresa_model': 'cnpj',
         'fs_folder_name': 'SIMPLES NACIONAL', 'has_year_month': True
     },
     'xml': {
         'model': XML, 'serializer': XMLSerializer,
-        'company_field_name_in_doc_model': 'nome_empresa', # Assumindo que você adicionou nome_empresa
-        'company_attr_in_empresa_model': 'nome',
+        'company_field_name_in_doc_model': 'cnpj_empresa',
+        'company_attr_in_empresa_model': 'cnpj',
         'fs_folder_name': 'XML', 'has_year_month': True
     },
     'outros': {
@@ -364,10 +481,10 @@ class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
         if empresa_id:
             try:
                 empresa = Empresa.objects.get(id=empresa_id)
-                return DocumentosConstitutivos.objects.filter(nome_empresa=empresa.nome)
+                return _exclude_ignored_sync_files(DocumentosConstitutivos.objects.filter(nome_empresa=empresa.nome))
             except Empresa.DoesNotExist:
                 return DocumentosConstitutivos.objects.none()
-        return super().get_queryset()
+        return _exclude_ignored_sync_files(super().get_queryset())
 
 class DepartamentoPessoalViewSet(viewsets.ModelViewSet):
     queryset = DepartamentoPessoal.objects.all()  # Defina o queryset base
@@ -378,10 +495,10 @@ class DepartamentoPessoalViewSet(viewsets.ModelViewSet):
         if empresa_id:
             try:
                 empresa = Empresa.objects.get(id=empresa_id)
-                return DepartamentoPessoal.objects.filter(cnpj_empresa=empresa.cnpj)
+                return _exclude_ignored_sync_files(DepartamentoPessoal.objects.filter(cnpj_empresa=empresa.cnpj))
             except Empresa.DoesNotExist:
                 return DepartamentoPessoal.objects.none()
-        return super().get_queryset()
+        return _exclude_ignored_sync_files(super().get_queryset())
 
 class XMLViewSet(viewsets.ModelViewSet):
     queryset = XML.objects.all()  # Defina o queryset base
@@ -392,10 +509,10 @@ class XMLViewSet(viewsets.ModelViewSet):
         if empresa_id:
             try:
                 empresa = Empresa.objects.get(id=empresa_id)
-                return XML.objects.filter(cnpj_empresa=empresa.cnpj)
+                return _exclude_ignored_sync_files(XML.objects.filter(cnpj_empresa=empresa.cnpj))
             except Empresa.DoesNotExist:
                 return XML.objects.none()
-        return super().get_queryset()
+        return _exclude_ignored_sync_files(super().get_queryset())
 
 class SimplesNacionalViewSet(viewsets.ModelViewSet):
     queryset = SimplesNacional.objects.all()  # Defina o queryset base
@@ -406,10 +523,10 @@ class SimplesNacionalViewSet(viewsets.ModelViewSet):
         if empresa_id:
             try:
                 empresa = Empresa.objects.get(id=empresa_id)
-                return SimplesNacional.objects.filter(cnpj_empresa=empresa.cnpj)
+                return _exclude_ignored_sync_files(SimplesNacional.objects.filter(cnpj_empresa=empresa.cnpj))
             except Empresa.DoesNotExist:
                 return SimplesNacional.objects.none()
-        return super().get_queryset()
+        return _exclude_ignored_sync_files(super().get_queryset())
 
 class OutrosViewSet(viewsets.ModelViewSet):
     queryset = Outros.objects.all()
@@ -420,10 +537,10 @@ class OutrosViewSet(viewsets.ModelViewSet):
         if empresa_id:
             try:
                 empresa = Empresa.objects.get(id=empresa_id)
-                return Outros.objects.filter(nome_empresa=empresa.nome)
+                return _exclude_ignored_sync_files(Outros.objects.filter(nome_empresa=empresa.nome))
             except Empresa.DoesNotExist:
                 return Outros.objects.none()
-        return super().get_queryset()
+        return _exclude_ignored_sync_files(super().get_queryset())
 
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HistoricoEnvios.objects.all()
@@ -736,7 +853,14 @@ def sincronizar_pasta_empresa_api(request):
     # USA A SUA FUNÇÃO DO UTILS.PY PARA O NOME DA PASTA DA EMPRESA
     company_folder_name_on_fs = gerar_nome_pasta_empresa_padronizado(empresa.nome)
     fs_doc_type_folder_name = config['fs_folder_name']
-    base_doc_type_path_on_fs = os.path.join(settings.MEDIA_ROOT, company_folder_name_on_fs, fs_doc_type_folder_name)
+    company_folder_path_on_fs, company_folder_name_on_fs, company_folder_matched_by_normalization = _resolve_existing_child_folder(
+        settings.MEDIA_ROOT,
+        company_folder_name_on_fs,
+    )
+    base_doc_type_path_on_fs, fs_doc_type_folder_name, doc_folder_matched_by_normalization = _resolve_existing_child_folder(
+        company_folder_path_on_fs,
+        fs_doc_type_folder_name,
+    )
 
     if not os.path.isdir(base_doc_type_path_on_fs):
         try: # Tenta criar a estrutura base se não existir (o sinal deveria ter feito, mas como garantia)
@@ -761,36 +885,67 @@ def sincronizar_pasta_empresa_api(request):
     # Se alguns usam cnpj_empresa para filtro, o MODEL_CONFIG_MAP_SYNC precisaria ser ajustado.
     # Assumindo que todos os documentos podem ser filtrados por empresa.nome se 'nome_empresa' está neles.
     # Ou, se você adicionou um FK empresa aos modelos de doc: DocumentModel.objects.filter(empresa=empresa)
-    db_queryset = DocumentModel.objects.filter(nome_empresa=empresa.nome) # Simplificado se todos tiverem nome_empresa
+    company_filter_key_for_doc = config['company_field_name_in_doc_model']
+    company_value_for_doc_filter = getattr(empresa, config['company_attr_in_empresa_model'])
+    db_queryset = DocumentModel.objects.filter(**{company_filter_key_for_doc: company_value_for_doc_filter})
     # Se alguns usam cnpj_empresa, a lógica de filtro precisa ser mais dinâmica baseada no config:
     # company_filter_key_for_doc = config['company_field_name_in_doc_model']
     # company_value_for_doc_filter = getattr(empresa, config['company_attr_in_empresa_model']) # ex: empresa.nome ou empresa.cnpj
     # db_queryset = DocumentModel.objects.filter(**{company_filter_key_for_doc: company_value_for_doc_filter})
 
     for doc_instance in db_queryset:
+        if _is_ignored_sync_file(doc_instance.nome_arquivo):
+            try:
+                doc_instance.delete()
+                logger.info(f"SYNC: Removido arquivo de sistema cadastrado por engano: {doc_instance.nome_arquivo}")
+            except Exception as e_delete_ignored:
+                logger.error(f"SYNC: Erro ao remover arquivo de sistema {doc_instance.nome_arquivo}: {e_delete_ignored}")
+            continue
+
         if doc_instance.caminho_arquivo and doc_instance.caminho_arquivo.name:
             db_path_normalized = doc_instance.caminho_arquivo.name.replace('\\', '/')
             db_files_map[db_path_normalized] = doc_instance
 
     # 2. Varrer o sistema de arquivos
     found_fs_files_normalized_paths = set()
+    updated_existing_doc_ids = set()
+    found_month_counts = {}
+    files_without_period = 0
+    scan_errors = []
+    create_errors = []
     added_count = 0
     
     scan_paths = []
     if config['has_year_month']:
         if os.path.exists(base_doc_type_path_on_fs):
-            for year_name in os.listdir(base_doc_type_path_on_fs):
-                year_path = os.path.join(base_doc_type_path_on_fs, year_name)
-                if os.path.isdir(year_path) and year_name.isdigit() and len(year_name) == 4:
-                    for monthyear_name in os.listdir(year_path):
-                        monthyear_path = os.path.join(year_path, monthyear_name)
-                        if os.path.isdir(monthyear_path) and len(monthyear_name) == 6 and monthyear_name[:2].isdigit():
-                            scan_paths.append({
-                                "path": monthyear_path, 
-                                "year": year_name, 
-                                "month": monthyear_name[:2],
-                                "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name, year_name, monthyear_name]
-                            })
+            def register_walk_error(error):
+                scan_errors.append(str(error))
+                logger.error(f"SYNC: Erro ao acessar pasta durante varredura: {error}")
+
+            for current_dir, _, filenames in os.walk(base_doc_type_path_on_fs, onerror=register_walk_error):
+                if not filenames:
+                    continue
+
+                relative_dir = os.path.relpath(current_dir, base_doc_type_path_on_fs)
+                relative_dir_parts = [] if relative_dir == '.' else relative_dir.split(os.sep)
+                detected_year, detected_month = _extract_year_month_from_relative_parts(relative_dir_parts)
+
+                if detected_year and detected_month:
+                    scan_paths.append({
+                        "path": current_dir,
+                        "year": detected_year,
+                        "month": detected_month,
+                        "relative_dir_parts": relative_dir_parts,
+                        "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name] + relative_dir_parts
+                    })
+                else:
+                    scan_paths.append({
+                        "path": current_dir,
+                        "year": None,
+                        "month": None,
+                        "relative_dir_parts": relative_dir_parts,
+                        "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name] + relative_dir_parts
+                    })
     else: # Pastas sem estrutura de ano/mês
         if os.path.exists(base_doc_type_path_on_fs):
             scan_paths.append({
@@ -802,15 +957,36 @@ def sincronizar_pasta_empresa_api(request):
 
     for item_to_scan in scan_paths:
         current_scan_path = item_to_scan["path"]
-        for filename_raw_from_fs in os.listdir(current_scan_path):
+        try:
+            filenames_to_scan = os.listdir(current_scan_path)
+        except OSError as exc:
+            scan_errors.append(str(exc))
+            logger.error(f"SYNC: Erro ao listar arquivos em {current_scan_path}: {exc}")
+            continue
+
+        for filename_raw_from_fs in filenames_to_scan:
             if os.path.isfile(os.path.join(current_scan_path, filename_raw_from_fs)):
-                filename_sanitized_for_path = sanitize_filename_for_upload(filename_raw_from_fs) # USA A FUNÇÃO DE SANITIZAÇÃO CONSISTENTE
-                
-                # Constrói o caminho relativo da mesma forma que upload_to faria
-                path_parts = item_to_scan["sub_path_parts"] + [filename_sanitized_for_path]
-                temp_relative_path = os.path.join(*path_parts)
-                normalized_fs_path = temp_relative_path.replace(os.sep, '/')
+                if _is_ignored_sync_file(filename_raw_from_fs):
+                    logger.info(f"SYNC: Ignorando arquivo de sistema: {os.path.join(current_scan_path, filename_raw_from_fs)}")
+                    continue
+
+                if config['has_year_month'] and (not item_to_scan["year"] or not item_to_scan["month"]):
+                    detected_year, detected_month = _extract_year_month_from_relative_parts(item_to_scan.get("relative_dir_parts", []) + [filename_raw_from_fs])
+                    if not detected_year or not detected_month:
+                        files_without_period += 1
+                        logger.warning(f"SYNC: Arquivo ignorado sem mes/ano identificavel: {os.path.join(current_scan_path, filename_raw_from_fs)}")
+                        continue
+                    item_year = detected_year
+                    item_month = detected_month
+                else:
+                    item_year = item_to_scan["year"]
+                    item_month = item_to_scan["month"]
+
+                path_parts = item_to_scan["sub_path_parts"] + [filename_raw_from_fs]
+                normalized_fs_path = _relative_media_path(*path_parts)
                 found_fs_files_normalized_paths.add(normalized_fs_path)
+                if item_year and item_month:
+                    found_month_counts[(item_year, item_month)] = found_month_counts.get((item_year, item_month), 0) + 1
 
                 if normalized_fs_path not in db_files_map:
                     try:
@@ -821,23 +997,51 @@ def sincronizar_pasta_empresa_api(request):
                             'caminho_arquivo': normalized_fs_path
                         }
                         if config['has_year_month']:
-                            doc_data['ano'] = item_to_scan["year"]
-                            doc_data['mes'] = item_to_scan["month"]
+                            doc_data['ano'] = item_year
+                            doc_data['mes'] = item_month
                         if 'entregue' in [f.name for f in DocumentModel._meta.get_fields()]: # Checa se o campo existe
                             doc_data['entregue'] = False 
                         if 'cnpj_empresa' in [f.name for f in DocumentModel._meta.get_fields()]:
                             doc_data['cnpj_empresa'] = empresa.cnpj
-                        
-                        DocumentModel.objects.create(**doc_data)
-                        added_count += 1
-                        logger.info(f"SYNC: Adicionado ao DB: {normalized_fs_path}")
+
+                        existing_lookup = {
+                            company_filter_key_for_doc: company_value_for_doc_filter,
+                            'nome_arquivo': filename_raw_from_fs,
+                            'tipo_documento': tipo_pasta_sync.replace("_", "-"),
+                        }
+                        if config['has_year_month']:
+                            existing_lookup['ano'] = item_year
+                            existing_lookup['mes'] = item_month
+
+                        existing_doc = DocumentModel.objects.filter(**existing_lookup).first()
+                        if existing_doc:
+                            existing_doc.caminho_arquivo = normalized_fs_path
+                            if hasattr(existing_doc, 'nome_empresa'):
+                                existing_doc.nome_empresa = empresa.nome
+                            if hasattr(existing_doc, 'cnpj_empresa'):
+                                existing_doc.cnpj_empresa = empresa.cnpj
+                            existing_doc.save()
+                            db_files_map[normalized_fs_path] = existing_doc
+                            updated_existing_doc_ids.add(existing_doc.id)
+                            logger.info(f"SYNC: Caminho atualizado no DB: {normalized_fs_path}")
+                        else:
+                            DocumentModel.objects.create(**doc_data)
+                            added_count += 1
+                            logger.info(f"SYNC: Adicionado ao DB: {normalized_fs_path}")
                     except Exception as e_create:
                         logger.error(f"SYNC: Erro ao criar registro no DB para {normalized_fs_path}: {e_create} com dados {doc_data}")
+                        create_errors.append({
+                            "arquivo": filename_raw_from_fs,
+                            "caminho": normalized_fs_path,
+                            "erro": str(e_create),
+                        })
 
 
     # 3. Remover do DB arquivos que não estão mais no FS
     removed_count = 0
     for db_path_normalized, db_instance in db_files_map.items():
+        if db_instance.id in updated_existing_doc_ids:
+            continue
         if db_path_normalized not in found_fs_files_normalized_paths:
             # Dupla checagem no sistema de arquivos antes de deletar do DB
             full_physical_path_check = os.path.join(settings.MEDIA_ROOT, db_path_normalized.replace('/', os.sep))
@@ -853,15 +1057,29 @@ def sincronizar_pasta_empresa_api(request):
 
     # 4. Retornar a lista atualizada
     # Recarrega o queryset após as modificações
-    db_queryset_updated = DocumentModel.objects.filter(nome_empresa=empresa.nome) # ou o filtro apropriado
+    db_queryset_updated = DocumentModel.objects.filter(**{company_filter_key_for_doc: company_value_for_doc_filter})
     # ... (lógica de filtro de company_filter_key_for_doc como acima, se necessário) ...
 
     serializer = DocumentSerializer(db_queryset_updated, many=True)
     
+    month_summary = _format_sync_month_summary(found_month_counts)
     return Response({
         "message": f"Sincronização da pasta '{config['fs_folder_name']}' concluída. "
-                   f"{added_count} arquivo(s) adicionado(s), {removed_count} registro(s) removido(s) do banco.",
-        "data": serializer.data
+                   f"{added_count} arquivo(s) adicionado(s), {removed_count} registro(s) removido(s) do banco. "
+                   f"Arquivos encontrados por competencia: {month_summary}. "
+                   f"Sem competencia identificada: {files_without_period}. "
+                   f"Erros ao cadastrar: {len(create_errors)}. Erros ao ler pastas: {len(scan_errors)}.",
+        "data": serializer.data,
+        "base_path": base_doc_type_path_on_fs,
+        "company_folder_matched_by_normalization": company_folder_matched_by_normalization,
+        "doc_folder_matched_by_normalization": doc_folder_matched_by_normalization,
+        "month_counts": [
+            {"ano": year, "mes": month, "quantidade": count}
+            for (year, month), count in sorted(found_month_counts.items())
+        ],
+        "files_without_period": files_without_period,
+        "create_errors": create_errors[:20],
+        "scan_errors": scan_errors[:20],
     }, status=status.HTTP_200_OK)
 
 @api_view(['POST'])

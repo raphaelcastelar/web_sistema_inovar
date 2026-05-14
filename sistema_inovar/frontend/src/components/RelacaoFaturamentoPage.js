@@ -247,6 +247,8 @@ const RelacaoFaturamentoPage = () => {
         return `${date.getDate()} de ${monthNames[date.getMonth()]} de ${date.getFullYear()}`;
     }, [issueDate]);
 
+    const reportTitle = mode === 'Previsto' ? 'Provisão de Faturamento' : 'Relação de Faturamento';
+
     const handleRegenerateRows = () => {
         setRows(createRows(baseMonth, mode));
     };
@@ -401,7 +403,7 @@ const RelacaoFaturamentoPage = () => {
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
-<title>Relação de Faturamento - ${empresaData.nome || 'Empresa'}</title>
+<title>${reportTitle} - ${empresaData.nome || 'Empresa'}</title>
 <style>
 body { font-family: Arial, sans-serif; color: #111827; margin: 24px; }
 table { width: 100%; border-collapse: collapse; }
@@ -422,7 +424,8 @@ th { background: #e5e7eb; }
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `relacao-faturamento-${(empresaData.nome || 'empresa').toLowerCase().replace(/\s+/g, '-')}.html`;
+        const filePrefix = mode === 'Previsto' ? 'provisao-faturamento' : 'relacao-faturamento';
+        link.download = `${filePrefix}-${(empresaData.nome || 'empresa').toLowerCase().replace(/\s+/g, '-')}.html`;
         link.click();
         URL.revokeObjectURL(url);
     };
@@ -777,7 +780,7 @@ th { background: #e5e7eb; }
                     </div>
                 </div>
 
-                <h2 className="report-title my-6 text-center text-2xl font-bold">Relação de Faturamento</h2>
+                <h2 className="report-title my-6 text-center text-2xl font-bold">{reportTitle}</h2>
 
                 <div className="grid grid-cols-1 gap-3 border border-gray-950 p-4 text-sm md:grid-cols-4">
                     <div className="md:col-span-3">

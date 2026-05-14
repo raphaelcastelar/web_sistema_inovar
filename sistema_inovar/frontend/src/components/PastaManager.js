@@ -27,6 +27,31 @@ const pastaTypes = Object.keys(pastaConfig);
 const monthOrder = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const buildFileViewUrl = (tipoPasta, arquivoId) => `${SERVER_FILE_URL_BASE}/api/arquivos/${tipoPasta}/${arquivoId}/visualizar/`;
 
+const sortYearsForDisplay = (years) => {
+    const currentYear = new Date().getFullYear().toString();
+    return [...years].sort((a, b) => {
+        if (a === currentYear && b !== currentYear) return -1;
+        if (b === currentYear && a !== currentYear) return 1;
+
+        const numericA = Number(a);
+        const numericB = Number(b);
+        if (!Number.isNaN(numericA) && !Number.isNaN(numericB)) {
+            return numericB - numericA;
+        }
+
+        return b.localeCompare(a);
+    });
+};
+
+const getPreviousUploadPeriod = () => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - 1);
+    return {
+        month: String(date.getMonth() + 1).padStart(2, '0'),
+        year: date.getFullYear().toString(),
+    };
+};
+
 const groupFilesByYearAndMonth = (files) => {
     if (!files || files.length === 0) return {};
     const grouped = files.reduce((acc, file) => {
@@ -43,7 +68,7 @@ const groupFilesByYearAndMonth = (files) => {
         acc[year][monthKey].files.push(file);
         return acc;
     }, {});
-    const sortedYears = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+    const sortedYears = sortYearsForDisplay(Object.keys(grouped));
     const result = {};
     for (const year of sortedYears) {
         const yearData = grouped[year];
@@ -61,7 +86,7 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection }) => {
     const [activeYear, setActiveYear] = useState(null);
     const [activeMonthKey, setActiveMonthKey] = useState(null);
     const groupedData = useMemo(() => groupFilesByYearAndMonth(files), [files]);
-    const sortedYears = useMemo(() => Object.keys(groupedData), [groupedData]);
+    const sortedYears = useMemo(() => sortYearsForDisplay(Object.keys(groupedData)), [groupedData]);
 
     useEffect(() => {
         if (sortedYears.length > 0) {
@@ -167,10 +192,11 @@ const PastaManager = () => {
             formData.append('nome_empresa', empresaNome);
             formData.append('tipo_documento', pastaTipo.replace(/_/g, '-'));
             
-            // Lógica para usar o mês/ano selecionado ou o atual
+            // Lógica para usar o mês/ano selecionado ou o mês anterior
             if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(pastaTipo)) {
-                const anoParaSalvar = targetUploadYear || new Date().getFullYear().toString();
-                const mesParaSalvar = targetUploadMonth || (new Date().getMonth() + 1).toString().padStart(2, '0');
+                const previousUploadPeriod = getPreviousUploadPeriod();
+                const anoParaSalvar = targetUploadYear || previousUploadPeriod.year;
+                const mesParaSalvar = targetUploadMonth || previousUploadPeriod.month;
                 formData.append('mes', mesParaSalvar);
                 formData.append('ano', anoParaSalvar);
             }
@@ -281,11 +307,11 @@ const PastaManager = () => {
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Período para Upload (Opcional)</label>
                                     <div className="grid grid-cols-2 gap-4">
                                         <select value={targetUploadMonth} onChange={(e) => setTargetUploadMonth(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500">
-                                            <option value="">Mês Atual</option>
+                                            <option value="">Mês Anterior</option>
                                             {monthOrder.map((month, index) => <option key={index} value={(index + 1).toString().padStart(2, '0')}>{month.charAt(0).toUpperCase() + month.slice(1)}</option>)}
                                         </select>
                                         <select value={targetUploadYear} onChange={(e) => setTargetUploadYear(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500">
-                                            <option value="">Ano Atual</option>
+                                            <option value="">Ano do Mês Anterior</option>
                                             {[...Array(5)].map((_, i) => <option key={i} value={new Date().getFullYear() - i}>{new Date().getFullYear() - i}</option>)}
                                         </select>
                                     </div>
