@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,32 +8,117 @@ import {
   ExclamationTriangleIcon,
   ArrowRightIcon,
   CheckCircleIcon,
-  PaperAirplaneIcon,
   BellIcon,
   ArrowPathIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/outline';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-import { Doughnut } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip,
+  Legend,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Filler,
+} from 'chart.js';
+import { Doughnut, Line } from 'react-chartjs-2';
+import {
+  buildCompanyStatus,
+  getDaysToDue,
+  getStatusClasses,
+  getTaskDefinitions,
+} from '../utils/carteiraEmpresas';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Filler);
+
+const taskChartPalette = ['#a7c7e7', '#b8d8be', '#f6d6ad', '#d7c4f2', '#f4b6c2'];
 
 const StatCard = ({ icon: Icon, title, value, color, subtitle }) => (
   <motion.div
     variants={{ hidden: { scale: 0.8, opacity: 0 }, visible: { scale: 1, opacity: 1 } }}
-    className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 flex items-center space-x-4"
+    className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
   >
-    <div className={`p-3 rounded-full ${color}`}>
-      <Icon className="h-7 w-7 text-white" />
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{title}</p>
+        <p className="mt-3 text-2xl font-bold tabular-nums text-gray-950 dark:text-gray-100">{value ?? '...'}</p>
+      </div>
+      <div className={`rounded-md p-2.5 ${color}`}>
+        <Icon className="h-5 w-5 text-white" />
+      </div>
     </div>
-    <div>
-      <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-      <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{value ?? '...'}</p>
-      {subtitle && (
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{subtitle}</p>
-      )}
-    </div>
+    {subtitle && (
+      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
+    )}
   </motion.div>
 );
+
+function normalizeRows(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
+  return [];
+}
+
+function toRelativeApiPath(url) {
+  if (!url) return null;
+  if (url.startsWith('/')) return url;
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search || ''}`;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function fetchAllBoletosFromApi() {
+  try {
+    let nextUrl = '/api/boletos-bb/';
+    let guard = 0;
+    const allRowsMap = new Map();
+
+    while (nextUrl && guard < 100) {
+      const response = await axiosInstance.get(nextUrl, {
+        params: { _ts: Date.now() },
+      });
+
+      const data = response?.data;
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data?.results)) {
+        data.results.forEach((row) => allRowsMap.set(String(row.id), row));
+        nextUrl = toRelativeApiPath(data.next);
+        guard += 1;
+        continue;
+      }
+
+      return normalizeRows(data);
+    }
+
+    return Array.from(allRowsMap.values());
+  } catch (err) {
+    const fallback = await axiosInstance.get('/api/boletos-bb/', {
+      params: { _ts: Date.now() },
+    });
+    return normalizeRows(fallback?.data);
+  }
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function getValidDate(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function isSameMonth(date, referenceDate) {
+  return date
+    && date.getFullYear() === referenceDate.getFullYear()
+    && date.getMonth() === referenceDate.getMonth();
+}
 
 const NotificationDropdown = ({ notifications, onMarkAsRead, onClearAll }) => (
   <motion.div
@@ -76,14 +161,12 @@ const NotificationDropdown = ({ notifications, onMarkAsRead, onClearAll }) => (
 );
 
 const InicioPage = () => {
-  const [data, setData] = useState(null);
   const [empresasSelecionadas, setEmpresasSelecionadas] = useState([]);
-  const [searchTerm, setSearchTerm] = useState(''); // Novo estado para o termo de pesquisa
+  const [boletos, setBoletos] = useState([]);
   const [userCargo, setUserCargo] = useState(null);
   const [isSuperuser, setIsSuperuser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [empresaStatus, setEmpresaStatus] = useState({});
   const [checkboxState, setCheckboxState] = useState({});
   const [tarefasPendentes, setTarefasPendentes] = useState(0);
   const [diasVencimento, setDiasVencimento] = useState(null);
@@ -93,15 +176,14 @@ const InicioPage = () => {
     labels: [],
     datasets: [{
       data: [],
-      backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
-      borderColor: ['#fff', '#fff', '#fff', '#fff', '#fff'],
-      borderWidth: 1,
+      backgroundColor: taskChartPalette,
+      borderColor: '#ffffff',
+      borderWidth: 3,
+      hoverOffset: 4,
     }],
   });
   const [chartLoading, setChartLoading] = useState(false); // Nova flag para controle do gráfico
-  const navigate = useNavigate();
   const isInitialized = useRef(false);
-  const lastClickRef = useRef(0); // Para debounce no clique
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -112,17 +194,16 @@ const InicioPage = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [userResponse, dashboardResponse, empresasResponse] = await Promise.all([
+      const [userResponse, empresasResponse, boletosData] = await Promise.all([
         axiosInstance.get('/api/current-user/'),
-        axiosInstance.get('/api/dashboard-summary/'),
         axiosInstance.get('/api/empresas/'),
+        fetchAllBoletosFromApi(),
       ]);
       console.log('Resposta /api/current-user/:', userResponse.data);
       setUserCargo(userResponse.data.cargo || 'admin');
       setIsSuperuser(userResponse.data.is_superuser || false);
-      setData(dashboardResponse.data);
-      console.log('Resposta /api/dashboard-summary/:', dashboardResponse.data);
       setEmpresasSelecionadas(empresasResponse.data);
+      setBoletos(boletosData);
       console.log('Resposta /api/empresas/:', empresasResponse.data);
 
       const initialCheckboxState = {};
@@ -185,8 +266,6 @@ const InicioPage = () => {
       let newChartData;
       if (userCargo === 'admin' || isSuperuser) {
         const totalEmpresas = empresasSelecionadas.length;
-        const pendentes = calculateTarefasPendentes(checkboxState, empresasSelecionadas);
-        const concluidas = (totalEmpresas * 5) - pendentes;
 
         newChartData = {
           labels: ['INSS', 'FGTS', 'Folha', 'Honorário', 'Simples Nacional'],
@@ -198,9 +277,10 @@ const InicioPage = () => {
               totalEmpresas - Object.values(checkboxState).filter(c => c.honorario).length,
               totalEmpresas - Object.values(checkboxState).filter(c => c.simples_nacional).length,
             ],
-            backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'],
-            borderColor: ['#fff', '#fff', '#fff', '#fff', '#fff'],
-            borderWidth: 1,
+            backgroundColor: taskChartPalette,
+            borderColor: '#ffffff',
+            borderWidth: 3,
+            hoverOffset: 4,
           }],
         };
       } else {
@@ -214,9 +294,10 @@ const InicioPage = () => {
             data: pendentes === 0
               ? [0, totalTarefas]
               : [pendentes, totalTarefas - pendentes >= 0 ? totalTarefas - pendentes : 0],
-            backgroundColor: ['#FF6384', '#36A2EB'],
-            borderColor: ['#fff', '#fff'],
-            borderWidth: 1,
+            backgroundColor: ['#f4b6c2', '#b8d8be'],
+            borderColor: '#ffffff',
+            borderWidth: 3,
+            hoverOffset: 4,
           }],
         };
       }
@@ -229,9 +310,10 @@ const InicioPage = () => {
         labels: ['Erro', 'N/A'],
         datasets: [{
           data: [1, 0],
-          backgroundColor: ['#FF6384', '#36A2EB'],
-          borderColor: ['#fff', '#fff'],
-          borderWidth: 1,
+          backgroundColor: ['#f4b6c2', '#d8dee9'],
+          borderColor: '#ffffff',
+          borderWidth: 3,
+          hoverOffset: 4,
         }],
       });
     } finally {
@@ -313,88 +395,6 @@ const InicioPage = () => {
     console.log('Dias até vencimento:', daysRemaining);
   }, [checkboxState, userCargo, empresasSelecionadas, calculateTarefasPendentes]);
 
-  const handleCheckboxChange = async (empresaId, field) => {
-    const now = Date.now();
-    if (now - lastClickRef.current < 500 || empresaStatus[empresaId]?.loading) return; // Debounce e verifica loading
-    lastClickRef.current = now;
-
-    console.log(`Clicado ${field} para empresa ${empresaId}`);
-    setEmpresaStatus((prev) => ({
-      ...prev,
-      [empresaId]: { ...prev[empresaId], loading: true, error: '', success: '' },
-    }));
-
-    const currentState = checkboxState[empresaId] || {};
-    const newValue = !currentState[field];
-    const newState = {
-      ...checkboxState,
-      [empresaId]: { ...currentState, [field]: newValue },
-    };
-    setCheckboxState(newState);
-
-    const pendentes = calculateTarefasPendentes(newState, empresasSelecionadas);
-    setTarefasPendentes(pendentes);
-
-    try {
-      const response = await axiosInstance.patch(`/api/empresas/${empresaId}/`, { [field]: newValue });
-      console.log(`PATCH /api/empresas/${empresaId}/ response:`, response.data);
-      setCheckboxState((prev) => ({
-        ...prev,
-        [empresaId]: { ...prev[empresaId], [field]: response.data[field] },
-      }));
-    } catch (err) {
-      console.error(`Erro ao atualizar ${field} para empresa ${empresaId}:`, err);
-      setError(
-        err.response?.status === 403
-          ? `Permissão negada para atualizar ${field}. Contate o administrador.`
-          : `Erro ao atualizar ${field} para a empresa.`
-      );
-      setCheckboxState((prev) => ({
-        ...prev,
-        [empresaId]: { ...prev[empresaId], [field]: !newValue },
-      }));
-      setTarefasPendentes(calculateTarefasPendentes(checkboxState, empresasSelecionadas));
-    } finally {
-      setEmpresaStatus((prev) => ({
-        ...prev,
-        [empresaId]: { ...prev[empresaId], loading: false },
-      }));
-    }
-  };
-
-  const handleGerarEEnviarDas = async (empresa) => {
-    console.log(`Gerando e enviando DAS para empresa ${empresa.id}`);
-    setEmpresaStatus((prev) => ({
-      ...prev,
-      [empresa.id]: { loading: true, error: '', success: '' },
-    }));
-
-    try {
-      const response = await axiosInstance.post('/api/serpro/gerar-e-enviar-das/', {
-        cnpj: empresa.cnpj.replace(/\D/g, ''),
-      });
-
-      const periodo = response.data.mensagem.match(/\d{2}\/\d{4}/)?.[0] || 'período desconhecido';
-      setEmpresaStatus((prev) => ({
-        ...prev,
-        [empresa.id]: {
-          loading: false,
-          error: '',
-          success: `DAS de ${periodo} enviado com sucesso para ${empresa.nome}!`,
-        },
-      }));
-
-      await handleCheckboxChange(empresa.id, 'simples_nacional');
-    } catch (err) {
-      const errorMessage =
-        err.response?.data?.erro || 'Erro ao gerar e enviar o DAS via WhatsApp.';
-      setEmpresaStatus((prev) => ({
-        ...prev,
-        [empresa.id]: { loading: false, error: errorMessage, success: '' },
-      }));
-    }
-  };
-
   const handleRefresh = async () => {
     setLoading(true);
     try {
@@ -448,17 +448,14 @@ const InicioPage = () => {
         }
       });
 
-      const lastChange = lastClickRef.current;
-      const isRecentChange = lastChange && (Date.now() - lastChange < 5000);
-
-      if (stateChanged && !isRecentChange && JSON.stringify(updatedCheckboxState) !== JSON.stringify(checkboxState)) {
+      if (stateChanged && JSON.stringify(updatedCheckboxState) !== JSON.stringify(checkboxState)) {
         setCheckboxState(updatedCheckboxState);
         const pendentes = calculateTarefasPendentes(updatedCheckboxState, empresasSelecionadas);
         setTarefasPendentes(pendentes);
         fetchChartData();
       }
 
-      if (pendencias.length > 0 && !isRecentChange) {
+      if (pendencias.length > 0) {
         console.log('Enviando pendências:', pendencias);
         axiosInstance.post('/api/pendencias/', { pendencias })
           .catch((err) => {
@@ -481,8 +478,9 @@ const InicioPage = () => {
         labels: {
           color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151',
           usePointStyle: true,
-          font: { size: 14 },
-          padding: 20,
+          boxWidth: 8,
+          font: { size: 12 },
+          padding: 14,
         },
       },
       tooltip: {
@@ -496,7 +494,7 @@ const InicioPage = () => {
         },
       },
     },
-    cutout: '70%',
+    cutout: '68%',
   };
 
   useEffect(() => {
@@ -520,73 +518,213 @@ const InicioPage = () => {
     return <div className="p-8 text-center text-red-500 dark:text-red-400">{error}</div>;
   }
 
-  const isDepartamentoPessoal = userCargo === 'pessoal';
   const isDepartamentoFiscal = userCargo === 'fiscal';
-  const isAdministrador = userCargo === 'admin' || isSuperuser;
 
-  const vencimentoColor = diasVencimento <= 3 ? 'bg-red-500' : 'bg-orange-500';
+  const vencimentoColor = diasVencimento <= 3 ? 'bg-rose-300' : 'bg-orange-300';
   const vencimentoIcon = diasVencimento <= 3 ? ExclamationTriangleIcon : ClockIcon;
   const vencimentoSubtitle =
     diasVencimento > 7
       ? 'Nenhum vencimento próximo'
       : `Vencimento em ${isDepartamentoFiscal ? '25' : '15'}/${new Date().getMonth() + (diasVencimento > 7 ? 2 : 1)}`;
 
-  // Filtrar empresas com base no termo de pesquisa
-  const filteredEmpresas = empresasSelecionadas.filter((empresa) =>
-    empresa.nome.toLowerCase().includes(searchTerm.toLowerCase())
-  );
   const empresasAtivasCount = empresasSelecionadas.filter((empresa) => empresa.ativo).length;
+  const carteiraTasks = getTaskDefinitions(userCargo, isSuperuser);
+  const carteiraDaysToDue = getDaysToDue(userCargo);
+  const prioridadeEmpresas = empresasSelecionadas
+    .map((empresa) => ({
+      empresa,
+      status: buildCompanyStatus(empresa, carteiraTasks, carteiraDaysToDue),
+    }))
+    .filter(({ status }) => ['warning', 'attention'].includes(status.tone))
+    .sort((a, b) => a.status.priority - b.status.priority || a.empresa.nome.localeCompare(b.empresa.nome))
+    .slice(0, 6);
+  const today = new Date();
+  const currentMonthLabel = today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  const boletosGeradosMesAtual = boletos.filter((boleto) => {
+    const generatedDate = getValidDate(boleto.criado_em || boleto.atualizado_em);
+    return isSameMonth(generatedDate, today);
+  });
+  const boletosPagosMesAtual = boletos.filter((boleto) => {
+    const paidDate = getValidDate(
+      boleto.data_pagamento || (boleto.status === 'pago' ? boleto.atualizado_em : null)
+    );
+    return boleto.status === 'pago' && isSameMonth(paidDate, today);
+  });
+  const boletosGeradosCount = boletosGeradosMesAtual.length;
+  const boletosPagosCount = boletosPagosMesAtual.length;
+  const boletosRegistradosCount = boletosGeradosMesAtual.filter((boleto) => boleto.status === 'registrado').length;
+  const percentualPago = boletosGeradosCount > 0
+    ? `${Math.round((boletosPagosCount / boletosGeradosCount) * 100)}% pagos`
+    : 'Sem boletos neste mês';
+
+  const boletoVolumePoints = Array.from({ length: today.getDate() }).map((_, index) => {
+    const currentDate = new Date(today.getFullYear(), today.getMonth(), index + 1);
+    currentDate.setHours(0, 0, 0, 0);
+
+    return {
+      key: dateKey(currentDate),
+      label: currentDate.toLocaleDateString('pt-BR', { day: '2-digit' }),
+      gerados: 0,
+      pagos: 0,
+    };
+  });
+
+  const boletoVolumeMap = new Map(boletoVolumePoints.map((point) => [point.key, point]));
+
+  boletos.forEach((boleto) => {
+    const generatedDate = getValidDate(boleto.criado_em || boleto.atualizado_em);
+    const paidDate = getValidDate(
+      boleto.data_pagamento || (boleto.status === 'pago' ? boleto.atualizado_em : null)
+    );
+
+    if (generatedDate) {
+      const point = boletoVolumeMap.get(dateKey(generatedDate));
+      if (point && isSameMonth(generatedDate, today)) point.gerados += 1;
+    }
+
+    if (paidDate) {
+      const point = boletoVolumeMap.get(dateKey(paidDate));
+      if (point && boleto.status === 'pago' && isSameMonth(paidDate, today)) point.pagos += 1;
+    }
+  });
+
+  const boletoVolumeData = {
+    labels: boletoVolumePoints.map((point) => point.label),
+    datasets: [
+      {
+        label: 'Gerados',
+        data: boletoVolumePoints.map((point) => point.gerados),
+        borderColor: '#c8a46d',
+        backgroundColor: 'rgba(200, 164, 109, 0.18)',
+        pointBackgroundColor: '#c8a46d',
+        pointBorderColor: '#ffffff',
+        fill: true,
+        tension: 0.38,
+      },
+      {
+        label: 'Pagos',
+        data: boletoVolumePoints.map((point) => point.pagos),
+        borderColor: '#84c7a2',
+        backgroundColor: 'rgba(132, 199, 162, 0.16)',
+        pointBackgroundColor: '#84c7a2',
+        pointBorderColor: '#ffffff',
+        fill: true,
+        tension: 0.38,
+      },
+    ],
+  };
+
+  const boletoVolumeOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          usePointStyle: true,
+          boxWidth: 8,
+          color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151',
+          font: { size: 12 },
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (context) => `${context.dataset.label}: ${context.raw} boleto(s)`,
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: {
+          color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280',
+          font: { size: 11 },
+        },
+      },
+      y: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+          color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280',
+          font: { size: 11 },
+        },
+        grid: {
+          color: document.documentElement.classList.contains('dark') ? 'rgba(75, 85, 99, 0.45)' : 'rgba(229, 231, 235, 0.9)',
+        },
+      },
+    },
+  };
 
   return (
     <motion.div
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="p-6 md:p-8 animate-fade-in relative"
+      className="mx-auto w-full max-w-7xl space-y-6 px-4 py-4 text-gray-900 dark:text-gray-100 sm:px-6 sm:py-6 lg:px-8"
     >
-      <div className="absolute top-6 right-8 flex items-center gap-4 z-20">
-        <button onClick={handleRefresh} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Atualizar Dados">
-          <ArrowPathIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-        </button>
-        <div className="relative">
-          <button onClick={() => setShowNotifications(prev => !prev)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Notificações">
-            <BellIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
-            {unreadCount > 0 && (
-              <span className="absolute top-0 right-0 block h-3 w-3 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-900" />
-            )}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <motion.div variants={itemVariants} className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Operação</p>
+          <h1 className="mt-2 font-serif text-4xl font-semibold text-gray-950 dark:text-white">
+            Dashboard
+          </h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Acompanhe empresas, tarefas e o volume de boletos do escritório.
+          </p>
+        </motion.div>
+
+        <div className="flex items-center gap-3">
+          <button onClick={handleRefresh} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Atualizar Dados">
+            <ArrowPathIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
           </button>
-          <AnimatePresence>
-            {showNotifications && (
-              <NotificationDropdown
-                notifications={notifications}
-                onMarkAsRead={markAsRead}
-                onClearAll={clearNotifications}
-              />
-            )}
-          </AnimatePresence>
+          <div className="relative">
+            <button onClick={() => setShowNotifications(prev => !prev)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Notificações">
+              <BellIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+              {unreadCount > 0 && (
+                <span className="absolute top-0 right-0 block h-3 w-3 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-900" />
+              )}
+            </button>
+            <AnimatePresence>
+              {showNotifications && (
+                <NotificationDropdown
+                  notifications={notifications}
+                  onMarkAsRead={markAsRead}
+                  onClearAll={clearNotifications}
+                />
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
-      <motion.h1
-        variants={itemVariants}
-        className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-8"
-      >
-        Dashboard
-      </motion.h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard
           icon={UsersIcon}
           title="Empresas Ativas"
           value={empresasAtivasCount}
-          color="bg-blue-500"
+          color="bg-sky-300"
+        />
+        <StatCard
+          icon={BanknotesIcon}
+          title="Boletos Gerados"
+          value={boletosGeradosCount}
+          color="bg-amber-300"
+          subtitle="Gerados no mês atual"
+        />
+        <StatCard
+          icon={CheckCircleIcon}
+          title="Boletos Pagos"
+          value={boletosPagosCount}
+          color="bg-emerald-300"
+          subtitle={percentualPago}
         />
         <StatCard
           icon={ClockIcon}
-          title="Tarefas Pendentes"
-          value={tarefasPendentes}
-          color="bg-yellow-500"
-          subtitle={tarefasPendentes === 0 ? 'Todas as tarefas concluídas!' : 'Complete suas tarefas!'}
+          title="Em Aberto"
+          value={boletosRegistradosCount}
+          color="bg-orange-300"
+          subtitle="Gerados neste mês com status registrado"
         />
         <StatCard
           icon={vencimentoIcon}
@@ -597,399 +735,141 @@ const InicioPage = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <motion.div
           variants={itemVariants}
-          className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 min-h-[600px]"
+          className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 xl:col-span-3"
         >
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center justify-between">
-            Empresas Atribuídas
-            <div className="relative">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Pesquisar empresa..."
-                className="w-64 p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100">Volume de boletos</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Gerados e pagos em {currentMonthLabel}</p>
             </div>
-          </h2>
-          <div className="overflow-y-auto max-h-[540px]">
-            {filteredEmpresas.length > 0 ? (
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-indigo-50 dark:bg-indigo-900/50 sticky top-0">
-                    <th className="p-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 w-2/5">
-                      Empresa
-                    </th>
-                    <th className="p-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 w-2/5">
-                      CNPJ
-                    </th>
-                    {isDepartamentoPessoal && (
-                      <>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          INSS
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          FGTS
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          Folha
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          Honorário
-                        </th>
-                      </>
-                    )}
-                    {isDepartamentoFiscal && (
-                      <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/5">
-                        Simples Nacional
-                      </th>
-                    )}
-                    {isDepartamentoFiscal && (
-                      <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                        Enviar DAS
-                      </th>
-                    )}
-                    {isAdministrador && (
-                      <>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          INSS
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          FGTS
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          Folha
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          Honorário
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          Simples Nacional
-                        </th>
-                        <th className="p-2 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/10">
-                          Enviar DAS
-                        </th>
-                      </>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredEmpresas.map((empresa) => (
-                    <motion.tr
-                      key={empresa.id}
-                      variants={itemVariants}
-                      className="border-b border-gray-200 dark:border-gray-700"
-                    >
-                      <td className="p-2 text-sm text-gray-600 dark:text-gray-300">
-                        <div className="flex items-center space-x-2">
-                          <UsersIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
-                          <Link
-                            to={`/empresas/${empresa.id}/pastas`}
-                            className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium hover:underline"
-                            title="Acessar pasta de arquivos"
-                          >
-                            {empresa.nome}
-                          </Link>
-                        </div>
-                      </td>
-                      <td className="p-2 text-sm text-gray-600 dark:text-gray-300">
-                        {empresa.cnpj}
-                      </td>
-                      {isDepartamentoPessoal && (
-                        <>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.inss
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'inss');
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.fgts
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'fgts');
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.folha
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'folha');
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.honorario
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'honorario');
-                                }
-                              }}
-                            />
-                          </td>
-                        </>
-                      )}
-                      {isDepartamentoFiscal && (
-                        <>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.simples_nacional
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'simples_nacional');
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <button
-                              onClick={() => handleGerarEEnviarDas(empresa)}
-                              disabled={empresaStatus[empresa.id]?.loading || false}
-                              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Gerar e enviar DAS via WhatsApp"
-                            >
-                              {empresaStatus[empresa.id]?.loading ? (
-                                <svg
-                                  className="animate-spin h-5 w-5 text-indigo-500 dark:text-indigo-400 mx-auto"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <circle
-                                    className="opacity-25"
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                  />
-                                  <path
-                                    className="opacity-75"
-                                    fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                  />
-                                </svg>
-                              ) : (
-                                <PaperAirplaneIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
-                              )}
-                            </button>
-                            {empresaStatus[empresa.id]?.success && (
-                              <div className="mt-1 text-xs text-green-600 dark:text-green-400">
-                                {empresaStatus[empresa.id].success}
-                              </div>
-                            )}
-                            {empresaStatus[empresa.id]?.error && (
-                              <div className="mt-1 text-xs text-red-600 dark:text-red-400">
-                                {empresaStatus[empresa.id].error}
-                              </div>
-                            )}
-                          </td>
-                        </>
-                      )}
-                      {isAdministrador && (
-                        <>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.inss
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'inss');
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.fgts
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'fgts');
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.folha
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'folha');
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.honorario
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'honorario');
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <CheckCircleIcon
-                              className={`h-5 w-5 mx-auto cursor-pointer ${checkboxState[empresa.id]?.simples_nacional
-                                ? 'text-green-500'
-                                : 'text-gray-300 dark:text-gray-600'
-                                } ${empresaStatus[empresa.id]?.loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              onClick={() => {
-                                if (!empresaStatus[empresa.id]?.loading) {
-                                  handleCheckboxChange(empresa.id, 'simples_nacional');
-                                }
-                              }}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <button
-                              onClick={() => handleGerarEEnviarDas(empresa)}
-                              disabled={empresaStatus[empresa.id]?.loading || false}
-                              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Gerar e enviar DAS via WhatsApp"
-                            >
-                              {empresaStatus[empresa.id]?.loading ? (
-                                <svg
-                                  className="animate-spin h-5 w-5 text-indigo-500 dark:text-indigo-400 mx-auto"
-                                  xmlns="http://www.w3.org/2000/svg"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <circle
-                                    className="opacity-25"
-                                    cx="12"
-                                    cy="12"
-                                    r="10"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                  />
-                                  <path
-                                    className="opacity-75"
-                                    fill="currentColor"
-                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                  />
-                                </svg>
-                              ) : (
-                                <PaperAirplaneIcon className="h-5 w-5 text-indigo-500 dark:text-indigo-400" />
-                              )}
-                            </button>
-                            {empresaStatus[empresa.id]?.success && (
-                              <div className="mt-1 text-xs text-green-600 dark:text-green-400">
-                                {empresaStatus[empresa.id].success}
-                              </div>
-                            )}
-                            {empresaStatus[empresa.id]?.error && (
-                              <div className="mt-1 text-xs text-red-600 dark:text-red-400">
-                                {empresaStatus[empresa.id].error}
-                              </div>
-                            )}
-                          </td>
-                        </>
-                      )}
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                Nenhuma empresa encontrada ou atribuída a este usuário.
+            <Link
+              to="/boletos-por-empresa"
+              className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              Ver boletos
+              <ArrowRightIcon className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-4 h-[280px]">
+            <Line data={boletoVolumeData} options={boletoVolumeOptions} />
+          </div>
+        </motion.div>
+
+        <motion.div
+          variants={itemVariants}
+          className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 xl:col-span-2"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100">Status das tarefas</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{tarefasPendentes} pendência(s) por obrigação</p>
+            </div>
+            <span className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              Atual
+            </span>
+          </div>
+          <div className="relative mt-4 h-[280px]">
+            {chartData.labels.length === 0 || chartData.datasets[0].data.every(val => val === 0) ? (
+              <p className="flex h-full items-center justify-center text-center text-sm text-gray-500 dark:text-gray-400">
+                Não há dados disponíveis para o gráfico.
               </p>
+            ) : (
+              <>
+                <Doughnut id="doughnut-chart" data={chartData} options={chartOptions} />
+                <div className="pointer-events-none absolute inset-x-0 top-[38%] flex -translate-y-1/2 flex-col items-center justify-center">
+                  <span className="text-2xl font-bold tabular-nums text-gray-950 dark:text-gray-100">{tarefasPendentes}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">pendentes</span>
+                </div>
+              </>
+            )}
+          </div>
+        </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <motion.div
+          variants={itemVariants}
+          className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 xl:col-span-2"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100">Empresas que precisam de atenção</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Prioridade calculada por pendências e vencimento mensal.</p>
+            </div>
+            <Link
+              to="/carteira-empresas"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+            >
+              Abrir carteira
+              <ArrowRightIcon className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {prioridadeEmpresas.length > 0 ? (
+              prioridadeEmpresas.map(({ empresa, status }) => (
+                <div key={empresa.id} className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link to={`/empresas/${empresa.id}/pastas`} className="truncate font-semibold text-gray-950 hover:underline dark:text-gray-100">
+                          {empresa.nome}
+                        </Link>
+                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusClasses(status.tone)}`}>
+                          {status.label}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{empresa.cnpj || 'CNPJ não informado'}</p>
+                    </div>
+                    <div className="text-sm font-semibold tabular-nums text-gray-700 dark:text-gray-200">
+                      {status.done}/{status.total}
+                    </div>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-sky-200 via-violet-200 to-emerald-200"
+                      style={{ width: `${status.progress}%` }}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{status.description}</p>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900/70 dark:bg-emerald-950/30">
+                <CheckCircleIcon className="mx-auto h-8 w-8 text-emerald-500" />
+                <p className="mt-2 text-sm font-semibold text-emerald-700 dark:text-emerald-300">Nenhuma empresa crítica agora.</p>
+                <p className="mt-1 text-xs text-emerald-700/80 dark:text-emerald-300/80">A carteira completa continua disponível para acompanhamento.</p>
+              </div>
             )}
           </div>
         </motion.div>
 
-        <div className="space-y-8">
-          <motion.div
-            variants={itemVariants}
-            className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
-          >
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4 text-center">
-              Status das Tarefas
-            </h2>
-            <div className="h-64 relative">
-              {chartData.labels.length === 0 || chartData.datasets[0].data.every(val => val === 0) ? (
-                <p className="text-gray-500 dark:text-gray-400 text-center">
-                  Não há dados disponíveis para o gráfico. Verifique as configurações ou entre em contato com o suporte.
-                </p>
-              ) : (
-                <Doughnut id="doughnut-chart" data={chartData} options={chartOptions} />
-              )}
-            </div>
-          </motion.div>
-          <motion.div
-            variants={itemVariants}
-            className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
-          >
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">
-              Acesso Rápido
-            </h2>
-            <div className="space-y-3">
+        <motion.div
+          variants={itemVariants}
+          className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+        >
+          <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100">Acesso rápido</h2>
+          <div className="mt-4 space-y-2">
+            {[
+              { to: '/carteira-empresas', label: 'Carteira de Empresas' },
+              { to: '/gerar-das', label: 'Gerar Guia DAS' },
+              { to: '/consultar-extrato', label: 'Consultar Extrato' },
+              { to: '/pendencias', label: 'Ver Pendências' },
+            ].map((item) => (
               <Link
-                to="/gerar-das"
-                className="w-full flex justify-between items-center p-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                onClick={() => console.log('Navegando para /gerar-das')}
+                key={item.to}
+                to={item.to}
+                className="flex w-full items-center justify-between rounded-lg p-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
               >
-                <span>Gerar Guia DAS</span>
-                <ArrowRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-300" />
+                <span>{item.label}</span>
+                <ArrowRightIcon className="h-4 w-4 text-gray-400 dark:text-gray-300" />
               </Link>
-              <Link
-                to="/consultar-extrato"
-                className="w-full flex justify-between items-center p-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                onClick={() => console.log('Navegando para /consultar-extrato')}
-              >
-                <span>Consultar Extrato</span>
-                <ArrowRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-300" />
-              </Link>
-              <Link
-                to="/pendencias"
-                className="w-full flex justify-between items-center p-3 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                onClick={() => console.log('Navegando para /pendencias')}
-              >
-                <span>Ver Pendências</span>
-                <ArrowRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-300" />
-              </Link>
-            </div>
-          </motion.div>
-        </div>
+            ))}
+          </div>
+        </motion.div>
       </div>
     </motion.div>
   );

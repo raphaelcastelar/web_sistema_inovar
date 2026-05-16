@@ -8,6 +8,7 @@ import PrivateRoute from './utils/PrivateRoute';
 
 // Componentes e Páginas (caminhos a partir de src/)
 import InicioPage from './components/InicioPage';
+import CarteiraEmpresasPage from './components/CarteiraEmpresasPage';
 import EmpresaList from './components/EmpresaList';
 import EmpresaForm from './components/EmpresaForm';
 import PastaManager from './components/PastaManager';
@@ -41,6 +42,7 @@ function App() {
         <Route element={<PrivateRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/" element={<InicioPage />} />
+            <Route path="/carteira-empresas" element={<CarteiraEmpresasPage />} />
             <Route path="/empresas" element={<EmpresaList />} />
             <Route path="/empresas/cadastrar" element={<EmpresaForm />} />
             <Route path="/empresas/editar/:empresaId" element={<EmpresaForm />} />

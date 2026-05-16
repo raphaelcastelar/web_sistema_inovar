@@ -9,13 +9,13 @@ const ThemeToggle = () => {
     return (
         <button
             onClick={toggleTheme}
-            className="p-2 rounded-full text-indigo-300 hover:text-white hover:bg-indigo-700/50 transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-700/50 hover:text-white"
             title={`Mudar para modo ${theme === 'light' ? 'escuro' : 'claro'}`}
         >
             {theme === 'light' ? (
-                <MoonIcon className="h-6 w-6" />
+                <MoonIcon className="h-4 w-4" />
             ) : (
-                <SunIcon className="h-6 w-6" />
+                <SunIcon className="h-4 w-4" />
             )}
         </button>
     );
