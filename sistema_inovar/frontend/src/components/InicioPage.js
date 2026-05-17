@@ -38,14 +38,14 @@ const taskChartPalette = ['#a7c7e7', '#b8d8be', '#f6d6ad', '#d7c4f2', '#f4b6c2']
 const StatCard = ({ icon: Icon, title, value, color, subtitle }) => (
   <motion.div
     variants={{ hidden: { scale: 0.8, opacity: 0 }, visible: { scale: 1, opacity: 1 } }}
-    className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+    className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5"
   >
     <div className="flex items-start justify-between gap-3">
-      <div>
+      <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{title}</p>
-        <p className="mt-3 text-2xl font-bold tabular-nums text-gray-950 dark:text-gray-100">{value ?? '...'}</p>
+        <p className="mt-3 break-words text-2xl font-bold tabular-nums text-gray-950 dark:text-gray-100">{value ?? '...'}</p>
       </div>
-      <div className={`rounded-md p-2.5 ${color}`}>
+      <div className={`shrink-0 rounded-md p-2.5 ${color}`}>
         <Icon className="h-5 w-5 text-white" />
       </div>
     </div>
@@ -125,7 +125,7 @@ const NotificationDropdown = ({ notifications, onMarkAsRead, onClearAll }) => (
     initial={{ opacity: 0, y: -10 }}
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, y: -10 }}
-    className="absolute top-14 right-0 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50"
+    className="absolute right-0 top-14 z-50 w-[calc(100vw-2rem)] max-w-80 rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800 sm:w-80"
   >
     <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
       <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Notificações</h3>
@@ -661,12 +661,12 @@ const InicioPage = () => {
       initial="hidden"
       animate="visible"
       variants={containerVariants}
-      className="mx-auto w-full max-w-7xl space-y-6 px-4 py-4 text-gray-900 dark:text-gray-100 sm:px-6 sm:py-6 lg:px-8"
+      className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4"
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <motion.div variants={itemVariants} className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Operação</p>
-          <h1 className="mt-2 font-serif text-4xl font-semibold text-gray-950 dark:text-white">
+          <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">
             Dashboard
           </h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -674,7 +674,7 @@ const InicioPage = () => {
           </p>
         </motion.div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-3">
           <button onClick={handleRefresh} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Atualizar Dados">
             <ArrowPathIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
           </button>
@@ -698,7 +698,7 @@ const InicioPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:gap-4">
         <StatCard
           icon={UsersIcon}
           title="Empresas Ativas"
@@ -735,10 +735,10 @@ const InicioPage = () => {
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+      <div className="grid w-full grid-cols-1 gap-4 xl:grid-cols-5">
         <motion.div
           variants={itemVariants}
-          className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 xl:col-span-3"
+          className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5 xl:col-span-3"
         >
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -747,20 +747,20 @@ const InicioPage = () => {
             </div>
             <Link
               to="/boletos-por-empresa"
-              className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
             >
               Ver boletos
               <ArrowRightIcon className="h-4 w-4" />
             </Link>
           </div>
-          <div className="mt-4 h-[280px]">
+          <div className="mt-4 h-[240px] sm:h-[280px]">
             <Line data={boletoVolumeData} options={boletoVolumeOptions} />
           </div>
         </motion.div>
 
         <motion.div
           variants={itemVariants}
-          className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 xl:col-span-2"
+          className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5 xl:col-span-2"
         >
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -771,7 +771,7 @@ const InicioPage = () => {
               Atual
             </span>
           </div>
-          <div className="relative mt-4 h-[280px]">
+          <div className="relative mt-4 h-[240px] sm:h-[280px]">
             {chartData.labels.length === 0 || chartData.datasets[0].data.every(val => val === 0) ? (
               <p className="flex h-full items-center justify-center text-center text-sm text-gray-500 dark:text-gray-400">
                 Não há dados disponíveis para o gráfico.
@@ -789,10 +789,10 @@ const InicioPage = () => {
         </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="grid w-full grid-cols-1 gap-6 xl:grid-cols-3">
         <motion.div
           variants={itemVariants}
-          className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 xl:col-span-2"
+          className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5 xl:col-span-2"
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -801,7 +801,7 @@ const InicioPage = () => {
             </div>
             <Link
               to="/carteira-empresas"
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
             >
               Abrir carteira
               <ArrowRightIcon className="h-4 w-4" />
@@ -824,7 +824,7 @@ const InicioPage = () => {
                       </div>
                       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{empresa.cnpj || 'CNPJ não informado'}</p>
                     </div>
-                    <div className="text-sm font-semibold tabular-nums text-gray-700 dark:text-gray-200">
+                    <div className="shrink-0 text-sm font-semibold tabular-nums text-gray-700 dark:text-gray-200">
                       {status.done}/{status.total}
                     </div>
                   </div>
@@ -849,7 +849,7 @@ const InicioPage = () => {
 
         <motion.div
           variants={itemVariants}
-          className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+          className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5"
         >
           <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100">Acesso rápido</h2>
           <div className="mt-4 space-y-2">
