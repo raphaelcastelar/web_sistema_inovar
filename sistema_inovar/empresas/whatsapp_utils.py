@@ -58,9 +58,9 @@ def upload_media_to_whatsapp(file_path, original_filename):
 
 def send_whatsapp_document_template_message(
     recipient_number: str,
-    document_media_id: str,
-    document_filename: str,
-    template_name: str,
+    document_media_id: str = None,
+    document_filename: str = None,
+    template_name: str = None,
     template_params: dict = None,
     company_name: str = None
 ):
@@ -105,6 +105,11 @@ def send_whatsapp_document_template_message(
                 {"type": "text", "text": resolved_company_name}
             ]
         },
+        "honorario_cobranca": {
+            "body_params": [
+                {"type": "text", "text": resolved_company_name}
+            ]
+        },
         "enviar_dp": {
             "body_params": [
                 {"type": "text", "text": resolved_company_name},  # 1ª variável: Nome da empresa
@@ -124,6 +129,27 @@ def send_whatsapp_document_template_message(
         {"type": "text", "text": ""}
     ])
 
+    components = []
+    if config.get("include_document_header", True):
+        if not document_media_id or not document_filename:
+            logger.error(f"Template '{template_name}' exige documento, mas media_id ou filename nao foi informado.")
+            return None, f"Template '{template_name}' exige documento."
+
+        components.append({
+            "type": "header",
+            "parameters": [
+                {
+                    "type": "document",
+                    "document": {"id": document_media_id, "filename": document_filename}
+                }
+            ]
+        })
+
+    components.append({
+        "type": "body",
+        "parameters": body_params
+    })
+
     # Montar o payload do template
     payload = {
         "messaging_product": "whatsapp",
@@ -133,21 +159,7 @@ def send_whatsapp_document_template_message(
         "template": {
             "name": template_name,
             "language": {"code": "pt_BR"},
-            "components": [
-                {
-                    "type": "header",
-                    "parameters": [
-                        {
-                            "type": "document",
-                            "document": {"id": document_media_id, "filename": document_filename}
-                        }
-                    ]
-                },
-                {
-                    "type": "body",
-                    "parameters": body_params
-                }
-            ]
+            "components": components
         }
     }
 

@@ -11,6 +11,8 @@ import {
   BellIcon,
   ArrowPathIcon,
   BanknotesIcon,
+  PaperAirplaneIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import {
   Chart as ChartJS,
@@ -35,10 +37,16 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointE
 
 const taskChartPalette = ['#a7c7e7', '#b8d8be', '#f6d6ad', '#d7c4f2', '#f4b6c2'];
 
-const StatCard = ({ icon: Icon, title, value, color, subtitle }) => (
-  <motion.div
+const StatCard = ({ icon: Icon, title, value, color, subtitle, onClick, disabled }) => {
+  const MotionTag = onClick ? motion.button : motion.div;
+
+  return (
+  <MotionTag
     variants={{ hidden: { scale: 0.8, opacity: 0 }, visible: { scale: 1, opacity: 1 } }}
-    className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5"
+    type={onClick ? 'button' : undefined}
+    onClick={onClick}
+    disabled={onClick ? disabled : undefined}
+    className={`min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5 ${onClick ? 'text-left transition hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70 dark:hover:border-orange-900/70' : ''}`}
   >
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -52,8 +60,23 @@ const StatCard = ({ icon: Icon, title, value, color, subtitle }) => (
     {subtitle && (
       <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
     )}
-  </motion.div>
-);
+  </MotionTag>
+  );
+};
+
+function formatMoney(value) {
+  if (value === null || value === undefined || value === '') return '-';
+  const numericValue = Number(value);
+  if (Number.isNaN(numericValue)) return String(value);
+  return numericValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatDate(value) {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '-';
+  return parsed.toLocaleDateString('pt-BR');
+}
 
 function normalizeRows(data) {
   if (Array.isArray(data)) return data;
@@ -172,6 +195,9 @@ const InicioPage = () => {
   const [diasVencimento, setDiasVencimento] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showCobrancaModal, setShowCobrancaModal] = useState(false);
+  const [sendingCobranca, setSendingCobranca] = useState(false);
+  const [cobrancaFeedback, setCobrancaFeedback] = useState(null);
   const [chartData, setChartData] = useState({
     labels: [],
     datasets: [{
@@ -549,7 +575,19 @@ const InicioPage = () => {
   });
   const boletosGeradosCount = boletosGeradosMesAtual.length;
   const boletosPagosCount = boletosPagosMesAtual.length;
-  const boletosRegistradosCount = boletosGeradosMesAtual.filter((boleto) => boleto.status === 'registrado').length;
+  const boletosRegistradosMesAtual = boletosGeradosMesAtual.filter((boleto) => boleto.status === 'registrado');
+  const boletosRegistradosCount = boletosRegistradosMesAtual.length;
+  const empresasById = new Map(empresasSelecionadas.map((empresa) => [String(empresa.id), empresa]));
+  const boletosEmAbertoRows = boletosRegistradosMesAtual.map((boleto) => {
+    const empresa = empresasById.get(String(boleto.empresa)) || {};
+    return {
+      ...boleto,
+      empresa_nome: boleto.empresa_nome || empresa.nome || 'Empresa não identificada',
+      empresa_cnpj: empresa.cnpj || '-',
+      empresa_telefone: empresa.telefone || '-',
+      empresa_numero: empresa.numero || '-',
+    };
+  });
   const percentualPago = isInitialDataLoading
     ? 'Aguardando boletos'
     : boletosGeradosCount > 0
@@ -655,6 +693,40 @@ const InicioPage = () => {
     },
   };
 
+  const handleOpenCobrancaModal = () => {
+    setCobrancaFeedback(null);
+    setShowCobrancaModal(true);
+  };
+
+  const handleEnviarCobranca = async () => {
+    if (boletosEmAbertoRows.length === 0) return;
+
+    setSendingCobranca(true);
+    setCobrancaFeedback(null);
+
+    try {
+      const response = await axiosInstance.post('/api/boletos-bb/enviar-cobranca/', {
+        boleto_ids: boletosEmAbertoRows.map((boleto) => boleto.id),
+      });
+      const successCount = response.data?.success_count ?? 0;
+      const failedCount = response.data?.failed_count ?? 0;
+      setCobrancaFeedback({
+        type: failedCount > 0 ? 'warning' : 'success',
+        text: `${successCount} cobrança(s) enviada(s). ${failedCount} falha(s).`,
+      });
+    } catch (err) {
+      const data = err?.response?.data;
+      const successCount = data?.success_count ?? 0;
+      const failedCount = data?.failed_count ?? boletosEmAbertoRows.length;
+      setCobrancaFeedback({
+        type: 'error',
+        text: data?.error || `${successCount} cobrança(s) enviada(s). ${failedCount} falha(s).`,
+      });
+    } finally {
+      setSendingCobranca(false);
+    }
+  };
+
   return (
     <motion.div
       initial="hidden"
@@ -729,7 +801,9 @@ const InicioPage = () => {
           title="Em Aberto"
           value={isInitialDataLoading ? undefined : boletosRegistradosCount}
           color="bg-orange-300"
-          subtitle="Gerados neste mês com status registrado"
+          subtitle={boletosRegistradosCount > 0 ? 'Clique para cobrar os pendentes' : 'Gerados neste mês com status registrado'}
+          onClick={handleOpenCobrancaModal}
+          disabled={isInitialDataLoading}
         />
         <StatCard
           icon={vencimentoIcon}
@@ -888,6 +962,118 @@ const InicioPage = () => {
           </div>
         </motion.div>
       </div>
+
+      <AnimatePresence>
+        {showCobrancaModal && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => !sendingCobranca && setShowCobrancaModal(false)}
+          >
+            <motion.div
+              className="flex max-h-[88vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-gray-900"
+              initial={{ scale: 0.96, y: 12 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 12 }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4 border-b border-gray-200 p-5 dark:border-gray-800">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-500">Cobrança de honorário</p>
+                  <h2 className="mt-1 text-xl font-bold text-gray-950 dark:text-white">Boletos em aberto</h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {boletosEmAbertoRows.length} boleto(s) registrado(s) neste mês aguardando pagamento.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !sendingCobranca && setShowCobrancaModal(false)}
+                  disabled={sendingCobranca}
+                  className="rounded-md p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                  title="Fechar"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto p-5">
+                {cobrancaFeedback && (
+                  <div className={`mb-4 rounded-lg px-4 py-3 text-sm font-semibold ${
+                    cobrancaFeedback.type === 'success'
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300'
+                      : cobrancaFeedback.type === 'warning'
+                        ? 'border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-300'
+                        : 'border border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300'
+                  }`}>
+                    {cobrancaFeedback.text}
+                  </div>
+                )}
+
+                {boletosEmAbertoRows.length === 0 ? (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-8 text-center dark:border-emerald-900/70 dark:bg-emerald-950/30">
+                    <CheckCircleIcon className="mx-auto h-9 w-9 text-emerald-500" />
+                    <p className="mt-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300">Nenhum boleto em aberto neste mês.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+                    <div className="hidden grid-cols-[1.4fr_120px_120px_1fr_120px_110px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-800 dark:bg-gray-950/40 dark:text-gray-400 lg:grid">
+                      <span>Empresa</span>
+                      <span>CNPJ</span>
+                      <span>Telefone</span>
+                      <span>Número do boleto</span>
+                      <span>Vencimento</span>
+                      <span className="text-right">Valor</span>
+                    </div>
+                    <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                      {boletosEmAbertoRows.map((boleto) => (
+                        <div key={boleto.id} className="grid gap-3 px-4 py-4 text-sm lg:grid-cols-[1.4fr_120px_120px_1fr_120px_110px] lg:items-center">
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-gray-950 dark:text-gray-100">{boleto.empresa_nome}</p>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 lg:hidden">CNPJ: {boleto.empresa_cnpj}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 lg:hidden">Telefone: {boleto.empresa_telefone}</p>
+                          </div>
+                          <span className="hidden text-gray-600 dark:text-gray-300 lg:block">{boleto.empresa_cnpj}</span>
+                          <span className="hidden text-gray-600 dark:text-gray-300 lg:block">{boleto.empresa_telefone}</span>
+                          <span className="break-all font-mono text-xs text-gray-700 dark:text-gray-200">{boleto.numero_titulo_cliente || boleto.nosso_numero || '-'}</span>
+                          <span className="text-gray-600 dark:text-gray-300">{formatDate(boleto.data_vencimento)}</span>
+                          <span className="font-semibold text-gray-950 dark:text-gray-100 lg:text-right">{formatMoney(boleto.valor_original)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-gray-200 p-5 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Template: <span className="font-semibold text-gray-700 dark:text-gray-200">honorario_cobranca</span>
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => setShowCobrancaModal(false)}
+                    disabled={sendingCobranca}
+                    className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                  >
+                    Fechar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleEnviarCobranca}
+                    disabled={sendingCobranca || boletosEmAbertoRows.length === 0}
+                    className="inline-flex items-center justify-center gap-2 rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {sendingCobranca ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <PaperAirplaneIcon className="h-4 w-4" />}
+                    {sendingCobranca ? 'Enviando...' : 'Enviar cobrança'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

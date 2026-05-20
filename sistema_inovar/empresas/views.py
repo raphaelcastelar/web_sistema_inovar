@@ -657,6 +657,183 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    @action(detail=False, methods=['post'], url_path='enviar-cobranca')
+    def enviar_cobranca(self, request):
+        boleto_ids = request.data.get('boleto_ids') or []
+        if not isinstance(boleto_ids, list) or not boleto_ids:
+            return Response(
+                {'error': 'Envie uma lista de boleto_ids para cobrar.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        boletos = (
+            self.get_queryset()
+            .filter(id__in=boleto_ids, status='registrado')
+            .select_related('empresa')
+        )
+        boletos_by_id = {boleto.id: boleto for boleto in boletos}
+        ordered_boletos = [boletos_by_id.get(int(boleto_id)) for boleto_id in boleto_ids if str(boleto_id).isdigit()]
+        ordered_boletos = [boleto for boleto in ordered_boletos if boleto]
+
+        if not ordered_boletos:
+            return Response(
+                {'error': 'Nenhum boleto em aberto foi encontrado para cobrança.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        results = []
+        success_count = 0
+        failed_count = 0
+
+        for boleto in ordered_boletos:
+            empresa = boleto.empresa
+            recipient_number = re.sub(r'\D', '', str(empresa.telefone or ''))
+            reference_date = boleto.criado_em or timezone.now()
+            documento_honorario = (
+                DepartamentoPessoal.objects.filter(
+                    cnpj_empresa=empresa.cnpj,
+                    tipo_documento='HONORARIO',
+                    mes=str(reference_date.month).zfill(2),
+                    ano=str(reference_date.year),
+                )
+                .order_by('-id')
+                .first()
+            )
+
+            if not documento_honorario:
+                documento_honorario = (
+                    DepartamentoPessoal.objects.filter(
+                        cnpj_empresa=empresa.cnpj,
+                        tipo_documento='HONORARIO',
+                    )
+                    .order_by('-ano', '-mes', '-id')
+                    .first()
+                )
+
+            if not recipient_number:
+                erro = 'Empresa sem telefone configurado para envio de cobrança pelo WhatsApp.'
+                HistoricoEnvios.objects.create(
+                    remetente='',
+                    arquivo='honorario_cobranca',
+                    status='falha',
+                    usuario=request.user,
+                    erro=erro,
+                    empresa=empresa,
+                )
+                failed_count += 1
+                results.append({
+                    'boleto_id': boleto.id,
+                    'empresa_id': empresa.id,
+                    'empresa_nome': empresa.nome,
+                    'status': 'falha',
+                    'error': erro,
+                })
+                continue
+
+            if (
+                not documento_honorario
+                or not documento_honorario.caminho_arquivo
+                or not hasattr(documento_honorario.caminho_arquivo, 'path')
+                or not os.path.exists(documento_honorario.caminho_arquivo.path)
+            ):
+                erro = 'Boleto HONORARIO não encontrado na pasta da empresa para envio da cobrança.'
+                HistoricoEnvios.objects.create(
+                    remetente=recipient_number,
+                    arquivo='honorario_cobranca',
+                    status='falha',
+                    usuario=request.user,
+                    erro=erro,
+                    empresa=empresa,
+                )
+                failed_count += 1
+                results.append({
+                    'boleto_id': boleto.id,
+                    'empresa_id': empresa.id,
+                    'empresa_nome': empresa.nome,
+                    'status': 'falha',
+                    'error': erro,
+                })
+                continue
+
+            nome_arquivo = sanitize_filename_for_upload(
+                f"honorario_cobranca_{empresa.nome}.pdf"
+            ).lower()
+            media_id, _ = upload_media_to_whatsapp(
+                documento_honorario.caminho_arquivo.path,
+                nome_arquivo,
+            )
+
+            if not media_id:
+                erro = 'Falha ao fazer upload do boleto para cobrança no WhatsApp.'
+                HistoricoEnvios.objects.create(
+                    remetente=recipient_number,
+                    arquivo=nome_arquivo,
+                    status='falha',
+                    usuario=request.user,
+                    erro=erro,
+                    empresa=empresa,
+                )
+                failed_count += 1
+                results.append({
+                    'boleto_id': boleto.id,
+                    'empresa_id': empresa.id,
+                    'empresa_nome': empresa.nome,
+                    'status': 'falha',
+                    'error': erro,
+                })
+                continue
+
+            message_id, error_sending = send_whatsapp_document_template_message(
+                recipient_number=recipient_number,
+                document_media_id=media_id,
+                document_filename=nome_arquivo,
+                template_name='honorario_cobranca',
+                template_params={},
+                company_name=empresa.nome,
+            )
+
+            if message_id:
+                HistoricoEnvios.objects.create(
+                    remetente=recipient_number,
+                    arquivo=nome_arquivo,
+                    status='sucesso',
+                    message_id=message_id,
+                    usuario=request.user,
+                    empresa=empresa,
+                )
+                success_count += 1
+                results.append({
+                    'boleto_id': boleto.id,
+                    'empresa_id': empresa.id,
+                    'empresa_nome': empresa.nome,
+                    'status': 'sucesso',
+                    'message_id': message_id,
+                })
+            else:
+                HistoricoEnvios.objects.create(
+                    remetente=recipient_number,
+                    arquivo=nome_arquivo,
+                    status='falha',
+                    usuario=request.user,
+                    erro=error_sending,
+                    empresa=empresa,
+                )
+                failed_count += 1
+                results.append({
+                    'boleto_id': boleto.id,
+                    'empresa_id': empresa.id,
+                    'empresa_nome': empresa.nome,
+                    'status': 'falha',
+                    'error': error_sending,
+                })
+
+        response_status = status.HTTP_200_OK if success_count else status.HTTP_400_BAD_REQUEST
+        return Response({
+            'success_count': success_count,
+            'failed_count': failed_count,
+            'results': results,
+        }, status=response_status)
+
     def partial_update(self, request, *args, **kwargs):
         boleto = self.get_object()
         allowed_fields = {'status', 'data_pagamento', 'valor_pago'}
