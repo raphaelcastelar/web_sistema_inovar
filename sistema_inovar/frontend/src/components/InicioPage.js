@@ -510,26 +510,23 @@ const InicioPage = () => {
     return () => observer.disconnect();
   }, []);
 
-  if (loading || !userCargo) {
-    return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando Dashboard...</div>;
-  }
+  const isInitialDataLoading = loading && !userCargo && empresasSelecionadas.length === 0 && boletos.length === 0;
+  const cargoForLayout = userCargo || 'admin';
+  const isDepartamentoFiscal = cargoForLayout === 'fiscal';
+  const hasDiasVencimento = typeof diasVencimento === 'number';
 
-  if (error) {
-    return <div className="p-8 text-center text-red-500 dark:text-red-400">{error}</div>;
-  }
-
-  const isDepartamentoFiscal = userCargo === 'fiscal';
-
-  const vencimentoColor = diasVencimento <= 3 ? 'bg-rose-300' : 'bg-orange-300';
-  const vencimentoIcon = diasVencimento <= 3 ? ExclamationTriangleIcon : ClockIcon;
+  const vencimentoColor = hasDiasVencimento && diasVencimento <= 3 ? 'bg-rose-300' : 'bg-orange-300';
+  const vencimentoIcon = hasDiasVencimento && diasVencimento <= 3 ? ExclamationTriangleIcon : ClockIcon;
   const vencimentoSubtitle =
-    diasVencimento > 7
+    !hasDiasVencimento
+      ? 'Aguardando dados do usuário'
+      : diasVencimento > 7
       ? 'Nenhum vencimento próximo'
       : `Vencimento em ${isDepartamentoFiscal ? '25' : '15'}/${new Date().getMonth() + (diasVencimento > 7 ? 2 : 1)}`;
 
   const empresasAtivasCount = empresasSelecionadas.filter((empresa) => empresa.ativo).length;
-  const carteiraTasks = getTaskDefinitions(userCargo, isSuperuser);
-  const carteiraDaysToDue = getDaysToDue(userCargo);
+  const carteiraTasks = getTaskDefinitions(cargoForLayout, isSuperuser);
+  const carteiraDaysToDue = getDaysToDue(cargoForLayout);
   const prioridadeEmpresas = empresasSelecionadas
     .map((empresa) => ({
       empresa,
@@ -553,7 +550,9 @@ const InicioPage = () => {
   const boletosGeradosCount = boletosGeradosMesAtual.length;
   const boletosPagosCount = boletosPagosMesAtual.length;
   const boletosRegistradosCount = boletosGeradosMesAtual.filter((boleto) => boleto.status === 'registrado').length;
-  const percentualPago = boletosGeradosCount > 0
+  const percentualPago = isInitialDataLoading
+    ? 'Aguardando boletos'
+    : boletosGeradosCount > 0
     ? `${Math.round((boletosPagosCount / boletosGeradosCount) * 100)}% pagos`
     : 'Sem boletos neste mês';
 
@@ -676,7 +675,7 @@ const InicioPage = () => {
 
         <div className="flex shrink-0 items-center justify-end gap-3">
           <button onClick={handleRefresh} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Atualizar Dados">
-            <ArrowPathIcon className="h-6 w-6 text-gray-600 dark:text-gray-300" />
+            <ArrowPathIcon className={`h-6 w-6 text-gray-600 dark:text-gray-300 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <div className="relative">
             <button onClick={() => setShowNotifications(prev => !prev)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Notificações">
@@ -698,38 +697,44 @@ const InicioPage = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300">
+          {error}
+        </div>
+      )}
+
       <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:gap-4">
         <StatCard
           icon={UsersIcon}
           title="Empresas Ativas"
-          value={empresasAtivasCount}
+          value={isInitialDataLoading ? undefined : empresasAtivasCount}
           color="bg-sky-300"
         />
         <StatCard
           icon={BanknotesIcon}
           title="Boletos Gerados"
-          value={boletosGeradosCount}
+          value={isInitialDataLoading ? undefined : boletosGeradosCount}
           color="bg-amber-300"
           subtitle="Gerados no mês atual"
         />
         <StatCard
           icon={CheckCircleIcon}
           title="Boletos Pagos"
-          value={boletosPagosCount}
+          value={isInitialDataLoading ? undefined : boletosPagosCount}
           color="bg-emerald-300"
           subtitle={percentualPago}
         />
         <StatCard
           icon={ClockIcon}
           title="Em Aberto"
-          value={boletosRegistradosCount}
+          value={isInitialDataLoading ? undefined : boletosRegistradosCount}
           color="bg-orange-300"
           subtitle="Gerados neste mês com status registrado"
         />
         <StatCard
           icon={vencimentoIcon}
           title="Dias até Vencimento"
-          value={diasVencimento >= 0 ? diasVencimento : '...'}
+          value={hasDiasVencimento && diasVencimento >= 0 ? diasVencimento : undefined}
           color={vencimentoColor}
           subtitle={vencimentoSubtitle}
         />
@@ -765,14 +770,20 @@ const InicioPage = () => {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100">Status das tarefas</h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{tarefasPendentes} pendência(s) por obrigação</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {isInitialDataLoading ? 'Carregando pendências' : `${tarefasPendentes} pendência(s) por obrigação`}
+              </p>
             </div>
             <span className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-700 dark:text-gray-400">
               Atual
             </span>
           </div>
           <div className="relative mt-4 h-[240px] sm:h-[280px]">
-            {chartData.labels.length === 0 || chartData.datasets[0].data.every(val => val === 0) ? (
+            {isInitialDataLoading ? (
+              <p className="flex h-full items-center justify-center text-center text-sm text-gray-500 dark:text-gray-400">
+                Carregando dados do gráfico.
+              </p>
+            ) : chartData.labels.length === 0 || chartData.datasets[0].data.every(val => val === 0) ? (
               <p className="flex h-full items-center justify-center text-center text-sm text-gray-500 dark:text-gray-400">
                 Não há dados disponíveis para o gráfico.
               </p>
@@ -837,6 +848,12 @@ const InicioPage = () => {
                   <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{status.description}</p>
                 </div>
               ))
+            ) : isInitialDataLoading ? (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-800 dark:bg-gray-900/60">
+                <ClockIcon className="mx-auto h-8 w-8 text-gray-400" />
+                <p className="mt-2 text-sm font-semibold text-gray-700 dark:text-gray-300">Carregando empresas.</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">As prioridades aparecem assim que os dados retornarem.</p>
+              </div>
             ) : (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-6 text-center dark:border-emerald-900/70 dark:bg-emerald-950/30">
                 <CheckCircleIcon className="mx-auto h-8 w-8 text-emerald-500" />
