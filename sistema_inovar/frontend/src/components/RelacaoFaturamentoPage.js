@@ -9,7 +9,7 @@ import {
     PrinterIcon,
     TrashIcon
 } from '@heroicons/react/24/outline';
-import LogoContabilidade from '../assets/logo_contabilidade2.png';
+import LogoContabilidade from '../assets/logo_contabilidade3.png';
 
 const monthNames = [
     'janeiro',
@@ -27,6 +27,10 @@ const monthNames = [
 ];
 
 const taxRegimes = ['Simples Nacional', 'Lucro Presumido', 'Lucro Real', 'Arbitrado', 'Isenta / Imune'];
+const accountantResponsible = {
+    name: 'Fabio Luis de Freitas',
+    registry: 'RG: ES-013793/O-5',
+};
 
 const createMonthLabel = (date) => {
     const month = monthNames[date.getMonth()];
@@ -148,7 +152,6 @@ const RelacaoFaturamentoPage = () => {
     const [cheques, setCheques] = useState('20');
     const [duplicatas, setDuplicatas] = useState('0');
     const [responsavelEmpresa, setResponsavelEmpresa] = useState('');
-    const [contadorResponsavel, setContadorResponsavel] = useState('');
     const [faturamentoMedio, setFaturamentoMedio] = useState('');
     const [empresaData, setEmpresaData] = useState(() => createEmptyEmpresaData());
     const [rows, setRows] = useState(() => createRows(getCurrentMonthInput(), 'Realizado'));
@@ -691,7 +694,10 @@ th { background: #e5e7eb; }
                             </div>
                             <div>
                                 <label className={labelClass}>Contador responsável</label>
-                                <input value={contadorResponsavel} onChange={(event) => setContadorResponsavel(event.target.value)} className={inputClass} />
+                                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                    <div className="font-semibold">{accountantResponsible.name}</div>
+                                    <div>{accountantResponsible.registry}</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -902,7 +908,10 @@ th { background: #e5e7eb; }
                         <div className="border-t border-gray-950 pt-2">{responsavelEmpresa || 'Responsável pela empresa'}</div>
                     </div>
                     <div>
-                        <div className="border-t border-gray-950 pt-2">{contadorResponsavel || 'Contador responsável'}</div>
+                        <div className="border-t border-gray-950 pt-2">
+                            <div>{accountantResponsible.name}</div>
+                            <div>{accountantResponsible.registry}</div>
+                        </div>
                     </div>
                 </div>
             </section>
