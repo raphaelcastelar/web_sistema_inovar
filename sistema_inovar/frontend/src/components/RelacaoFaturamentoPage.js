@@ -29,7 +29,7 @@ const monthNames = [
 const taxRegimes = ['Simples Nacional', 'Lucro Presumido', 'Lucro Real', 'Arbitrado', 'Isenta / Imune'];
 const accountantResponsible = {
     name: 'Fabio Luis de Freitas',
-    registry: 'RG: ES-013793/O-5',
+    registry: 'CRC: ES-013793/O-5',
 };
 
 const createMonthLabel = (date) => {
