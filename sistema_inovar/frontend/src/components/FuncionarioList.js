@@ -100,15 +100,15 @@ const FuncionarioList = () => {
 
   if (!isAdmin) {
     return (
-      <div className="p-6 md:p-8 text-center">
-        <ExclamationCircleIcon className="mx-auto h-16 w-16 text-red-500 dark:text-red-400 mt-10" />
-        <h2 className="mt-4 text-xl font-bold text-gray-800 dark:text-indigo-300">Acesso Negado</h2>
+      <div className="w-full max-w-none px-0 py-10 text-center text-gray-900 dark:text-gray-100">
+        <ExclamationCircleIcon className="mx-auto h-16 w-16 text-rose-500 dark:text-rose-400" />
+        <h2 className="mt-4 text-xl font-bold text-gray-950 dark:text-white">Acesso Negado</h2>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
           Você não possui permissões de administrador para acessar esta página. Somente administradores podem gerenciar os usuários.
         </p>
         <Link
           to="/"
-          className="mt-6 inline-block px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+          className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
         >
           Voltar ao Início
         </Link>
@@ -116,28 +116,34 @@ const FuncionarioList = () => {
     );
   }
 
-  if (error) return <p className="p-8 text-center text-red-500">{error}</p>;
+  if (error) return <p className="p-8 text-center text-rose-500">{error}</p>;
 
   return (
-    <div className="p-6 md:p-8 animate-fade-in">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300">Gerenciamento de Usuários</h1>
+    <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Administração</p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Gerenciamento de Usuários</h1>
+          <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+            Cadastre e mantenha os acessos da equipe.
+          </p>
+        </div>
         <Link
           to="/gerenciar-usuarios/novo"
-          className="flex items-center bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-500 transition-colors shadow-lg"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
         >
-          <UserPlusIcon className="h-5 w-5 mr-2" />
+          <UserPlusIcon className="h-5 w-5" />
           Novo Usuário
         </Link>
       </div>
 
-      <div className="mb-6">
+      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
         <input
           type="text"
           placeholder="Pesquisar por nome, usuário ou email..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full p-3 bg-gray-100 dark:bg-gray-700 rounded-md border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500"
+          className="w-full rounded-md border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 transition placeholder-gray-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20"
         />
       </div>
 
@@ -151,12 +157,12 @@ const FuncionarioList = () => {
           <motion.div
             key={func.id}
             variants={itemVariants}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col"
+            className="flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900"
           >
             <div className="p-6 flex-grow">
               <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 bg-gray-200 dark:bg-gray-700 p-2 rounded-full">
-                  <UserCircleIcon className="h-10 w-10 text-indigo-500 dark:text-indigo-400" />
+                <div className="flex-shrink-0 rounded-lg bg-slate-100 p-2 dark:bg-slate-800">
+                  <UserCircleIcon className="h-10 w-10 text-slate-600 dark:text-slate-300" />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
@@ -172,34 +178,34 @@ const FuncionarioList = () => {
                 <span
                   className={`px-2 py-1 text-xs font-semibold rounded-full ${
                     func.is_active
-                      ? 'bg-green-100 text-green-800 dark:bg-green-800/50 dark:text-green-300'
-                      : 'bg-red-100 text-red-800 dark:bg-red-800/50 dark:text-red-300'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                      : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
                   }`}
                 >
                   {func.is_active ? 'Ativo' : 'Inativo'}
                 </span>
                 {func.is_staff && (
-                  <span className="flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-800/50 dark:text-indigo-300">
+                  <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                     <ShieldCheckIcon className="h-4 w-4" />
                     Admin
                   </span>
                 )}
-                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-800/50 dark:text-blue-300">
+                <span className="rounded-full bg-sky-100 px-2 py-1 text-xs font-semibold text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
                   {func.cargo === 'pessoal' ? 'Depto. Pessoal' : func.cargo === 'fiscal' ? 'Depto. Fiscal' : func.cargo === 'admin' ? 'Administrador' : 'Sem Função'}
                 </span>
               </div>
             </div>
-            <div className="flex border-t border-gray-200 dark:border-gray-700">
+            <div className="flex border-t border-gray-200 dark:border-gray-800">
               <Link
                 to={`/gerenciar-usuarios/editar/${func.id}`}
-                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                className="flex flex-1 items-center justify-center gap-2 px-4 py-3 text-sm text-gray-600 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
                 title="Editar"
               >
                 <PencilSquareIcon className="h-5 w-5" /> Editar
               </Link>
               <button
                 onClick={() => handleDelete(func.id, `${func.first_name} ${func.last_name}`)}
-                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-red-600 dark:hover:text-red-400 rounded-bl-lg transition-colors border-l border-gray-200 dark:border-gray-700"
+                className="flex flex-1 items-center justify-center gap-2 border-l border-gray-200 px-4 py-3 text-sm text-gray-600 transition-colors hover:bg-rose-50 hover:text-rose-600 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
                 title="Excluir"
               >
                 <TrashIcon className="h-5 w-5" /> Excluir

@@ -79,21 +79,34 @@ const FuncionarioForm = () => {
 
     if (loading && isEditing) return <p className="p-8 text-center text-gray-500 dark:text-gray-400">Carregando dados do usuário...</p>;
 
+    const inputClass = 'mt-1 w-full rounded-md border border-gray-200 bg-white p-3 text-gray-900 transition-colors focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20';
+    const inputWithIconClass = `${inputClass} pl-10`;
+    const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300';
+    const errorClass = 'mt-1 text-xs text-rose-500 dark:text-rose-400';
+
     return (
         <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
-            className="p-6 md:p-8 animate-fade-in"
+            className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4"
         >
-            <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300 mb-8 text-center">
-                    {isEditing ? 'Editar Usuário' : 'Novo Usuário'}
-                </h1>
+            <div className="mx-auto max-w-3xl">
+                <div className="mb-5">
+                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Administração</p>
+                    <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">
+                        {isEditing ? 'Editar Usuário' : 'Novo Usuário'}
+                    </h1>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        Configure acesso, função e permissões do colaborador.
+                    </p>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:p-8">
                 
                 {errors.general && (
-                    <div className="bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-400 px-4 py-3 rounded-md mb-6 flex items-center gap-3" role="alert">
-                        <InformationCircleIcon className="h-6 w-6 text-red-700 dark:text-red-400"/>
+                    <div className="mb-6 flex items-center gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300" role="alert">
+                        <InformationCircleIcon className="h-6 w-6 text-rose-700 dark:text-rose-300"/>
                         <span className="block sm:inline">{errors.general}</span>
                     </div>
                 )}
@@ -101,33 +114,33 @@ const FuncionarioForm = () => {
                 <form onSubmit={handleSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label htmlFor="first_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nome</label>
+                            <label htmlFor="first_name" className={labelClass}>Nome</label>
                             <input 
                                 type="text" 
                                 name="first_name" 
                                 id="first_name" 
                                 value={formData.first_name} 
                                 onChange={handleChange} 
-                                className="mt-1 w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                className={inputClass}
                             />
-                            {errors.first_name && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.first_name}</p>}
+                            {errors.first_name && <p className={errorClass}>{errors.first_name}</p>}
                         </div>
                         <div>
-                            <label htmlFor="last_name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Sobrenome</label>
+                            <label htmlFor="last_name" className={labelClass}>Sobrenome</label>
                             <input 
                                 type="text" 
                                 name="last_name" 
                                 id="last_name" 
                                 value={formData.last_name} 
                                 onChange={handleChange} 
-                                className="mt-1 w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                                className={inputClass}
                             />
-                            {errors.last_name && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.last_name}</p>}
+                            {errors.last_name && <p className={errorClass}>{errors.last_name}</p>}
                         </div>
                     </div>
 
                     <div className="relative">
-                        <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nome de Usuário (para login)</label>
+                        <label htmlFor="username" className={labelClass}>Nome de Usuário (para login)</label>
                         <UserIcon className="h-5 w-5 text-gray-400 dark:text-gray-300 absolute top-10 left-3"/>
                         <input 
                             type="text" 
@@ -136,13 +149,13 @@ const FuncionarioForm = () => {
                             value={formData.username} 
                             onChange={handleChange} 
                             required 
-                            className="mt-1 w-full p-3 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            className={inputWithIconClass}
                         />
-                        {errors.username && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.username}</p>}
+                        {errors.username && <p className={errorClass}>{errors.username}</p>}
                     </div>
 
                     <div className="relative">
-                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+                        <label htmlFor="email" className={labelClass}>Email</label>
                         <EnvelopeIcon className="h-5 w-5 text-gray-400 dark:text-gray-300 absolute top-10 left-3"/>
                         <input 
                             type="email" 
@@ -151,13 +164,13 @@ const FuncionarioForm = () => {
                             value={formData.email} 
                             onChange={handleChange} 
                             required 
-                            className="mt-1 w-full p-3 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            className={inputWithIconClass}
                         />
-                        {errors.email && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.email}</p>}
+                        {errors.email && <p className={errorClass}>{errors.email}</p>}
                     </div>
                     
                     <div className="relative">
-                        <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Senha</label>
+                        <label htmlFor="password" className={labelClass}>Senha</label>
                         <LockClosedIcon className="h-5 w-5 text-gray-400 dark:text-gray-300 absolute top-10 left-3"/>
                         <input 
                             type="password" 
@@ -167,13 +180,13 @@ const FuncionarioForm = () => {
                             onChange={handleChange} 
                             placeholder={isEditing ? "Deixe em branco para não alterar" : "Senha obrigatória"} 
                             required={!isEditing} 
-                            className="mt-1 w-full p-3 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            className={inputWithIconClass}
                         />
-                        {errors.password && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.password}</p>}
+                        {errors.password && <p className={errorClass}>{errors.password}</p>}
                     </div>
 
                     <div className="relative">
-                        <label htmlFor="cargo" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Função</label>
+                        <label htmlFor="cargo" className={labelClass}>Função</label>
                         <UserGroupIcon className="h-5 w-5 text-gray-400 dark:text-gray-300 absolute top-10 left-3"/>
                         <select
                             name="cargo"
@@ -181,18 +194,18 @@ const FuncionarioForm = () => {
                             value={formData.cargo}
                             onChange={handleChange}
                             required
-                            className="mt-1 w-full p-3 pl-10 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                            className={inputWithIconClass}
                         >
                             <option value="" disabled>Selecione uma função</option>
                             <option value="pessoal">Departamento Pessoal</option>
                             <option value="fiscal">Departamento Fiscal</option>
                             <option value="admin">Administrador</option>
                         </select>
-                        {errors.cargo && <p className="text-red-500 dark:text-red-400 text-xs mt-1">{errors.cargo}</p>}
+                        {errors.cargo && <p className={errorClass}>{errors.cargo}</p>}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
-                        <label htmlFor="is_active" className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg cursor-pointer">
+                        <label htmlFor="is_active" className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-slate-50 p-3 dark:border-gray-800 dark:bg-slate-950">
                             <span className="font-medium text-gray-900 dark:text-gray-100">Usuário Ativo</span>
                             <div className="relative">
                                 <input 
@@ -203,10 +216,10 @@ const FuncionarioForm = () => {
                                     checked={formData.is_active} 
                                     onChange={handleChange} 
                                 />
-                                <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                <div className="h-6 w-11 rounded-full bg-gray-300 peer after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-slate-900 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700 dark:peer-checked:bg-slate-100"></div>
                             </div>
                         </label>
-                        <label htmlFor="is_staff" className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 rounded-lg cursor-pointer">
+                        <label htmlFor="is_staff" className="flex cursor-pointer items-center justify-between rounded-lg border border-gray-200 bg-slate-50 p-3 dark:border-gray-800 dark:bg-slate-950">
                             <span className="font-medium text-gray-900 dark:text-gray-100">Acesso de Administrador</span>
                             <div className="relative">
                                 <input 
@@ -217,7 +230,7 @@ const FuncionarioForm = () => {
                                     checked={formData.is_staff} 
                                     onChange={handleChange} 
                                 />
-                                <div className="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                <div className="h-6 w-11 rounded-full bg-gray-300 peer after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-slate-900 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-700 dark:peer-checked:bg-slate-100"></div>
                             </div>
                         </label>
                     </div>
@@ -226,20 +239,21 @@ const FuncionarioForm = () => {
                         <button 
                             type="button" 
                             onClick={() => navigate('/gerenciar-usuarios')} 
-                            className="px-6 py-3 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                            className="rounded-md border border-gray-300 bg-white px-6 py-3 text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                             disabled={loading}
                         >
                             Cancelar
                         </button>
                         <button 
                             type="submit" 
-                            className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-800 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" 
+                            className="rounded-md bg-slate-900 px-6 py-3 font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                             disabled={loading}
                         >
                             {loading ? 'Salvando...' : (isEditing ? 'Atualizar Usuário' : 'Criar Usuário')}
                         </button>
                     </div>
                 </form>
+                </div>
             </div>
         </motion.div> 
     );
