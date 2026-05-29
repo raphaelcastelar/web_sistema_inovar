@@ -15,6 +15,21 @@ const getSavedListState = () => {
     }
 };
 
+function SummaryCard({ label, value, tone }) {
+    const toneClass = {
+        neutral: 'bg-slate-50 text-slate-700 ring-slate-200 dark:bg-slate-900/70 dark:text-slate-200 dark:ring-slate-800',
+        success: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900',
+        muted: 'bg-gray-50 text-gray-700 ring-gray-200 dark:bg-gray-900/70 dark:text-gray-200 dark:ring-gray-800',
+    }[tone || 'neutral'];
+
+    return (
+        <div className={`min-w-0 rounded-lg px-4 py-3 ring-1 ${toneClass}`}>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-70">{label}</p>
+            <p className="mt-2 break-words text-2xl font-bold tabular-nums">{value}</p>
+        </div>
+    );
+}
+
 const EmpresaList = () => {
     const savedListStateRef = React.useRef(getSavedListState());
     const skipInitialVisibleResetRef = React.useRef(Boolean(savedListStateRef.current));
@@ -182,6 +197,12 @@ const EmpresaList = () => {
 
     const visibleEmpresas = filteredEmpresas.slice(0, visibleCount);
 
+    const summary = useMemo(() => {
+        const ativadas = empresas.filter((empresa) => empresa.ativo).length;
+        const naoAtivadas = empresas.length - ativadas;
+        return { total: empresas.length, ativadas, naoAtivadas };
+    }, [empresas]);
+
     useEffect(() => {
         const stateToRestore = savedListStateRef.current;
         if (loading || !stateToRestore) return;
@@ -204,35 +225,70 @@ const EmpresaList = () => {
     };
 
     if (loading) {
-        return <p className="text-center text-gray-500 dark:text-gray-400 mt-10">Carregando empresas...</p>;
+        return (
+            <div className="flex min-h-[60vh] items-center justify-center text-gray-900 dark:text-gray-100">
+                <div className="animate-pulse flex flex-col items-center">
+                    <div className="mb-4 h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-800"></div>
+                    <div className="h-4 w-48 rounded bg-gray-200 dark:bg-gray-800"></div>
+                </div>
+            </div>
+        );
     }
 
     if (error) {
-        return <p className="text-center text-red-500 dark:text-red-400 mt-10">{error}</p>;
+        return (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+                {error}
+            </div>
+        );
     }
 
     return (
-        <div className="p-6 md:p-8 animate-fade-in">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-indigo-300">Empresas Cadastradas</h1>
-                <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="relative w-full md:w-64">
-                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute top-1/2 left-3 transform -translate-y-1/2" />
+        <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Cadastro</p>
+                    <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Empresas</h1>
+                    <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+                        Consulte empresas, filtre por tags e acesse cadastro, edição e pastas.
+                    </p>
+                </div>
+                {isAdmin && (
+                    <Link
+                        to="/empresas/cadastrar"
+                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
+                    >
+                        <PlusIcon className="h-4 w-4" />
+                        Nova Empresa
+                    </Link>
+                )}
+            </div>
+
+            <div className="grid w-full gap-3 sm:grid-cols-3">
+                <SummaryCard label="Total" value={summary.total} />
+                <SummaryCard label="Ativadas" value={summary.ativadas} tone="success" />
+                <SummaryCard label="Não ativadas" value={summary.naoAtivadas} tone="muted" />
+            </div>
+
+            <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(16rem,22rem)] xl:items-start">
+                    <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                        <MagnifyingGlassIcon className="h-4 w-4" />
                         <input
                             type="text"
-                            placeholder="Buscar..."
+                            placeholder="Buscar por nome, CNPJ ou e-mail"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="p-3 pl-10 w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg shadow-sm border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                            className="min-w-0 flex-1 bg-transparent text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
                         />
-                    </div>
-                    <div className="w-full md:w-72 rounded-lg shadow-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
+                    </label>
+                    <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
                         <div className="flex items-center gap-2 mb-2">
-                            <TagIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                            <TagIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
                             <button
                                 type="button"
                                 onClick={() => setSelectedTagIds([])}
-                                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${selectedTagIds.length === 0 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'}`}
+                                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${selectedTagIds.length === 0 ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
                             >
                                 Todas
                             </button>
@@ -245,7 +301,7 @@ const EmpresaList = () => {
                                         key={tag.id}
                                         type="button"
                                         onClick={() => toggleTagFilter(String(tag.id))}
-                                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${selected ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'}`}
+                                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${selected ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
                                     >
                                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.cor }} />
                                         {tag.nome}
@@ -254,52 +310,41 @@ const EmpresaList = () => {
                             })}
                         </div>
                     </div>
-                    {isAdmin && (
-                        <Link
-                            to="/empresas/cadastrar"
-                            className="p-3 bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 transition-all duration-300 flex items-center space-x-2 flex-shrink-0"
-                        >
-                            <PlusIcon className="h-6 w-6" />
-                            <span className="hidden sm:inline">Nova Empresa</span>
-                        </Link>
-                    )}
                 </div>
             </div>
 
-            <div className="mb-6">
-                <div className="border-b border-gray-200 dark:border-gray-700">
-                    <nav className="flex space-x-6">
+            <div className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <nav className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                         <button
                             onClick={() => setActiveTab('ativadas')}
-                            className={`py-2 px-4 text-sm font-medium ${activeTab === 'ativadas' ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                            className={`h-9 rounded-md px-3 text-sm font-semibold transition-colors ${activeTab === 'ativadas' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
                         >
                             Empresas Ativadas
                         </button>
                         <button
                             onClick={() => setActiveTab('nao-ativadas')}
-                            className={`py-2 px-4 text-sm font-medium ${activeTab === 'nao-ativadas' ? 'border-b-2 border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                            className={`h-9 rounded-md px-3 text-sm font-semibold transition-colors ${activeTab === 'nao-ativadas' ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
                         >
                             Empresas Não Ativadas
                         </button>
-                    </nav>
-                </div>
+                </nav>
             </div>
 
             {filteredEmpresas.length === 0 ? (
-                <div className="text-center py-16 px-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+                <div className="rounded-lg border border-gray-200 bg-white p-10 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400" />
                     <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">
                         {activeTab === 'ativadas' ? 'Nenhuma empresa ativada' : 'Nenhuma empresa não ativada'}
                     </h3>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                         {search ? 'Tente refinar sua busca ou ' : activeTab === 'ativadas' ? 'Nenhuma empresa ativada no momento.' : 'Nenhuma empresa desativada no momento.'}
-                        {isAdmin && !search && activeTab === 'ativadas' && <Link to="/empresas/cadastrar" className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">cadastre a primeira</Link>}
+                        {isAdmin && !search && activeTab === 'ativadas' && <Link to="/empresas/cadastrar" className="font-medium text-slate-900 underline underline-offset-2 dark:text-slate-100">cadastre a primeira</Link>}
                     </p>
                 </div>
             ) : (
                 <>
                     <motion.div
-                        className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+                        className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
                         variants={containerVariants}
                         initial="hidden"
                         animate="visible"
@@ -310,13 +355,12 @@ const EmpresaList = () => {
                                 <motion.div
                                     key={empresa.id}
                                     variants={itemVariants}
-                                    whileHover={{ y: -5 }}
-                                    className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-xl border border-gray-200 dark:border-gray-700 transition-shadow duration-300 flex flex-col"
+                                    className="flex min-w-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
                                 >
-                                    <div className="p-6 flex-grow">
+                                    <div className="flex-grow p-4 sm:p-5">
                                         <div className="mb-4">
                                             <div>
-                                                <h3 className="text-lg font-bold text-gray-900 dark:text-indigo-300 break-words leading-tight">{empresa.nome}</h3>
+                                                <h3 className="break-words text-base font-semibold leading-tight text-gray-950 dark:text-gray-100">{empresa.nome}</h3>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">{empresa.cnpj}</p>
                                             </div>
                                         </div>
@@ -326,7 +370,7 @@ const EmpresaList = () => {
                                                 {(empresa.tags || []).map((tag) => (
                                                     <span
                                                         key={tag.id}
-                                                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                                                        className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                                                     >
                                                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.cor }} />
                                                         {tag.nome}
@@ -336,8 +380,8 @@ const EmpresaList = () => {
                                         )}
                                     </div>
 
-                                    <div className="flex space-x-2 bg-gray-50 dark:bg-gray-700/50 p-3 border-t border-gray-200 dark:border-gray-700">
-                                        <Link to={`/empresas/editar/${empresa.id}`} onClick={saveListPosition} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors" title="Editar">
+                                    <div className="flex gap-2 border-t border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70">
+                                        <Link to={`/empresas/editar/${empresa.id}`} onClick={saveListPosition} className="flex-1 rounded-md px-3 py-2 text-center text-sm text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800" title="Editar">
                                             <PencilIcon className="h-5 w-5 mx-auto" />
                                         </Link>
                                         {isAdmin && (
@@ -345,7 +389,7 @@ const EmpresaList = () => {
                                                 <TrashIcon className="h-5 w-5 mx-auto" />
                                             </button>
                                         )}
-                                        <Link to={`/empresas/${empresa.id}/pastas`} className="flex-1 text-center py-2 px-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-green-100 dark:hover:bg-green-900/50 hover:text-green-600 dark:hover:text-green-400 rounded-md transition-colors" title="Acessar Pastas">
+                                        <Link to={`/empresas/${empresa.id}/pastas`} className="flex-1 rounded-md px-3 py-2 text-center text-sm text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800" title="Acessar Pastas">
                                             <FolderIcon className="h-5 w-5 mx-auto" />
                                         </Link>
                                     </div>
@@ -356,7 +400,7 @@ const EmpresaList = () => {
 
                     {/* Elemento sentinela para o Infinite Scroll */}
                     {visibleCount < filteredEmpresas.length && (
-                        <div ref={observerTarget} className="text-center py-8 text-gray-500">
+                        <div ref={observerTarget} className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                             Carregando mais empresas...
                         </div>
                     )}
