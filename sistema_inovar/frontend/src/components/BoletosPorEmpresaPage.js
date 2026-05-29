@@ -149,7 +149,7 @@ function StatusPill({ status }) {
 
 function SummaryCard({ label, value, colorClass }) {
   return (
-    <div className={`rounded-2xl px-4 py-3 ${colorClass}`}>
+    <div className={`rounded-lg px-4 py-3 ${colorClass}`}>
       <p className="text-[11px] font-semibold uppercase tracking-widest opacity-60">{label}</p>
       <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
     </div>
@@ -171,7 +171,7 @@ function SkeletonRow() {
 function EmptyState({ message, icon: Icon = BanknotesIcon }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-      <div className="rounded-2xl bg-gray-100 p-4 dark:bg-gray-800">
+      <div className="rounded-lg bg-gray-100 p-4 dark:bg-gray-800">
         <Icon className="h-8 w-8 text-gray-400 dark:text-gray-500" />
       </div>
       <p className="max-w-xs text-sm text-gray-500 dark:text-gray-400">{message}</p>
@@ -201,14 +201,16 @@ const BoletosPorEmpresaPage = () => {
         fetchAllBoletosFromApi(),
       ]);
       const empresasData = Array.isArray(empresasRes.data) ? empresasRes.data : [];
-      setEmpresas(empresasData);
+      const empresasAtivas = empresasData.filter((empresa) => empresa.ativo === true);
+      setEmpresas(empresasAtivas);
       setBoletos(boletosData);
       setLastUpdated(new Date());
-      if (!selectedEmpresaId && empresasData.length > 0) {
-        const empresaComBoleto = empresasData.find((e) =>
+      const selectedEmpresaStillActive = empresasAtivas.some((e) => String(e.id) === String(selectedEmpresaId));
+      if (!selectedEmpresaStillActive) {
+        const empresaComBoleto = empresasAtivas.find((e) =>
           boletosData.some((b) => String(b.empresa) === String(e.id))
         );
-        setSelectedEmpresaId(String((empresaComBoleto || empresasData[0]).id));
+        setSelectedEmpresaId(empresaComBoleto ? String(empresaComBoleto.id) : (empresasAtivas[0] ? String(empresasAtivas[0].id) : ''));
       }
     } catch (err) {
       setError(err?.response?.data?.detail || 'Falha ao carregar os boletos por empresa.');
@@ -376,7 +378,7 @@ const BoletosPorEmpresaPage = () => {
           {empresaSelecionada && rows.map((b, idx) => (
             <tr
               key={b.id}
-              className="group transition-colors hover:bg-indigo-50/60 dark:hover:bg-indigo-950/20"
+              className="group transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/60"
               style={{ animationDelay: `${idx * 20}ms` }}
             >
               <td className="px-5 py-3.5">
@@ -401,7 +403,7 @@ const BoletosPorEmpresaPage = () => {
                     value={b.status || ''}
                     onChange={(e) => handleStatusChange(b.id, e.target.value)}
                     disabled={updatingStatusIds.includes(String(b.id))}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-indigo-900/40"
+                    className="w-full rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20"
                     title="Alterar status do boleto"
                   >
                     {Object.entries(statusMeta).map(([statusKey, meta]) => (
@@ -420,27 +422,23 @@ const BoletosPorEmpresaPage = () => {
 
   /* ─── Render ─────────────────────────────────────────────────────────────── */
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 py-6 text-gray-900 dark:text-gray-100 sm:px-6 lg:px-8">
+    <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
 
       {/* ── Page header ── */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
-              <BanknotesIcon className="h-5 w-5 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Boletos por Empresa</h1>
-          </div>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Financeiro</p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Boletos por Empresa</h1>
+          <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
             Acompanhe todos os boletos registrados, organizados por empresa e período.
           </p>
         </div>
 
-        <div className="flex flex-col items-end gap-1.5">
+        <div className="flex flex-col items-end gap-1.5 sm:items-start xl:items-end">
           <button
             onClick={() => fetchData(true)}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-500/25 transition hover:bg-indigo-700 active:scale-95 disabled:opacity-50"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
           >
             <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             {loading ? 'Atualizando...' : 'Atualizar'}
@@ -455,7 +453,7 @@ const BoletosPorEmpresaPage = () => {
 
       {/* ── Error banner ── */}
       {error && (
-        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200">
+        <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3.5 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
           <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -465,12 +463,12 @@ const BoletosPorEmpresaPage = () => {
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
 
         {/* ── Sidebar: empresa list ── */}
-        <aside className="flex flex-col gap-0 self-start overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700/80 dark:bg-gray-900">
+        <aside className="flex flex-col gap-0 self-start overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
           {/* Sidebar header */}
-          <div className="border-b border-gray-100 bg-gray-50/80 px-4 py-3.5 dark:border-gray-800 dark:bg-gray-800/60">
+          <div className="border-b border-gray-200 bg-slate-50 px-4 py-3.5 dark:border-gray-800 dark:bg-slate-900">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Empresas</span>
-              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 {empresasFiltradas.length}
               </span>
             </div>
@@ -480,7 +478,7 @@ const BoletosPorEmpresaPage = () => {
                 value={searchEmpresa}
                 onChange={(e) => setSearchEmpresa(e.target.value)}
                 placeholder="Nome ou CNPJ…"
-                className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-indigo-900/40"
+                className="w-full rounded-md border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20"
               />
             </div>
           </div>
@@ -504,20 +502,20 @@ const BoletosPorEmpresaPage = () => {
                       key={empresa.id}
                       type="button"
                       onClick={() => setSelectedEmpresaId(String(empresa.id))}
-                      className={`group w-full rounded-xl border px-3.5 py-3 text-left transition-all duration-150 ${
+                      className={`group w-full rounded-lg border px-3.5 py-3 text-left transition-colors ${
                         isActive
-                          ? 'border-indigo-300 bg-indigo-50 shadow-sm dark:border-indigo-600/60 dark:bg-indigo-950/40'
+                          ? 'border-slate-900 bg-slate-50 dark:border-slate-100 dark:bg-slate-800'
                           : 'border-transparent hover:border-gray-200 hover:bg-gray-50/80 dark:hover:border-gray-700 dark:hover:bg-gray-800/60'
                       }`}
                     >
                       <div className="flex items-start gap-2.5">
-                        <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
-                          isActive ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                        <div className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-bold ${
+                          isActive ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
                         }`}>
                           {(empresa.nome || '?')[0].toUpperCase()}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className={`truncate text-sm font-semibold ${isActive ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-800 dark:text-gray-200'}`}>
+                          <div className={`truncate text-sm font-semibold ${isActive ? 'text-slate-900 dark:text-slate-100' : 'text-gray-800 dark:text-gray-200'}`}>
                             {empresa.nome}
                           </div>
                           <div className="mt-0.5 font-mono text-[11px] text-gray-400">{empresa.cnpj || '—'}</div>
@@ -558,7 +556,7 @@ const BoletosPorEmpresaPage = () => {
         </aside>
 
         {/* ── Main panel ── */}
-        <main className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700/80 dark:bg-gray-900">
+        <main className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
 
           {/* Company header */}
           <div className="border-b border-gray-100 px-6 py-5 dark:border-gray-800">
@@ -595,20 +593,20 @@ const BoletosPorEmpresaPage = () => {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/60 px-6 py-3.5 sm:flex-row dark:border-gray-800 dark:bg-gray-800/30">
+          <div className="flex flex-col gap-3 border-b border-gray-200 bg-slate-50 px-6 py-3.5 dark:border-gray-800 dark:bg-slate-900 sm:flex-row">
             <div className="relative flex-1">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 value={searchBoleto}
                 onChange={(e) => setSearchBoleto(e.target.value)}
                 placeholder="Título, nosso número, linha digitável…"
-                className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-indigo-900/40"
+                className="w-full rounded-md border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20"
               />
             </div>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+              className="rounded-md border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20"
             >
               <option value="">Todos os status</option>
               {Object.entries(statusMeta).map(([k, v]) => (
@@ -621,7 +619,7 @@ const BoletosPorEmpresaPage = () => {
           <div className="border-b border-gray-100 px-6 py-3 dark:border-gray-800">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="flex h-2 w-2 rounded-full bg-indigo-500" />
+                <span className="flex h-2 w-2 rounded-full bg-slate-500" />
                 <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">
                   Mês atual
                 </h3>
@@ -655,9 +653,9 @@ const BoletosPorEmpresaPage = () => {
               return (
                 <div
                   key={group.monthKey}
-                  className={`overflow-hidden rounded-xl border transition-colors ${
+                  className={`overflow-hidden rounded-lg border transition-colors ${
                     isOpen
-                      ? 'border-indigo-200 dark:border-indigo-800/60'
+                      ? 'border-slate-300 dark:border-slate-700'
                       : 'border-gray-200 dark:border-gray-800'
                   }`}
                 >
@@ -671,17 +669,17 @@ const BoletosPorEmpresaPage = () => {
                     }
                     className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors ${
                       isOpen
-                        ? 'bg-indigo-50 dark:bg-indigo-950/30'
+                        ? 'bg-slate-50 dark:bg-slate-800'
                         : 'bg-white hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800/60'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       {isOpen
-                        ? <ChevronDownIcon className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
+                        ? <ChevronDownIcon className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                         : <ChevronRightIcon className="h-4 w-4 text-gray-400" />
                       }
                       <span className={`text-sm font-semibold capitalize ${
-                        isOpen ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300'
+                        isOpen ? 'text-slate-900 dark:text-slate-100' : 'text-gray-700 dark:text-gray-300'
                       }`}>
                         {group.label}
                       </span>
@@ -708,7 +706,7 @@ const BoletosPorEmpresaPage = () => {
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-indigo-100 bg-white dark:border-indigo-900/40 dark:bg-gray-900">
+                    <div className="border-t border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                       {renderBoletosTable(group.boletos, 'Nenhum boleto encontrado neste mês.')}
                     </div>
                   )}
@@ -717,7 +715,7 @@ const BoletosPorEmpresaPage = () => {
             })}
 
             {empresaSelecionada && boletosOutrosPeriodos.length > 0 && (
-              <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+              <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between gap-3 bg-white px-4 py-3 dark:bg-gray-900">
                   <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Outros periodos</span>
                   <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">

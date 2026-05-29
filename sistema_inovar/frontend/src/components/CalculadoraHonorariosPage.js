@@ -3,7 +3,6 @@ import {
     BanknotesIcon,
     BriefcaseIcon,
     BuildingStorefrontIcon,
-    CalculatorIcon,
     ChartBarSquareIcon,
     Cog6ToothIcon,
     CurrencyDollarIcon,
@@ -276,39 +275,33 @@ const CalculadoraHonorariosPage = () => {
     }, [atividades, atividadesSelecionadas, faturamento, funcionarios, socios, configuracao.folha, configuracao.percentuaisAtividade, configuracao.socios]);
 
     const inputClass =
-        'w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 shadow-sm outline-none transition ' +
-        'focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100';
+        'w-full rounded-md border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition ' +
+        'focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20';
 
     const labelClass = 'mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-200';
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 text-gray-900 dark:text-gray-100">
-            <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 md:flex-row md:items-center md:justify-between">
+        <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <div>
-                    <div className="flex items-center gap-3">
-                        <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-600 text-white">
-                            <CalculatorIcon className="h-7 w-7" />
-                        </span>
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-950 dark:text-white">Calculadora de Honorarios</h1>
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                Valores base conforme a aba Calculadora de Honorarios da planilha.
-                            </p>
-                        </div>
-                    </div>
+                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Financeiro</p>
+                    <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Calculadora de Honorarios</h1>
+                    <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+                        Valores base conforme a aba Calculadora de Honorarios da planilha.
+                    </p>
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center xl:justify-end">
                     <button
                         type="button"
                         onClick={() => setConfigOpen((open) => !open)}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                     >
                         <Cog6ToothIcon className="h-5 w-5" />
                         Configuracoes
                     </button>
 
-                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-100">
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
                         <div className="flex items-start gap-2">
                             <InformationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0" />
                             <span>Faturamento acima de 301 mil exige planejamento tributario.</span>
@@ -318,7 +311,7 @@ const CalculadoraHonorariosPage = () => {
             </div>
 
             {configOpen && (
-                <section className="rounded-xl border border-indigo-200 bg-white p-5 shadow-sm dark:border-indigo-800 dark:bg-gray-800">
+                <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <h2 className="text-xl font-bold text-gray-950 dark:text-white">Configuracoes da calculadora</h2>
@@ -329,7 +322,7 @@ const CalculadoraHonorariosPage = () => {
                         <button
                             type="button"
                             onClick={resetConfiguracao}
-                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700"
+                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
                         >
                             <ArrowPathIcon className="h-5 w-5" />
                             Restaurar planilha
@@ -342,26 +335,26 @@ const CalculadoraHonorariosPage = () => {
                             <div className="overflow-x-auto">
                                 <table className="min-w-full border-collapse text-sm">
                                     <thead>
-                                        <tr className="bg-gray-100 text-left text-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                                            <th className="border border-gray-200 px-3 py-2 dark:border-gray-700">Atividade</th>
+                                        <tr className="bg-slate-50 text-left text-gray-700 dark:bg-slate-900 dark:text-gray-200">
+                                            <th className="border border-gray-200 px-3 py-2 dark:border-gray-800">Atividade</th>
                                             {faixasFaturamento.filter((faixa) => faixa.id !== 'acima300').map((faixa) => (
-                                                <th key={faixa.id} className="border border-gray-200 px-3 py-2 dark:border-gray-700">{faixa.label}</th>
+                                                <th key={faixa.id} className="border border-gray-200 px-3 py-2 dark:border-gray-800">{faixa.label}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {atividades.map((atividade) => (
                                             <tr key={atividade.id}>
-                                                <td className="border border-gray-200 px-3 py-2 font-semibold dark:border-gray-700">{atividade.label}</td>
+                                                <td className="border border-gray-200 px-3 py-2 font-semibold dark:border-gray-800">{atividade.label}</td>
                                                 {faixasFaturamento.filter((faixa) => faixa.id !== 'acima300').map((faixa) => (
-                                                    <td key={faixa.id} className="border border-gray-200 px-3 py-2 dark:border-gray-700">
+                                                    <td key={faixa.id} className="border border-gray-200 px-3 py-2 dark:border-gray-800">
                                                         <input
                                                             type="number"
                                                             min="0"
                                                             step="0.01"
                                                             value={atividade.honorarios[faixa.id]}
                                                             onChange={(event) => updateHonorarioConfig(atividade.id, faixa.id, event.target.value)}
-                                                            className="w-28 rounded-md border border-gray-300 bg-white px-2 py-2 text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                                                            className="w-28 rounded-md border border-gray-200 bg-white px-2 py-2 text-gray-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20"
                                                         />
                                                     </td>
                                                 ))}
@@ -373,7 +366,7 @@ const CalculadoraHonorariosPage = () => {
                         </div>
 
                         <div className="grid gap-4 lg:grid-cols-3">
-                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                                 <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Percentual por atividade</h3>
                                 <div className="grid gap-3">
                                     {[1, 2, 3].map((quantidade) => (
@@ -394,7 +387,7 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                             </div>
 
-                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                                 <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Folha de pagamento</h3>
                                 <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros funcionarios sao isentos.</p>
                                 <div className="grid gap-3">
@@ -423,7 +416,7 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                             </div>
 
-                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                                 <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Socios</h3>
                                 <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros socios sao isentos.</p>
                                 <label className="block">
@@ -445,7 +438,7 @@ const CalculadoraHonorariosPage = () => {
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
                 <section className="space-y-6">
-                    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                             <div>
                                 <label className={labelClass}>Atividades</label>
@@ -453,7 +446,7 @@ const CalculadoraHonorariosPage = () => {
                                     Selecione uma ou mais. A atividade de maior valor prevalece como honorario base.
                                 </p>
                             </div>
-                            <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 {atividadesSelecionadas.length} de 3 selecionada{atividadesSelecionadas.length > 1 ? 's' : ''}
                             </span>
                         </div>
@@ -467,17 +460,17 @@ const CalculadoraHonorariosPage = () => {
                                         type="button"
                                         onClick={() => toggleAtividade(item.id)}
                                         className={`flex min-h-24 items-center gap-3 rounded-lg border p-4 text-left transition ${active
-                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-900 shadow-sm dark:border-indigo-400 dark:bg-indigo-950/60 dark:text-indigo-100'
-                                            : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+                                            ? 'border-slate-900 bg-slate-50 text-slate-950 shadow-sm dark:border-slate-100 dark:bg-slate-800 dark:text-slate-100'
+                                            : 'border-gray-200 bg-white text-gray-700 hover:border-slate-300 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-slate-600'
                                             }`}
                                     >
                                         <Icon className="h-7 w-7 flex-shrink-0" />
                                         <span className="font-semibold">{item.label}</span>
                                         <span className={`ml-auto flex h-5 w-5 items-center justify-center rounded border ${active
-                                            ? 'border-indigo-600 bg-indigo-600 dark:border-indigo-300'
+                                            ? 'border-slate-900 bg-slate-900 dark:border-slate-100 dark:bg-slate-100'
                                             : 'border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800'
                                             }`}>
-                                            {active && <span className="h-2.5 w-2.5 rounded-sm bg-white" />}
+                                            {active && <span className="h-2.5 w-2.5 rounded-sm bg-white dark:bg-slate-900" />}
                                         </span>
                                     </button>
                                 );
@@ -485,7 +478,7 @@ const CalculadoraHonorariosPage = () => {
                         </div>
                     </div>
 
-                    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <label htmlFor="faturamento" className={labelClass}>Faixa de faturamento</label>
                         <select
                             id="faturamento"
@@ -500,9 +493,9 @@ const CalculadoraHonorariosPage = () => {
                     </div>
 
                     <div className="grid gap-6 lg:grid-cols-2">
-                        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                             <div className="mb-3 flex items-center gap-2">
-                                <UsersIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
+                                <UsersIcon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
                                 <label htmlFor="funcionarios" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                                     Folha de pagamento
                                 </label>
@@ -518,9 +511,9 @@ const CalculadoraHonorariosPage = () => {
                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros funcionarios sao isentos.</p>
                         </div>
 
-                        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                             <div className="mb-3 flex items-center gap-2">
-                                <UserGroupIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
+                                <UserGroupIcon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
                                 <label htmlFor="socios" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                                     Socios
                                 </label>
@@ -537,26 +530,26 @@ const CalculadoraHonorariosPage = () => {
                         </div>
                     </div>
 
-                    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <h2 className="mb-4 text-lg font-bold text-gray-950 dark:text-white">Tabela da planilha</h2>
                         <div className="overflow-x-auto">
                             <table className="min-w-full border-collapse text-sm">
                                 <thead>
-                                    <tr className="bg-gray-100 text-left text-gray-700 dark:bg-gray-900 dark:text-gray-200">
-                                        <th className="border border-gray-200 px-3 py-2 dark:border-gray-700">Atividade</th>
+                                    <tr className="bg-slate-50 text-left text-gray-700 dark:bg-slate-900 dark:text-gray-200">
+                                        <th className="border border-gray-200 px-3 py-2 dark:border-gray-800">Atividade</th>
                                         {faixasFaturamento.map((item) => (
-                                            <th key={item.id} className="border border-gray-200 px-3 py-2 dark:border-gray-700">{item.label}</th>
+                                            <th key={item.id} className="border border-gray-200 px-3 py-2 dark:border-gray-800">{item.label}</th>
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {atividades.map((item) => (
                                         <tr key={item.id}>
-                                            <td className="border border-gray-200 px-3 py-2 font-semibold dark:border-gray-700">{item.label}</td>
+                                            <td className="border border-gray-200 px-3 py-2 font-semibold dark:border-gray-800">{item.label}</td>
                                             {faixasFaturamento.map((faixa) => {
                                                 const valor = item.honorarios[faixa.id];
                                                 return (
-                                                    <td key={faixa.id} className="border border-gray-200 px-3 py-2 dark:border-gray-700">
+                                                    <td key={faixa.id} className="border border-gray-200 px-3 py-2 dark:border-gray-800">
                                                         {valor === null ? 'Planejamento tributario' : formatCurrency(valor)}
                                                     </td>
                                                 );
@@ -569,9 +562,9 @@ const CalculadoraHonorariosPage = () => {
                     </div>
                 </section>
 
-                <aside className="h-fit rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 xl:sticky xl:top-6">
+                <aside className="h-fit rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900 xl:sticky xl:top-6">
                     <div className="mb-5 flex items-center gap-3">
-                        <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-600 text-white">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950">
                             <BanknotesIcon className="h-6 w-6" />
                         </span>
                         <div>
@@ -625,7 +618,7 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                             </div>
 
-                            <div className="mt-6 rounded-lg bg-gray-950 p-5 text-white dark:bg-indigo-950">
+                            <div className="mt-6 rounded-lg bg-slate-950 p-5 text-white dark:bg-slate-800">
                                 <div className="flex items-center gap-2 text-sm text-gray-300">
                                     <CurrencyDollarIcon className="h-5 w-5" />
                                     Valor sugerido
