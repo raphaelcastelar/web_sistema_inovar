@@ -195,13 +195,13 @@ const GerarProLaborePage = () => {
     const dataAtualExtensoAuto = useMemo(() => getDataAtualPorExtenso(), []);
 
     const inputClass =
-        'w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 ' +
+        'w-full rounded-md border border-gray-200 px-3 py-2.5 text-sm ' +
         'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 ' +
         'placeholder-gray-400 dark:placeholder-gray-500 ' +
-        'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition';
+        'focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-400 dark:border-gray-700 dark:focus:ring-slate-500/20 transition';
 
     const cardClass =
-        'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6 shadow-sm';
+        'rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:p-6';
 
     const toNumber = (value) => {
         const v = Number(String(value || '').replace(/\./g, '').replace(',', '.'));
@@ -386,54 +386,56 @@ const GerarProLaborePage = () => {
     };
 
     return (
-        <div className="p-6 md:p-8 bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
-            <div className="max-w-6xl mx-auto">
-                <div className="mb-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 md:p-6 shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                        <div>
-                            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-gray-100">Gerador de Pro-labore</h1>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                Escolha o modo com empresa cadastrada ou emissao avulsa.
-                            </p>
-                        </div>
+        <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
+            <div className="space-y-5">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Financeiro</p>
+                        <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Gerador de Pro-labore</h1>
+                        <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+                            Escolha o modo com empresa cadastrada ou emissao avulsa.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center xl:justify-end">
                         <button
                             type="button"
-                            className="md:hidden p-2 rounded-lg border border-gray-300 dark:border-gray-600"
+                            className="inline-flex h-10 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 md:hidden"
                             onClick={() => setMenuOpen((prev) => !prev)}
                         >
                             {menuOpen ? <XMarkIcon className="h-5 w-5" /> : <Bars3Icon className="h-5 w-5" />}
                         </button>
-                    </div>
 
-                    <div className="mt-4 flex gap-2 flex-wrap">
-                        <button
-                            type="button"
-                            onClick={() => handleModeChange('empresa')}
-                            className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-                                mode === 'empresa'
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
-                            }`}
-                        >
-                            Com empresa cadastrada
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleModeChange('avulso')}
-                            className={`px-4 py-2 rounded-md text-sm font-medium transition ${
-                                mode === 'avulso'
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
-                            }`}
-                        >
-                            Avulso manual
-                        </button>
+                        <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-100 p-1 dark:bg-slate-950">
+                            <button
+                                type="button"
+                                onClick={() => handleModeChange('empresa')}
+                                className={`rounded px-4 py-2 text-sm font-semibold transition ${
+                                    mode === 'empresa'
+                                        ? 'bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-950'
+                                        : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'
+                                }`}
+                            >
+                                Com empresa cadastrada
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleModeChange('avulso')}
+                                className={`rounded px-4 py-2 text-sm font-semibold transition ${
+                                    mode === 'avulso'
+                                        ? 'bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-950'
+                                        : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'
+                                }`}
+                            >
+                                Avulso manual
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-5">
                     <aside className={`${menuOpen ? 'block' : 'hidden'} md:block`}>
-                        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-2 shadow-sm">
+                        <div className="rounded-lg border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                             {sections.map((section) => {
                                 const Icon = section.icon;
                                 const active = activeSection === section.id;
@@ -444,8 +446,8 @@ const GerarProLaborePage = () => {
                                         onClick={() => handleSectionChange(section.id)}
                                         className={`w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 transition ${
                                             active
-                                                ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-semibold'
-                                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                ? 'bg-slate-100 text-slate-900 font-semibold dark:bg-slate-800 dark:text-slate-100'
+                                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                                         }`}
                                     >
                                         <Icon className="h-4 w-4" />
@@ -459,11 +461,11 @@ const GerarProLaborePage = () => {
                     <main className="space-y-5">
                         {activeSection === 'empresa' && (
                             <section className={cardClass}>
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Dados da Empresa</h2>
+                                <h2 className="mb-4 text-lg font-semibold text-gray-950 dark:text-white">Dados da Empresa</h2>
 
                                 {mode === 'empresa' && (
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Empresa</label>
+                                        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Empresa</label>
                                         <select
                                             value={selectedEmpresaId}
                                             onChange={(e) => {
@@ -511,11 +513,11 @@ const GerarProLaborePage = () => {
 
                         {activeSection === 'socio' && (
                             <section className={cardClass}>
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Dados do Socio</h2>
+                                <h2 className="mb-4 text-lg font-semibold text-gray-950 dark:text-white">Dados do Socio</h2>
 
                                 {mode === 'empresa' && (
                                     <div className="mb-4">
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Socio</label>
+                                        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Socio</label>
                                         <select
                                             value={selectedSocioId}
                                             onChange={(e) => setSelectedSocioId(e.target.value)}
@@ -566,7 +568,7 @@ const GerarProLaborePage = () => {
 
                         {activeSection === 'valores' && (
                             <section className={cardClass}>
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Valores</h2>
+                                <h2 className="mb-4 text-lg font-semibold text-gray-950 dark:text-white">Valores</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <input className={inputClass} name="valor_bruto" value={formData.valor_bruto} onChange={handleChange} placeholder="Valor bruto" />
                                     <input
@@ -609,7 +611,7 @@ const GerarProLaborePage = () => {
 
                         {activeSection === 'documento' && (
                             <section className={cardClass}>
-                                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Finalizacao</h2>
+                                <h2 className="mb-4 text-lg font-semibold text-gray-950 dark:text-white">Finalizacao</h2>
                                 <input
                                     className={inputClass}
                                     name="nome_arquivo"
@@ -621,17 +623,17 @@ const GerarProLaborePage = () => {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className={`mt-5 w-full p-3 rounded-lg font-semibold transition ${
+                                    className={`mt-5 w-full rounded-md p-3 font-semibold transition ${
                                         loading
                                             ? 'bg-gray-400 text-gray-100 cursor-not-allowed'
-                                            : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                            : 'bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white'
                                     }`}
                                 >
                                     {loading ? 'Gerando...' : 'Gerar PDF'}
                                 </button>
 
                                 {msg.text && (
-                                    <p className={`mt-3 text-sm font-medium ${msg.type === 'error' ? 'text-red-500' : 'text-green-500'}`}>
+                                    <p className={`mt-3 text-sm font-medium ${msg.type === 'error' ? 'text-rose-500' : 'text-emerald-500'}`}>
                                         {msg.text}
                                     </p>
                                 )}
