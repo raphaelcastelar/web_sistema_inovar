@@ -1,7 +1,6 @@
 sistema_inovar/sistema_inovar/.env
 /.idea
-/.idea
-/.idea
 sistema_inovar/sistema_inovar/settings.py
 /node_modules
-/sistema_inovar/empresas/__pycache__
+__pycache__/
+*.py[cod]

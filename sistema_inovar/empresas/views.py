@@ -1488,25 +1488,27 @@ def dashboard_summary_api(request):
         hoje = timezone.now().date()
         
         # --- KPIs ---
-        # Contamos apenas empresas onde o campo 'nome' não está vazio, como um proxy para ativas
-        total_clientes = Empresa.objects.exclude(nome__exact='').count()
+        total_clientes = Empresa.objects.filter(ativo=True).exclude(nome__exact='').count()
         
         # Filtramos tarefas pendentes com data de vencimento futura
         tarefas_pendentes_total = ObrigacaoMensal.objects.filter(
             status='pendente',
-            data_vencimento__gte=hoje
+            data_vencimento__gte=hoje,
+            empresa__ativo=True
         ).count()
 
         vencendo_em_7_dias = ObrigacaoMensal.objects.filter(
             status='pendente',
             data_vencimento__gte=hoje,
-            data_vencimento__lte=hoje + timedelta(days=7)
+            data_vencimento__lte=hoje + timedelta(days=7),
+            empresa__ativo=True
         ).count()
 
         # --- Próximas Tarefas ---
         proximas_tarefas_qs = ObrigacaoMensal.objects.filter(
             status='pendente',
-            data_vencimento__gte=hoje
+            data_vencimento__gte=hoje,
+            empresa__ativo=True
         ).select_related('empresa').order_by('data_vencimento')[:5]
         
         proximas_tarefas = [{
@@ -1744,7 +1746,7 @@ def dashboard_pie_chart(request):
     logger.info(f"Usuário {user.username} solicitou dados do gráfico de pizza. Cargo: {user.cargo}")
 
     try:
-        empresas = Empresa.objects.filter(usercompanyaccess__user=user)
+        empresas = Empresa.objects.filter(usercompanyaccess__user=user, ativo=True)
         logger.info(f"Empresas encontradas para usuário {user.username}: {empresas.count()}")
 
         if user.cargo == 'pessoal':
@@ -1808,7 +1810,7 @@ def dashboard_pie_chart(request):
 def dashboard_summary(request):
     user = request.user
     try:
-        empresas = Empresa.objects.filter(usercompanyaccess__user=user)
+        empresas = Empresa.objects.filter(usercompanyaccess__user=user, ativo=True)
         total_empresas = empresas.count()
         hoje = timezone.now().date()
         dia = hoje.day

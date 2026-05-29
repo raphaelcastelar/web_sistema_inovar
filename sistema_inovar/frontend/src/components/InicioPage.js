@@ -228,12 +228,13 @@ const InicioPage = () => {
       console.log('Resposta /api/current-user/:', userResponse.data);
       setUserCargo(userResponse.data.cargo || 'admin');
       setIsSuperuser(userResponse.data.is_superuser || false);
-      setEmpresasSelecionadas(empresasResponse.data);
+      const empresasAtivas = empresasResponse.data.filter((empresa) => empresa.ativo === true);
+      setEmpresasSelecionadas(empresasAtivas);
       setBoletos(boletosData);
       console.log('Resposta /api/empresas/:', empresasResponse.data);
 
       const initialCheckboxState = {};
-      empresasResponse.data.forEach((empresa) => {
+      empresasAtivas.forEach((empresa) => {
         initialCheckboxState[empresa.id] = {
           inss: empresa.inss || false,
           fgts: empresa.fgts || false,
