@@ -129,9 +129,9 @@ const emptyEmpresaData = {
 
 const createEmptyEmpresaData = () => ({ ...emptyEmpresaData });
 
-const inputClass = 'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100';
+const inputClass = 'w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20';
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
-const sectionClass = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800';
+const sectionClass = 'rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900';
 
 const RelacaoFaturamentoPage = () => {
     const [empresas, setEmpresas] = useState([]);
@@ -437,7 +437,7 @@ th { background: #e5e7eb; }
     const loadingCadastro = empresaSource === 'avulsa' ? loadingAvulsas : loadingEmpresas;
 
     return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-6 md:p-8 text-gray-900 dark:text-gray-100">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
             <style>{`
                 @media print {
                     body { background: #fff !important; }
@@ -456,16 +456,17 @@ th { background: #e5e7eb; }
                 }
             `}</style>
 
-            <div className="print-hidden mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="print-hidden flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Relação de Faturamento</h1>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Modelo coringa</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Financeiro</p>
+                    <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Relação de Faturamento</h1>
+                    <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">Modelo coringa</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button
                         type="button"
                         onClick={handleDownloadHtml}
-                        className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                     >
                         <DocumentArrowDownIcon className="h-5 w-5" />
                         HTML
@@ -473,7 +474,7 @@ th { background: #e5e7eb; }
                     <button
                         type="button"
                         onClick={handlePrint}
-                        className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                     >
                         <PrinterIcon className="h-5 w-5" />
                         Imprimir / PDF
@@ -482,7 +483,7 @@ th { background: #e5e7eb; }
             </div>
 
             {msg.text && (
-                <div className={`print-hidden mb-4 rounded-md border px-4 py-3 text-sm ${msg.type === 'error' ? 'border-red-300 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300' : 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'}`}>
+                <div className={`print-hidden rounded-lg border px-4 py-3 text-sm ${msg.type === 'error' ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'}`}>
                     {msg.text}
                 </div>
             )}
@@ -490,8 +491,8 @@ th { background: #e5e7eb; }
             <div className="print-hidden grid grid-cols-1 gap-5 xl:grid-cols-3">
                 <section className={sectionClass}>
                     <div className="mb-4 flex items-center gap-2">
-                        <BuildingOffice2Icon className="h-5 w-5 text-emerald-600" />
-                        <h2 className="text-lg font-semibold">Empresa</h2>
+                        <BuildingOffice2Icon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
+                        <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Empresa</h2>
                     </div>
 
                     <div className="space-y-4">
@@ -539,7 +540,7 @@ th { background: #e5e7eb; }
                                         type="checkbox"
                                         checked={empresaData.numero === 'S/N'}
                                         onChange={(event) => handleEmpresaSemNumeroChange(event.target.checked)}
-                                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                        className="h-4 w-4 rounded border-gray-300 text-slate-700 focus:ring-slate-400 dark:border-gray-700"
                                     />
                                     Sem número
                                 </label>
@@ -570,7 +571,7 @@ th { background: #e5e7eb; }
                                 type="button"
                                 onClick={handleSaveAvulsa}
                                 disabled={savingAvulsa}
-                                className="inline-flex w-full items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex w-full items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                             >
                                 {savingAvulsa ? 'Salvando...' : (selectedEmpresaId ? 'Atualizar empresa avulsa' : 'Salvar empresa avulsa')}
                             </button>
@@ -579,11 +580,11 @@ th { background: #e5e7eb; }
                 </section>
 
                 <section className={sectionClass}>
-                    <h2 className="mb-4 text-lg font-semibold">Configuração</h2>
+                    <h2 className="mb-4 text-lg font-semibold text-gray-950 dark:text-white">Configuração</h2>
                     <div className="space-y-4">
                         <div>
                             <label className={labelClass}>Origem da empresa</label>
-                            <div className="grid grid-cols-2 gap-2 rounded-md bg-gray-100 p-1 dark:bg-gray-900">
+                            <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-100 p-1 dark:bg-slate-950">
                                 {[
                                     { value: 'cadastrada', label: 'Cadastrada' },
                                     { value: 'avulsa', label: 'Avulsa' },
@@ -592,7 +593,7 @@ th { background: #e5e7eb; }
                                         key={item.value}
                                         type="button"
                                         onClick={() => handleEmpresaSourceChange(item.value)}
-                                        className={`rounded px-3 py-2 text-sm font-semibold transition ${empresaSource === item.value ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'}`}
+                                        className={`rounded px-3 py-2 text-sm font-semibold transition ${empresaSource === item.value ? 'bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-950' : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'}`}
                                     >
                                         {item.label}
                                     </button>
@@ -600,13 +601,13 @@ th { background: #e5e7eb; }
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 rounded-md bg-gray-100 p-1 dark:bg-gray-900">
+                        <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-100 p-1 dark:bg-slate-950">
                             {['Realizado', 'Previsto'].map((item) => (
                                 <button
                                     key={item}
                                     type="button"
                                     onClick={() => handleModeChange(item)}
-                                    className={`rounded px-3 py-2 text-sm font-semibold transition ${mode === item ? 'bg-emerald-600 text-white shadow-sm' : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'}`}
+                                    className={`rounded px-3 py-2 text-sm font-semibold transition ${mode === item ? 'bg-slate-900 text-white shadow-sm dark:bg-slate-100 dark:text-slate-950' : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'}`}
                                 >
                                     {item}
                                 </button>
@@ -627,7 +628,7 @@ th { background: #e5e7eb; }
                         <button
                             type="button"
                             onClick={handleRegenerateRows}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                         >
                             <ArrowPathIcon className="h-5 w-5" />
                             Atualizar meses
@@ -650,7 +651,7 @@ th { background: #e5e7eb; }
                 </section>
 
                 <section className={sectionClass}>
-                    <h2 className="mb-4 text-lg font-semibold">Percentuais</h2>
+                    <h2 className="mb-4 text-lg font-semibold text-gray-950 dark:text-white">Percentuais</h2>
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
@@ -694,7 +695,7 @@ th { background: #e5e7eb; }
                             </div>
                             <div>
                                 <label className={labelClass}>Contador responsável</label>
-                                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                <div className="rounded-md border border-gray-200 bg-slate-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-slate-950 dark:text-gray-200">
                                     <div className="font-semibold">{accountantResponsible.name}</div>
                                     <div>{accountantResponsible.registry}</div>
                                 </div>
@@ -706,7 +707,7 @@ th { background: #e5e7eb; }
 
             <section className={`${sectionClass} print-hidden mt-5`}>
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <h2 className="text-lg font-semibold">Faturamento mensal</h2>
+                    <h2 className="text-lg font-semibold text-gray-950 dark:text-white">Faturamento mensal</h2>
                     <div className="flex flex-col gap-2 sm:flex-row">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                             <label className="sr-only" htmlFor="faturamento-medio">Faturamento médio</label>
@@ -721,7 +722,7 @@ th { background: #e5e7eb; }
                             <button
                                 type="button"
                                 onClick={handleGenerateAverageRevenue}
-                                className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                                className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                             >
                                 <ArrowPathIcon className="h-5 w-5" />
                                 Gerar faturamento
@@ -730,7 +731,7 @@ th { background: #e5e7eb; }
                         <button
                             type="button"
                             onClick={addRow}
-                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-700"
+                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                         >
                             <PlusIcon className="h-5 w-5" />
                             Linha
@@ -739,8 +740,8 @@ th { background: #e5e7eb; }
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-900">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                        <thead className="bg-slate-50 dark:bg-slate-900">
                             <tr>
                                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Mês / Ano</th>
                                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-gray-500">Faturamento</th>
