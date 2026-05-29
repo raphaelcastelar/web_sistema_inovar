@@ -16,6 +16,27 @@ import {
     TagIcon
 } from '@heroicons/react/24/outline';
 
+function MetricCard({ label, value, icon: Icon, tone = 'neutral' }) {
+    const toneClasses = {
+        neutral: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+        success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+    }[tone];
+
+    return (
+        <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{label}</p>
+                    <p className="mt-3 break-words text-2xl font-bold tabular-nums text-gray-950 dark:text-gray-100">{value}</p>
+                </div>
+                <div className={`shrink-0 rounded-md p-2.5 ${toneClasses}`}>
+                    <Icon className="h-5 w-5" />
+                </div>
+            </div>
+        </div>
+    );
+}
+
 const GerenciamentoIntegrado = () => {
     // --- State ---
     const [empresas, setEmpresas] = useState([]);
@@ -542,10 +563,10 @@ const GerenciamentoIntegrado = () => {
 
     if (loading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+            <div className="flex min-h-[60vh] items-center justify-center text-gray-900 dark:text-gray-100">
                 <div className="animate-pulse flex flex-col items-center">
-                    <div className="h-12 w-12 bg-gray-200 dark:bg-gray-700 rounded-full mb-4"></div>
-                    <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    <div className="mb-4 h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-800"></div>
+                    <div className="h-4 w-48 rounded bg-gray-200 dark:bg-gray-800"></div>
                 </div>
             </div>
         );
@@ -553,13 +574,13 @@ const GerenciamentoIntegrado = () => {
 
     if (!isAdmin) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+            <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-gray-900 dark:text-gray-100">
                 <ExclamationCircleIcon className="h-16 w-16 text-red-500 mb-4" />
                 <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Acesso Negado</h2>
                 <p className="mt-2 text-gray-600 dark:text-gray-400 text-center max-w-md">
                     Você não possui permissões de administrador.
                 </p>
-                <Link to="/" className="mt-6 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+                <Link to="/" className="mt-6 inline-flex h-10 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white">
                     Voltar ao Início
                 </Link>
             </div>
@@ -567,74 +588,58 @@ const GerenciamentoIntegrado = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 px-4 py-4 font-sans dark:bg-gray-900 sm:px-6 sm:py-6 lg:px-8">
-            <div className="max-w-7xl mx-auto space-y-8">
+        <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
 
                 {/* Header & Stats */}
-                <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                     <div>
-                        <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-                            Gerenciamento Integrado
+                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Operação mensal</p>
+                        <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">
+                            Gestão integrada
                         </h1>
-                        <p className="text-gray-500 dark:text-gray-400 mt-1">
+                        <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
                             Gestão de empresas, boletos e permissões.
                         </p>
                     </div>
                     <Link
                         to="/empresas/cadastrar"
-                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-indigo-700 hover:shadow-indigo-500/30 sm:w-auto"
+                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
                     >
-                        <PlusIcon className="h-5 w-5" />
-                        <span className="font-semibold">Nova Empresa</span>
+                        <PlusIcon className="h-4 w-4" />
+                        Nova Empresa
                     </Link>
                 </header>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Empresas Ativas</p>
-                            <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.active}</p>
-                        </div>
-                        <div className="h-12 w-12 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                            <BuildingOffice2Icon className="h-6 w-6" />
-                        </div>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Honorarios Marcados</p>
-                            <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{stats.honorariosMarcados}</p>
-                        </div>
-                        <div className="h-12 w-12 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                            <CheckCircleIcon className="h-6 w-6" />
-                        </div>
-                    </div>
+                <div className="grid w-full grid-cols-1 gap-3 md:grid-cols-2 2xl:gap-4">
+                    <MetricCard label="Empresas Ativas" value={stats.active} icon={BuildingOffice2Icon} />
+                    <MetricCard label="Honorários Marcados" value={stats.honorariosMarcados} icon={CheckCircleIcon} tone="success" />
                 </div>
 
-                <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5">
                     <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                         <div className="max-w-2xl space-y-2">
-                            <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
-                                Disparo de Honorarios
+                            <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#c49a61]">
+                                Disparo de Honorários
                             </span>
-                            <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                            <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100 sm:text-lg">
                                 Monte uma remessa e envie os boletos sem sair da tela.
                             </h2>
-                            <p className="max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-300 md:text-base">
-                                Abra o seletor, marque as empresas ativas que devem receber honorario neste ciclo e dispare tudo em sequencia com um unico comando.
+                            <p className="max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-400">
+                                Abra o seletor, marque as empresas ativas que devem receber honorário neste ciclo e dispare tudo em sequência com um único comando.
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-900">
-                                <div className="text-xs uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Elegiveis agora</div>
+                            <div className="rounded-lg border border-gray-200 bg-slate-50 px-4 py-3 text-sm dark:border-gray-800 dark:bg-slate-900/70">
+                                <div className="text-xs uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Elegíveis agora</div>
                                 <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{activeEmpresas.length}</div>
                             </div>
                             <button
                                 onClick={handleOpenBoletoModal}
-                                className="inline-flex items-center justify-center gap-3 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                                 disabled={activeEmpresas.length === 0}
                             >
-                                <DocumentArrowDownIcon className="h-5 w-5" />
+                                <DocumentArrowDownIcon className="h-4 w-4" />
                                 Selecionar Empresas
                             </button>
                         </div>
@@ -642,22 +647,22 @@ const GerenciamentoIntegrado = () => {
                 </section>
 
                 {/* Controls Area (Search & Filter) */}
-                <div className="flex flex-col gap-4 md:flex-row">
-                    <div className="relative flex-grow">
-                        <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute top-1/2 left-3 transform -translate-y-1/2" />
+                <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                        <MagnifyingGlassIcon className="h-4 w-4" />
                         <input
                             type="text"
                             placeholder="Buscar por nome, CNPJ ou e-mail..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-white transition-shadow shadow-sm"
+                            className="min-w-0 flex-1 bg-transparent text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
                         />
-                    </div>
+                    </label>
                 </div>
 
                 {/* Messages */}
                 {success && (
-                    <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
                         <div className="flex items-start gap-2">
                             <CheckCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
                             <span>{success}</span>
@@ -665,7 +670,7 @@ const GerenciamentoIntegrado = () => {
                     </div>
                 )}
                 {error && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-900/20 dark:text-red-200">
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
                         <div className="flex items-start gap-2">
                             <ExclamationCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
                             <span>{error}</span>
@@ -674,7 +679,7 @@ const GerenciamentoIntegrado = () => {
                 )}
 
                 {batchSummary && (
-                    <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Ultima Remessa</p>
@@ -699,7 +704,7 @@ const GerenciamentoIntegrado = () => {
                                 </span>
                                 <button
                                     onClick={() => setResultsModalOpen(true)}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700"
+                                    className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                                 >
                                     <EyeIcon className="h-4 w-4" />
                                     Ver resultados
@@ -710,7 +715,7 @@ const GerenciamentoIntegrado = () => {
                 )}
 
                 {/* Table View */}
-                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     {filteredEmpresas.length === 0 ? (
                         <div className="text-center py-16 px-4">
                             <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" />
@@ -723,7 +728,7 @@ const GerenciamentoIntegrado = () => {
                                 {filteredEmpresas.map((empresa) => (
                                     <div key={empresa.id} className="space-y-4 px-4 py-4">
                                         <div className="flex items-start gap-3">
-                                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-sm font-bold text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400">
+                                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-slate-100 text-sm font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                                                 {empresa.nome.substring(0, 2).toUpperCase()}
                                             </div>
                                             <div className="min-w-0 flex-1">
@@ -762,14 +767,14 @@ const GerenciamentoIntegrado = () => {
                                                 <div className="mt-1 flex flex-wrap gap-2">
                                                     <button
                                                         onClick={() => handleConfiguracoes(empresa.id)}
-                                                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-900/30"
+                                                        className="rounded-md p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                                                         title="Configuracoes"
                                                     >
                                                         <CogIcon className="h-5 w-5" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleAbrirModalBoleto(empresa)}
-                                                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-blue-900/30"
+                                                        className="rounded-md p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                                                         title="Gerar/baixar boleto"
                                                         disabled={generatingBoletoId === empresa.id}
                                                     >
@@ -794,21 +799,21 @@ const GerenciamentoIntegrado = () => {
 
                             <div className="hidden overflow-x-auto xl:block">
                             <table className="w-full text-left">
-                                <thead className="bg-gray-50 dark:bg-gray-700/50">
+                                <thead className="bg-slate-50 dark:bg-slate-900">
                                     <tr>
-                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Empresa</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contato</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Honorario</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Ações</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">Empresa</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">Contato</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em] text-center">Honorário</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">Status</th>
+                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em] text-right">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                     {filteredEmpresas.map((empresa) => (
-                                        <tr key={empresa.id} className="group hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                        <tr key={empresa.id} className="group transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/60">
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center">
-                                                    <div className="h-10 w-10 flex-shrink-0 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-sm">
+                                                    <div className="h-10 w-10 flex-shrink-0 bg-slate-100 dark:bg-slate-800 rounded-md flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-sm">
                                                         {empresa.nome.substring(0, 2).toUpperCase()}
                                                     </div>
                                                     <div className="ml-4">
@@ -848,14 +853,14 @@ const GerenciamentoIntegrado = () => {
                                                 <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={() => handleConfiguracoes(empresa.id)}
-                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                                                    className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-200 rounded-md transition-colors"
                                                     title="Configurações"
                                                 >
                                                     <CogIcon className="h-5 w-5" />
                                                 </button>
                                                 <button
                                                     onClick={() => handleAbrirModalBoleto(empresa)}
-                                                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                                    className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-200 rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                                                     title="Gerar/baixar boleto"
                                                     disabled={generatingBoletoId === empresa.id}
                                                 >
@@ -892,8 +897,8 @@ const GerenciamentoIntegrado = () => {
                             className="absolute inset-0"
                             onClick={() => !boletoActionLoading && setBoletoActionModal(null)}
                         />
-                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
-                            <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-700 flex items-start justify-between">
+                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
+                            <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800 flex items-start justify-between">
                                 <div>
                                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Boleto Avulso</p>
                                     <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{boletoActionModal.nome}</h2>
@@ -910,7 +915,7 @@ const GerenciamentoIntegrado = () => {
                                 <button
                                     onClick={() => handleBoletoAction('baixar')}
                                     disabled={boletoActionLoading}
-                                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800 hover:bg-white hover:border-indigo-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:border-indigo-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                    className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800 transition-colors hover:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
                                     {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <DocumentArrowDownIcon className="h-5 w-5" />}
                                     Baixar boleto (usa existente se houver)
@@ -918,7 +923,7 @@ const GerenciamentoIntegrado = () => {
                                 <button
                                     onClick={() => handleBoletoAction('gerar_enviar')}
                                     disabled={boletoActionLoading}
-                                    className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                    className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
                                     {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <PaperAirplaneIcon className="h-5 w-5 rotate-45" />}
                                     Gerar e enviar pelo WhatsApp
@@ -943,8 +948,8 @@ const GerenciamentoIntegrado = () => {
                             className="absolute inset-0"
                             onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
                         />
-                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
-                            <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-700">
+                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
+                            <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="max-w-2xl">
                                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Selecao em Lote</p>
@@ -964,15 +969,15 @@ const GerenciamentoIntegrado = () => {
                             </div>
 
                             <div className="grid max-h-[calc(100vh-10rem)] gap-6 overflow-y-auto p-4 sm:p-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-                                <aside className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800">
+                                <aside className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900">
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Resumo</div>
                                         <div className="mt-3 grid grid-cols-2 gap-3">
-                                            <div className="rounded-xl bg-white p-4 dark:bg-gray-900">
+                                            <div className="rounded-lg bg-white p-4 dark:bg-gray-800">
                                                 <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Ativas</div>
                                                 <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{activeEmpresas.length}</div>
                                             </div>
-                                            <div className="rounded-xl bg-white p-4 dark:bg-gray-900">
+                                            <div className="rounded-lg bg-white p-4 dark:bg-gray-800">
                                                 <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Marcadas</div>
                                                 <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{selectedEmpresasCount}</div>
                                             </div>
@@ -990,7 +995,7 @@ const GerenciamentoIntegrado = () => {
                                                 value={boletoBatchSearch}
                                                 onChange={(e) => setBoletoBatchSearch(e.target.value)}
                                                 placeholder="Nome, CNPJ ou email"
-                                                className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:border-gray-600 dark:bg-gray-900 dark:text-white dark:focus:ring-indigo-500/20"
+                                                className="w-full rounded-md border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-slate-500/20"
                                             />
                                         </div>
                                     </div>
@@ -1006,18 +1011,18 @@ const GerenciamentoIntegrado = () => {
                                                     type="button"
                                                     onClick={() => setBoletoSelectedTagIds([])}
                                                     disabled={isGeneratingBoletos}
-                                                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-indigo-300 dark:hover:text-indigo-200"
+                                                    className="text-xs font-semibold text-slate-700 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300 dark:hover:text-white"
                                                 >
                                                     Limpar
                                                 </button>
                                             )}
                                         </div>
                                         {tags.length === 0 ? (
-                                            <div className="rounded-xl border border-dashed border-gray-300 px-4 py-3 text-xs text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                            <div className="rounded-lg border border-dashed border-gray-300 px-4 py-3 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
                                                 Nenhuma tag disponivel.
                                             </div>
                                         ) : (
-                                            <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-600 dark:bg-gray-900">
+                                            <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
                                                 {tags.map((tag) => {
                                                     const selected = boletoSelectedTagIds.includes(String(tag.id));
                                                     return (
@@ -1027,7 +1032,7 @@ const GerenciamentoIntegrado = () => {
                                                             onClick={() => handleToggleBoletoTagFilter(String(tag.id))}
                                                             disabled={isGeneratingBoletos}
                                                             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${selected
-                                                                ? 'bg-indigo-600 text-white'
+                                                                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950'
                                                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
                                                                 }`}
                                                         >
@@ -1047,7 +1052,7 @@ const GerenciamentoIntegrado = () => {
 
                                     <button
                                         onClick={handleToggleAllModalEmpresas}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-700"
+                                        className="w-full rounded-md border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                     >
                                         {allModalEmpresasSelected ? 'Desmarcar visiveis' : 'Marcar visiveis'}
                                     </button>
@@ -1060,7 +1065,7 @@ const GerenciamentoIntegrado = () => {
                                 <div className="space-y-4">
                                     <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
                                         {filteredActiveEmpresasForModal.length === 0 ? (
-                                            <div className="rounded-xl border border-dashed border-gray-300 px-6 py-12 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
+                                            <div className="rounded-lg border border-dashed border-gray-300 px-6 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
                                                 Nenhuma empresa ativa encontrada com esse filtro.
                                             </div>
                                         ) : (
@@ -1072,8 +1077,8 @@ const GerenciamentoIntegrado = () => {
                                                         key={empresa.id}
                                                         type="button"
                                                         onClick={() => handleToggleEmpresaSelection(empresa.id)}
-                                                        className={`w-full rounded-xl border p-4 text-left transition-colors ${selected
-                                                            ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/10'
+                                                        className={`w-full rounded-lg border p-4 text-left transition-colors ${selected
+                                                            ? 'border-slate-900 bg-slate-50 dark:border-slate-100 dark:bg-slate-800'
                                                             : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700'
                                                             }`}
                                                     >
@@ -1103,7 +1108,7 @@ const GerenciamentoIntegrado = () => {
                                         )}
                                     </div>
 
-                                    <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
                                         <p className="text-sm text-gray-500 dark:text-gray-400">
                                             {selectedEmpresasCount === 0
                                                 ? 'Nenhuma empresa selecionada.'
@@ -1112,14 +1117,14 @@ const GerenciamentoIntegrado = () => {
                                         <div className="flex flex-col gap-3 sm:flex-row">
                                             <button
                                                 onClick={() => setBoletoModalOpen(false)}
-                                                className="rounded-xl px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                                                className="rounded-md px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                                                 disabled={isGeneratingBoletos}
                                             >
                                                 Fechar
                                             </button>
                                             <button
                                                 onClick={handleGerarBoletosEmLote}
-                                                className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                                className="rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                                                 disabled={isGeneratingBoletos || selectedEmpresasCount === 0}
                                             >
                                                 {isGeneratingBoletos ? 'Processando...' : 'Gerar E Enviar'}
@@ -1138,7 +1143,7 @@ const GerenciamentoIntegrado = () => {
                             className="absolute inset-0 bg-black/40"
                             onClick={() => setConfigModalOpen(false)}
                         />
-                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-100 bg-white p-5 shadow-lg dark:border-gray-700 dark:bg-gray-800 sm:p-8">
+                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg border border-gray-200 bg-white p-5 shadow-lg dark:border-gray-800 dark:bg-gray-900 sm:p-8">
                             <div className="flex items-center justify-between mb-8">
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1164,7 +1169,7 @@ const GerenciamentoIntegrado = () => {
                                     { label: 'Dias para Desconto', key: 'dias_para_desconto', type: 'number', title: 'Dias antes do vencimento' },
                                 ].map((field) => (
                                     <div key={field.key} className="relative group">
-                                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide group-focus-within:text-indigo-600 dark:group-focus-within:text-indigo-400 transition-colors">
+                                        <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide group-focus-within:text-slate-700 dark:group-focus-within:text-slate-200 transition-colors">
                                             {field.label}
                                         </label>
                                         <input
@@ -1175,7 +1180,7 @@ const GerenciamentoIntegrado = () => {
                                             title={field.title}
                                             value={currentConfig[field.key]}
                                             onChange={(e) => setCurrentConfig({ ...currentConfig, [field.key]: e.target.value })}
-                                            className="w-full p-3 bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none font-medium"
+                                            className="w-full rounded-md border border-gray-200 bg-gray-50 p-3 font-medium text-gray-900 outline-none transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:ring-slate-500/20"
                                         />
                                     </div>
                                 ))}
@@ -1184,13 +1189,13 @@ const GerenciamentoIntegrado = () => {
                             <div className="mt-10 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                                 <button
                                     onClick={() => setConfigModalOpen(false)}
-                                    className="px-6 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-xl transition-colors"
+                                    className="rounded-md px-6 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     onClick={handleSaveConfig}
-                                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-colors"
+                                    className="rounded-md bg-slate-900 px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                                 >
                                     Salvar Configuração
                                 </button>
@@ -1205,8 +1210,8 @@ const GerenciamentoIntegrado = () => {
                             className="absolute inset-0"
                             onClick={() => setResultsModalOpen(false)}
                         />
-                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900">
-                            <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-700">
+                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
+                            <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
                                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Resultados da Remessa</p>
@@ -1224,23 +1229,23 @@ const GerenciamentoIntegrado = () => {
                                 </div>
                             </div>
 
-                            <div className="grid gap-4 border-b border-gray-200 px-6 py-4 dark:border-gray-700 md:grid-cols-3">
-                                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                            <div className="grid gap-4 border-b border-gray-200 px-6 py-4 dark:border-gray-800 md:grid-cols-3">
+                                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800">
                                     <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Total</div>
                                     <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{batchSummary.total}</div>
                                 </div>
-                                <div className="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+                                <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
                                     <div className="text-xs uppercase tracking-[0.12em] text-green-700 dark:text-green-300">Enviadas</div>
                                     <div className="mt-1 text-2xl font-bold text-green-700 dark:text-green-300">{batchSummary.successCount}</div>
                                 </div>
-                                <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                                <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
                                     <div className="text-xs uppercase tracking-[0.12em] text-red-700 dark:text-red-300">Com ajuste</div>
                                     <div className="mt-1 text-2xl font-bold text-red-700 dark:text-red-300">{batchSummary.errorCount}</div>
                                 </div>
                             </div>
 
                             <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-2">
-                                <section className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
+                                <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                                         <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
                                         Empresas enviadas com sucesso
@@ -1250,7 +1255,7 @@ const GerenciamentoIntegrado = () => {
                                             <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma empresa concluida nesta remessa.</p>
                                         ) : (
                                             batchSummary.successResults.map((result) => (
-                                                <div key={`success-${result.empresaId}`} className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-900/20">
+                                                <div key={`success-${result.empresaId}`} className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800 dark:bg-green-900/20">
                                                     <div className="flex items-start gap-3">
                                                         <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
                                                         <div>
@@ -1264,7 +1269,7 @@ const GerenciamentoIntegrado = () => {
                                     </div>
                                 </section>
 
-                                <section className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
+                                <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                                         <ExclamationCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
                                         Empresas que precisam de configuracao
@@ -1277,7 +1282,7 @@ const GerenciamentoIntegrado = () => {
                                                 const isRetrying = retryingEmpresaIds.includes(result.empresaId);
 
                                                 return (
-                                                    <div key={`error-${result.empresaId}`} className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 dark:border-red-800 dark:bg-red-900/20">
+                                                    <div key={`error-${result.empresaId}`} className="rounded-lg border border-red-200 bg-red-50 px-4 py-4 dark:border-red-800 dark:bg-red-900/20">
                                                         <div className="flex flex-col gap-4">
                                                             <div>
                                                                 <div className="font-semibold text-red-800 dark:text-red-200">{result.empresa}</div>
@@ -1292,13 +1297,13 @@ const GerenciamentoIntegrado = () => {
                                                                         setResultsModalOpen(false);
                                                                         handleConfiguracoes(result.empresaId);
                                                                     }}
-                                                                    className="inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700"
+                                                                    className="inline-flex items-center justify-center rounded-md bg-red-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-red-700"
                                                                 >
                                                                     Configurar boleto
                                                                 </button>
                                                                 <button
                                                                     onClick={() => handleRetryEmpresa(result.empresaId)}
-                                                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                                                                    className="inline-flex items-center justify-center gap-2 rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
                                                                     disabled={isRetrying}
                                                                 >
                                                                     <ArrowPathIcon className={`h-4 w-4 ${isRetrying ? 'animate-spin' : ''}`} />
@@ -1316,7 +1321,6 @@ const GerenciamentoIntegrado = () => {
                         </div>
                     </div>
                 )}
-            </div>
         </div>
     );
 };
