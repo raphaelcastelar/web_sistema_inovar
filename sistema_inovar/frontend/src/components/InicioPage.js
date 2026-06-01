@@ -131,6 +131,16 @@ function dateKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function dateOnlyKey(value) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const dateOnly = value.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+    if (dateOnly) return dateOnly;
+  }
+  const parsed = getValidDate(value);
+  return parsed ? dateKey(parsed) : null;
+}
+
 function getValidDate(value) {
   if (!value) return null;
   const parsed = new Date(value);
@@ -576,10 +586,14 @@ const InicioPage = () => {
   });
   const boletosGeradosCount = boletosGeradosMesAtual.length;
   const boletosPagosCount = boletosPagosMesAtual.length;
-  const boletosRegistradosMesAtual = boletosGeradosMesAtual.filter((boleto) => boleto.status === 'registrado');
-  const boletosRegistradosCount = boletosRegistradosMesAtual.length;
+  const todayKey = dateKey(today);
+  const boletosVencidosEmAberto = boletos.filter((boleto) => {
+    const vencimentoKey = dateOnlyKey(boleto.data_vencimento);
+    return boleto.status === 'registrado' && vencimentoKey && vencimentoKey < todayKey;
+  });
+  const boletosRegistradosCount = boletosVencidosEmAberto.length;
   const empresasById = new Map(empresasSelecionadas.map((empresa) => [String(empresa.id), empresa]));
-  const boletosEmAbertoRows = boletosRegistradosMesAtual.map((boleto) => {
+  const boletosEmAbertoRows = boletosVencidosEmAberto.map((boleto) => {
     const empresa = empresasById.get(String(boleto.empresa)) || {};
     return {
       ...boleto,
@@ -802,7 +816,7 @@ const InicioPage = () => {
           title="Em Aberto"
           value={isInitialDataLoading ? undefined : boletosRegistradosCount}
           color="bg-orange-300"
-          subtitle={boletosRegistradosCount > 0 ? 'Clique para cobrar os pendentes' : 'Gerados neste mês com status registrado'}
+          subtitle={boletosRegistradosCount > 0 ? 'Clique para cobrar os vencidos' : 'Nenhum boleto vencido aguardando pagamento'}
           onClick={handleOpenCobrancaModal}
           disabled={isInitialDataLoading}
         />
@@ -985,7 +999,7 @@ const InicioPage = () => {
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-500">Cobrança de honorário</p>
                   <h2 className="mt-1 text-xl font-bold text-gray-950 dark:text-white">Boletos em aberto</h2>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {boletosEmAbertoRows.length} boleto(s) registrado(s) neste mês aguardando pagamento.
+                    {boletosEmAbertoRows.length} boleto(s) vencido(s) aguardando pagamento.
                   </p>
                 </div>
                 <button
@@ -1015,7 +1029,7 @@ const InicioPage = () => {
                 {boletosEmAbertoRows.length === 0 ? (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-8 text-center dark:border-emerald-900/70 dark:bg-emerald-950/30">
                     <CheckCircleIcon className="mx-auto h-9 w-9 text-emerald-500" />
-                    <p className="mt-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300">Nenhum boleto em aberto neste mês.</p>
+                    <p className="mt-3 text-sm font-semibold text-emerald-700 dark:text-emerald-300">Nenhum boleto vencido em aberto.</p>
                   </div>
                 ) : (
                   <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">

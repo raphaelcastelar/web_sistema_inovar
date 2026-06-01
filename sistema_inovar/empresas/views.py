@@ -670,7 +670,11 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
 
         boletos = (
             self.get_queryset()
-            .filter(id__in=boleto_ids, status='registrado')
+            .filter(
+                id__in=boleto_ids,
+                status='registrado',
+                data_vencimento__lt=timezone.localdate(),
+            )
             .select_related('empresa')
         )
         boletos_by_id = {boleto.id: boleto for boleto in boletos}
@@ -679,7 +683,7 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
 
         if not ordered_boletos:
             return Response(
-                {'error': 'Nenhum boleto em aberto foi encontrado para cobrança.'},
+                {'error': 'Nenhum boleto vencido em aberto foi encontrado para cobrança.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
