@@ -587,9 +587,15 @@ const InicioPage = () => {
   const boletosGeradosCount = boletosGeradosMesAtual.length;
   const boletosPagosCount = boletosPagosMesAtual.length;
   const todayKey = dateKey(today);
+  const currentMonthKey = todayKey.slice(0, 7);
   const boletosVencidosEmAberto = boletos.filter((boleto) => {
     const vencimentoKey = dateOnlyKey(boleto.data_vencimento);
-    return boleto.status === 'registrado' && vencimentoKey && vencimentoKey < todayKey;
+    return (
+      boleto.status === 'registrado'
+      && vencimentoKey
+      && vencimentoKey.slice(0, 7) === currentMonthKey
+      && vencimentoKey < todayKey
+    );
   });
   const boletosRegistradosCount = boletosVencidosEmAberto.length;
   const empresasById = new Map(empresasSelecionadas.map((empresa) => [String(empresa.id), empresa]));

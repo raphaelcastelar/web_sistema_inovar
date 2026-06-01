@@ -668,12 +668,15 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        hoje = timezone.localdate()
+        inicio_mes = hoje.replace(day=1)
         boletos = (
             self.get_queryset()
             .filter(
                 id__in=boleto_ids,
                 status='registrado',
-                data_vencimento__lt=timezone.localdate(),
+                data_vencimento__gte=inicio_mes,
+                data_vencimento__lt=hoje,
             )
             .select_related('empresa')
         )
