@@ -690,10 +690,10 @@ const GerenciamentoIntegrado = () => {
                                 Disparo de Honorários
                             </span>
                             <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100 sm:text-lg">
-                                Monte uma remessa e envie os boletos sem sair da tela.
+                                Monte uma remessa para enviar ou baixar os boletos sem sair da tela.
                             </h2>
                             <p className="max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                                Abra o seletor, marque as empresas ativas que devem receber honorário neste ciclo e dispare tudo em sequência com um único comando.
+                                Abra o seletor, marque as empresas ativas e escolha entre enviar pelo WhatsApp ou baixar todos os boletos em um PDF unico.
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -1013,7 +1013,7 @@ const GerenciamentoIntegrado = () => {
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
                         <div
                             className="absolute inset-0"
-                            onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
+                            onClick={() => !isGeneratingBoletos && !isDownloadingBoletos && setBoletoModalOpen(false)}
                         />
                         <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
                             <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
@@ -1022,13 +1022,13 @@ const GerenciamentoIntegrado = () => {
                                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Selecao em Lote</p>
                                         <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Quais empresas ativas vao receber honorario agora?</h2>
                                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                                            Escolha as empresas ativas, gere os boletos e dispare o envio pelo WhatsApp em uma unica operacao.
+                                            Escolha as empresas ativas e decida se quer baixar um PDF unico ou disparar o envio pelo WhatsApp.
                                         </p>
                                     </div>
                                     <button
-                                        onClick={() => !isGeneratingBoletos && setBoletoModalOpen(false)}
+                                        onClick={() => !isGeneratingBoletos && !isDownloadingBoletos && setBoletoModalOpen(false)}
                                         className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-                                        disabled={isGeneratingBoletos}
+                                        disabled={isGeneratingBoletos || isDownloadingBoletos}
                                     >
                                         <XCircleIcon className="h-6 w-6" />
                                     </button>
@@ -1175,23 +1175,23 @@ const GerenciamentoIntegrado = () => {
                                         )}
                                     </div>
 
-                                    <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-gray-800 lg:flex-row lg:items-center lg:justify-between">
                                         <p className="text-sm text-gray-500 dark:text-gray-400">
                                             {selectedEmpresasCount === 0
                                                 ? 'Nenhuma empresa selecionada.'
-                                                : `${selectedEmpresasCount} empresa(s) pronta(s) para gerar e enviar honorario.`}
+                                                : `${selectedEmpresasCount} empresa(s) pronta(s) para baixar ou enviar honorario.`}
                                         </p>
-                                        <div className="flex flex-col gap-3 sm:flex-row">
+                                        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
                                             <button
                                                 onClick={() => setBoletoModalOpen(false)}
-                                                className="rounded-md px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                                                className="min-w-[120px] rounded-md px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                                                 disabled={isGeneratingBoletos || isDownloadingBoletos}
                                             >
                                                 Fechar
                                             </button>
                                             <button
                                                 onClick={handleBaixarBoletosPdfUnico}
-                                                className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                                className="inline-flex min-w-[190px] items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                                                 disabled={isGeneratingBoletos || isDownloadingBoletos || selectedEmpresasCount === 0}
                                             >
                                                 <DocumentArrowDownIcon className="h-5 w-5" />
@@ -1199,7 +1199,7 @@ const GerenciamentoIntegrado = () => {
                                             </button>
                                             <button
                                                 onClick={handleGerarBoletosEmLote}
-                                                className="rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                                                className="min-w-[150px] rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                                                 disabled={isGeneratingBoletos || isDownloadingBoletos || selectedEmpresasCount === 0}
                                             >
                                                 {isGeneratingBoletos ? 'Processando...' : 'Gerar E Enviar'}
