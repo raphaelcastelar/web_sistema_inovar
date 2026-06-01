@@ -18,7 +18,7 @@ const areaOptions = ['Todas', 'Pessoal', 'Fiscal', 'Financeiro'];
 const statusOptions = [
   { id: 'vencidas', label: 'Vencidas' },
   { id: 'proximas', label: 'Proximas' },
-  { id: 'todas', label: 'Todas' },
+  { id: 'todas', label: 'Total' },
 ];
 
 function normalizeText(value) {
@@ -193,6 +193,12 @@ const PendenciasPage = () => {
     });
   }, [allPendencias, areaFilter, proximas, search, statusFilter, vencidas]);
 
+  const statusCounts = useMemo(() => ({
+    vencidas: vencidas.length,
+    proximas: proximas.length,
+    todas: allPendencias.length,
+  }), [allPendencias.length, proximas.length, vencidas.length]);
+
   const summaryByArea = useMemo(() => (
     areaOptions
       .filter((area) => area !== 'Todas')
@@ -345,8 +351,8 @@ const PendenciasPage = () => {
             </p>
           </div>
 
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-            <div className="relative min-w-0 lg:w-80">
+          <div className="flex w-full flex-col gap-2 xl:w-auto xl:flex-row xl:items-center">
+            <div className="relative min-w-0 xl:w-80">
               <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 value={search}
@@ -358,23 +364,30 @@ const PendenciasPage = () => {
             <select
               value={areaFilter}
               onChange={(event) => setAreaFilter(event.target.value)}
-              className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+              className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 xl:w-36"
             >
               {areaOptions.map((area) => <option key={area} value={area}>{area}</option>)}
             </select>
-            <div className="grid grid-cols-3 gap-1 rounded-md bg-gray-100 p-1 dark:bg-gray-950">
+            <div className="flex w-full flex-wrap gap-2 rounded-md bg-gray-100 p-1 dark:bg-gray-950 xl:w-auto xl:flex-nowrap">
               {statusOptions.map((option) => (
                 <button
                   key={option.id}
                   type="button"
                   onClick={() => setStatusFilter(option.id)}
-                  className={`rounded px-3 py-2 text-xs font-bold transition ${
+                  className={`flex h-10 min-w-[112px] flex-1 items-center justify-center gap-2 rounded px-3 text-xs font-bold transition xl:flex-none ${
                     statusFilter === option.id
                       ? 'bg-gray-950 text-white shadow-sm dark:bg-gray-100 dark:text-gray-950'
                       : 'text-gray-600 hover:bg-white dark:text-gray-300 dark:hover:bg-gray-800'
                   }`}
                 >
-                  {option.label}
+                  <span className="whitespace-nowrap">{option.label}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-black tabular-nums ${
+                    statusFilter === option.id
+                      ? 'bg-white/15 text-white dark:bg-gray-950/10 dark:text-gray-950'
+                      : 'bg-white text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-800'
+                  }`}>
+                    {statusCounts[option.id] || 0}
+                  </span>
                 </button>
               ))}
             </div>
