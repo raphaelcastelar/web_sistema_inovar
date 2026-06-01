@@ -669,14 +669,27 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             )
 
         hoje = timezone.localdate()
-        inicio_mes = hoje.replace(day=1)
+        periodo_vencimento = str(request.data.get('periodo_vencimento') or '').strip()
+
+        if periodo_vencimento:
+            try:
+                inicio_mes = datetime.datetime.strptime(periodo_vencimento, '%Y-%m').date().replace(day=1)
+            except ValueError:
+                return Response(
+                    {'error': 'Envie periodo_vencimento no formato YYYY-MM.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            inicio_mes = hoje.replace(day=1)
+
+        fim_periodo = min(inicio_mes + relativedelta(months=1), hoje)
         boletos = (
             self.get_queryset()
             .filter(
                 id__in=boleto_ids,
                 status='registrado',
                 data_vencimento__gte=inicio_mes,
-                data_vencimento__lt=hoje,
+                data_vencimento__lt=fim_periodo,
             )
             .select_related('empresa')
         )

@@ -25,6 +25,7 @@ import GerenciamentoIntegrado from './components/GerenciamentoIntegrado';
 import CentralDoSimples from './components/CentralDoSimples';
 import BoletoMonitorPage from './components/BoletoMonitorPage';
 import BoletosPorEmpresaPage from './components/BoletosPorEmpresaPage';
+import InadimplenciaBoletosPage from './components/InadimplenciaBoletosPage';
 import GerarProLaborePage from './components/GerarProLaborePage';
 import CalculadoraHonorariosPage from './components/CalculadoraHonorariosPage';
 import RelacaoFaturamentoPage from './components/RelacaoFaturamentoPage';
@@ -60,6 +61,7 @@ function App() {
             <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
             <Route path="/monitor-boletos" element={<BoletoMonitorPage />} />
             <Route path="/boletos-por-empresa" element={<BoletosPorEmpresaPage />} />
+            <Route path="/inadimplencia-boletos" element={<InadimplenciaBoletosPage />} />
             <Route path="/gerar-pro-labore" element={<GerarProLaborePage />} />
             <Route path="/calculadora-honorarios" element={<CalculadoraHonorariosPage />} />
             <Route path="/relacao-faturamento" element={<RelacaoFaturamentoPage />} />

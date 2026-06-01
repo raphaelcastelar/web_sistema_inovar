@@ -54,6 +54,7 @@ const navigationSections = [
         items: [
             { to: '/monitor-boletos', icon: ClipboardDocumentCheckIcon, text: 'Monitor boletos', keywords: 'acompanhar cobrancas pagamentos' },
             { to: '/boletos-por-empresa', icon: FolderOpenIcon, text: 'Boletos por empresa', keywords: 'cliente empresa boletos' },
+            { to: '/inadimplencia-boletos', icon: ExclamationTriangleIcon, text: 'Inadimplência', keywords: 'inadimplencia boletos vencidos cobrancas' },
             { to: '/calculadora-honorarios', icon: CalculatorIcon, text: 'Honorários', keywords: 'calculo honorarios mensalidade' },
             { to: '/relacao-faturamento', icon: CurrencyDollarIcon, text: 'Faturamento', keywords: 'relacao faturamento receita' },
             { to: '/gerar-pro-labore', icon: DocumentTextIcon, text: 'Pró-labore PDF', keywords: 'pro labore documento pdf socios' },
