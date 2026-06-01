@@ -41,7 +41,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework import viewsets, permissions
+from rest_framework.test import APIRequestFactory, force_authenticate
 from decimal import Decimal
+from PyPDF2 import PdfMerger
 
 from empresas.serpro_service import gerar_e_enviar_das
 from .permissions import IsPessoalOrFiscalOrAdmin
@@ -2010,6 +2012,33 @@ def salvar_boleto_honorario_departamento_pessoal(empresa, pdf_content):
     return documento
 
 
+def buscar_boleto_honorario_mes_atual(empresa):
+    agora = timezone.now()
+    return DepartamentoPessoal.objects.filter(
+        cnpj_empresa=empresa.cnpj,
+        tipo_documento='HONORARIO',
+        mes=str(agora.month).zfill(2),
+        ano=str(agora.year),
+    ).order_by('id').first()
+
+
+def boleto_honorario_arquivo_disponivel(documento):
+    return (
+        documento
+        and documento.caminho_arquivo
+        and hasattr(documento.caminho_arquivo, 'path')
+        and os.path.exists(documento.caminho_arquivo.path)
+    )
+
+
+def usuario_pode_gerenciar_empresa(user, empresa):
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_staff or user.is_superuser:
+        return True
+    return empresa.gerenciada_por.filter(id=user.id).exists()
+
+
 @api_view(['POST'])
 def gerar_boleto_view(request):
     empresa_id = request.data.get('empresa_id')
@@ -2025,20 +2054,11 @@ def gerar_boleto_view(request):
         return Response({"error": "Empresa não encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
     # Garante que o usuário só gere boleto para empresas que ele enxerga/gerencia
-    if request.user and request.user.is_authenticated and not (request.user.is_staff or request.user.is_superuser):
-        if not empresa.gerenciada_por.filter(id=request.user.id).exists():
-            return Response({"error": "Você não tem permissão para gerar boleto para esta empresa."}, status=status.HTTP_403_FORBIDDEN)
+    if not usuario_pode_gerenciar_empresa(request.user, empresa):
+        return Response({"error": "Você não tem permissão para gerar boleto para esta empresa."}, status=status.HTTP_403_FORBIDDEN)
 
     # Controle para manter apenas 1 boleto por mês por empresa
-    agora = timezone.now()
-    mes_atual = str(agora.month).zfill(2)
-    ano_atual = str(agora.year)
-    boleto_existente = DepartamentoPessoal.objects.filter(
-        cnpj_empresa=empresa.cnpj,
-        tipo_documento='HONORARIO',
-        mes=mes_atual,
-        ano=ano_atual,
-    ).order_by('id').first()
+    boleto_existente = buscar_boleto_honorario_mes_atual(empresa)
 
     # Ação: somente download. Se existe arquivo, devolve link; se não, continua e gera novo (sem enviar)
     if action == "baixar" and boleto_existente and boleto_existente.caminho_arquivo:
@@ -2472,6 +2492,145 @@ def gerar_boleto_view(request):
         "arquivo_pasta": documento_honorario.nome_arquivo,
         "caminho_arquivo": documento_honorario.caminho_arquivo.name,
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def gerar_boletos_pdf_unico_view(request):
+    empresa_ids = request.data.get('empresa_ids') or []
+    boleto_data = request.data.get('boleto_data', {})
+
+    if not isinstance(empresa_ids, list) or not empresa_ids:
+        return Response(
+            {"error": "Envie uma lista de empresa_ids para baixar os boletos."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    ordered_ids = []
+    for empresa_id in empresa_ids:
+        try:
+            parsed_id = int(empresa_id)
+        except (TypeError, ValueError):
+            continue
+        if parsed_id not in ordered_ids:
+            ordered_ids.append(parsed_id)
+
+    if not ordered_ids:
+        return Response(
+            {"error": "Nenhuma empresa valida foi enviada."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    empresas_by_id = {
+        empresa.id: empresa
+        for empresa in Empresa.objects.filter(id__in=ordered_ids)
+    }
+
+    factory = APIRequestFactory()
+    pdf_entries = []
+    results = []
+
+    for empresa_id in ordered_ids:
+        empresa = empresas_by_id.get(empresa_id)
+        if not empresa:
+            results.append({
+                "empresa_id": empresa_id,
+                "status": "erro",
+                "error": "Empresa não encontrada.",
+            })
+            continue
+
+        if not usuario_pode_gerenciar_empresa(request.user, empresa):
+            results.append({
+                "empresa_id": empresa_id,
+                "empresa_nome": empresa.nome,
+                "status": "erro",
+                "error": "Você não tem permissão para esta empresa.",
+            })
+            continue
+
+        documento = buscar_boleto_honorario_mes_atual(empresa)
+        from_cache = boleto_honorario_arquivo_disponivel(documento)
+
+        if not from_cache:
+            internal_request = factory.post(
+                '/api/gerar-boleto/',
+                {
+                    'empresa_id': empresa.id,
+                    'boleto_data': boleto_data,
+                    'action': 'baixar',
+                },
+                format='json',
+            )
+            force_authenticate(internal_request, user=request.user)
+            generated_response = gerar_boleto_view(internal_request)
+
+            if generated_response.status_code >= 400:
+                response_data = getattr(generated_response, 'data', {}) or {}
+                results.append({
+                    "empresa_id": empresa.id,
+                    "empresa_nome": empresa.nome,
+                    "status": "erro",
+                    "error": response_data.get('error') or response_data.get('message') or 'Falha ao gerar o boleto.',
+                })
+                continue
+
+            documento = buscar_boleto_honorario_mes_atual(empresa)
+
+        if not boleto_honorario_arquivo_disponivel(documento):
+            results.append({
+                "empresa_id": empresa.id,
+                "empresa_nome": empresa.nome,
+                "status": "erro",
+                "error": "Boleto não encontrado no servidor após a geração.",
+            })
+            continue
+
+        pdf_entries.append((empresa, documento.caminho_arquivo.path))
+        results.append({
+            "empresa_id": empresa.id,
+            "empresa_nome": empresa.nome,
+            "status": "cache" if from_cache else "gerado",
+        })
+
+    if not pdf_entries:
+        return Response({
+            "error": "Nenhum boleto ficou disponível para download.",
+            "results": results,
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    output = BytesIO()
+    merger = PdfMerger()
+    try:
+        for _, pdf_path in pdf_entries:
+            merger.append(pdf_path)
+        merger.write(output)
+    except Exception as exc:
+        logger.exception("Erro ao concatenar boletos em PDF unico")
+        return Response({
+            "error": f"Erro ao concatenar os boletos: {exc}",
+            "results": results,
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        merger.close()
+
+    output.seek(0)
+    hoje = timezone.localdate().strftime('%Y-%m-%d')
+    filename = f"boletos_honorarios_{hoje}.pdf"
+    summary = {
+        "total_solicitado": len(ordered_ids),
+        "total_pdf": len(pdf_entries),
+        "cache_count": len([item for item in results if item.get('status') == 'cache']),
+        "generated_count": len([item for item in results if item.get('status') == 'gerado']),
+        "error_count": len([item for item in results if item.get('status') == 'erro']),
+        "results": results,
+    }
+
+    response = HttpResponse(output.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['X-Boleto-Batch-Summary'] = urllib.parse.quote(json.dumps(summary, ensure_ascii=True))
+    response['Access-Control-Expose-Headers'] = 'Content-Disposition, X-Boleto-Batch-Summary'
+    return response
 
 
 # === WEBHOOK COBRANÇA BB ===

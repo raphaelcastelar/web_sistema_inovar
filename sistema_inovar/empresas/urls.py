@@ -18,6 +18,7 @@ from .views import (
     ultimo_resultado_sessao,
     bb_cobranca_webhook,
     gerar_pro_labore_pdf_view,
+    gerar_boletos_pdf_unico_view,
     visualizar_arquivo_empresa,
 )
 
@@ -37,6 +38,7 @@ urlpatterns = [
     path('pendencias/', PendenciaAPIView.as_view(), name='pendencias'),
     path('dashboard/pie-chart/', dashboard_pie_chart, name='dashboard_pie_chart'),
     path('gerar-boleto/', gerar_boleto_view, name='gerar_boleto'),
+    path('gerar-boletos-pdf-unico/', gerar_boletos_pdf_unico_view, name='gerar_boletos_pdf_unico'),
     path('ultimo-resultado-sessao/', ultimo_resultado_sessao, name='ultimo_resultado_sessao'),
     path('webhook/bb-cobranca/', bb_cobranca_webhook, name='bb_cobranca_webhook'),
     path('gerar-pro-labore-pdf/', gerar_pro_labore_pdf_view, name='gerar_pro_labore_pdf'),

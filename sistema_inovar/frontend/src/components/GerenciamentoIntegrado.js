@@ -51,6 +51,7 @@ const GerenciamentoIntegrado = () => {
     const [boletoSelectedTagIds, setBoletoSelectedTagIds] = useState([]);
     const [selectedEmpresaIds, setSelectedEmpresaIds] = useState([]);
     const [isGeneratingBoletos, setIsGeneratingBoletos] = useState(false);
+    const [isDownloadingBoletos, setIsDownloadingBoletos] = useState(false);
     const [generatingBoletoId, setGeneratingBoletoId] = useState(null);
     const [boletoActionModal, setBoletoActionModal] = useState(null); // { id, nome }
     const [boletoActionLoading, setBoletoActionLoading] = useState(false);
@@ -380,6 +381,72 @@ const GerenciamentoIntegrado = () => {
 
         setBoletoModalOpen(false);
         setIsGeneratingBoletos(false);
+    };
+
+    const handleBaixarBoletosPdfUnico = async () => {
+        if (selectedEmpresaIds.length === 0) {
+            setError('Selecione pelo menos uma empresa ativa para baixar os boletos.');
+            return;
+        }
+
+        setIsDownloadingBoletos(true);
+        setError('');
+        setSuccess('');
+
+        try {
+            const response = await axiosInstance.post(
+                '/api/gerar-boletos-pdf-unico/',
+                { empresa_ids: selectedEmpresaIds },
+                { responseType: 'blob' }
+            );
+
+            const contentDisposition = response.headers?.['content-disposition'] || '';
+            const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+            const fileName = filenameMatch?.[1] || 'boletos_honorarios.pdf';
+            const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(blobUrl);
+
+            const rawSummary = response.headers?.['x-boleto-batch-summary'];
+            let summary = null;
+            if (rawSummary) {
+                try {
+                    summary = JSON.parse(decodeURIComponent(rawSummary));
+                } catch (e) {
+                    summary = null;
+                }
+            }
+
+            if (summary?.error_count > 0) {
+                setSuccess(`PDF baixado com ${summary.total_pdf} boleto(s). ${summary.error_count} empresa(s) nao foram incluidas.`);
+            } else {
+                setSuccess(`PDF baixado com ${summary?.total_pdf || selectedEmpresaIds.length} boleto(s).`);
+                setSelectedEmpresaIds([]);
+            }
+            setTimeout(() => setSuccess(''), 5000);
+        } catch (err) {
+            let message = 'Falha ao gerar e baixar o PDF unico.';
+            const data = err?.response?.data;
+            if (data instanceof Blob) {
+                try {
+                    const text = await data.text();
+                    const parsed = JSON.parse(text);
+                    message = parsed.error || parsed.message || message;
+                } catch (e) {
+                    message = 'Falha ao gerar e baixar o PDF unico.';
+                }
+            } else {
+                message = err?.response?.data?.error || err?.response?.data?.message || err.message || message;
+            }
+            setError(message);
+        } finally {
+            setIsDownloadingBoletos(false);
+        }
     };
 
     const handleRetryEmpresa = async (empresaId) => {
@@ -1118,14 +1185,22 @@ const GerenciamentoIntegrado = () => {
                                             <button
                                                 onClick={() => setBoletoModalOpen(false)}
                                                 className="rounded-md px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                                                disabled={isGeneratingBoletos}
+                                                disabled={isGeneratingBoletos || isDownloadingBoletos}
                                             >
                                                 Fechar
                                             </button>
                                             <button
+                                                onClick={handleBaixarBoletosPdfUnico}
+                                                className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                                disabled={isGeneratingBoletos || isDownloadingBoletos || selectedEmpresasCount === 0}
+                                            >
+                                                <DocumentArrowDownIcon className="h-5 w-5" />
+                                                {isDownloadingBoletos ? 'Baixando...' : 'Gerar e Baixar PDF'}
+                                            </button>
+                                            <button
                                                 onClick={handleGerarBoletosEmLote}
                                                 className="rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                                                disabled={isGeneratingBoletos || selectedEmpresasCount === 0}
+                                                disabled={isGeneratingBoletos || isDownloadingBoletos || selectedEmpresasCount === 0}
                                             >
                                                 {isGeneratingBoletos ? 'Processando...' : 'Gerar E Enviar'}
                                             </button>
