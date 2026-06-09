@@ -976,19 +976,11 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
         headers = [
             'Empresa',
             'CNPJ',
-            'Email',
-            'Telefone',
-            'Carteira de clientes',
-            'Numero do titulo',
-            'Nosso numero',
-            'Linha digitavel',
             'Data de vencimento',
             'Dias em atraso',
             'Valor original',
             'Valor pago',
-            'Status',
-            'Data de registro',
-            'Ultima atualizacao',
+            'Telefone',
         ]
 
         rows = []
@@ -1000,19 +992,11 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             rows.append([
                 empresa.nome,
                 empresa.cnpj,
-                empresa.email,
-                empresa.telefone or '',
-                empresa.carteira_clientes or '',
-                boleto.numero_titulo_cliente,
-                boleto.nosso_numero or '',
-                boleto.linha_digitavel or '',
                 boleto.data_vencimento.strftime('%d/%m/%Y') if boleto.data_vencimento else '',
                 dias_atraso,
                 boleto.valor_original or Decimal('0.00'),
                 boleto.valor_pago or '',
-                boleto.get_status_display(),
-                timezone.localtime(boleto.criado_em).strftime('%d/%m/%Y %H:%M') if boleto.criado_em else '',
-                timezone.localtime(boleto.atualizado_em).strftime('%d/%m/%Y %H:%M') if boleto.atualizado_em else '',
+                empresa.telefone or '',
             ])
 
         rows.append([
@@ -1020,17 +1004,9 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             '',
             '',
             '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
             total,
             '',
             f'{boletos.count()} boleto(s)',
-            '',
-            '',
         ])
 
         workbook = _build_xlsx_file(
@@ -1040,19 +1016,11 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             column_widths={
                 1: 36,
                 2: 20,
-                3: 32,
-                4: 18,
-                5: 20,
-                6: 22,
-                7: 22,
-                8: 52,
-                9: 18,
-                10: 16,
-                11: 16,
-                12: 16,
-                13: 16,
-                14: 22,
-                15: 22,
+                3: 18,
+                4: 16,
+                5: 16,
+                6: 16,
+                7: 18,
             },
         )
         filename = f"relatorio_boletos_em_aberto_{ano or hoje.year}.xlsx"
