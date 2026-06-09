@@ -51,6 +51,7 @@ const GerenciamentoIntegrado = () => {
     const [boletoBatchSearch, setBoletoBatchSearch] = useState('');
     const [tags, setTags] = useState([]);
     const [boletoSelectedTagIds, setBoletoSelectedTagIds] = useState([]);
+    const [boletoSelectedCarteiras, setBoletoSelectedCarteiras] = useState([]);
     const [selectedCarteira, setSelectedCarteira] = useState('INOVAR ES');
     const [selectedEmpresaIds, setSelectedEmpresaIds] = useState([]);
     const [isGeneratingBoletos, setIsGeneratingBoletos] = useState(false);
@@ -302,8 +303,17 @@ const GerenciamentoIntegrado = () => {
         setSuccess('');
         setBoletoBatchSearch('');
         setBoletoSelectedTagIds([]);
+        setBoletoSelectedCarteiras(selectedCarteira ? [selectedCarteira] : []);
         setSelectedEmpresaIds([]);
         setBoletoModalOpen(true);
+    };
+
+    const handleToggleBoletoCarteiraFilter = (carteira) => {
+        setBoletoSelectedCarteiras((currentCarteiras) => (
+            currentCarteiras.includes(carteira)
+                ? currentCarteiras.filter((currentCarteira) => currentCarteira !== carteira)
+                : [...currentCarteiras, carteira]
+        ));
     };
 
     const handleToggleBoletoTagFilter = (tagId) => {
@@ -591,6 +601,12 @@ const GerenciamentoIntegrado = () => {
             .sort((firstEmpresa, secondEmpresa) => firstEmpresa.nome.localeCompare(secondEmpresa.nome, 'pt-BR'));
     }, [empresas, matchesSelectedCarteira]);
 
+    const modalActiveEmpresas = useMemo(() => {
+        return empresas
+            .filter((empresa) => empresa.ativo)
+            .sort((firstEmpresa, secondEmpresa) => firstEmpresa.nome.localeCompare(secondEmpresa.nome, 'pt-BR'));
+    }, [empresas]);
+
     const filteredActiveEmpresasForModal = useMemo(() => {
         const normalizedSearch = boletoBatchSearch.toLowerCase().trim();
         const selectedTagNameById = tags.reduce((acc, tag) => {
@@ -600,7 +616,14 @@ const GerenciamentoIntegrado = () => {
 
         const searchDigits = boletoBatchSearch.replace(/\D/g, '');
 
-        return activeEmpresas.filter((empresa) => {
+        return modalActiveEmpresas.filter((empresa) => {
+            const matchCarteira = boletoSelectedCarteiras.length === 0
+                || boletoSelectedCarteiras.includes(empresa.carteira_clientes);
+
+            if (!matchCarteira) {
+                return false;
+            }
+
             const matchTags = boletoSelectedTagIds.length === 0 || boletoSelectedTagIds.every((tagId) => {
                 const tagName = selectedTagNameById[tagId];
                 if (!tagName) {
@@ -626,15 +649,15 @@ const GerenciamentoIntegrado = () => {
 
             return matchNome || matchEmail || matchCnpj;
         });
-    }, [activeEmpresas, boletoBatchSearch, boletoSelectedTagIds, tags]);
+    }, [modalActiveEmpresas, boletoBatchSearch, boletoSelectedCarteiras, boletoSelectedTagIds, tags]);
 
     useEffect(() => {
-        if (!boletoModalOpen || boletoSelectedTagIds.length === 0) {
+        if (!boletoModalOpen || (boletoSelectedTagIds.length === 0 && boletoSelectedCarteiras.length === 0)) {
             return;
         }
 
         setSelectedEmpresaIds(filteredActiveEmpresasForModal.map((empresa) => empresa.id));
-    }, [boletoModalOpen, boletoSelectedTagIds, filteredActiveEmpresasForModal]);
+    }, [boletoModalOpen, boletoSelectedCarteiras, boletoSelectedTagIds, filteredActiveEmpresasForModal]);
 
     const selectedEmpresasCount = selectedEmpresaIds.length;
     const allModalEmpresasSelected = filteredActiveEmpresasForModal.length > 0
@@ -1077,7 +1100,7 @@ const GerenciamentoIntegrado = () => {
                                         <div className="mt-3 grid grid-cols-2 gap-3">
                                             <div className="rounded-lg bg-white p-4 dark:bg-gray-800">
                                                 <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Ativas</div>
-                                                <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{activeEmpresas.length}</div>
+                                                <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{modalActiveEmpresas.length}</div>
                                             </div>
                                             <div className="rounded-lg bg-white p-4 dark:bg-gray-800">
                                                 <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Marcadas</div>
@@ -1099,6 +1122,44 @@ const GerenciamentoIntegrado = () => {
                                                 placeholder="Nome, CNPJ ou email"
                                                 className="w-full rounded-md border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-slate-500/20"
                                             />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                            <label className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                                                <BuildingOffice2Icon className="h-4 w-4" />
+                                                Carteiras
+                                            </label>
+                                            {boletoSelectedCarteiras.length > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setBoletoSelectedCarteiras([])}
+                                                    disabled={isGeneratingBoletos}
+                                                    className="text-xs font-semibold text-slate-700 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300 dark:hover:text-white"
+                                                >
+                                                    Limpar
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                                            {carteiraOptions.map((carteira) => {
+                                                const selected = boletoSelectedCarteiras.includes(carteira);
+                                                return (
+                                                    <button
+                                                        key={carteira}
+                                                        type="button"
+                                                        onClick={() => handleToggleBoletoCarteiraFilter(carteira)}
+                                                        disabled={isGeneratingBoletos}
+                                                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${selected
+                                                            ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950'
+                                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                                                            }`}
+                                                    >
+                                                        {carteira}
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     </div>
 
@@ -1145,11 +1206,6 @@ const GerenciamentoIntegrado = () => {
                                                 })}
                                             </div>
                                         )}
-                                        {boletoSelectedTagIds.length > 0 && (
-                                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                                Empresas com todas as tags selecionadas sao filtradas e marcadas automaticamente.
-                                            </p>
-                                        )}
                                     </div>
 
                                     <button
@@ -1158,10 +1214,6 @@ const GerenciamentoIntegrado = () => {
                                     >
                                         {allModalEmpresasSelected ? 'Desmarcar visiveis' : 'Marcar visiveis'}
                                     </button>
-
-                                    <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
-                                        Somente empresas ativas aparecem neste seletor. Cada envio vai gerar o arquivo HONORARIO.pdf na pasta da empresa e enviar a copia nomeada para o WhatsApp.
-                                    </p>
                                 </aside>
 
                                 <div className="space-y-4">
