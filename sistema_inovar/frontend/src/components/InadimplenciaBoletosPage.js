@@ -5,6 +5,7 @@ import {
   BanknotesIcon,
   CalendarDaysIcon,
   CheckCircleIcon,
+  DocumentArrowDownIcon,
   ExclamationTriangleIcon,
   MagnifyingGlassIcon,
   PaperAirplaneIcon,
@@ -140,6 +141,7 @@ const InadimplenciaBoletosPage = () => {
   const [empresas, setEmpresas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -290,6 +292,40 @@ const InadimplenciaBoletosPage = () => {
     }
   };
 
+  const handleExportarExcel = async () => {
+    setExporting(true);
+    setFeedback(null);
+
+    try {
+      const response = await axiosInstance.get('/api/boletos-bb/relatorio-em-aberto/', {
+        params: { ano: selectedYear },
+        responseType: 'blob',
+      });
+      const contentDisposition = response.headers?.['content-disposition'] || '';
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+      const filename = filenameMatch?.[1] || `relatorio_boletos_em_aberto_${selectedYear}.xlsx`;
+      const blobUrl = window.URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(blobUrl);
+      setFeedback({
+        type: 'success',
+        text: 'Relatorio Excel gerado com sucesso.',
+      });
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        text: 'Falha ao gerar o relatorio Excel de boletos em aberto.',
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -317,11 +353,20 @@ const InadimplenciaBoletosPage = () => {
           <button
             type="button"
             onClick={loadData}
-            disabled={loading || sending}
+            disabled={loading || sending || exporting}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
           >
             <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
+          </button>
+          <button
+            type="button"
+            onClick={handleExportarExcel}
+            disabled={loading || exporting}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {exporting ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <DocumentArrowDownIcon className="h-4 w-4" />}
+            {exporting ? 'Gerando...' : 'Excel boletos em aberto'}
           </button>
         </div>
       </div>
@@ -405,7 +450,7 @@ const InadimplenciaBoletosPage = () => {
             <button
               type="button"
               onClick={selectFilteredRows}
-              disabled={filteredRows.length === 0 || sending}
+              disabled={filteredRows.length === 0 || sending || exporting}
               className="h-10 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               Selecionar visiveis
@@ -413,7 +458,7 @@ const InadimplenciaBoletosPage = () => {
             <button
               type="button"
               onClick={clearSelection}
-              disabled={selectedIds.length === 0 || sending}
+              disabled={selectedIds.length === 0 || sending || exporting}
               className="h-10 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               Limpar selecao
@@ -421,7 +466,7 @@ const InadimplenciaBoletosPage = () => {
             <button
               type="button"
               onClick={handleEnviarCobranca}
-              disabled={selectedIds.length === 0 || sending}
+              disabled={selectedIds.length === 0 || sending || exporting}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {sending ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <PaperAirplaneIcon className="h-4 w-4" />}

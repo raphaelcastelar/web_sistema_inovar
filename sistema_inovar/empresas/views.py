@@ -12,6 +12,8 @@ import requests
 import base64
 import logging
 import json
+import zipfile
+from xml.sax.saxutils import escape
 
 
 from email.mime.multipart import MIMEMultipart
@@ -258,6 +260,98 @@ def _map_bb_webhook_status(evento, payload_obj):
     if 'baixa' in evento_norm:
         return 'baixado'
     return None
+
+
+def _xlsx_column_name(index):
+    name = ''
+    while index:
+        index, remainder = divmod(index - 1, 26)
+        name = chr(65 + remainder) + name
+    return name
+
+
+def _xlsx_cell(reference, value, style=None):
+    style_attr = f' s="{style}"' if style is not None else ''
+    if value in (None, ''):
+        return f'<c r="{reference}"{style_attr}/>'
+    if isinstance(value, (int, float, Decimal)):
+        return f'<c r="{reference}"{style_attr}><v>{value}</v></c>'
+    return (
+        f'<c r="{reference}" t="inlineStr"{style_attr}>'
+        f'<is><t>{escape(str(value))}</t></is>'
+        '</c>'
+    )
+
+
+def _build_xlsx_file(sheet_title, headers, rows, column_widths=None):
+    sheet_title = str(sheet_title or 'Relatorio')[:31]
+    column_widths = column_widths or {}
+
+    sheet_rows = []
+    for row_index, row_values in enumerate([headers, *rows], start=1):
+        cells = []
+        for column_index, value in enumerate(row_values, start=1):
+            reference = f'{_xlsx_column_name(column_index)}{row_index}'
+            style = 1 if row_index == 1 else None
+            cells.append(_xlsx_cell(reference, value, style=style))
+        sheet_rows.append(f'<row r="{row_index}">{"".join(cells)}</row>')
+
+    cols = ''.join(
+        f'<col min="{index}" max="{index}" width="{width}" customWidth="1"/>'
+        for index, width in sorted(column_widths.items())
+    )
+
+    worksheet = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <cols>{cols}</cols>
+  <sheetData>{"".join(sheet_rows)}</sheetData>
+</worksheet>'''
+
+    workbook = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="{escape(sheet_title)}" sheetId="1" r:id="rId1"/></sheets>
+</workbook>'''
+
+    styles = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+  <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
+</styleSheet>'''
+
+    content_types = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>'''
+
+    root_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>'''
+
+    workbook_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>'''
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('[Content_Types].xml', content_types)
+        archive.writestr('_rels/.rels', root_rels)
+        archive.writestr('xl/workbook.xml', workbook)
+        archive.writestr('xl/_rels/workbook.xml.rels', workbook_rels)
+        archive.writestr('xl/styles.xml', styles)
+        archive.writestr('xl/worksheets/sheet1.xml', worksheet)
+
+    buffer.seek(0)
+    return buffer
 
 MODEL_CONFIG_MAP = {
     'documentos_constitutivos': {
@@ -855,6 +949,119 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             'failed_count': failed_count,
             'results': results,
         }, status=response_status)
+
+    @action(detail=False, methods=['get'], url_path='relatorio-em-aberto')
+    def relatorio_em_aberto(self, request):
+        hoje = timezone.localdate()
+        ano = str(request.query_params.get('ano') or '').strip()
+
+        boletos = (
+            self.get_queryset()
+            .filter(
+                status='registrado',
+                data_vencimento__lt=hoje,
+            )
+            .select_related('empresa')
+            .order_by('empresa__nome', 'data_vencimento', 'numero_titulo_cliente')
+        )
+
+        if ano:
+            if not ano.isdigit() or len(ano) != 4:
+                return Response(
+                    {'error': 'Envie o ano no formato YYYY.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            boletos = boletos.filter(data_vencimento__year=int(ano))
+
+        headers = [
+            'Empresa',
+            'CNPJ',
+            'Email',
+            'Telefone',
+            'Carteira de clientes',
+            'Numero do titulo',
+            'Nosso numero',
+            'Linha digitavel',
+            'Data de vencimento',
+            'Dias em atraso',
+            'Valor original',
+            'Valor pago',
+            'Status',
+            'Data de registro',
+            'Ultima atualizacao',
+        ]
+
+        rows = []
+        total = Decimal('0.00')
+        for boleto in boletos:
+            empresa = boleto.empresa
+            dias_atraso = (hoje - boleto.data_vencimento).days if boleto.data_vencimento else ''
+            total += boleto.valor_original or Decimal('0.00')
+            rows.append([
+                empresa.nome,
+                empresa.cnpj,
+                empresa.email,
+                empresa.telefone or '',
+                empresa.carteira_clientes or '',
+                boleto.numero_titulo_cliente,
+                boleto.nosso_numero or '',
+                boleto.linha_digitavel or '',
+                boleto.data_vencimento.strftime('%d/%m/%Y') if boleto.data_vencimento else '',
+                dias_atraso,
+                boleto.valor_original or Decimal('0.00'),
+                boleto.valor_pago or '',
+                boleto.get_status_display(),
+                timezone.localtime(boleto.criado_em).strftime('%d/%m/%Y %H:%M') if boleto.criado_em else '',
+                timezone.localtime(boleto.atualizado_em).strftime('%d/%m/%Y %H:%M') if boleto.atualizado_em else '',
+            ])
+
+        rows.append([
+            'TOTAL',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            total,
+            '',
+            f'{boletos.count()} boleto(s)',
+            '',
+            '',
+        ])
+
+        workbook = _build_xlsx_file(
+            'Boletos em aberto',
+            headers,
+            rows,
+            column_widths={
+                1: 36,
+                2: 20,
+                3: 32,
+                4: 18,
+                5: 20,
+                6: 22,
+                7: 22,
+                8: 52,
+                9: 18,
+                10: 16,
+                11: 16,
+                12: 16,
+                13: 16,
+                14: 22,
+                15: 22,
+            },
+        )
+        filename = f"relatorio_boletos_em_aberto_{ano or hoje.year}.xlsx"
+        response = HttpResponse(
+            workbook.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
 
     def partial_update(self, request, *args, **kwargs):
         boleto = self.get_object()
