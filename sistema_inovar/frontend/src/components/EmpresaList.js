@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, BuildingOffice2Icon, TagIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, BuildingOffice2Icon, TagIcon, CheckCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 
 const EMPRESA_LIST_STATE_KEY = 'empresaListState';
@@ -42,6 +42,8 @@ const EmpresaList = () => {
     const [tags, setTags] = useState([]);
     const [selectedTagIds, setSelectedTagIds] = useState(Array.isArray(savedListState?.selectedTagIds) ? savedListState.selectedTagIds : []);
     const [activeTab, setActiveTab] = useState(savedListState?.activeTab || 'ativadas'); // 'ativadas' ou 'nao-ativadas'
+    const [reactivatingId, setReactivatingId] = useState(null);
+    const [statusMessage, setStatusMessage] = useState(null);
 
     // Estado para controle do Infinite Scroll
     const [visibleCount, setVisibleCount] = useState(Math.max(Number(savedListState?.visibleCount) || 24, 24)); // Começa mostrando 24
@@ -107,6 +109,31 @@ const EmpresaList = () => {
                     console.error('Erro ao excluir empresa:', error.response?.data || error.message);
                     alert(`Falha ao excluir a empresa: ${error.response?.data?.error || error.message}`);
                 });
+        }
+    };
+
+    const handleReactivate = async (empresa) => {
+        if (reactivatingId) return;
+
+        setReactivatingId(empresa.id);
+        setStatusMessage(null);
+
+        try {
+            await axiosInstance.patch(`/api/empresas/${empresa.id}/`, { ativo: true });
+            setEmpresas((prev) => prev.map((item) => (
+                item.id === empresa.id ? { ...item, ativo: true } : item
+            )));
+            setStatusMessage({ type: 'success', text: `${empresa.nome} foi reativada com sucesso.` });
+        } catch (err) {
+            console.error('Erro ao reativar empresa:', err.response?.data || err.message);
+            setStatusMessage({
+                type: 'error',
+                text: err.response?.status === 403
+                    ? 'Voce nao tem permissao para reativar esta empresa.'
+                    : `Falha ao reativar a empresa: ${err.response?.data?.error || err.message}`,
+            });
+        } finally {
+            setReactivatingId(null);
         }
     };
 
@@ -330,6 +357,20 @@ const EmpresaList = () => {
                 </nav>
             </div>
 
+            {statusMessage && (
+                <div
+                    className={`flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
+                        statusMessage.type === 'success'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'
+                            : 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300'
+                    }`}
+                    role="status"
+                >
+                    <CheckCircleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <span>{statusMessage.text}</span>
+                </div>
+            )}
+
             {filteredEmpresas.length === 0 ? (
                 <div className="rounded-lg border border-gray-200 bg-white p-10 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400" />
@@ -350,21 +391,38 @@ const EmpresaList = () => {
                         animate="visible"
                     >
                         {visibleEmpresas.map(empresa => {
-
+                            const isInactive = !empresa.ativo;
+                            const isReactivating = reactivatingId === empresa.id;
                             return (
                                 <motion.div
                                     key={empresa.id}
                                     variants={itemVariants}
-                                    className="flex min-w-0 flex-col rounded-lg border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+                                    className={`flex min-w-0 flex-col rounded-lg border bg-white shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900 ${
+                                        isInactive
+                                            ? 'border-amber-200 ring-1 ring-amber-100 dark:border-amber-900/70 dark:ring-amber-900/40'
+                                            : 'border-gray-200 dark:border-gray-800'
+                                    }`}
                                 >
                                     <div className="flex-grow p-4 sm:p-5">
                                         <div className="mb-4">
-                                            <div>
-                                                <h3 className="break-words text-base font-semibold leading-tight text-gray-950 dark:text-gray-100">{empresa.nome}</h3>
-                                                <p className="text-sm text-gray-500 dark:text-gray-400">{empresa.cnpj}</p>
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <h3 className="break-words text-base font-semibold leading-tight text-gray-950 dark:text-gray-100">{empresa.nome}</h3>
+                                                    <p className="text-sm text-gray-500 dark:text-gray-400">{empresa.cnpj}</p>
+                                                </div>
+                                                {isInactive && (
+                                                    <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900">
+                                                        Inativa
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         <p className="text-sm text-gray-600 dark:text-gray-400 break-all">{empresa.email}</p>
+                                        {isInactive && (
+                                            <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                                                Reative para que a empresa volte aos fluxos operacionais e relatorios ativos.
+                                            </p>
+                                        )}
                                         {(empresa.tags || []).length > 0 && (
                                             <div className="mt-3 flex flex-wrap gap-2">
                                                 {(empresa.tags || []).map((tag) => (
@@ -381,6 +439,24 @@ const EmpresaList = () => {
                                     </div>
 
                                     <div className="flex gap-2 border-t border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70">
+                                        {isInactive && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleReactivate(empresa)}
+                                                disabled={isReactivating}
+                                                className="flex-[1.4] rounded-md bg-emerald-600 px-3 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-emerald-500 dark:hover:bg-emerald-400"
+                                                title="Reativar empresa"
+                                            >
+                                                {isReactivating ? (
+                                                    <ArrowPathIcon className="mx-auto h-5 w-5 animate-spin" />
+                                                ) : (
+                                                    <span className="inline-flex items-center justify-center gap-2">
+                                                        <CheckCircleIcon className="h-5 w-5" />
+                                                        Reativar
+                                                    </span>
+                                                )}
+                                            </button>
+                                        )}
                                         <Link to={`/empresas/editar/${empresa.id}`} onClick={saveListPosition} className="flex-1 rounded-md px-3 py-2 text-center text-sm text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800" title="Editar">
                                             <PencilIcon className="h-5 w-5 mx-auto" />
                                         </Link>
