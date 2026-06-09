@@ -208,6 +208,8 @@ const InicioPage = () => {
   const [showCobrancaModal, setShowCobrancaModal] = useState(false);
   const [sendingCobranca, setSendingCobranca] = useState(false);
   const [cobrancaFeedback, setCobrancaFeedback] = useState(null);
+  const [cobrancaTestRecipientNumber, setCobrancaTestRecipientNumber] = useState('');
+  const [selectedCobrancaIds, setSelectedCobrancaIds] = useState([]);
   const [chartData, setChartData] = useState({
     labels: [],
     datasets: [{
@@ -609,6 +611,8 @@ const InicioPage = () => {
       empresa_numero: empresa.numero || '-',
     };
   });
+  const cobrancaRowIdsKey = boletosEmAbertoRows.map((boleto) => boleto.id).join('|');
+  const selectedCobrancaCount = selectedCobrancaIds.length;
   const percentualPago = isInitialDataLoading
     ? 'Aguardando boletos'
     : boletosGeradosCount > 0
@@ -716,29 +720,73 @@ const InicioPage = () => {
 
   const handleOpenCobrancaModal = () => {
     setCobrancaFeedback(null);
+    setSelectedCobrancaIds((currentIds) => (
+      currentIds.length > 0 || boletosEmAbertoRows.length === 0
+        ? currentIds
+        : [boletosEmAbertoRows[0].id]
+    ));
     setShowCobrancaModal(true);
   };
 
+  useEffect(() => {
+    if (boletosEmAbertoRows.length === 0) {
+      setSelectedCobrancaIds([]);
+      return;
+    }
+
+    setSelectedCobrancaIds((currentIds) => {
+      const availableIds = new Set(boletosEmAbertoRows.map((boleto) => boleto.id));
+      const keptIds = currentIds.filter((id) => availableIds.has(id));
+      const isSameSelection = currentIds.length === keptIds.length
+        && currentIds.every((id, index) => id === keptIds[index]);
+      return isSameSelection ? currentIds : keptIds;
+    });
+  }, [cobrancaRowIdsKey, boletosEmAbertoRows]);
+
+  const toggleCobrancaSelection = (boletoId) => {
+    setSelectedCobrancaIds((currentIds) => (
+      currentIds.includes(boletoId)
+        ? currentIds.filter((id) => id !== boletoId)
+        : [...currentIds, boletoId]
+    ));
+  };
+
+  const selectAllCobrancas = () => {
+    setSelectedCobrancaIds(boletosEmAbertoRows.map((boleto) => boleto.id));
+  };
+
+  const clearCobrancaSelection = () => {
+    setSelectedCobrancaIds([]);
+  };
+
   const handleEnviarCobranca = async () => {
-    if (boletosEmAbertoRows.length === 0) return;
+    if (selectedCobrancaIds.length === 0) return;
 
     setSendingCobranca(true);
     setCobrancaFeedback(null);
 
     try {
+      const testNumber = cobrancaTestRecipientNumber.trim();
       const response = await axiosInstance.post('/api/boletos-bb/enviar-cobranca/', {
-        boleto_ids: boletosEmAbertoRows.map((boleto) => boleto.id),
+        boleto_ids: selectedCobrancaIds,
+        ...(testNumber ? { test_recipient_number: testNumber } : {}),
       });
       const successCount = response.data?.success_count ?? 0;
       const failedCount = response.data?.failed_count ?? 0;
+      const testSuffix = response.data?.test_mode
+        ? ` Teste enviado para ${response.data.test_recipient_number}.`
+        : '';
       setCobrancaFeedback({
         type: failedCount > 0 ? 'warning' : 'success',
-        text: `${successCount} cobrança(s) enviada(s). ${failedCount} falha(s).`,
+        text: `${successCount} cobrança(s) enviada(s). ${failedCount} falha(s).${testSuffix}`,
       });
+      if (successCount > 0) {
+        setSelectedCobrancaIds([]);
+      }
     } catch (err) {
       const data = err?.response?.data;
       const successCount = data?.success_count ?? 0;
-      const failedCount = data?.failed_count ?? boletosEmAbertoRows.length;
+      const failedCount = data?.failed_count ?? selectedCobrancaIds.length;
       setCobrancaFeedback({
         type: 'error',
         text: data?.error || `${successCount} cobrança(s) enviada(s). ${failedCount} falha(s).`,
@@ -1005,7 +1053,7 @@ const InicioPage = () => {
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-500">Cobrança de honorário</p>
                   <h2 className="mt-1 text-xl font-bold text-gray-950 dark:text-white">Boletos em aberto</h2>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {boletosEmAbertoRows.length} boleto(s) vencido(s) aguardando pagamento.
+                    {boletosEmAbertoRows.length} boleto(s) vencido(s), {selectedCobrancaCount} selecionado(s).
                   </p>
                 </div>
                 <button
@@ -1039,7 +1087,31 @@ const InicioPage = () => {
                   </div>
                 ) : (
                   <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
-                    <div className="hidden grid-cols-[1.4fr_120px_120px_1fr_120px_110px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-800 dark:bg-gray-950/40 dark:text-gray-400 lg:grid">
+                    <div className="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                        Selecione uma cobrança para enviar
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={selectAllCobrancas}
+                          disabled={sendingCobranca}
+                          className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-white disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        >
+                          Selecionar todas
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearCobrancaSelection}
+                          disabled={sendingCobranca || selectedCobrancaCount === 0}
+                          className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-white disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        >
+                          Limpar
+                        </button>
+                      </div>
+                    </div>
+                    <div className="hidden grid-cols-[44px_1.4fr_120px_120px_1fr_120px_110px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-[0.12em] text-gray-500 dark:border-gray-800 dark:bg-gray-950/40 dark:text-gray-400 lg:grid">
+                      <span></span>
                       <span>Empresa</span>
                       <span>CNPJ</span>
                       <span>Telefone</span>
@@ -1048,8 +1120,19 @@ const InicioPage = () => {
                       <span className="text-right">Valor</span>
                     </div>
                     <div className="divide-y divide-gray-200 dark:divide-gray-800">
-                      {boletosEmAbertoRows.map((boleto) => (
-                        <div key={boleto.id} className="grid gap-3 px-4 py-4 text-sm lg:grid-cols-[1.4fr_120px_120px_1fr_120px_110px] lg:items-center">
+                      {boletosEmAbertoRows.map((boleto) => {
+                        const checked = selectedCobrancaIds.includes(boleto.id);
+                        return (
+                        <label key={boleto.id} className={`grid cursor-pointer gap-3 px-4 py-4 text-sm transition hover:bg-orange-50/60 dark:hover:bg-orange-950/20 lg:grid-cols-[44px_1.4fr_120px_120px_1fr_120px_110px] lg:items-center ${checked ? 'bg-orange-50/80 dark:bg-orange-950/20' : ''}`}>
+                          <span className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleCobrancaSelection(boleto.id)}
+                              disabled={sendingCobranca}
+                              className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500 disabled:opacity-50"
+                            />
+                          </span>
                           <div className="min-w-0">
                             <p className="truncate font-semibold text-gray-950 dark:text-gray-100">{boleto.empresa_nome}</p>
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 lg:hidden">CNPJ: {boleto.empresa_cnpj}</p>
@@ -1060,8 +1143,9 @@ const InicioPage = () => {
                           <span className="break-all font-mono text-xs text-gray-700 dark:text-gray-200">{boleto.numero_titulo_cliente || boleto.nosso_numero || '-'}</span>
                           <span className="text-gray-600 dark:text-gray-300">{formatDate(boleto.data_vencimento)}</span>
                           <span className="font-semibold text-gray-950 dark:text-gray-100 lg:text-right">{formatMoney(boleto.valor_original)}</span>
-                        </div>
-                      ))}
+                        </label>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1069,9 +1153,17 @@ const InicioPage = () => {
 
               <div className="flex flex-col gap-3 border-t border-gray-200 p-5 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Template: <span className="font-semibold text-gray-700 dark:text-gray-200">honorario_cobranca</span>
+                  Template: <span className="font-semibold text-gray-700 dark:text-gray-200">honorario_cobranca</span> · {selectedCobrancaCount} selecionado(s)
                 </p>
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    value={cobrancaTestRecipientNumber}
+                    onChange={(event) => setCobrancaTestRecipientNumber(event.target.value)}
+                    placeholder="Numero de teste"
+                    inputMode="tel"
+                    disabled={sendingCobranca}
+                    className="h-10 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm text-gray-900 outline-none transition placeholder:text-amber-700/70 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-amber-950/30 dark:text-gray-100 dark:placeholder:text-amber-300/70 dark:focus:ring-amber-950/50 sm:w-44"
+                  />
                   <button
                     type="button"
                     onClick={() => setShowCobrancaModal(false)}
@@ -1083,7 +1175,7 @@ const InicioPage = () => {
                   <button
                     type="button"
                     onClick={handleEnviarCobranca}
-                    disabled={sendingCobranca || boletosEmAbertoRows.length === 0}
+                    disabled={sendingCobranca || selectedCobrancaCount === 0}
                     className="inline-flex items-center justify-center gap-2 rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {sendingCobranca ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <PaperAirplaneIcon className="h-4 w-4" />}
