@@ -298,12 +298,11 @@ const InadimplenciaBoletosPage = () => {
 
     try {
       const response = await axiosInstance.get('/api/boletos-bb/relatorio-em-aberto/', {
-        params: { ano: selectedYear },
         responseType: 'blob',
       });
       const contentDisposition = response.headers?.['content-disposition'] || '';
       const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
-      const filename = filenameMatch?.[1] || `relatorio_boletos_em_aberto_${selectedYear}.xlsx`;
+      const filename = filenameMatch?.[1] || 'relatorio_boletos_em_aberto_mes_atual.xlsx';
       const blobUrl = window.URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = blobUrl;

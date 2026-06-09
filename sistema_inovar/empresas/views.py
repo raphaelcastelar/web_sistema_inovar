@@ -953,25 +953,18 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='relatorio-em-aberto')
     def relatorio_em_aberto(self, request):
         hoje = timezone.localdate()
-        ano = str(request.query_params.get('ano') or '').strip()
+        inicio_mes = hoje.replace(day=1)
 
         boletos = (
             self.get_queryset()
             .filter(
                 status='registrado',
+                data_vencimento__gte=inicio_mes,
                 data_vencimento__lt=hoje,
             )
             .select_related('empresa')
             .order_by('empresa__nome', 'data_vencimento', 'numero_titulo_cliente')
         )
-
-        if ano:
-            if not ano.isdigit() or len(ano) != 4:
-                return Response(
-                    {'error': 'Envie o ano no formato YYYY.'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            boletos = boletos.filter(data_vencimento__year=int(ano))
 
         headers = [
             'Empresa',
@@ -1023,7 +1016,7 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                 7: 18,
             },
         )
-        filename = f"relatorio_boletos_em_aberto_{ano or hoje.year}.xlsx"
+        filename = f"relatorio_boletos_em_aberto_{hoje.strftime('%Y_%m')}.xlsx"
         response = HttpResponse(
             workbook.getvalue(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
