@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { Link } from 'react-router-dom';
 import {
@@ -15,6 +15,8 @@ import {
     PaperAirplaneIcon,
     TagIcon
 } from '@heroicons/react/24/outline';
+
+const DEFAULT_CARTEIRA_OPTIONS = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
 
 function MetricCard({ label, value, icon: Icon, tone = 'neutral' }) {
     const toneClasses = {
@@ -49,6 +51,7 @@ const GerenciamentoIntegrado = () => {
     const [boletoBatchSearch, setBoletoBatchSearch] = useState('');
     const [tags, setTags] = useState([]);
     const [boletoSelectedTagIds, setBoletoSelectedTagIds] = useState([]);
+    const [selectedCarteira, setSelectedCarteira] = useState('INOVAR ES');
     const [selectedEmpresaIds, setSelectedEmpresaIds] = useState([]);
     const [isGeneratingBoletos, setIsGeneratingBoletos] = useState(false);
     const [isDownloadingBoletos, setIsDownloadingBoletos] = useState(false);
@@ -546,9 +549,25 @@ const GerenciamentoIntegrado = () => {
     };
 
     // --- Filtering ---
+    const carteiraOptions = useMemo(() => {
+        const options = new Set(DEFAULT_CARTEIRA_OPTIONS);
+        empresas.forEach((empresa) => {
+            if (empresa.carteira_clientes) {
+                options.add(empresa.carteira_clientes);
+            }
+        });
+        return Array.from(options);
+    }, [empresas]);
+
+    const matchesSelectedCarteira = useCallback((empresa) => {
+        if (!selectedCarteira) return true;
+        return empresa.carteira_clientes === selectedCarteira;
+    }, [selectedCarteira]);
+
     const filteredEmpresas = useMemo(() => {
         return empresas.filter(empresa => {
             if (!empresa.ativo) return false;
+            if (!matchesSelectedCarteira(empresa)) return false;
 
             // Search Filter
             const lowercasedSearch = search.toLowerCase().trim();
@@ -564,13 +583,13 @@ const GerenciamentoIntegrado = () => {
             }
             return matchNome || matchEmail || matchCnpj;
         });
-    }, [empresas, search]);
+    }, [empresas, search, matchesSelectedCarteira]);
 
     const activeEmpresas = useMemo(() => {
         return empresas
-            .filter((empresa) => empresa.ativo)
+            .filter((empresa) => empresa.ativo && matchesSelectedCarteira(empresa))
             .sort((firstEmpresa, secondEmpresa) => firstEmpresa.nome.localeCompare(secondEmpresa.nome, 'pt-BR'));
-    }, [empresas]);
+    }, [empresas, matchesSelectedCarteira]);
 
     const filteredActiveEmpresasForModal = useMemo(() => {
         const normalizedSearch = boletoBatchSearch.toLowerCase().trim();
@@ -623,10 +642,11 @@ const GerenciamentoIntegrado = () => {
 
     // --- Stats ---
     const stats = useMemo(() => {
-        const active = empresas.filter(e => e.ativo).length;
-        const honorariosMarcados = empresas.filter(e => e.ativo && e.honorario).length;
+        const scopedEmpresas = empresas.filter((empresa) => empresa.ativo && matchesSelectedCarteira(empresa));
+        const active = scopedEmpresas.length;
+        const honorariosMarcados = scopedEmpresas.filter(e => e.honorario).length;
         return { active, honorariosMarcados };
-    }, [empresas]);
+    }, [empresas, matchesSelectedCarteira]);
 
     if (loading) {
         return (
@@ -715,16 +735,31 @@ const GerenciamentoIntegrado = () => {
 
                 {/* Controls Area (Search & Filter) */}
                 <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-                        <MagnifyingGlassIcon className="h-4 w-4" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por nome, CNPJ ou e-mail..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="min-w-0 flex-1 bg-transparent text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
-                        />
-                    </label>
+                    <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_minmax(13rem,18rem)]">
+                        <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                            <MagnifyingGlassIcon className="h-4 w-4" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por nome, CNPJ ou e-mail..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="min-w-0 flex-1 bg-transparent text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
+                            />
+                        </label>
+                        <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                            <BuildingOffice2Icon className="h-4 w-4" />
+                            <select
+                                value={selectedCarteira}
+                                onChange={(e) => setSelectedCarteira(e.target.value)}
+                                className="min-w-0 flex-1 bg-transparent text-gray-900 outline-none dark:text-gray-100"
+                            >
+                                <option value="">Todas as carteiras</option>
+                                {carteiraOptions.map((option) => (
+                                    <option key={option} value={option}>{option}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
                 </div>
 
                 {/* Messages */}

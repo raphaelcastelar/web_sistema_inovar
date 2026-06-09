@@ -6,6 +6,7 @@ import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, Build
 
 
 const EMPRESA_LIST_STATE_KEY = 'empresaListState';
+const DEFAULT_CARTEIRA_OPTIONS = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
 
 const getSavedListState = () => {
     try {
@@ -41,6 +42,7 @@ const EmpresaList = () => {
     const [isAdmin, setIsAdmin] = useState(null);
     const [tags, setTags] = useState([]);
     const [selectedTagIds, setSelectedTagIds] = useState(Array.isArray(savedListState?.selectedTagIds) ? savedListState.selectedTagIds : []);
+    const [selectedCarteira, setSelectedCarteira] = useState(savedListState?.selectedCarteira || '');
     const [activeTab, setActiveTab] = useState(savedListState?.activeTab || 'ativadas'); // 'ativadas' ou 'nao-ativadas'
     const [reactivatingId, setReactivatingId] = useState(null);
     const [statusMessage, setStatusMessage] = useState(null);
@@ -97,7 +99,7 @@ const EmpresaList = () => {
             return;
         }
         setVisibleCount(24);
-    }, [search, activeTab, selectedTagIds]);
+    }, [search, activeTab, selectedTagIds, selectedCarteira]);
 
     const handleDelete = (id) => {
         if (window.confirm('Tem certeza que deseja excluir esta empresa? Esta ação apaga também a pasta da empresa no servidor.')) {
@@ -143,6 +145,7 @@ const EmpresaList = () => {
             search,
             activeTab,
             selectedTagIds,
+            selectedCarteira,
             visibleCount,
         }));
     };
@@ -178,11 +181,17 @@ const EmpresaList = () => {
             });
         };
 
+        const matchesSelectedCarteira = (empresa) => {
+            if (!selectedCarteira) return true;
+            return empresa.carteira_clientes === selectedCarteira;
+        };
+
         if (!lowercasedSearch) {
             return empresas.filter((empresa) => {
                 const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
                 const matchTag = matchesSelectedTags(empresa);
-                return isInTab && matchTag;
+                const matchCarteira = matchesSelectedCarteira(empresa);
+                return isInTab && matchTag && matchCarteira;
             });
         }
         const searchDigits = search.replace(/\D/g, '');
@@ -195,10 +204,11 @@ const EmpresaList = () => {
                 matchCnpj = cleanedEmpresaCnpj?.includes(searchDigits);
             }
             const matchTag = matchesSelectedTags(empresa);
+            const matchCarteira = matchesSelectedCarteira(empresa);
             const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
-            return (matchNome || matchEmail || matchCnpj) && isInTab && matchTag;
+            return (matchNome || matchEmail || matchCnpj) && isInTab && matchTag && matchCarteira;
         });
-    }, [empresas, search, activeTab, selectedTagIds, tags]);
+    }, [empresas, search, activeTab, selectedTagIds, selectedCarteira, tags]);
 
     // Intersection Observer para carregar mais itens
     useEffect(() => {
@@ -228,6 +238,16 @@ const EmpresaList = () => {
         const ativadas = empresas.filter((empresa) => empresa.ativo).length;
         const naoAtivadas = empresas.length - ativadas;
         return { total: empresas.length, ativadas, naoAtivadas };
+    }, [empresas]);
+
+    const carteiraOptions = useMemo(() => {
+        const options = new Set(DEFAULT_CARTEIRA_OPTIONS);
+        empresas.forEach((empresa) => {
+            if (empresa.carteira_clientes) {
+                options.add(empresa.carteira_clientes);
+            }
+        });
+        return Array.from(options);
     }, [empresas]);
 
     useEffect(() => {
@@ -298,7 +318,7 @@ const EmpresaList = () => {
             </div>
 
             <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(16rem,22rem)] xl:items-start">
+                <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_minmax(13rem,18rem)_minmax(16rem,22rem)] xl:items-start">
                     <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
                         <MagnifyingGlassIcon className="h-4 w-4" />
                         <input
@@ -308,6 +328,19 @@ const EmpresaList = () => {
                             onChange={(e) => setSearch(e.target.value)}
                             className="min-w-0 flex-1 bg-transparent text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
                         />
+                    </label>
+                    <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                        <BuildingOffice2Icon className="h-4 w-4" />
+                        <select
+                            value={selectedCarteira}
+                            onChange={(e) => setSelectedCarteira(e.target.value)}
+                            className="min-w-0 flex-1 bg-transparent text-gray-900 outline-none dark:text-gray-100"
+                        >
+                            <option value="">Todas as carteiras</option>
+                            {carteiraOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                            ))}
+                        </select>
                     </label>
                     <div className="rounded-md border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
                         <div className="flex items-center gap-2 mb-2">
