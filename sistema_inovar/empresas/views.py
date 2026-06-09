@@ -734,7 +734,7 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = BoletoBBSerializer
     queryset = BoletoBB.objects.none()
-    http_method_names = ['get', 'patch', 'head', 'options']
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
 
     def get_queryset(self):
         # Importante: nao reutilizar `self.queryset` aqui.
