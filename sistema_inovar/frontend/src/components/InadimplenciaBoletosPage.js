@@ -10,6 +10,7 @@ import {
   MagnifyingGlassIcon,
   PaperAirplaneIcon,
   UserGroupIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 const MONTHS = [
@@ -116,6 +117,10 @@ function buildSearchText(row) {
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
+function cobrancaFailureUserMessage() {
+  return 'Nao foi possivel enviar esta cobranca. Verifique os dados do numero de WhatsApp e do boleto da empresa.';
+}
+
 const StatTile = ({ icon: Icon, label, value, detail }) => (
   <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
     <div className="flex items-start justify-between gap-3">
@@ -144,6 +149,8 @@ const InadimplenciaBoletosPage = () => {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState(null);
+  const [cobrancaProgress, setCobrancaProgress] = useState(null);
+  const [showCobrancaFailures, setShowCobrancaFailures] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -232,6 +239,8 @@ const InadimplenciaBoletosPage = () => {
   useEffect(() => {
     setSelectedIds(selectedMonthRows.map((boleto) => boleto.id));
     setFeedback(null);
+    setCobrancaProgress(null);
+    setShowCobrancaFailures(false);
   }, [selectedPeriodo, selectedMonthRows]);
 
   const totalAno = inadimplentesAno.reduce((sum, boleto) => sum + boleto.valor_numeric, 0);
@@ -269,28 +278,100 @@ const InadimplenciaBoletosPage = () => {
     if (selectedIds.length === 0) return;
     setSending(true);
     setFeedback(null);
+    setShowCobrancaFailures(false);
+    setCobrancaProgress({
+      current: 0,
+      total: selectedIds.length,
+      success: 0,
+      failed: 0,
+      status: 'sending',
+      failures: [],
+    });
 
     try {
-      const response = await axiosInstance.post('/api/boletos-bb/enviar-cobranca/', {
-        boleto_ids: selectedIds,
-        periodo_vencimento: selectedPeriodo,
-      });
-      const successCount = response.data?.success_count ?? 0;
-      const failedCount = response.data?.failed_count ?? 0;
+      let successCount = 0;
+      let failedCount = 0;
+      const failures = [];
+
+      for (let index = 0; index < selectedIds.length; index += 1) {
+        const boletoId = selectedIds[index];
+        const boleto = selectedMonthRows.find((row) => row.id === boletoId);
+
+        try {
+          const response = await axiosInstance.post('/api/boletos-bb/enviar-cobranca/', {
+            boleto_ids: [boletoId],
+            periodo_vencimento: selectedPeriodo,
+          });
+          successCount += response.data?.success_count ?? 0;
+          failedCount += response.data?.failed_count ?? 0;
+
+          const failedResult = response.data?.results?.find((result) => result.status === 'falha');
+          if (failedResult) {
+            failures.push({
+              boletoId,
+              empresaNome: failedResult.empresa_nome || boleto?.empresa_nome || 'Empresa nao identificada',
+              boletoNumero: boleto?.numero_titulo_cliente || boleto?.nosso_numero || '-',
+              error: cobrancaFailureUserMessage(),
+            });
+          }
+        } catch (err) {
+          failedCount += 1;
+          const failedResult = err?.response?.data?.results?.find((result) => result.status === 'falha');
+          failures.push({
+            boletoId,
+            empresaNome: failedResult?.empresa_nome || boleto?.empresa_nome || 'Empresa nao identificada',
+            boletoNumero: boleto?.numero_titulo_cliente || boleto?.nosso_numero || '-',
+            error: cobrancaFailureUserMessage(),
+          });
+        }
+
+        setCobrancaProgress({
+          current: index + 1,
+          total: selectedIds.length,
+          success: successCount,
+          failed: failedCount,
+          status: 'sending',
+          failures: [...failures],
+        });
+      }
+
       setFeedback({
         type: failedCount > 0 ? 'warning' : 'success',
         text: `${successCount} cobranca(s) enviada(s). ${failedCount} falha(s).`,
       });
+      setCobrancaProgress({
+        current: selectedIds.length,
+        total: selectedIds.length,
+        success: successCount,
+        failed: failedCount,
+        status: failedCount > 0 ? 'warning' : 'done',
+        failures,
+      });
+      if (successCount > 0) {
+        setSelectedIds([]);
+        loadData();
+      }
     } catch (err) {
       const data = err?.response?.data;
+      const successCount = data?.success_count ?? 0;
+      const failedCount = data?.failed_count ?? selectedIds.length;
       setFeedback({
         type: 'error',
         text: data?.error || 'Falha ao enviar as cobrancas selecionadas.',
       });
+      setCobrancaProgress((currentProgress) => (
+        currentProgress
+          ? { ...currentProgress, success: successCount, failed: failedCount, status: 'error' }
+          : null
+      ));
     } finally {
       setSending(false);
     }
   };
+
+  const progressPercent = cobrancaProgress
+    ? Math.round((cobrancaProgress.current / Math.max(cobrancaProgress.total, 1)) * 100)
+    : 0;
 
   const handleExportarExcel = async () => {
     setExporting(true);
@@ -495,6 +576,78 @@ const InadimplenciaBoletosPage = () => {
                 : 'border border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300'
           }`}>
             {feedback.text}
+          </div>
+        )}
+
+        {cobrancaProgress && (
+          <div className="mx-4 mt-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-950 dark:text-white">
+                  {cobrancaProgress.status === 'sending' ? 'Enviando cobrancas' : 'Envio de cobrancas'}
+                </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {cobrancaProgress.current} de {cobrancaProgress.total} processada(s)
+                </p>
+              </div>
+              {cobrancaProgress.status === 'sending' ? (
+                <ArrowPathIcon className="h-5 w-5 shrink-0 animate-spin text-rose-600" />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCobrancaProgress(null)}
+                  className="rounded-md p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                  title="Fechar progresso"
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  cobrancaProgress.status === 'error'
+                    ? 'bg-red-500'
+                    : cobrancaProgress.status === 'warning'
+                      ? 'bg-amber-500'
+                      : 'bg-rose-600'
+                }`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs font-semibold">
+              <span className="text-emerald-600 dark:text-emerald-400">
+                {cobrancaProgress.success} sucesso(s)
+              </span>
+              <span className={cobrancaProgress.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
+                {cobrancaProgress.failed} falha(s)
+              </span>
+            </div>
+            {cobrancaProgress.failed > 0 && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCobrancaFailures((currentValue) => !currentValue)}
+                  className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-left text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+                >
+                  {showCobrancaFailures ? 'Ocultar falhas' : 'Ver falhas'}
+                </button>
+                {showCobrancaFailures && (
+                  <div className="mt-2 max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {(cobrancaProgress.failures || []).map((failure, index) => (
+                      <div
+                        key={`${failure.boletoId}-${index}`}
+                        className="rounded-md border border-red-100 bg-red-50/70 p-3 text-xs dark:border-red-900/60 dark:bg-red-950/20"
+                      >
+                        <p className="font-semibold text-gray-950 dark:text-white">{failure.empresaNome}</p>
+                        <p className="mt-1 text-gray-500 dark:text-gray-400">Boleto: {failure.boletoNumero}</p>
+                        <p className="mt-2 text-red-700 dark:text-red-300">{failure.error}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
