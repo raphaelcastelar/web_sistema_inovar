@@ -769,17 +769,6 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        test_recipient_number = _normalize_whatsapp_number(
-            request.data.get('test_recipient_number')
-        )
-        if test_recipient_number and not (
-            test_recipient_number.isdigit() and 12 <= len(test_recipient_number) <= 13
-        ):
-            return Response(
-                {'error': 'Envie test_recipient_number com DDI + DDD + numero. Ex: 5522999998888.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         hoje = timezone.localdate()
         periodo_vencimento = str(request.data.get('periodo_vencimento') or '').strip()
 
@@ -821,8 +810,7 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
 
         for boleto in ordered_boletos:
             empresa = boleto.empresa
-            company_recipient_number = _normalize_whatsapp_number(empresa.telefone)
-            recipient_number = test_recipient_number or company_recipient_number
+            recipient_number = _normalize_whatsapp_number(empresa.telefone)
             reference_date = boleto.criado_em or timezone.now()
             documento_honorario = (
                 DepartamentoPessoal.objects.filter(
@@ -862,7 +850,6 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                     'empresa_nome': empresa.nome,
                     'status': 'falha',
                     'error': erro,
-                    'test_mode': bool(test_recipient_number),
                 })
                 continue
 
@@ -888,9 +875,7 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                     'empresa_nome': empresa.nome,
                     'status': 'falha',
                     'error': erro,
-                    'test_mode': bool(test_recipient_number),
                     'recipient_number': recipient_number,
-                    'original_recipient_number': company_recipient_number,
                 })
                 continue
 
@@ -932,19 +917,12 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             )
 
             if message_id:
-                historico_erro = None
-                if test_recipient_number:
-                    historico_erro = (
-                        f"Envio de teste redirecionado. "
-                        f"Telefone original da empresa: {company_recipient_number or 'sem telefone'}."
-                    )
                 HistoricoEnvios.objects.create(
                     remetente=recipient_number,
                     arquivo=nome_arquivo,
                     status='sucesso',
                     message_id=message_id,
                     usuario=request.user,
-                    erro=historico_erro,
                     empresa=empresa,
                 )
                 success_count += 1
@@ -954,9 +932,7 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                     'empresa_nome': empresa.nome,
                     'status': 'sucesso',
                     'message_id': message_id,
-                    'test_mode': bool(test_recipient_number),
                     'recipient_number': recipient_number,
-                    'original_recipient_number': company_recipient_number,
                 })
             else:
                 HistoricoEnvios.objects.create(
@@ -974,17 +950,13 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                     'empresa_nome': empresa.nome,
                     'status': 'falha',
                     'error': error_sending,
-                    'test_mode': bool(test_recipient_number),
                     'recipient_number': recipient_number,
-                    'original_recipient_number': company_recipient_number,
                 })
 
         response_status = status.HTTP_200_OK if success_count else status.HTTP_400_BAD_REQUEST
         return Response({
             'success_count': success_count,
             'failed_count': failed_count,
-            'test_mode': bool(test_recipient_number),
-            'test_recipient_number': test_recipient_number or None,
             'results': results,
         }, status=response_status)
 

@@ -212,7 +212,6 @@ const InicioPage = () => {
   const [showCobrancaModal, setShowCobrancaModal] = useState(false);
   const [sendingCobranca, setSendingCobranca] = useState(false);
   const [cobrancaFeedback, setCobrancaFeedback] = useState(null);
-  const [cobrancaTestRecipientNumber, setCobrancaTestRecipientNumber] = useState('');
   const [selectedCobrancaIds, setSelectedCobrancaIds] = useState([]);
   const [cobrancaProgress, setCobrancaProgress] = useState(null);
   const [showCobrancaFailures, setShowCobrancaFailures] = useState(false);
@@ -726,11 +725,7 @@ const InicioPage = () => {
 
   const handleOpenCobrancaModal = () => {
     setCobrancaFeedback(null);
-    setSelectedCobrancaIds((currentIds) => (
-      currentIds.length > 0 || boletosEmAbertoRows.length === 0
-        ? currentIds
-        : [boletosEmAbertoRows[0].id]
-    ));
+    setSelectedCobrancaIds(boletosEmAbertoRows.map((boleto) => boleto.id));
     setShowCobrancaModal(true);
   };
 
@@ -782,7 +777,6 @@ const InicioPage = () => {
     });
 
     try {
-      const testNumber = cobrancaTestRecipientNumber.trim();
       let successCount = 0;
       let failedCount = 0;
       const failures = [];
@@ -794,7 +788,6 @@ const InicioPage = () => {
         try {
           const response = await axiosInstance.post('/api/boletos-bb/enviar-cobranca/', {
             boleto_ids: [boletoId],
-            ...(testNumber ? { test_recipient_number: testNumber } : {}),
           });
           successCount += response.data?.success_count ?? 0;
           failedCount += response.data?.failed_count ?? 0;
@@ -829,10 +822,9 @@ const InicioPage = () => {
         });
       }
 
-      const testSuffix = testNumber ? ` Teste enviado para ${testNumber}.` : '';
       setCobrancaFeedback({
         type: failedCount > 0 ? 'warning' : 'success',
-        text: `${successCount} cobrança(s) enviada(s). ${failedCount} falha(s).${testSuffix}`,
+        text: `${successCount} cobrança(s) enviada(s). ${failedCount} falha(s).`,
       });
       setCobrancaProgress({
         current: selectedCobrancaIds.length,
@@ -1227,14 +1219,6 @@ const InicioPage = () => {
                   Template: <span className="font-semibold text-gray-700 dark:text-gray-200">honorario_cobranca</span> · {selectedCobrancaCount} selecionado(s)
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <input
-                    value={cobrancaTestRecipientNumber}
-                    onChange={(event) => setCobrancaTestRecipientNumber(event.target.value)}
-                    placeholder="Numero de teste"
-                    inputMode="tel"
-                    disabled={sendingCobranca}
-                    className="h-10 rounded-md border border-amber-300 bg-amber-50 px-3 text-sm text-gray-900 outline-none transition placeholder:text-amber-700/70 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 disabled:opacity-60 dark:border-amber-800 dark:bg-amber-950/30 dark:text-gray-100 dark:placeholder:text-amber-300/70 dark:focus:ring-amber-950/50 sm:w-44"
-                  />
                   <button
                     type="button"
                     onClick={() => setShowCobrancaModal(false)}
