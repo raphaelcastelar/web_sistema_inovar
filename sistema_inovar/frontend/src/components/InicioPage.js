@@ -84,6 +84,10 @@ function normalizeRows(data) {
   return [];
 }
 
+function cobrancaFailureUserMessage() {
+  return 'Não foi possível enviar esta cobrança. Verifique os dados do número de WhatsApp e do boleto da empresa. Se estiver tudo correto, contate o administrador do sistema.';
+}
+
 function toRelativeApiPath(url) {
   if (!url) return null;
   if (url.startsWith('/')) return url;
@@ -210,6 +214,8 @@ const InicioPage = () => {
   const [cobrancaFeedback, setCobrancaFeedback] = useState(null);
   const [cobrancaTestRecipientNumber, setCobrancaTestRecipientNumber] = useState('');
   const [selectedCobrancaIds, setSelectedCobrancaIds] = useState([]);
+  const [cobrancaProgress, setCobrancaProgress] = useState(null);
+  const [showCobrancaFailures, setShowCobrancaFailures] = useState(false);
   const [chartData, setChartData] = useState({
     labels: [],
     datasets: [{
@@ -764,21 +770,77 @@ const InicioPage = () => {
 
     setSendingCobranca(true);
     setCobrancaFeedback(null);
+    setShowCobrancaFailures(false);
+    setShowCobrancaModal(false);
+    setCobrancaProgress({
+      current: 0,
+      total: selectedCobrancaIds.length,
+      success: 0,
+      failed: 0,
+      status: 'sending',
+      failures: [],
+    });
 
     try {
       const testNumber = cobrancaTestRecipientNumber.trim();
-      const response = await axiosInstance.post('/api/boletos-bb/enviar-cobranca/', {
-        boleto_ids: selectedCobrancaIds,
-        ...(testNumber ? { test_recipient_number: testNumber } : {}),
-      });
-      const successCount = response.data?.success_count ?? 0;
-      const failedCount = response.data?.failed_count ?? 0;
-      const testSuffix = response.data?.test_mode
-        ? ` Teste enviado para ${response.data.test_recipient_number}.`
-        : '';
+      let successCount = 0;
+      let failedCount = 0;
+      const failures = [];
+
+      for (let index = 0; index < selectedCobrancaIds.length; index += 1) {
+        const boletoId = selectedCobrancaIds[index];
+        const boleto = boletosEmAbertoRows.find((row) => row.id === boletoId);
+
+        try {
+          const response = await axiosInstance.post('/api/boletos-bb/enviar-cobranca/', {
+            boleto_ids: [boletoId],
+            ...(testNumber ? { test_recipient_number: testNumber } : {}),
+          });
+          successCount += response.data?.success_count ?? 0;
+          failedCount += response.data?.failed_count ?? 0;
+
+          const failedResult = response.data?.results?.find((result) => result.status === 'falha');
+          if (failedResult) {
+            failures.push({
+              boletoId,
+              empresaNome: failedResult.empresa_nome || boleto?.empresa_nome || 'Empresa não identificada',
+              boletoNumero: boleto?.numero_titulo_cliente || boleto?.nosso_numero || '-',
+              error: cobrancaFailureUserMessage(),
+            });
+          }
+        } catch (err) {
+          failedCount += 1;
+          const failedResult = err?.response?.data?.results?.find((result) => result.status === 'falha');
+          failures.push({
+            boletoId,
+            empresaNome: failedResult?.empresa_nome || boleto?.empresa_nome || 'Empresa não identificada',
+            boletoNumero: boleto?.numero_titulo_cliente || boleto?.nosso_numero || '-',
+            error: cobrancaFailureUserMessage(),
+          });
+        }
+
+        setCobrancaProgress({
+          current: index + 1,
+          total: selectedCobrancaIds.length,
+          success: successCount,
+          failed: failedCount,
+          status: 'sending',
+          failures: [...failures],
+        });
+      }
+
+      const testSuffix = testNumber ? ` Teste enviado para ${testNumber}.` : '';
       setCobrancaFeedback({
         type: failedCount > 0 ? 'warning' : 'success',
         text: `${successCount} cobrança(s) enviada(s). ${failedCount} falha(s).${testSuffix}`,
+      });
+      setCobrancaProgress({
+        current: selectedCobrancaIds.length,
+        total: selectedCobrancaIds.length,
+        success: successCount,
+        failed: failedCount,
+        status: failedCount > 0 ? 'warning' : 'done',
+        failures,
       });
       if (successCount > 0) {
         setSelectedCobrancaIds([]);
@@ -791,10 +853,19 @@ const InicioPage = () => {
         type: 'error',
         text: data?.error || `${successCount} cobrança(s) enviada(s). ${failedCount} falha(s).`,
       });
+      setCobrancaProgress((currentProgress) => (
+        currentProgress
+          ? { ...currentProgress, status: 'error' }
+          : null
+      ));
     } finally {
       setSendingCobranca(false);
     }
   };
+
+  const progressPercent = cobrancaProgress
+    ? Math.round((cobrancaProgress.current / Math.max(cobrancaProgress.total, 1)) * 100)
+    : 0;
 
   return (
     <motion.div
@@ -1184,6 +1255,84 @@ const InicioPage = () => {
                 </div>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {cobrancaProgress && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.98 }}
+            className="fixed bottom-5 right-5 z-[60] w-[calc(100vw-2.5rem)] max-w-sm rounded-lg border border-gray-200 bg-white p-4 shadow-2xl dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-950 dark:text-white">
+                  {cobrancaProgress.status === 'sending' ? 'Enviando cobranças' : 'Envio de cobranças'}
+                </p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {cobrancaProgress.current} de {cobrancaProgress.total} processada(s)
+                </p>
+              </div>
+              {cobrancaProgress.status === 'sending' ? (
+                <ArrowPathIcon className="h-5 w-5 shrink-0 animate-spin text-orange-500" />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCobrancaProgress(null)}
+                  className="rounded-md p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                  title="Fechar progresso"
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${
+                  cobrancaProgress.status === 'error'
+                    ? 'bg-red-500'
+                    : cobrancaProgress.status === 'warning'
+                      ? 'bg-amber-500'
+                      : 'bg-orange-500'
+                }`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs font-semibold">
+              <span className="text-emerald-600 dark:text-emerald-400">
+                {cobrancaProgress.success} sucesso(s)
+              </span>
+              <span className={cobrancaProgress.failed > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}>
+                {cobrancaProgress.failed} falha(s)
+              </span>
+            </div>
+            {cobrancaProgress.failed > 0 && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCobrancaFailures((currentValue) => !currentValue)}
+                  className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-left text-xs font-semibold text-red-700 transition hover:bg-red-100 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+                >
+                  {showCobrancaFailures ? 'Ocultar falhas' : 'Ver falhas'}
+                </button>
+                {showCobrancaFailures && (
+                  <div className="mt-2 max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {(cobrancaProgress.failures || []).map((failure, index) => (
+                      <div
+                        key={`${failure.boletoId}-${index}`}
+                        className="rounded-md border border-red-100 bg-red-50/70 p-3 text-xs dark:border-red-900/60 dark:bg-red-950/20"
+                      >
+                        <p className="font-semibold text-gray-950 dark:text-white">{failure.empresaNome}</p>
+                        <p className="mt-1 text-gray-500 dark:text-gray-400">Boleto: {failure.boletoNumero}</p>
+                        <p className="mt-2 text-red-700 dark:text-red-300">{failure.error}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
