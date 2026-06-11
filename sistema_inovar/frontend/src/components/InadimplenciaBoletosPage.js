@@ -297,12 +297,13 @@ const InadimplenciaBoletosPage = () => {
     setFeedback(null);
 
     try {
-      const response = await axiosInstance.get('/api/boletos-bb/relatorio-em-aberto/', {
+      const reportPeriodo = makePeriodo(selectedYear, selectedMonth);
+      const response = await axiosInstance.get(`/api/boletos-bb/relatorio-em-aberto/?periodo_vencimento=${encodeURIComponent(reportPeriodo)}&ano=${encodeURIComponent(selectedYear)}&mes=${encodeURIComponent(selectedMonth)}`, {
         responseType: 'blob',
       });
       const contentDisposition = response.headers?.['content-disposition'] || '';
       const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
-      const filename = filenameMatch?.[1] || 'relatorio_boletos_em_aberto_mes_atual.xlsx';
+      const filename = filenameMatch?.[1] || `relatorio_boletos_em_aberto_${reportPeriodo.replace('-', '_')}.xlsx`;
       const blobUrl = window.URL.createObjectURL(response.data);
       const link = document.createElement('a');
       link.href = blobUrl;
@@ -313,7 +314,7 @@ const InadimplenciaBoletosPage = () => {
       window.URL.revokeObjectURL(blobUrl);
       setFeedback({
         type: 'success',
-        text: 'Relatorio Excel gerado com sucesso.',
+        text: `Relatorio Excel de ${selectedMonthSummary?.label || selectedMonth}/${selectedYear} gerado com sucesso.`,
       });
     } catch (err) {
       setFeedback({
@@ -344,9 +345,20 @@ const InadimplenciaBoletosPage = () => {
             value={selectedYear}
             onChange={(event) => setSelectedYear(event.target.value)}
             className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            aria-label="Selecionar ano"
           >
             {yearOptions.map((year) => (
               <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+          <select
+            value={selectedMonth}
+            onChange={(event) => setSelectedMonth(event.target.value)}
+            className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+            aria-label="Selecionar mes"
+          >
+            {MONTHS.map((month) => (
+              <option key={month.value} value={month.value}>{month.label}</option>
             ))}
           </select>
           <button

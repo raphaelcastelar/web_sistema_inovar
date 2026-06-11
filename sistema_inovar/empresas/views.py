@@ -991,14 +991,32 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='relatorio-em-aberto')
     def relatorio_em_aberto(self, request):
         hoje = timezone.localdate()
-        inicio_mes = hoje.replace(day=1)
+        periodo_vencimento = str(request.query_params.get('periodo_vencimento') or '').strip()
+        ano_param = str(request.query_params.get('ano') or '').strip()
+        mes_param = str(request.query_params.get('mes') or '').strip().zfill(2)
+
+        if not periodo_vencimento and ano_param and mes_param:
+            periodo_vencimento = f'{ano_param}-{mes_param}'
+
+        if periodo_vencimento:
+            try:
+                inicio_mes = datetime.datetime.strptime(periodo_vencimento, '%Y-%m').date().replace(day=1)
+            except ValueError:
+                return Response(
+                    {'error': 'Envie periodo_vencimento no formato YYYY-MM.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            inicio_mes = hoje.replace(day=1)
+
+        fim_periodo = min(inicio_mes + relativedelta(months=1), hoje)
 
         boletos = (
             self.get_queryset()
             .filter(
                 status='registrado',
                 data_vencimento__gte=inicio_mes,
-                data_vencimento__lt=hoje,
+                data_vencimento__lt=fim_periodo,
             )
             .select_related('empresa')
             .order_by('empresa__nome', 'data_vencimento', 'numero_titulo_cliente')
@@ -1054,7 +1072,7 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                 7: 18,
             },
         )
-        filename = f"relatorio_boletos_em_aberto_{hoje.strftime('%Y_%m')}.xlsx"
+        filename = f"relatorio_boletos_em_aberto_{inicio_mes.strftime('%Y_%m')}.xlsx"
         response = HttpResponse(
             workbook.getvalue(),
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
