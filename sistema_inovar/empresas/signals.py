@@ -51,7 +51,7 @@ def criar_pastas_empresa_handler(sender, instance, created, **kwargs):
 
             tipos_de_pasta_config = {
                 'DOCUMENTOS CONSTITUTIVOS': False, # False = não cria subestrutura ANO/MESANO
-                'OUTROS': False,
+                'HONORARIOS': True,
                 'DEPARTAMENTO PESSOAL': True,
                 'SIMPLES NACIONAL': True,
                 'XML': True

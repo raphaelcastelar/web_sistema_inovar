@@ -185,8 +185,12 @@ def documentos_constitutivos_upload_path(instance, filename):
 
 def outros_upload_path(instance, filename):
     company_folder = get_document_company_folder_name_for_upload(instance)
+    reference_date = timezone.now()
+    year = str(instance.ano or reference_date.year)
+    month_for_folder = str(instance.mes or reference_date.month).zfill(2)
+    month_year_folder = f"{month_for_folder}{year}"
     clean_filename = sanitize_filename(filename)
-    return os.path.join(company_folder, 'OUTROS', clean_filename)
+    return os.path.join(company_folder, 'HONORARIOS', year, month_year_folder, clean_filename)
 
 def timed_folder_upload_path(instance, filename, base_folder_name):
     company_folder = get_document_company_folder_name_for_upload(instance)
@@ -328,8 +332,11 @@ class Outros(models.Model):
     # id = models.AutoField(primary_key=True) 
     nome_arquivo = models.CharField(max_length=255)
     nome_empresa = models.CharField(max_length=255) # Usado por get_company_folder_identifier
+    cnpj_empresa = models.CharField(max_length=18, null=True, blank=True)
     tipo_documento = models.CharField(max_length=50) # Aumentado de 10 para 50 para consistência
     caminho_arquivo = models.FileField(upload_to=outros_upload_path, max_length=500) # ATUALIZADO
+    mes = models.CharField(max_length=2, null=True, blank=True)
+    ano = models.CharField(max_length=4, null=True, blank=True)
 
     class Meta:
         db_table = 'outros'

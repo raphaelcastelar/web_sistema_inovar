@@ -155,6 +155,19 @@ def _resolve_existing_child_folder(parent_path, expected_name):
     return exact_path, expected_name, False
 
 
+def _rename_legacy_child_folder(parent_path, legacy_name, new_name):
+    legacy_path = os.path.join(parent_path, legacy_name)
+    new_path = os.path.join(parent_path, new_name)
+    if os.path.isdir(new_path) or not os.path.isdir(legacy_path):
+        return
+
+    try:
+        os.replace(legacy_path, new_path)
+        logger.info(f"SYNC: Pasta legado renomeada de {legacy_path} para {new_path}")
+    except OSError as exc:
+        logger.warning(f"SYNC: Nao foi possivel renomear {legacy_path} para {new_path}: {exc}")
+
+
 def _extract_year_month_from_relative_parts(relative_parts):
     year = None
     month = None
@@ -416,7 +429,7 @@ MODEL_CONFIG_MAP_SYNC = {
         'model': Outros, 'serializer': OutrosSerializer,
         'company_field_name_in_doc_model': 'nome_empresa',
         'company_attr_in_empresa_model': 'nome',
-        'fs_folder_name': 'OUTROS', 'has_year_month': False
+        'fs_folder_name': 'HONORARIOS', 'has_year_month': True
     },
 }
 
@@ -813,8 +826,8 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             recipient_number = _normalize_whatsapp_number(empresa.telefone)
             reference_date = boleto.criado_em or timezone.now()
             documento_honorario = (
-                DepartamentoPessoal.objects.filter(
-                    cnpj_empresa=empresa.cnpj,
+                Outros.objects.filter(
+                    nome_empresa=empresa.nome,
                     tipo_documento='HONORARIO',
                     mes=str(reference_date.month).zfill(2),
                     ano=str(reference_date.year),
@@ -825,8 +838,8 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
 
             if not documento_honorario:
                 documento_honorario = (
-                    DepartamentoPessoal.objects.filter(
-                        cnpj_empresa=empresa.cnpj,
+                    Outros.objects.filter(
+                        nome_empresa=empresa.nome,
                         tipo_documento='HONORARIO',
                     )
                     .order_by('-ano', '-mes', '-id')
@@ -1252,6 +1265,9 @@ def sincronizar_pasta_empresa_api(request):
         settings.MEDIA_ROOT,
         company_folder_name_on_fs,
     )
+    if tipo_pasta_sync == 'outros':
+        _rename_legacy_child_folder(company_folder_path_on_fs, 'OUTROS', fs_doc_type_folder_name)
+
     base_doc_type_path_on_fs, fs_doc_type_folder_name, doc_folder_matched_by_normalization = _resolve_existing_child_folder(
         company_folder_path_on_fs,
         fs_doc_type_folder_name,
@@ -2184,14 +2200,14 @@ def enviar_boleto_honorario_whatsapp(empresa, pdf_content, nome_arquivo, usuario
             os.remove(temp_file_path)
 
 
-def salvar_boleto_honorario_departamento_pessoal(empresa, pdf_content):
+def salvar_boleto_honorario(empresa, pdf_content):
     agora = timezone.now()
     ano_referencia = str(agora.year)
     mes_referencia = str(agora.month).zfill(2)
     nome_arquivo_pasta = 'HONORARIO.pdf'
 
-    documentos_existentes = DepartamentoPessoal.objects.filter(
-        cnpj_empresa=empresa.cnpj,
+    documentos_existentes = Outros.objects.filter(
+        nome_empresa=empresa.nome,
         tipo_documento='HONORARIO',
         mes=mes_referencia,
         ano=ano_referencia,
@@ -2204,13 +2220,12 @@ def salvar_boleto_honorario_departamento_pessoal(empresa, pdf_content):
         documento_extra.delete()
 
     if documento is None:
-        documento = DepartamentoPessoal(
+        documento = Outros(
             nome_empresa=empresa.nome,
             cnpj_empresa=empresa.cnpj,
             tipo_documento='HONORARIO',
             mes=mes_referencia,
             ano=ano_referencia,
-            entregue=False,
         )
     else:
         documento.nome_empresa = empresa.nome
@@ -2218,7 +2233,6 @@ def salvar_boleto_honorario_departamento_pessoal(empresa, pdf_content):
         documento.tipo_documento = 'HONORARIO'
         documento.mes = mes_referencia
         documento.ano = ano_referencia
-        documento.entregue = False
         if documento.caminho_arquivo:
             documento.caminho_arquivo.delete(save=False)
 
@@ -2230,8 +2244,8 @@ def salvar_boleto_honorario_departamento_pessoal(empresa, pdf_content):
 
 def buscar_boleto_honorario_mes_atual(empresa):
     agora = timezone.now()
-    return DepartamentoPessoal.objects.filter(
-        cnpj_empresa=empresa.cnpj,
+    return Outros.objects.filter(
+        nome_empresa=empresa.nome,
         tipo_documento='HONORARIO',
         mes=str(agora.month).zfill(2),
         ano=str(agora.year),
@@ -2670,7 +2684,7 @@ def gerar_boleto_view(request):
     except Exception as e:
         return HttpResponse(f"Erro ao gerar PDF: {str(e)}", status=500)
 
-    documento_honorario = salvar_boleto_honorario_departamento_pessoal(empresa, pdf)
+    documento_honorario = salvar_boleto_honorario(empresa, pdf)
     nome_base_empresa = empresa.nome or 'empresa'
     nome_arquivo_boleto = sanitize_filename_for_upload(f"honorario_{nome_base_empresa}.pdf").lower()
     usuario_envio = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None

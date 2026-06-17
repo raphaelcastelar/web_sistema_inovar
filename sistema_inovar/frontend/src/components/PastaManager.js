@@ -21,9 +21,10 @@ const pastaConfig = {
     'departamento_pessoal': { label: 'Dpto. Pessoal' },
     'xml': { label: 'XML' },
     'simples_nacional': { label: 'Simples Nacional' },
-    'outros': { label: 'Outros' },
+    'outros': { label: 'Honorários' },
 };
 const pastaTypes = Object.keys(pastaConfig);
+const periodFolderTypes = ['xml', 'departamento_pessoal', 'simples_nacional', 'outros'];
 const monthOrder = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const buildFileViewUrl = (tipoPasta, arquivoId) => `${SERVER_FILE_URL_BASE}/api/arquivos/${tipoPasta}/${arquivoId}/visualizar/`;
 
@@ -82,7 +83,7 @@ const groupFilesByYearAndMonth = (files) => {
 };
 
 // --- SUB-COMPONENTE ACORDEÃO ESTILIZADO ---
-const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection }) => {
+const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, folderType }) => {
     const [activeYear, setActiveYear] = useState(null);
     const [activeMonthKey, setActiveMonthKey] = useState(null);
     const groupedData = useMemo(() => groupFilesByYearAndMonth(files), [files]);
@@ -116,7 +117,7 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection }) => {
                                                 <input type="checkbox" checked={selectedFiles.includes(file.id)} onChange={() => toggleFileSelection(file.id)} className="form-checkbox h-4 w-4 rounded bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-indigo-600 focus:ring-indigo-500"/>
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                                <a href={buildFileViewUrl(file.tipo_documento.replace(/-/g, '_'), file.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+                                                <a href={buildFileViewUrl(folderType, file.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
                                             </li>
                                         ))}
                                     </ul>
@@ -193,7 +194,7 @@ const PastaManager = () => {
             formData.append('tipo_documento', pastaTipo.replace(/_/g, '-'));
             
             // Lógica para usar o mês/ano selecionado ou o mês anterior
-            if (['xml', 'departamento_pessoal', 'simples_nacional'].includes(pastaTipo)) {
+            if (periodFolderTypes.includes(pastaTipo)) {
                 const previousUploadPeriod = getPreviousUploadPeriod();
                 const anoParaSalvar = targetUploadYear || previousUploadPeriod.year;
                 const mesParaSalvar = targetUploadMonth || previousUploadPeriod.month;
@@ -285,7 +286,7 @@ const PastaManager = () => {
                 {pastas.map(pasta => (
                     <motion.button key={pasta.id} onClick={() => handlePastaClick(pasta)} whileHover={{ y: -5 }} className={`p-4 rounded-xl text-left transition-all duration-200 border-2 ${selectedPasta?.id === pasta.id ? 'bg-indigo-50 dark:bg-indigo-900/50 border-indigo-500 shadow-lg' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md'}`}>
                         <FolderIcon className={`h-8 w-8 mb-2 ${selectedPasta?.id === pasta.id ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400'}`} />
-                        <span className="font-semibold text-gray-800 dark:text-gray-100">{pasta.tipo.replace(/_/g, ' ')}</span>
+                        <span className="font-semibold text-gray-800 dark:text-gray-100">{pastaConfig[pasta.tipo]?.label || pasta.tipo.replace(/_/g, ' ')}</span>
                     </motion.button>
                 ))}
             </div></div>
@@ -295,14 +296,14 @@ const PastaManager = () => {
                 <motion.div key={selectedPasta.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
                     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 mt-8">
                         <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                            <h3 className="text-xl font-semibold text-gray-800 dark:text-indigo-300 capitalize">{selectedPasta.tipo.replace(/_/g, ' ')}</h3>
+                            <h3 className="text-xl font-semibold text-gray-800 dark:text-indigo-300">{pastaConfig[selectedPasta.tipo]?.label || selectedPasta.tipo.replace(/_/g, ' ')}</h3>
                             <button onClick={handleRefreshSelectedPasta} disabled={isRefreshingPasta} className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors" title="Sincronizar Pasta">
                                 {isRefreshingPasta ? <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <ArrowPathIcon className="h-5 w-5" />}
                             </button>
                         </div>
                         
                         <div className="p-4 sm:p-6">
-                            {(['xml', 'departamento_pessoal', 'simples_nacional'].includes(selectedPasta.tipo)) && (
+                            {(periodFolderTypes.includes(selectedPasta.tipo)) && (
                                 <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Período para Upload (Opcional)</label>
                                     <div className="grid grid-cols-2 gap-4">
@@ -340,8 +341,8 @@ const PastaManager = () => {
                             <>
                                 {(!arquivos[selectedPasta.tipo] || arquivos[selectedPasta.tipo].length === 0) ? 
                                     <p className="text-center py-10 text-gray-500 dark:text-gray-400">Nenhum arquivo nesta pasta.</p> :
-                                    (selectedPasta.tipo === 'xml' || selectedPasta.tipo === 'departamento_pessoal' || selectedPasta.tipo === 'simples_nacional') ? (
-                                        <YearMonthAccordion files={arquivos[selectedPasta.tipo]} selectedFiles={selectedFiles} toggleFileSelection={toggleFileSelection} />
+                                    (periodFolderTypes.includes(selectedPasta.tipo)) ? (
+                                        <YearMonthAccordion files={arquivos[selectedPasta.tipo]} selectedFiles={selectedFiles} toggleFileSelection={toggleFileSelection} folderType={selectedPasta.tipo} />
                                     ) : (
                                         <ul className="space-y-1">{(arquivos[selectedPasta.tipo]).map(file => (
                                             <li key={file.id} className="flex items-center space-x-3 p-3 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
@@ -349,7 +350,7 @@ const PastaManager = () => {
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
                                                 {file.hasOwnProperty('entregue') && (<span className={`text-xs px-2 py-0.5 font-semibold rounded-full ${file.entregue ? 'bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
-                                                <a href={buildFileViewUrl(file.tipo_documento.replace(/-/g, '_'), file.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+                                                <a href={buildFileViewUrl(selectedPasta.tipo, file.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
                                             </li>
                                         ))}</ul>
                                     )
