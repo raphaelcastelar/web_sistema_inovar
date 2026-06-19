@@ -468,6 +468,179 @@ def _resolve_document_file_path(doc, empresa, tipo_pasta):
     return file_path_on_server
 
 
+def _honorario_reference_periods(boleto):
+    periods = []
+    reference_dates = []
+
+    if boleto.criado_em:
+        created_at = boleto.criado_em
+        if timezone.is_aware(created_at):
+            created_at = timezone.localtime(created_at)
+        reference_dates.append(created_at)
+
+    if boleto.data_vencimento:
+        reference_dates.append(boleto.data_vencimento)
+
+    for reference_date in reference_dates:
+        period = (str(reference_date.year), str(reference_date.month).zfill(2))
+        if period not in periods:
+            periods.append(period)
+
+    return periods
+
+
+def _honorario_company_queryset(document_model, empresa):
+    queryset = document_model.objects.filter(tipo_documento__iexact='HONORARIO')
+
+    if document_model is Outros:
+        return queryset.filter(
+            models.Q(cnpj_empresa=empresa.cnpj)
+            | models.Q(nome_empresa=empresa.nome)
+        )
+
+    return queryset.filter(cnpj_empresa=empresa.cnpj)
+
+
+def _find_existing_honorario_document(document_model, empresa, periods, tipo_pasta):
+    queryset = _honorario_company_queryset(document_model, empresa)
+    checked_ids = set()
+
+    for year, month in periods:
+        period_documents = queryset.filter(
+            ano=year,
+            mes=month,
+        ).order_by('-id')
+
+        for document in period_documents:
+            checked_ids.add(document.id)
+            file_path = _resolve_document_file_path(document, empresa, tipo_pasta)
+            if file_path and os.path.isfile(file_path):
+                return document, file_path
+
+    for document in queryset.order_by('-ano', '-mes', '-id'):
+        if document.id in checked_ids:
+            continue
+
+        file_path = _resolve_document_file_path(document, empresa, tipo_pasta)
+        if file_path and os.path.isfile(file_path):
+            return document, file_path
+
+    return None, None
+
+
+def _find_honorario_file_in_period_folder(period_folder):
+    if not os.path.isdir(period_folder):
+        return None
+
+    expected_path = os.path.join(period_folder, 'HONORARIO.pdf')
+    if os.path.isfile(expected_path):
+        return expected_path
+
+    try:
+        filenames = os.listdir(period_folder)
+    except OSError:
+        return None
+
+    for filename in filenames:
+        normalized_filename = unidecode.unidecode(filename).strip().upper()
+        if normalized_filename == 'HONORARIO.PDF':
+            candidate = os.path.join(period_folder, filename)
+            if os.path.isfile(candidate):
+                return candidate
+
+    return None
+
+
+def _find_honorario_file_on_disk(empresa, periods, folder_name):
+    company_folder_name = gerar_nome_pasta_empresa_padronizado(empresa.nome)
+    company_folder, _, _ = _resolve_existing_child_folder(
+        settings.MEDIA_ROOT,
+        company_folder_name,
+    )
+    document_folder, _, _ = _resolve_existing_child_folder(
+        company_folder,
+        folder_name,
+    )
+
+    for year, month in periods:
+        period_folder = os.path.join(document_folder, year, f'{month}{year}')
+        file_path = _find_honorario_file_in_period_folder(period_folder)
+        if file_path:
+            return file_path
+
+    if not os.path.isdir(document_folder):
+        return None
+
+    try:
+        year_names = sorted(os.listdir(document_folder), reverse=True)
+    except OSError:
+        return None
+
+    for year_name in year_names:
+        year_folder = os.path.join(document_folder, year_name)
+        if not os.path.isdir(year_folder):
+            continue
+
+        try:
+            period_names = sorted(os.listdir(year_folder), reverse=True)
+        except OSError:
+            continue
+
+        for period_name in period_names:
+            file_path = _find_honorario_file_in_period_folder(
+                os.path.join(year_folder, period_name)
+            )
+            if file_path:
+                return file_path
+
+    return None
+
+
+def buscar_boleto_honorario_para_cobranca(empresa, boleto):
+    periods = _honorario_reference_periods(boleto)
+    sources = (
+        ('database', Outros, 'outros', 'HONORARIOS'),
+        ('filesystem', None, 'HONORARIOS', 'HONORARIOS (arquivo físico)'),
+        (
+            'database',
+            DepartamentoPessoal,
+            'departamento_pessoal',
+            'DEPARTAMENTO PESSOAL (legado)',
+        ),
+        (
+            'filesystem',
+            None,
+            'DEPARTAMENTO PESSOAL',
+            'DEPARTAMENTO PESSOAL (arquivo físico legado)',
+        ),
+    )
+
+    for source_type, document_model, source_key, source_name in sources:
+        if source_type == 'database':
+            document, file_path = _find_existing_honorario_document(
+                document_model,
+                empresa,
+                periods,
+                source_key,
+            )
+        else:
+            document = None
+            file_path = _find_honorario_file_on_disk(
+                empresa,
+                periods,
+                source_key,
+            )
+
+        if file_path:
+            logger.info(
+                "Boleto de honorario localizado para cobranca. "
+                f"Empresa={empresa.nome}, origem={source_name}, caminho={file_path}"
+            )
+            return document, file_path, source_name
+
+    return None, None, None
+
+
 @api_view(['GET'])
 def visualizar_arquivo_empresa(request, tipo_pasta, arquivo_id):
     if tipo_pasta not in MODEL_CONFIG_MAP_SYNC:
@@ -824,27 +997,6 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
         for boleto in ordered_boletos:
             empresa = boleto.empresa
             recipient_number = _normalize_whatsapp_number(empresa.telefone)
-            reference_date = boleto.criado_em or timezone.now()
-            documento_honorario = (
-                Outros.objects.filter(
-                    nome_empresa=empresa.nome,
-                    tipo_documento='HONORARIO',
-                    mes=str(reference_date.month).zfill(2),
-                    ano=str(reference_date.year),
-                )
-                .order_by('-id')
-                .first()
-            )
-
-            if not documento_honorario:
-                documento_honorario = (
-                    Outros.objects.filter(
-                        nome_empresa=empresa.nome,
-                        tipo_documento='HONORARIO',
-                    )
-                    .order_by('-ano', '-mes', '-id')
-                    .first()
-                )
 
             if not recipient_number:
                 erro = 'Empresa sem telefone configurado para envio de cobrança pelo WhatsApp.'
@@ -866,13 +1018,15 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                 })
                 continue
 
-            if (
-                not documento_honorario
-                or not documento_honorario.caminho_arquivo
-                or not hasattr(documento_honorario.caminho_arquivo, 'path')
-                or not os.path.exists(documento_honorario.caminho_arquivo.path)
-            ):
-                erro = 'Boleto HONORARIO não encontrado na pasta da empresa para envio da cobrança.'
+            _, caminho_honorario, origem_honorario = (
+                buscar_boleto_honorario_para_cobranca(empresa, boleto)
+            )
+
+            if not caminho_honorario:
+                erro = (
+                    'Boleto HONORARIO não encontrado nas pastas HONORARIOS '
+                    'ou DEPARTAMENTO PESSOAL da empresa para envio da cobrança.'
+                )
                 HistoricoEnvios.objects.create(
                     remetente=recipient_number,
                     arquivo='honorario_cobranca',
@@ -895,13 +1049,25 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             nome_arquivo = sanitize_filename_for_upload(
                 f"honorario_cobranca_{empresa.nome}.pdf"
             ).lower()
-            media_id, _ = upload_media_to_whatsapp(
-                documento_honorario.caminho_arquivo.path,
-                nome_arquivo,
-            )
+            try:
+                media_id, _ = upload_media_to_whatsapp(
+                    caminho_honorario,
+                    nome_arquivo,
+                )
+            except Exception as exc:
+                logger.exception(
+                    "Erro ao abrir ou enviar boleto de honorario para o WhatsApp. "
+                    f"Empresa={empresa.nome}, caminho={caminho_honorario}"
+                )
+                media_id = None
+                upload_exception = str(exc)
+            else:
+                upload_exception = None
 
             if not media_id:
                 erro = 'Falha ao fazer upload do boleto para cobrança no WhatsApp.'
+                if upload_exception:
+                    erro = f'{erro} Detalhe: {upload_exception}'
                 HistoricoEnvios.objects.create(
                     remetente=recipient_number,
                     arquivo=nome_arquivo,
@@ -946,6 +1112,7 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
                     'status': 'sucesso',
                     'message_id': message_id,
                     'recipient_number': recipient_number,
+                    'origem_arquivo': origem_honorario,
                 })
             else:
                 HistoricoEnvios.objects.create(

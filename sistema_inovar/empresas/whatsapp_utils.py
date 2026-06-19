@@ -40,10 +40,14 @@ def upload_media_to_whatsapp(file_path, original_filename):
     headers = {"Authorization": f"Bearer {settings.WHATSAPP_ACCESS_TOKEN}"}
     mime_type, _ = mimetypes.guess_type(file_path)
     if not mime_type: mime_type = 'application/octet-stream'
-    files = {'file': (original_filename, open(file_path, 'rb'), mime_type), 'messaging_product': (None, 'whatsapp')}
     logger.info(f"Fazendo upload da mídia: {original_filename} para {url}")
     try:
-        response = requests.post(url, headers=headers, files=files)
+        with open(file_path, 'rb') as media_file:
+            files = {
+                'file': (original_filename, media_file, mime_type),
+                'messaging_product': (None, 'whatsapp'),
+            }
+            response = requests.post(url, headers=headers, files=files)
         response.raise_for_status()
         media_data = response.json()
         logger.info(f"Resposta do upload da mídia: {media_data}")
