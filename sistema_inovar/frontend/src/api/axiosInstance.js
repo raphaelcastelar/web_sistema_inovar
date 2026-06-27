@@ -3,7 +3,7 @@ import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 
 // Endereço base da sua API Django
-const baseURL = 'http://192.168.196.162:8000'; 
+const baseURL = process.env.REACT_APP_API_URL || '';
 
 const axiosInstance = axios.create({
     baseURL,

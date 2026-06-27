@@ -95,7 +95,7 @@ from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 from .pro_labore_docx import build_pro_labore_pdf
 
-WKHTMLTOPDF_PATH = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
+WKHTMLTOPDF_PATH = settings.WKHTMLTOPDF_PATH
 
 
 logger = logging.getLogger(__name__)

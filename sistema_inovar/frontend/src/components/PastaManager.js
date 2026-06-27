@@ -12,7 +12,7 @@ import {
     ArrowUpOnSquareIcon
 } from '@heroicons/react/24/outline';
 
-const SERVER_FILE_URL_BASE = 'http://192.168.196.162:8000';
+const SERVER_FILE_URL_BASE = process.env.REACT_APP_API_URL || '';
 
 // --- CONFIGURAÇÕES E FUNÇÕES AUXILIARES (DO SEU CÓDIGO ORIGINAL) ---
 
