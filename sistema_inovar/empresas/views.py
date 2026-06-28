@@ -127,8 +127,57 @@ def _relative_media_path(*path_parts):
     return os.path.join(*path_parts).replace(os.sep, '/')
 
 
+def _has_surrogate_escape(value):
+    return any(0xDC80 <= ord(char) <= 0xDCFF for char in str(value or ''))
+
+
+def _repair_surrogate_escapes(value):
+    repaired = []
+    byte_buffer = bytearray()
+
+    def flush_buffer():
+        if byte_buffer:
+            repaired.append(byte_buffer.decode('cp1252', errors='replace'))
+            byte_buffer.clear()
+
+    for char in str(value or ''):
+        codepoint = ord(char)
+        if 0xDC80 <= codepoint <= 0xDCFF:
+            byte_buffer.append(codepoint - 0xDC00)
+        else:
+            flush_buffer()
+            repaired.append(char)
+
+    flush_buffer()
+    return ''.join(repaired)
+
+
+def _ensure_sync_safe_filename(directory_path, filename):
+    if not _has_surrogate_escape(filename):
+        return filename
+
+    repaired_filename = _repair_surrogate_escapes(filename)
+    safe_filename = sanitize_filename_for_upload(repaired_filename)
+    source_path = os.path.join(directory_path, filename)
+    destination_path = os.path.join(directory_path, safe_filename)
+
+    if source_path == destination_path:
+        return safe_filename
+
+    name, extension = os.path.splitext(safe_filename)
+    counter = 1
+    while os.path.exists(destination_path):
+        safe_filename = f"{name}_{counter}{extension}"
+        destination_path = os.path.join(directory_path, safe_filename)
+        counter += 1
+
+    os.replace(source_path, destination_path)
+    logger.info("SYNC: Arquivo com nome invalido renomeado de %s para %s", filename, safe_filename)
+    return safe_filename
+
+
 def _normalize_fs_name(value):
-    value = unidecode.unidecode(str(value or '')).lower().strip()
+    value = unidecode.unidecode(_repair_surrogate_escapes(value)).lower().strip()
     return re.sub(r'\s+', ' ', value)
 
 
@@ -1548,11 +1597,18 @@ def sincronizar_pasta_empresa_api(request):
                     logger.info(f"SYNC: Ignorando arquivo de sistema: {os.path.join(current_scan_path, filename_raw_from_fs)}")
                     continue
 
+                try:
+                    filename_from_fs = _ensure_sync_safe_filename(current_scan_path, filename_raw_from_fs)
+                except OSError as exc:
+                    scan_errors.append(str(exc))
+                    logger.error(f"SYNC: Erro ao normalizar nome de arquivo {os.path.join(current_scan_path, filename_raw_from_fs)}: {exc}")
+                    continue
+
                 if config['has_year_month'] and (not item_to_scan["year"] or not item_to_scan["month"]):
-                    detected_year, detected_month = _extract_year_month_from_relative_parts(item_to_scan.get("relative_dir_parts", []) + [filename_raw_from_fs])
+                    detected_year, detected_month = _extract_year_month_from_relative_parts(item_to_scan.get("relative_dir_parts", []) + [filename_from_fs])
                     if not detected_year or not detected_month:
                         files_without_period += 1
-                        logger.warning(f"SYNC: Arquivo ignorado sem mes/ano identificavel: {os.path.join(current_scan_path, filename_raw_from_fs)}")
+                        logger.warning(f"SYNC: Arquivo ignorado sem mes/ano identificavel: {os.path.join(current_scan_path, filename_from_fs)}")
                         continue
                     item_year = detected_year
                     item_month = detected_month
@@ -1560,7 +1616,7 @@ def sincronizar_pasta_empresa_api(request):
                     item_year = item_to_scan["year"]
                     item_month = item_to_scan["month"]
 
-                path_parts = item_to_scan["sub_path_parts"] + [filename_raw_from_fs]
+                path_parts = item_to_scan["sub_path_parts"] + [filename_from_fs]
                 normalized_fs_path = _relative_media_path(*path_parts)
                 found_fs_files_normalized_paths.add(normalized_fs_path)
                 if item_year and item_month:
@@ -1570,7 +1626,7 @@ def sincronizar_pasta_empresa_api(request):
                     try:
                         doc_data = {
                             'nome_empresa': empresa.nome, # Todos os modelos de documento agora devem ter nome_empresa
-                            'nome_arquivo': filename_raw_from_fs,
+                            'nome_arquivo': filename_from_fs,
                             'tipo_documento': tipo_pasta_sync.replace("_", "-"), 
                             'caminho_arquivo': normalized_fs_path
                         }
@@ -1584,7 +1640,7 @@ def sincronizar_pasta_empresa_api(request):
 
                         existing_lookup = {
                             company_filter_key_for_doc: company_value_for_doc_filter,
-                            'nome_arquivo': filename_raw_from_fs,
+                            'nome_arquivo': filename_from_fs,
                             'tipo_documento': tipo_pasta_sync.replace("_", "-"),
                         }
                         if config['has_year_month']:
@@ -1609,7 +1665,7 @@ def sincronizar_pasta_empresa_api(request):
                     except Exception as e_create:
                         logger.error(f"SYNC: Erro ao criar registro no DB para {normalized_fs_path}: {e_create} com dados {doc_data}")
                         create_errors.append({
-                            "arquivo": filename_raw_from_fs,
+                            "arquivo": filename_from_fs,
                             "caminho": normalized_fs_path,
                             "erro": str(e_create),
                         })
