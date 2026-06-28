@@ -22,6 +22,7 @@ import {
     RocketLaunchIcon,
     BanknotesIcon,
     ChevronDownIcon,
+    TableCellsIcon,
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade2.png';
 import ThemeToggle from './ThemeToggle';
@@ -57,6 +58,7 @@ const navigationSections = [
             { to: '/inadimplencia-boletos', icon: ExclamationTriangleIcon, text: 'Inadimplência', keywords: 'inadimplencia boletos vencidos cobrancas' },
             { to: '/calculadora-honorarios', icon: CalculatorIcon, text: 'Honorários', keywords: 'calculo honorarios mensalidade' },
             { to: '/relacao-faturamento', icon: CurrencyDollarIcon, text: 'Faturamento', keywords: 'relacao faturamento receita' },
+            { to: '/relatorios', icon: TableCellsIcon, text: 'Relatorios Excel', keywords: 'relatorios excel planilhas exportar banco dados' },
             { to: '/gerar-pro-labore', icon: DocumentTextIcon, text: 'Pró-labore PDF', keywords: 'pro labore documento pdf socios' },
         ],
     },

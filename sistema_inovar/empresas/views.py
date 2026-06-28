@@ -422,6 +422,455 @@ def _build_xlsx_file(sheet_title, headers, rows, column_widths=None):
     buffer.seek(0)
     return buffer
 
+
+def _format_report_date(value):
+    if not value:
+        return ''
+    if hasattr(value, 'strftime'):
+        return value.strftime('%d/%m/%Y')
+    return str(value)
+
+
+def _format_report_datetime(value):
+    if not value:
+        return ''
+    if hasattr(value, 'strftime'):
+        return timezone.localtime(value).strftime('%d/%m/%Y %H:%M')
+    return str(value)
+
+
+def _yes_no(value):
+    return 'Sim' if value else 'Nao'
+
+
+def _format_cpf(value):
+    digits = re.sub(r'\D', '', str(value or ''))
+    if len(digits) != 11:
+        return value or ''
+    return f'{digits[:3]}.{digits[3:6]}.{digits[6:9]}-{digits[9:]}'
+
+
+def _parse_report_date(value):
+    if not value:
+        return None
+    return parse_date(str(value))
+
+
+def _visible_empresas_for_report(request):
+    queryset = Empresa.objects.prefetch_related('usuarios', 'tags', 'socios').all()
+    if not request.user.is_staff and not request.user.is_superuser:
+        queryset = queryset.filter(gerenciada_por=request.user)
+    return queryset.distinct()
+
+
+def _apply_empresa_report_filters(queryset, filters):
+    search = str(filters.get('search') or '').strip()
+    carteira = str(filters.get('carteira') or '').strip()
+    status_empresa = str(filters.get('status_empresa') or 'ativas').strip()
+    regime = str(filters.get('regime_tributario') or '').strip()
+
+    if status_empresa == 'ativas':
+        queryset = queryset.filter(ativo=True)
+    elif status_empresa == 'inativas':
+        queryset = queryset.filter(ativo=False)
+
+    if carteira:
+        queryset = queryset.filter(carteira_clientes=carteira)
+    if regime:
+        queryset = queryset.filter(regime_tributario=regime)
+    if search:
+        digits = re.sub(r'\D', '', search)
+        queryset = queryset.filter(
+            models.Q(nome__icontains=search)
+            | models.Q(cnpj__icontains=search)
+            | models.Q(email__icontains=search)
+            | models.Q(telefone__icontains=digits or search)
+        )
+
+    return queryset.distinct()
+
+
+def _workbook_response(sheet_title, filename, headers, rows, column_widths=None):
+    workbook = _build_xlsx_file(sheet_title, headers, rows, column_widths=column_widths)
+    response = HttpResponse(
+        workbook.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _build_empresas_cadastro_report(request, filters):
+    empresas = _apply_empresa_report_filters(_visible_empresas_for_report(request), filters).order_by('nome')
+    rows = []
+    for empresa in empresas:
+        rows.append([
+            empresa.nome,
+            empresa.cnpj,
+            empresa.email,
+            empresa.telefone or '',
+            empresa.cidade or '',
+            empresa.uf or '',
+            empresa.regime_tributario or '',
+            empresa.porte_empresa or '',
+            empresa.carteira_clientes or '',
+            _yes_no(empresa.simples_nacional),
+            _yes_no(empresa.ativo),
+            empresa.valor_honorario or Decimal('0.00'),
+            empresa.dia_vencimento_honorario or '',
+            ', '.join(tag.nome for tag in empresa.tags.all()),
+        ])
+
+    return _workbook_response(
+        'Cadastro de empresas',
+        'relatorio_cadastro_empresas.xlsx',
+        [
+            'Empresa', 'CNPJ', 'Email', 'Telefone', 'Cidade', 'UF', 'Regime tributario',
+            'Porte', 'Carteira', 'Simples Nacional', 'Ativa', 'Valor honorario',
+            'Dia vencimento honorario', 'Tags',
+        ],
+        rows,
+        {1: 36, 2: 20, 3: 32, 4: 18, 5: 18, 7: 20, 9: 18, 14: 34},
+    )
+
+
+def _build_carteira_responsaveis_report(request, filters):
+    empresas = _apply_empresa_report_filters(_visible_empresas_for_report(request), filters).order_by('nome')
+    rows = []
+    for empresa in empresas:
+        responsaveis = [
+            (usuario.get_full_name() or usuario.username)
+            for usuario in empresa.usuarios.all()
+        ]
+        gerentes = [
+            (usuario.get_full_name() or usuario.username)
+            for usuario in empresa.gerenciada_por.all()
+        ]
+        rows.append([
+            empresa.nome,
+            empresa.cnpj,
+            empresa.carteira_clientes or '',
+            ', '.join(responsaveis),
+            ', '.join(gerentes),
+            empresa.regime_tributario or '',
+            _yes_no(empresa.monitorar_simples),
+            _yes_no(empresa.ativo),
+        ])
+
+    return _workbook_response(
+        'Carteira',
+        'relatorio_carteira_responsaveis.xlsx',
+        ['Empresa', 'CNPJ', 'Carteira', 'Usuarios vinculados', 'Gerenciada por', 'Regime', 'Monitora simples', 'Ativa'],
+        rows,
+        {1: 36, 2: 20, 3: 18, 4: 42, 5: 42, 6: 20},
+    )
+
+
+def _build_obrigacoes_report(request, filters):
+    empresas = _apply_empresa_report_filters(_visible_empresas_for_report(request), filters).order_by('nome')
+    rows = []
+    for empresa in empresas:
+        checks = [empresa.inss, empresa.fgts, empresa.folha, empresa.honorario, empresa.simples_nacional]
+        pendentes = sum(1 for item in checks if not item)
+        rows.append([
+            empresa.nome,
+            empresa.cnpj,
+            _yes_no(empresa.inss),
+            _yes_no(empresa.fgts),
+            _yes_no(empresa.folha),
+            _yes_no(empresa.honorario),
+            _yes_no(empresa.simples_nacional),
+            pendentes,
+            empresa.carteira_clientes or '',
+            _yes_no(empresa.ativo),
+        ])
+
+    return _workbook_response(
+        'Obrigacoes',
+        'relatorio_obrigacoes_mensais.xlsx',
+        ['Empresa', 'CNPJ', 'INSS', 'FGTS', 'Folha', 'Honorario', 'Simples Nacional', 'Pendencias', 'Carteira', 'Ativa'],
+        rows,
+        {1: 36, 2: 20, 8: 14, 9: 18},
+    )
+
+
+def _build_boletos_report(request, filters):
+    empresas = _apply_empresa_report_filters(_visible_empresas_for_report(request), filters)
+    empresa_ids = empresas.values_list('id', flat=True)
+    queryset = BoletoBB.objects.select_related('empresa').filter(empresa_id__in=empresa_ids)
+
+    start_date = _parse_report_date(filters.get('data_inicio'))
+    end_date = _parse_report_date(filters.get('data_fim'))
+    status_filter = str(filters.get('status_boleto') or '').strip()
+    report_type = filters.get('report_type')
+
+    if start_date:
+        queryset = queryset.filter(data_vencimento__gte=start_date)
+    if end_date:
+        queryset = queryset.filter(data_vencimento__lte=end_date)
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+    if report_type == 'inadimplencia':
+        queryset = queryset.filter(status='registrado', data_vencimento__lt=timezone.localdate())
+
+    rows = []
+    total_original = Decimal('0.00')
+    total_pago = Decimal('0.00')
+    hoje = timezone.localdate()
+    for boleto in queryset.order_by('empresa__nome', 'data_vencimento', 'numero_titulo_cliente'):
+        total_original += boleto.valor_original or Decimal('0.00')
+        total_pago += boleto.valor_pago or Decimal('0.00')
+        dias_atraso = ''
+        if boleto.data_vencimento and boleto.status == 'registrado' and boleto.data_vencimento < hoje:
+            dias_atraso = (hoje - boleto.data_vencimento).days
+        rows.append([
+            boleto.empresa.nome,
+            boleto.empresa.cnpj,
+            boleto.numero_titulo_cliente,
+            boleto.nosso_numero or '',
+            boleto.status,
+            _format_report_date(boleto.data_vencimento),
+            _format_report_date(boleto.data_pagamento),
+            boleto.valor_original or Decimal('0.00'),
+            boleto.valor_pago or '',
+            dias_atraso,
+            boleto.empresa.telefone or '',
+        ])
+
+    rows.append(['TOTAL', '', '', '', '', '', '', total_original, total_pago, '', f'{queryset.count()} boleto(s)'])
+    filename = 'relatorio_inadimplencia_boletos.xlsx' if report_type == 'inadimplencia' else 'relatorio_boletos.xlsx'
+    sheet_title = 'Inadimplencia' if report_type == 'inadimplencia' else 'Boletos'
+    return _workbook_response(
+        sheet_title,
+        filename,
+        ['Empresa', 'CNPJ', 'Numero titulo', 'Nosso numero', 'Status', 'Vencimento', 'Pagamento', 'Valor original', 'Valor pago', 'Dias atraso', 'Telefone'],
+        rows,
+        {1: 36, 2: 20, 3: 22, 4: 20, 6: 16, 8: 16, 9: 16, 11: 18},
+    )
+
+
+def _document_rows_for_model(queryset, pasta_label, date_filtered=False):
+    rows = []
+    for item in queryset:
+        rows.append([
+            pasta_label,
+            getattr(item, 'nome_empresa', '') or '',
+            getattr(item, 'cnpj_empresa', '') or '',
+            item.nome_arquivo,
+            item.tipo_documento,
+            getattr(item, 'mes', '') or '',
+            getattr(item, 'ano', '') or '',
+            _yes_no(getattr(item, 'entregue', False)) if hasattr(item, 'entregue') else '',
+        ])
+    return rows
+
+
+def _build_documentos_report(request, filters):
+    empresas = _apply_empresa_report_filters(_visible_empresas_for_report(request), filters)
+    nomes = list(empresas.values_list('nome', flat=True))
+    cnpjs = list(empresas.values_list('cnpj', flat=True))
+    pasta = str(filters.get('pasta_documento') or '').strip()
+    ano = str(filters.get('ano') or '').strip()
+    mes = str(filters.get('mes') or '').strip().zfill(2)
+
+    sources = [
+        ('documentos_constitutivos', 'Documentos constitutivos', DocumentosConstitutivos.objects.filter(nome_empresa__in=nomes)),
+        ('departamento_pessoal', 'Departamento pessoal', DepartamentoPessoal.objects.filter(cnpj_empresa__in=cnpjs)),
+        ('simples_nacional', 'Simples Nacional', SimplesNacional.objects.filter(cnpj_empresa__in=cnpjs)),
+        ('xml', 'XML', XML.objects.filter(cnpj_empresa__in=cnpjs)),
+        ('outros', 'Outros', Outros.objects.filter(models.Q(cnpj_empresa__in=cnpjs) | models.Q(nome_empresa__in=nomes))),
+    ]
+
+    rows = []
+    for source_key, label, queryset in sources:
+        if pasta and pasta != source_key:
+            continue
+        queryset = _exclude_ignored_sync_files(queryset)
+        if ano and hasattr(queryset.model, 'ano'):
+            queryset = queryset.filter(ano=ano)
+        if mes and mes != '00' and hasattr(queryset.model, 'mes'):
+            queryset = queryset.filter(mes=mes)
+        rows.extend(_document_rows_for_model(queryset.order_by('nome_empresa', 'nome_arquivo'), label))
+
+    return _workbook_response(
+        'Documentos',
+        'relatorio_documentos.xlsx',
+        ['Pasta', 'Empresa', 'CNPJ', 'Arquivo', 'Tipo documento', 'Mes', 'Ano', 'Entregue'],
+        rows,
+        {1: 24, 2: 36, 3: 20, 4: 42, 5: 22},
+    )
+
+
+def _build_historico_envios_report(request, filters):
+    empresas = _apply_empresa_report_filters(_visible_empresas_for_report(request), filters)
+    queryset = HistoricoEnvios.objects.select_related('empresa', 'usuario').filter(empresa_id__in=empresas.values_list('id', flat=True))
+    start_date = _parse_report_date(filters.get('data_inicio'))
+    end_date = _parse_report_date(filters.get('data_fim'))
+    status_filter = str(filters.get('status_envio') or '').strip()
+
+    if start_date:
+        queryset = queryset.filter(data_hora__date__gte=start_date)
+    if end_date:
+        queryset = queryset.filter(data_hora__date__lte=end_date)
+    if status_filter:
+        queryset = queryset.filter(status=status_filter)
+
+    rows = []
+    for envio in queryset.order_by('-data_hora'):
+        rows.append([
+            _format_report_datetime(envio.data_hora),
+            envio.empresa.nome if envio.empresa else '',
+            envio.remetente,
+            envio.arquivo,
+            envio.status,
+            envio.usuario.get_full_name() or envio.usuario.username if envio.usuario else '',
+            envio.message_id or '',
+            envio.erro or '',
+        ])
+
+    return _workbook_response(
+        'Historico envios',
+        'relatorio_historico_envios.xlsx',
+        ['Data/hora', 'Empresa', 'Destinatario', 'Arquivo', 'Status', 'Usuario', 'Message ID', 'Erro'],
+        rows,
+        {1: 20, 2: 36, 3: 18, 4: 36, 6: 24, 8: 44},
+    )
+
+
+def _build_socios_honorarios_report(request, filters):
+    empresas = _apply_empresa_report_filters(_visible_empresas_for_report(request), filters).order_by('nome')
+    rows = []
+    for empresa in empresas:
+        socios = list(empresa.socios.all())
+        if not socios:
+            rows.append([
+                empresa.nome,
+                empresa.cnpj,
+                '',
+                '',
+                empresa.valor_honorario or Decimal('0.00'),
+                empresa.dia_vencimento_honorario or '',
+                empresa.carteira_clientes or '',
+                _yes_no(empresa.ativo),
+            ])
+        for socio in socios:
+            rows.append([
+                empresa.nome,
+                empresa.cnpj,
+                socio.nome,
+                socio.cpf,
+                empresa.valor_honorario or Decimal('0.00'),
+                empresa.dia_vencimento_honorario or '',
+                empresa.carteira_clientes or '',
+                _yes_no(empresa.ativo),
+            ])
+
+    return _workbook_response(
+        'Socios e honorarios',
+        'relatorio_socios_honorarios.xlsx',
+        ['Empresa', 'CNPJ', 'Socio', 'CPF', 'Honorario', 'Dia vencimento', 'Carteira', 'Ativa'],
+        rows,
+        {1: 36, 2: 20, 3: 32, 4: 18, 5: 16, 7: 18},
+    )
+
+
+def _build_socios_por_empresa_report(request, filters):
+    empresas = _apply_empresa_report_filters(_visible_empresas_for_report(request), filters).order_by('nome')
+    rows = []
+
+    for empresa in empresas:
+        socios = list(empresa.socios.all())
+        total_socios = len(socios)
+
+        if not socios:
+            rows.append([
+                empresa.nome,
+                empresa.cnpj,
+                'Sem socios cadastrados',
+                '',
+                0,
+                empresa.regime_tributario or '',
+                empresa.carteira_clientes or '',
+                _yes_no(empresa.ativo),
+            ])
+            continue
+
+        for socio in socios:
+            rows.append([
+                empresa.nome,
+                empresa.cnpj,
+                socio.nome,
+                _format_cpf(socio.cpf),
+                total_socios,
+                empresa.regime_tributario or '',
+                empresa.carteira_clientes or '',
+                _yes_no(empresa.ativo),
+            ])
+
+    return _workbook_response(
+        'Socios por empresa',
+        'relatorio_socios_por_empresa.xlsx',
+        ['Empresa', 'CNPJ', 'Socio', 'CPF', 'Total socios', 'Regime tributario', 'Carteira', 'Ativa'],
+        rows,
+        {1: 36, 2: 20, 3: 34, 4: 18, 5: 14, 6: 22, 7: 18},
+    )
+
+
+def _build_usuarios_report(request, filters):
+    if not request.user.is_staff and not request.user.is_superuser and getattr(request.user, 'cargo', None) != 'admin':
+        return Response({'error': 'Apenas administradores podem exportar usuarios.'}, status=status.HTTP_403_FORBIDDEN)
+
+    rows = []
+    for usuario in Funcionario.objects.prefetch_related('empresas_gerenciadas').order_by('first_name', 'username'):
+        rows.append([
+            usuario.username,
+            usuario.get_full_name(),
+            usuario.email,
+            usuario.cargo,
+            _yes_no(usuario.is_active),
+            _yes_no(usuario.is_staff),
+            usuario.empresas_gerenciadas.count(),
+            ', '.join(usuario.empresas_gerenciadas.values_list('nome', flat=True)),
+        ])
+
+    return _workbook_response(
+        'Usuarios',
+        'relatorio_usuarios.xlsx',
+        ['Usuario', 'Nome', 'Email', 'Cargo', 'Ativo', 'Staff', 'Qtd empresas', 'Empresas gerenciadas'],
+        rows,
+        {1: 22, 2: 28, 3: 32, 4: 24, 8: 60},
+    )
+
+
+REPORT_BUILDERS = {
+    'empresas_cadastro': _build_empresas_cadastro_report,
+    'carteira_responsaveis': _build_carteira_responsaveis_report,
+    'obrigacoes_mensais': _build_obrigacoes_report,
+    'boletos_financeiro': _build_boletos_report,
+    'inadimplencia': _build_boletos_report,
+    'documentos': _build_documentos_report,
+    'historico_envios': _build_historico_envios_report,
+    'socios_honorarios': _build_socios_honorarios_report,
+    'socios_por_empresa': _build_socios_por_empresa_report,
+    'usuarios': _build_usuarios_report,
+}
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def gerar_relatorio_excel(request):
+    report_type = str(request.data.get('report_type') or '').strip()
+    filters = request.data.get('filters') or {}
+    if not isinstance(filters, dict):
+        filters = {}
+    filters['report_type'] = report_type
+
+    builder = REPORT_BUILDERS.get(report_type)
+    if not builder:
+        return Response({'error': 'Tipo de relatorio invalido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    return builder(request, filters)
+
 MODEL_CONFIG_MAP = {
     'documentos_constitutivos': {
         'model': DocumentosConstitutivos, 

@@ -20,6 +20,7 @@ from .views import (
     gerar_pro_labore_pdf_view,
     gerar_boletos_pdf_unico_view,
     visualizar_arquivo_empresa,
+    gerar_relatorio_excel,
 )
 
 urlpatterns = [
@@ -44,4 +45,5 @@ urlpatterns = [
     path('gerar-pro-labore-pdf/', gerar_pro_labore_pdf_view, name='gerar_pro_labore_pdf'),
     path('gerar-pro-labore-docx/', gerar_pro_labore_pdf_view, name='gerar_pro_labore_docx'),
     path('arquivos/<str:tipo_pasta>/<int:arquivo_id>/visualizar/', visualizar_arquivo_empresa, name='visualizar_arquivo_empresa'),
+    path('relatorios/excel/', gerar_relatorio_excel, name='gerar_relatorio_excel'),
 ]

@@ -1,4 +1,6 @@
 sistema_inovar/sistema_inovar/.env
+/.env
+sistema_inovar/frontend/.env.local
 /.idea
 sistema_inovar/sistema_inovar/settings.py
 node_modules/
