@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -78,84 +78,24 @@ function formatDate(value) {
   return parsed.toLocaleDateString('pt-BR');
 }
 
-function normalizeRows(data) {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.results)) return data.results;
-  return [];
-}
-
 function cobrancaFailureUserMessage() {
   return 'Não foi possível enviar esta cobrança. Verifique os dados do número de WhatsApp e do boleto da empresa. Se estiver tudo correto, contate o administrador do sistema.';
 }
 
-function toRelativeApiPath(url) {
-  if (!url) return null;
-  if (url.startsWith('/')) return url;
-  try {
-    const parsed = new URL(url);
-    return `${parsed.pathname}${parsed.search || ''}`;
-  } catch (e) {
-    return null;
-  }
+async function fetchDashboardBoletoMetrics() {
+  const response = await axiosInstance.get('/api/boletos-bb/dashboard-metrics/', {
+    params: { _ts: Date.now() },
+  });
+  return response.data;
 }
 
-async function fetchAllBoletosFromApi() {
-  try {
-    let nextUrl = '/api/boletos-bb/';
-    let guard = 0;
-    const allRowsMap = new Map();
-
-    while (nextUrl && guard < 100) {
-      const response = await axiosInstance.get(nextUrl, {
-        params: { _ts: Date.now() },
-      });
-
-      const data = response?.data;
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data?.results)) {
-        data.results.forEach((row) => allRowsMap.set(String(row.id), row));
-        nextUrl = toRelativeApiPath(data.next);
-        guard += 1;
-        continue;
-      }
-
-      return normalizeRows(data);
-    }
-
-    return Array.from(allRowsMap.values());
-  } catch (err) {
-    const fallback = await axiosInstance.get('/api/boletos-bb/', {
-      params: { _ts: Date.now() },
-    });
-    return normalizeRows(fallback?.data);
-  }
-}
-
-function dateKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-function dateOnlyKey(value) {
-  if (!value) return null;
-  if (typeof value === 'string') {
-    const dateOnly = value.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
-    if (dateOnly) return dateOnly;
-  }
-  const parsed = getValidDate(value);
-  return parsed ? dateKey(parsed) : null;
-}
-
-function getValidDate(value) {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function isSameMonth(date, referenceDate) {
-  return date
-    && date.getFullYear() === referenceDate.getFullYear()
-    && date.getMonth() === referenceDate.getMonth();
-}
+const emptyBoletoMetrics = {
+  generated_count: 0,
+  paid_count: 0,
+  overdue_open_count: 0,
+  open_rows: [],
+  volume_points: [],
+};
 
 const NotificationDropdown = ({ notifications, onMarkAsRead, onClearAll }) => (
   <motion.div
@@ -199,7 +139,7 @@ const NotificationDropdown = ({ notifications, onMarkAsRead, onClearAll }) => (
 
 const InicioPage = () => {
   const [empresasSelecionadas, setEmpresasSelecionadas] = useState([]);
-  const [boletos, setBoletos] = useState([]);
+  const [boletoMetrics, setBoletoMetrics] = useState(null);
   const [userCargo, setUserCargo] = useState(null);
   const [isSuperuser, setIsSuperuser] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -225,7 +165,6 @@ const InicioPage = () => {
       hoverOffset: 4,
     }],
   });
-  const [chartLoading, setChartLoading] = useState(false); // Nova flag para controle do gráfico
   const isInitialized = useRef(false);
 
   const containerVariants = {
@@ -237,17 +176,17 @@ const InicioPage = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [userResponse, empresasResponse, boletosData] = await Promise.all([
+      const [userResponse, empresasResponse, boletoMetricsData] = await Promise.all([
         axiosInstance.get('/api/current-user/'),
         axiosInstance.get('/api/empresas/'),
-        fetchAllBoletosFromApi(),
+        fetchDashboardBoletoMetrics(),
       ]);
       console.log('Resposta /api/current-user/:', userResponse.data);
       setUserCargo(userResponse.data.cargo || 'admin');
       setIsSuperuser(userResponse.data.is_superuser || false);
       const empresasAtivas = empresasResponse.data.filter((empresa) => empresa.ativo === true);
       setEmpresasSelecionadas(empresasAtivas);
-      setBoletos(boletosData);
+      setBoletoMetrics(boletoMetricsData || emptyBoletoMetrics);
       console.log('Resposta /api/empresas/:', empresasResponse.data);
 
       const initialCheckboxState = {};
@@ -301,11 +240,10 @@ const InicioPage = () => {
   }, [userCargo, isSuperuser]);
 
   const fetchChartData = useCallback(async () => {
-    if (chartLoading || !userCargo || !empresasSelecionadas.length || !Object.keys(checkboxState).length) {
+    if (!userCargo || !empresasSelecionadas.length || !Object.keys(checkboxState).length) {
       console.log('fetchChartData: Carregando ou dados insuficientes, ignorando atualização');
       return;
     }
-    setChartLoading(true);
     try {
       let newChartData;
       if (userCargo === 'admin' || isSuperuser) {
@@ -360,10 +298,8 @@ const InicioPage = () => {
           hoverOffset: 4,
         }],
       });
-    } finally {
-      setChartLoading(false);
     }
-  }, [chartLoading, userCargo, isSuperuser, empresasSelecionadas, checkboxState, calculateTarefasPendentes]);
+  }, [userCargo, isSuperuser, empresasSelecionadas, checkboxState, calculateTarefasPendentes]);
 
   useEffect(() => {
     if (!isInitialized.current) {
@@ -554,7 +490,8 @@ const InicioPage = () => {
     return () => observer.disconnect();
   }, []);
 
-  const isInitialDataLoading = loading && !userCargo && empresasSelecionadas.length === 0 && boletos.length === 0;
+  const metrics = boletoMetrics || emptyBoletoMetrics;
+  const isInitialDataLoading = loading && !userCargo && empresasSelecionadas.length === 0 && !boletoMetrics;
   const cargoForLayout = userCargo || 'admin';
   const isDepartamentoFiscal = cargoForLayout === 'fiscal';
   const hasDiasVencimento = typeof diasVencimento === 'number';
@@ -568,55 +505,48 @@ const InicioPage = () => {
       ? 'Nenhum vencimento próximo'
       : `Vencimento em ${isDepartamentoFiscal ? '25' : '15'}/${new Date().getMonth() + (diasVencimento > 7 ? 2 : 1)}`;
 
-  const empresasAtivasCount = empresasSelecionadas.filter((empresa) => empresa.ativo).length;
-  const carteiraTasks = getTaskDefinitions(cargoForLayout, isSuperuser);
+  const empresasAtivasCount = useMemo(
+    () => empresasSelecionadas.filter((empresa) => empresa.ativo).length,
+    [empresasSelecionadas]
+  );
+  const carteiraTasks = useMemo(() => getTaskDefinitions(cargoForLayout, isSuperuser), [cargoForLayout, isSuperuser]);
   const carteiraDaysToDue = getDaysToDue(cargoForLayout);
-  const prioridadeEmpresas = empresasSelecionadas
-    .map((empresa) => ({
-      empresa,
-      status: buildCompanyStatus(empresa, carteiraTasks, carteiraDaysToDue),
-    }))
-    .filter(({ status }) => ['warning', 'attention'].includes(status.tone))
-    .sort((a, b) => a.status.priority - b.status.priority || a.empresa.nome.localeCompare(b.empresa.nome))
-    .slice(0, 6);
+  const prioridadeEmpresas = useMemo(() => (
+    empresasSelecionadas
+      .map((empresa) => ({
+        empresa,
+        status: buildCompanyStatus(empresa, carteiraTasks, carteiraDaysToDue),
+      }))
+      .filter(({ status }) => ['warning', 'attention'].includes(status.tone))
+      .sort((a, b) => a.status.priority - b.status.priority || a.empresa.nome.localeCompare(b.empresa.nome))
+      .slice(0, 6)
+  ), [empresasSelecionadas, carteiraTasks, carteiraDaysToDue]);
   const today = new Date();
   const currentMonthLabel = today.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  const boletosGeradosMesAtual = boletos.filter((boleto) => {
-    const generatedDate = getValidDate(boleto.criado_em || boleto.atualizado_em);
-    return isSameMonth(generatedDate, today);
-  });
-  const boletosPagosMesAtual = boletos.filter((boleto) => {
-    const paidDate = getValidDate(
-      boleto.data_pagamento || (boleto.status === 'pago' ? boleto.atualizado_em : null)
-    );
-    return boleto.status === 'pago' && isSameMonth(paidDate, today);
-  });
-  const boletosGeradosCount = boletosGeradosMesAtual.length;
-  const boletosPagosCount = boletosPagosMesAtual.length;
-  const todayKey = dateKey(today);
-  const currentMonthKey = todayKey.slice(0, 7);
-  const boletosVencidosEmAberto = boletos.filter((boleto) => {
-    const vencimentoKey = dateOnlyKey(boleto.data_vencimento);
-    return (
-      boleto.status === 'registrado'
-      && vencimentoKey
-      && vencimentoKey.slice(0, 7) === currentMonthKey
-      && vencimentoKey < todayKey
-    );
-  });
-  const boletosRegistradosCount = boletosVencidosEmAberto.length;
-  const empresasById = new Map(empresasSelecionadas.map((empresa) => [String(empresa.id), empresa]));
-  const boletosEmAbertoRows = boletosVencidosEmAberto.map((boleto) => {
-    const empresa = empresasById.get(String(boleto.empresa)) || {};
-    return {
-      ...boleto,
-      empresa_nome: boleto.empresa_nome || empresa.nome || 'Empresa não identificada',
-      empresa_cnpj: empresa.cnpj || '-',
-      empresa_telefone: empresa.telefone || '-',
-      empresa_numero: empresa.numero || '-',
-    };
-  });
-  const cobrancaRowIdsKey = boletosEmAbertoRows.map((boleto) => boleto.id).join('|');
+  const boletosGeradosCount = metrics.generated_count || 0;
+  const boletosPagosCount = metrics.paid_count || 0;
+  const boletosRegistradosCount = metrics.overdue_open_count || 0;
+  const boletosVencidosEmAberto = useMemo(() => metrics.open_rows || [], [metrics.open_rows]);
+  const empresasById = useMemo(
+    () => new Map(empresasSelecionadas.map((empresa) => [String(empresa.id), empresa])),
+    [empresasSelecionadas]
+  );
+  const boletosEmAbertoRows = useMemo(() => (
+    boletosVencidosEmAberto.map((boleto) => {
+      const empresa = empresasById.get(String(boleto.empresa)) || {};
+      return {
+        ...boleto,
+        empresa_nome: boleto.empresa_nome || empresa.nome || 'Empresa não identificada',
+        empresa_cnpj: boleto.empresa_cnpj || empresa.cnpj || '-',
+        empresa_telefone: boleto.empresa_telefone || empresa.telefone || '-',
+        empresa_numero: boleto.empresa_numero || empresa.numero || '-',
+      };
+    })
+  ), [boletosVencidosEmAberto, empresasById]);
+  const cobrancaRowIdsKey = useMemo(
+    () => boletosEmAbertoRows.map((boleto) => boleto.id).join('|'),
+    [boletosEmAbertoRows]
+  );
   const selectedCobrancaCount = selectedCobrancaIds.length;
   const percentualPago = isInitialDataLoading
     ? 'Aguardando boletos'
@@ -624,36 +554,7 @@ const InicioPage = () => {
     ? `${Math.round((boletosPagosCount / boletosGeradosCount) * 100)}% pagos`
     : 'Sem boletos neste mês';
 
-  const boletoVolumePoints = Array.from({ length: today.getDate() }).map((_, index) => {
-    const currentDate = new Date(today.getFullYear(), today.getMonth(), index + 1);
-    currentDate.setHours(0, 0, 0, 0);
-
-    return {
-      key: dateKey(currentDate),
-      label: currentDate.toLocaleDateString('pt-BR', { day: '2-digit' }),
-      gerados: 0,
-      pagos: 0,
-    };
-  });
-
-  const boletoVolumeMap = new Map(boletoVolumePoints.map((point) => [point.key, point]));
-
-  boletos.forEach((boleto) => {
-    const generatedDate = getValidDate(boleto.criado_em || boleto.atualizado_em);
-    const paidDate = getValidDate(
-      boleto.data_pagamento || (boleto.status === 'pago' ? boleto.atualizado_em : null)
-    );
-
-    if (generatedDate) {
-      const point = boletoVolumeMap.get(dateKey(generatedDate));
-      if (point && isSameMonth(generatedDate, today)) point.gerados += 1;
-    }
-
-    if (paidDate) {
-      const point = boletoVolumeMap.get(dateKey(paidDate));
-      if (point && boleto.status === 'pago' && isSameMonth(paidDate, today)) point.pagos += 1;
-    }
-  });
+  const boletoVolumePoints = metrics.volume_points || [];
 
   const boletoVolumeData = {
     labels: boletoVolumePoints.map((point) => point.label),

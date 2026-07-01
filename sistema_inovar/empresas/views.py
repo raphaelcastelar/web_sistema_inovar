@@ -1444,6 +1444,86 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
             )
         return qs
 
+    @action(detail=False, methods=['get'], url_path='dashboard-metrics')
+    def dashboard_metrics(self, request):
+        hoje = timezone.localdate()
+        inicio_mes = hoje.replace(day=1)
+        fim_mes = inicio_mes + relativedelta(months=1)
+
+        qs = self.get_queryset()
+        boletos_gerados_mes = qs.filter(criado_em__date__gte=inicio_mes, criado_em__date__lt=fim_mes)
+        boletos_pagos_mes = qs.filter(
+            models.Q(status='pago', data_pagamento__gte=inicio_mes, data_pagamento__lt=fim_mes)
+            | models.Q(
+                status='pago',
+                data_pagamento__isnull=True,
+                atualizado_em__date__gte=inicio_mes,
+                atualizado_em__date__lt=fim_mes,
+            )
+        )
+        boletos_vencidos_em_aberto = (
+            qs.filter(
+                status='registrado',
+                data_vencimento__gte=inicio_mes,
+                data_vencimento__lt=hoje,
+            )
+            .select_related('empresa')
+            .order_by('data_vencimento', 'empresa__nome', 'numero_titulo_cliente')
+        )
+
+        volume_by_day = {
+            inicio_mes.replace(day=day): {'gerados': 0, 'pagos': 0}
+            for day in range(1, hoje.day + 1)
+        }
+
+        for criado_em in boletos_gerados_mes.values_list('criado_em', flat=True):
+            local_date = timezone.localtime(criado_em).date() if timezone.is_aware(criado_em) else criado_em.date()
+            if local_date in volume_by_day:
+                volume_by_day[local_date]['gerados'] += 1
+
+        for data_pagamento, atualizado_em in boletos_pagos_mes.values_list('data_pagamento', 'atualizado_em'):
+            paid_date = data_pagamento
+            if not paid_date and atualizado_em:
+                paid_date = timezone.localtime(atualizado_em).date() if timezone.is_aware(atualizado_em) else atualizado_em.date()
+            if paid_date in volume_by_day:
+                volume_by_day[paid_date]['pagos'] += 1
+
+        open_rows = []
+        for boleto in boletos_vencidos_em_aberto:
+            empresa = boleto.empresa
+            open_rows.append({
+                'id': boleto.id,
+                'empresa': empresa.id,
+                'empresa_nome': empresa.nome or 'Empresa nao identificada',
+                'empresa_cnpj': empresa.cnpj or '-',
+                'empresa_telefone': empresa.telefone or '-',
+                'empresa_numero': empresa.numero or '-',
+                'numero_titulo_cliente': boleto.numero_titulo_cliente,
+                'nosso_numero': boleto.nosso_numero,
+                'valor_original': boleto.valor_original,
+                'data_vencimento': boleto.data_vencimento,
+                'status': boleto.status,
+            })
+
+        volume_points = [
+            {
+                'key': day.strftime('%Y-%m-%d'),
+                'label': day.strftime('%d'),
+                'gerados': values['gerados'],
+                'pagos': values['pagos'],
+            }
+            for day, values in volume_by_day.items()
+        ]
+
+        return Response({
+            'period': inicio_mes.strftime('%Y-%m'),
+            'generated_count': boletos_gerados_mes.count(),
+            'paid_count': boletos_pagos_mes.count(),
+            'overdue_open_count': len(open_rows),
+            'open_rows': open_rows,
+            'volume_points': volume_points,
+        })
+
     @action(detail=False, methods=['post'], url_path='enviar-cobranca')
     def enviar_cobranca(self, request):
         boleto_ids = request.data.get('boleto_ids') or []
