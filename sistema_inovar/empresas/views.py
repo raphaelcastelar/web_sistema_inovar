@@ -1272,7 +1272,9 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         if request.query_params.get('paginated') != 'true':
-            return super().list(request, *args, **kwargs)
+            queryset = self.filter_queryset(self.get_queryset())
+            serializer = self.get_serializer(queryset, many=True)
+            return Response(serializer.data)
 
         visible_tags = visible_tags_for_request(request)
         queryset = self.filter_queryset(
