@@ -1292,7 +1292,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             serializer = self.get_serializer(page, many=True)
             response = self.get_paginated_response(serializer.data)
             response.data['summary'] = summary
-            response.data['page'] = self.page.number
+            response.data['page'] = getattr(getattr(self.paginator, 'page', None), 'number', 1)
             response.data['page_size'] = self.paginator.get_page_size(request)
             return response
 
