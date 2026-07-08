@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, BuildingOffice2Icon, TagIcon, CheckCircleIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 
@@ -42,7 +41,7 @@ const EmpresaList = () => {
     const [empresas, setEmpresas] = useState([]);
     const [search, setSearch] = useState(savedListState?.search || '');
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const [, setRefreshing] = useState(false);
     const [error, setError] = useState('');
     const [isAdmin, setIsAdmin] = useState(null);
     const [tags, setTags] = useState([]);
@@ -287,15 +286,6 @@ const EmpresaList = () => {
         });
     }, [loading, empresas.length]);
 
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
-    };
-    const itemVariants = {
-        hidden: { y: 20, opacity: 0 },
-        visible: { y: 0, opacity: 1 }
-    };
-
     if (loading) {
         return (
             <div className="flex min-h-[60vh] items-center justify-center text-gray-900 dark:text-gray-100">
@@ -429,12 +419,6 @@ const EmpresaList = () => {
                 </div>
             )}
 
-            {refreshing && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-600 dark:border-slate-800 dark:bg-slate-900/70 dark:text-slate-300">
-                    Atualizando lista...
-                </div>
-            )}
-
             {visibleEmpresas.length === 0 ? (
                 <div className="rounded-lg border border-gray-200 bg-white p-10 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400" />
@@ -448,19 +432,13 @@ const EmpresaList = () => {
                 </div>
             ) : (
                 <>
-                    <motion.div
-                        className={`grid gap-4 transition-opacity md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 ${refreshing ? 'opacity-60' : 'opacity-100'}`}
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="visible"
-                    >
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                         {visibleEmpresas.map(empresa => {
                             const isInactive = !empresa.ativo;
                             const isReactivating = reactivatingId === empresa.id;
                             return (
-                                <motion.div
+                                <div
                                     key={empresa.id}
-                                    variants={itemVariants}
                                     className={`flex min-w-0 flex-col rounded-lg border bg-white shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900 ${
                                         isInactive
                                             ? 'border-amber-200 ring-1 ring-amber-100 dark:border-amber-900/70 dark:ring-amber-900/40'
@@ -533,10 +511,10 @@ const EmpresaList = () => {
                                             <FolderIcon className="h-5 w-5 mx-auto" />
                                         </Link>
                                     </div>
-                                </motion.div>
+                                </div>
                             );
                         })}
-                    </motion.div>
+                    </div>
 
                     <div className="flex flex-col items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 sm:flex-row">
                         <div>
