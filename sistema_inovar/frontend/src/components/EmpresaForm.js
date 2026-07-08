@@ -12,6 +12,8 @@ import {
     TagIcon,
     PlusIcon,
     TrashIcon,
+    XCircleIcon,
+    CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 
 const emptyEmpresa = {
@@ -33,6 +35,7 @@ const emptyEmpresa = {
     usuarios: [],
     tag_ids: [],
     socios: [],
+    ativo: true,
 };
 
 const regimeTributarioOptions = ['SIMPLES NACIONAL', 'LUCRO REAL', 'LUCRO PRESUMIDO', 'OUTROS'];
@@ -65,6 +68,7 @@ const EmpresaForm = () => {
     const [newTagColor, setNewTagColor] = useState('#3B82F6');
     const [creatingTag, setCreatingTag] = useState(false);
     const [deletingTagId, setDeletingTagId] = useState(null);
+    const [updatingStatus, setUpdatingStatus] = useState(false);
     const [activeSection, setActiveSection] = useState('dados');
 
     const validateAndSetTelefoneFeedback = useCallback((inputValue) => {
@@ -140,6 +144,7 @@ const EmpresaForm = () => {
                         socios: Array.isArray(response.data.socios)
                             ? response.data.socios.map((s) => ({ id: s.id, nome: s.nome || '', cpf: s.cpf || '' }))
                             : [],
+                        ativo: response.data.ativo !== false,
                     });
                     validateAndSetTelefoneFeedback(displayTelefone);
                 } catch {
@@ -182,6 +187,33 @@ const EmpresaForm = () => {
             } catch {
                 setError('Erro ao consultar o CEP. Tente novamente.');
             }
+        }
+    };
+
+    const handleToggleAtivo = async () => {
+        if (!isEditing) return;
+
+        const nextAtivo = empresa.ativo === false;
+        const actionLabel = nextAtivo ? 'reativar' : 'desativar';
+        const confirmed = window.confirm(`Deseja ${actionLabel} a empresa "${empresa.nome || 'selecionada'}"?`);
+
+        if (!confirmed) return;
+
+        setUpdatingStatus(true);
+        setError(null);
+        try {
+            await axiosInstance.patch(`/api/empresas/${empresaId}/`, { ativo: nextAtivo });
+            setEmpresa((prev) => ({ ...prev, ativo: nextAtivo }));
+        } catch (err) {
+            const apiError = err.response?.data;
+            if (apiError && typeof apiError === 'object') {
+                const errorMessages = Object.entries(apiError).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`);
+                setError(errorMessages.join(' | '));
+            } else {
+                setError(`Não foi possível ${actionLabel} a empresa.`);
+            }
+        } finally {
+            setUpdatingStatus(false);
         }
     };
 
@@ -414,7 +446,9 @@ const EmpresaForm = () => {
                             </div>
                             <div className="rounded-xl bg-gray-50 px-3 py-3 text-center dark:bg-gray-900">
                                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Status</div>
-                                <div className="mt-1 text-sm font-bold text-emerald-600 dark:text-emerald-300">Em edição</div>
+                                <div className={`mt-1 text-sm font-bold ${empresa.ativo === false ? 'text-red-600 dark:text-red-300' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                                    {isEditing ? (empresa.ativo === false ? 'Desativada' : 'Ativa') : 'Nova'}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -777,6 +811,20 @@ const EmpresaForm = () => {
                         </div>
 
                         <div className="sticky bottom-4 z-10 flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-800/95 sm:flex-row sm:items-center sm:justify-end">
+                        {isEditing && (
+                            <button
+                                type="button"
+                                onClick={handleToggleAtivo}
+                                className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${empresa.ativo === false
+                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50'
+                                    : 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50'
+                                }`}
+                                disabled={loading || updatingStatus}
+                            >
+                                {empresa.ativo === false ? <CheckCircleIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
+                                {updatingStatus ? 'Atualizando...' : (empresa.ativo === false ? 'Reativar Empresa' : 'Desativar Empresa')}
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={() => navigate('/empresas')}
