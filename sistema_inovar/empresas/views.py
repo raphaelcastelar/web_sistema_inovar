@@ -81,7 +81,7 @@ from .models import (
 )
 from .serializers import (
     TagSerializer,
-    EmpresaSerializer, EmpresaCompactSerializer, EmpresaListSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
+    EmpresaSerializer, EmpresaCompactSerializer, EmpresaListSerializer, EmpresaOperationalListSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
     UltimoResultadoSessaoSerializer, BoletoBBSerializer, visible_tags_for_request, unique_tags_by_name
@@ -1189,6 +1189,8 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             return EmpresaCompactSerializer
         if self.action == 'list' and self.request.query_params.get('paginated') == 'true':
             return EmpresaListSerializer
+        if self.action == 'list' and self.request.query_params.get('full') != 'true':
+            return EmpresaOperationalListSerializer
         return super().get_serializer_class()
 
     def get_permissions(self):
@@ -1264,6 +1266,10 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         if self.action == 'list' and self.request.query_params.get('compact') == 'true':
             return queryset.only('id', 'nome', 'cnpj', 'ativo')
         visible_tags = visible_tags_for_request(self.request)
+        if self.action == 'list' and self.request.query_params.get('full') != 'true':
+            return queryset.prefetch_related(
+                Prefetch('tags', queryset=visible_tags.order_by('nome', 'cargo', 'id'), to_attr='visible_tags_cache'),
+            )
         return queryset.prefetch_related(
             Prefetch('socios', queryset=Socio.objects.order_by('nome', 'id')),
             Prefetch('tags', queryset=visible_tags.order_by('nome', 'cargo', 'id'), to_attr='visible_tags_cache'),
@@ -2664,11 +2670,13 @@ def toggle_monitoramento_simples(request, empresa_id):
 @permission_classes([IsAdminUser])
 def gerenciamento_atribuicao_data(request):
     try:
-        funcionarios = Funcionario.objects.all().order_by('first_name')
-        empresas = Empresa.objects.all().order_by('nome')
+        funcionarios = Funcionario.objects.prefetch_related(
+            Prefetch('empresas_gerenciadas', queryset=Empresa.objects.only('id').order_by('id'))
+        ).all().order_by('first_name')
+        empresas = Empresa.objects.only('id', 'nome', 'cnpj', 'ativo').order_by('nome')
         data = {
             'funcionarios': FuncionarioSerializer(funcionarios, many=True).data,
-            'empresas': EmpresaSerializer(empresas, many=True).data
+            'empresas': EmpresaCompactSerializer(empresas, many=True).data
         }
         return Response(data)
     except Exception as e:
@@ -2695,9 +2703,23 @@ def salvar_atribuicoes(request):
 @permission_classes([IsAuthenticated])
 def current_user(request):
     try:
-        serializer = FuncionarioSerializer(request.user)
-        logger.info(f"Dados do usuário atual: {serializer.data}")
-        return Response(serializer.data)
+        if request.query_params.get('full') == 'true':
+            serializer = FuncionarioSerializer(request.user)
+            return Response(serializer.data)
+
+        user = request.user
+        return Response({
+            'id': user.id,
+            'username': user.username,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email,
+            'is_active': user.is_active,
+            'is_staff': user.is_staff,
+            'is_superuser': user.is_superuser,
+            'theme': getattr(user, 'theme', 'light'),
+            'cargo': getattr(user, 'cargo', 'pessoal'),
+        })
     except Exception as e:
         logger.error(f"Error in current_user: {str(e)}")
         return Response({'error': f'Erro ao obter dados do usuário: {str(e)}'}, status=500)

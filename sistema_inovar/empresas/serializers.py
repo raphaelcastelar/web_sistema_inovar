@@ -268,6 +268,43 @@ class EmpresaListSerializer(serializers.ModelSerializer):
         return TagSerializer(tags, many=True, context=self.context).data
 
 
+class EmpresaOperationalListSerializer(EmpresaListSerializer):
+    class Meta:
+        model = Empresa
+        fields = [
+            'id',
+            'nome',
+            'cnpj',
+            'email',
+            'telefone',
+            'endereco',
+            'numero',
+            'cep',
+            'cidade',
+            'bairro',
+            'uf',
+            'simples_nacional',
+            'regime_tributario',
+            'porte_empresa',
+            'carteira_clientes',
+            'grupo_atividade',
+            'anexo_simples',
+            'inss',
+            'fgts',
+            'folha',
+            'honorario',
+            'monitorar_simples',
+            'ativo',
+            'valor_honorario',
+            'dia_vencimento_honorario',
+            'juros_mora_taxa',
+            'multa_taxa',
+            'desconto_taxa',
+            'dias_para_desconto',
+            'tags',
+        ]
+
+
 class EmpresaAvulsaFaturamentoSerializer(serializers.ModelSerializer):
     inscricaoEstadual = serializers.CharField(source='inscricao_estadual', required=False, allow_blank=True, allow_null=True)
 
