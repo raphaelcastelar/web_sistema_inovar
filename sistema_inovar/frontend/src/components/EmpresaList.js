@@ -8,6 +8,7 @@ import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, Build
 const EMPRESA_LIST_STATE_KEY = 'empresaListState';
 const DEFAULT_CARTEIRA_OPTIONS = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
 const PAGE_SIZE = 24;
+const PAGE_CACHE_LIMIT = 30;
 
 const getSavedListState = () => {
     try {
@@ -36,6 +37,7 @@ const EmpresaList = () => {
     const savedListStateRef = React.useRef(getSavedListState());
     const skipInitialVisibleResetRef = React.useRef(Boolean(savedListStateRef.current));
     const hasLoadedOnceRef = React.useRef(false);
+    const pageCacheRef = React.useRef(new Map());
     const savedListState = savedListStateRef.current;
     const [empresas, setEmpresas] = useState([]);
     const [search, setSearch] = useState(savedListState?.search || '');
@@ -96,7 +98,80 @@ const EmpresaList = () => {
         setPage(1);
     }, [debouncedSearch, activeTab, selectedTagIds, selectedCarteira]);
 
-    const fetchEmpresas = useCallback(async () => {
+    const buildRequestParams = useCallback((pageNumber) => {
+        const params = {
+            paginated: 'true',
+            page: pageNumber,
+            page_size: PAGE_SIZE,
+            ativo: activeTab === 'ativadas' ? 'true' : 'false',
+        };
+
+        const trimmedSearch = debouncedSearch.trim();
+        if (trimmedSearch) params.search = trimmedSearch;
+        if (selectedCarteira) params.carteira_clientes = selectedCarteira;
+        if (selectedTagIds.length > 0) params.tags = [...selectedTagIds].sort().join(',');
+
+        return params;
+    }, [activeTab, debouncedSearch, selectedCarteira, selectedTagIds]);
+
+    const getCacheKey = useCallback((pageNumber) => {
+        const params = buildRequestParams(pageNumber);
+        return JSON.stringify(params);
+    }, [buildRequestParams]);
+
+    const applyPageData = useCallback((data) => {
+        const results = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : []);
+
+        setEmpresas(results);
+        setTotalCount(Number(data.count) || results.length);
+        setNextPageUrl(data.next || null);
+        setPreviousPageUrl(data.previous || null);
+        setSummary({
+            total: Number(data.summary?.total) || 0,
+            ativadas: Number(data.summary?.ativadas) || 0,
+            naoAtivadas: Number(data.summary?.nao_ativadas) || 0,
+        });
+    }, []);
+
+    const rememberPageData = useCallback((cacheKey, data) => {
+        const cache = pageCacheRef.current;
+        if (cache.has(cacheKey)) cache.delete(cacheKey);
+        cache.set(cacheKey, data);
+
+        while (cache.size > PAGE_CACHE_LIMIT) {
+            const oldestKey = cache.keys().next().value;
+            cache.delete(oldestKey);
+        }
+    }, []);
+
+    const prefetchPage = useCallback(async (pageNumber) => {
+        const cacheKey = getCacheKey(pageNumber);
+        if (pageCacheRef.current.has(cacheKey)) return;
+
+        try {
+            const response = await axiosInstance.get('/api/empresas/', {
+                params: buildRequestParams(pageNumber),
+            });
+            rememberPageData(cacheKey, response.data || {});
+        } catch {
+            // Prefetch é uma melhoria oportunista; falhas aqui não devem incomodar o usuário.
+        }
+    }, [buildRequestParams, getCacheKey, rememberPageData]);
+
+    const fetchEmpresas = useCallback(async ({ force = false } = {}) => {
+        const cacheKey = getCacheKey(page);
+        const cachedData = pageCacheRef.current.get(cacheKey);
+        if (!force && cachedData) {
+            applyPageData(cachedData);
+            hasLoadedOnceRef.current = true;
+            setLoading(false);
+            setRefreshing(false);
+            if (cachedData.next) {
+                prefetchPage(page + 1);
+            }
+            return;
+        }
+
         const hasLoadedOnce = hasLoadedOnceRef.current;
         if (hasLoadedOnce) {
             setRefreshing(true);
@@ -105,31 +180,15 @@ const EmpresaList = () => {
         }
         setError('');
         try {
-            const params = {
-                paginated: 'true',
-                page,
-                page_size: PAGE_SIZE,
-                ativo: activeTab === 'ativadas' ? 'true' : 'false',
-            };
-
-            const trimmedSearch = debouncedSearch.trim();
-            if (trimmedSearch) params.search = trimmedSearch;
-            if (selectedCarteira) params.carteira_clientes = selectedCarteira;
-            if (selectedTagIds.length > 0) params.tags = selectedTagIds.join(',');
-
-            const response = await axiosInstance.get('/api/empresas/', { params });
-            const data = response.data || {};
-            const results = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : []);
-
-            setEmpresas(results);
-            setTotalCount(Number(data.count) || results.length);
-            setNextPageUrl(data.next || null);
-            setPreviousPageUrl(data.previous || null);
-            setSummary({
-                total: Number(data.summary?.total) || 0,
-                ativadas: Number(data.summary?.ativadas) || 0,
-                naoAtivadas: Number(data.summary?.nao_ativadas) || 0,
+            const response = await axiosInstance.get('/api/empresas/', {
+                params: buildRequestParams(page),
             });
+            const data = response.data || {};
+            rememberPageData(cacheKey, data);
+            applyPageData(data);
+            if (data.next) {
+                prefetchPage(page + 1);
+            }
         } catch (err) {
             console.error('Erro ao carregar empresas:', err.response?.data || err.message);
             if (err.response?.status === 404 && page > 1) {
@@ -144,7 +203,7 @@ const EmpresaList = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [activeTab, debouncedSearch, page, selectedCarteira, selectedTagIds]);
+    }, [applyPageData, buildRequestParams, getCacheKey, page, prefetchPage, rememberPageData]);
 
     useEffect(() => {
         fetchEmpresas();
@@ -154,7 +213,8 @@ const EmpresaList = () => {
         if (window.confirm('Tem certeza que deseja excluir esta empresa? Esta ação apaga também a pasta da empresa no servidor.')) {
             axiosInstance.delete(`/api/empresas/${id}/`)
                 .then(() => {
-                    fetchEmpresas();
+                    pageCacheRef.current.clear();
+                    fetchEmpresas({ force: true });
                 })
                 .catch(error => {
                     console.error('Erro ao excluir empresa:', error.response?.data || error.message);
@@ -172,7 +232,8 @@ const EmpresaList = () => {
         try {
             await axiosInstance.patch(`/api/empresas/${empresa.id}/`, { ativo: true });
             setStatusMessage({ type: 'success', text: `${empresa.nome} foi reativada com sucesso.` });
-            fetchEmpresas();
+            pageCacheRef.current.clear();
+            fetchEmpresas({ force: true });
         } catch (err) {
             console.error('Erro ao reativar empresa:', err.response?.data || err.message);
             setStatusMessage({
