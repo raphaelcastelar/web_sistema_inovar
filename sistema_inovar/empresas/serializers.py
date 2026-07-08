@@ -26,6 +26,16 @@ def unique_tags_by_name(tags):
     return list(unique_tags.values())
 
 
+def _get_request_visible_tag_ids(request):
+    if request is None:
+        return None
+
+    cache_attr = '_visible_tag_ids_cache'
+    if not hasattr(request, cache_attr):
+        setattr(request, cache_attr, set(visible_tags_for_request(request).values_list('id', flat=True)))
+    return getattr(request, cache_attr)
+
+
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
@@ -105,8 +115,18 @@ class EmpresaSerializer(serializers.ModelSerializer):
 
     def get_tags(self, obj):
         request = self.context.get('request')
-        visible_tag_ids = visible_tags_for_request(request).values_list('id', flat=True)
-        tags = obj.tags.filter(id__in=visible_tag_ids).order_by('nome', 'cargo', 'id')
+        tags = getattr(obj, 'visible_tags_cache', None)
+        if tags is None:
+            visible_tag_ids = _get_request_visible_tag_ids(request)
+            prefetched = getattr(obj, '_prefetched_objects_cache', {}).get('tags')
+            if prefetched is not None:
+                tags = prefetched
+            else:
+                tags = obj.tags.all()
+
+            if visible_tag_ids is not None:
+                tags = [tag for tag in tags if tag.id in visible_tag_ids]
+        tags = sorted(tags, key=lambda tag: ((tag.nome or '').lower(), tag.cargo or '', tag.id))
         if getattr(getattr(request, 'user', None), 'cargo', None) == 'admin':
             tags = unique_tags_by_name(tags)
         return TagSerializer(tags, many=True, context=self.context).data
@@ -219,6 +239,12 @@ class EmpresaSerializer(serializers.ModelSerializer):
         return instance
 
 
+class EmpresaCompactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Empresa
+        fields = ['id', 'nome', 'cnpj', 'ativo']
+
+
 class EmpresaAvulsaFaturamentoSerializer(serializers.ModelSerializer):
     inscricaoEstadual = serializers.CharField(source='inscricao_estadual', required=False, allow_blank=True, allow_null=True)
 
@@ -289,10 +315,10 @@ class HistoricoEnviosSerializer(serializers.ModelSerializer):
         remetente = validated_data.get('remetente', '')
         normalized_remetente = remetente.replace('+', '') if remetente.startswith('+') else remetente
         validated_data['remetente'] = normalized_remetente
-        empresas = Empresa.objects.filter(telefone=normalized_remetente)
-        empresa = empresas.first() if empresas.count() == 1 else None
+        empresas = list(Empresa.objects.filter(telefone=normalized_remetente).only('id')[:2])
+        empresa = empresas[0] if len(empresas) == 1 else None
 
-        if empresas.count() > 1:
+        if len(empresas) > 1:
             logger.warning(
                 f"Telefone {normalized_remetente} está associado a múltiplas empresas. "
                 "O histórico não vai inferir automaticamente a empresa."
@@ -312,10 +338,10 @@ class HistoricoEnviosSerializer(serializers.ModelSerializer):
         normalized_remetente = remetente.replace('+', '') if remetente.startswith('+') else remetente
         validated_data['remetente'] = normalized_remetente
 
-        empresas = Empresa.objects.filter(telefone=normalized_remetente)
-        empresa = empresas.first() if empresas.count() == 1 else None
+        empresas = list(Empresa.objects.filter(telefone=normalized_remetente).only('id')[:2])
+        empresa = empresas[0] if len(empresas) == 1 else None
 
-        if empresas.count() > 1:
+        if len(empresas) > 1:
             logger.warning(
                 f"Telefone {normalized_remetente} está associado a múltiplas empresas. "
                 "O histórico não vai inferir automaticamente a empresa na atualização."

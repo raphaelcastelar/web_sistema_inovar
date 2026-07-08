@@ -234,7 +234,7 @@ const GerarProLaborePage = () => {
     }, [brutoInformado, calculoValores.inss, calculoValores.irrf, calculoValores.liquido, valorLiquidoExtensoAuto]);
 
     useEffect(() => {
-        axiosInstance.get('/api/empresas/')
+        axiosInstance.get('/api/empresas/?compact=true')
             .then((res) => setEmpresas(Array.isArray(res.data) ? res.data : []))
             .catch(() => setMsg({ type: 'error', text: 'Nao foi possivel carregar empresas.' }));
     }, []);

@@ -77,6 +77,13 @@ class Empresa(models.Model):
     def __str__(self):
         return self.nome
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['ativo', 'nome'], name='empresa_ativo_nome_idx'),
+            models.Index(fields=['telefone'], name='empresa_telefone_idx'),
+            models.Index(fields=['monitorar_simples'], name='empresa_monitorar_idx'),
+        ]
+
     def save(self, *args, **kwargs):
         is_new = self._state.adding
         super().save(*args, **kwargs)
@@ -111,6 +118,9 @@ class Tag(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['nome', 'cargo'], name='unique_tag_nome_por_cargo'),
         ]
+        indexes = [
+            models.Index(fields=['cargo', 'nome'], name='tag_cargo_nome_idx'),
+        ]
 
     def __str__(self):
         return self.nome
@@ -133,6 +143,9 @@ class EmpresaAvulsaFaturamento(models.Model):
     class Meta:
         db_table = 'empresas_avulsas_faturamento'
         ordering = ['nome']
+        indexes = [
+            models.Index(fields=['nome'], name='emp_avulsa_nome_idx'),
+        ]
 
     def __str__(self):
         return self.nome
@@ -149,6 +162,9 @@ class Socio(models.Model):
         ordering = ['nome']
         constraints = [
             models.UniqueConstraint(fields=['empresa', 'cpf'], name='unique_socio_cpf_por_empresa'),
+        ]
+        indexes = [
+            models.Index(fields=['empresa', 'nome'], name='socio_empresa_nome_idx'),
         ]
 
     def __str__(self):
@@ -263,6 +279,10 @@ class DocumentosConstitutivos(models.Model):
     class Meta:
         unique_together = ('nome_arquivo', 'nome_empresa', 'tipo_documento')
         db_table = 'empresas_documentosconstitutivos'
+        indexes = [
+            models.Index(fields=['nome_empresa'], name='doc_const_nome_emp_idx'),
+            models.Index(fields=['tipo_documento', 'nome_empresa'], name='doc_const_tipo_emp_idx'),
+        ]
 
     def save(self, *args, **kwargs):
         logger.info(f"Salvando DocumentosConstitutivos: {self.nome_arquivo}")
@@ -281,6 +301,12 @@ class XML(models.Model):
     mes = models.CharField(max_length=2, null=False) # Alterado para max_length=2 para "01", "12"
     ano = models.CharField(max_length=4, null=False)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['cnpj_empresa', 'ano', 'mes'], name='xml_cnpj_ano_mes_idx'),
+            models.Index(fields=['tipo_documento', 'cnpj_empresa'], name='xml_tipo_cnpj_idx'),
+        ]
+
     def save(self, *args, **kwargs):
         logger.info(f"Salvando XML: {self.nome_arquivo}")
         super().save(*args, **kwargs)
@@ -298,6 +324,13 @@ class DepartamentoPessoal(models.Model):
     mes = models.CharField(max_length=2, null=False) # Alterado para max_length=2
     ano = models.CharField(max_length=4, null=False)
     entregue = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['cnpj_empresa', 'ano', 'mes'], name='dp_cnpj_ano_mes_idx'),
+            models.Index(fields=['tipo_documento', 'cnpj_empresa'], name='dp_tipo_cnpj_idx'),
+            models.Index(fields=['entregue', 'cnpj_empresa'], name='dp_entregue_cnpj_idx'),
+        ]
 
     def save(self, *args, **kwargs):
         logger.info(f"Salvando DepartamentoPessoal: {self.nome_arquivo}")
@@ -319,6 +352,11 @@ class SimplesNacional(models.Model):
 
     class Meta:
         unique_together = ('nome_arquivo', 'cnpj_empresa', 'tipo_documento', 'mes', 'ano')
+        indexes = [
+            models.Index(fields=['cnpj_empresa', 'ano', 'mes'], name='sn_cnpj_ano_mes_idx'),
+            models.Index(fields=['tipo_documento', 'cnpj_empresa'], name='sn_tipo_cnpj_idx'),
+            models.Index(fields=['entregue', 'cnpj_empresa'], name='sn_entregue_cnpj_idx'),
+        ]
 
     def save(self, *args, **kwargs):
         logger.info(f"Salvando SimplesNacional: {self.nome_arquivo}")
@@ -340,6 +378,11 @@ class Outros(models.Model):
 
     class Meta:
         db_table = 'outros'
+        indexes = [
+            models.Index(fields=['nome_empresa', 'ano', 'mes'], name='outros_emp_ano_mes_idx'),
+            models.Index(fields=['cnpj_empresa', 'ano', 'mes'], name='outros_cnpj_ano_mes_idx'),
+            models.Index(fields=['tipo_documento', 'nome_empresa'], name='outros_tipo_emp_idx'),
+        ]
 
     def __str__(self):
         return self.nome_arquivo
@@ -364,6 +407,13 @@ class HistoricoEnvios(models.Model):
     class Meta:
         db_table = 'historico_envios'
         ordering = ['-data_hora']
+        indexes = [
+            models.Index(fields=['-data_hora'], name='hist_env_data_desc_idx'),
+            models.Index(fields=['status', '-data_hora'], name='hist_env_status_data_idx'),
+            models.Index(fields=['empresa', '-data_hora'], name='hist_env_emp_data_idx'),
+            models.Index(fields=['usuario', '-data_hora'], name='hist_env_user_data_idx'),
+            models.Index(fields=['remetente'], name='hist_env_remetente_idx'),
+        ]
 
     def __str__(self):
         return f"Envio para {self.remetente} em {self.data_hora.strftime('%d/%m/%Y %H:%M')} - Status: {self.status}"
@@ -416,6 +466,11 @@ class ObrigacaoMensal(models.Model):
     class Meta:
         unique_together = ('empresa', 'tipo', 'periodo_apuracao')
         ordering = ['-periodo_apuracao', 'data_vencimento']
+        indexes = [
+            models.Index(fields=['status', 'data_vencimento'], name='obrig_status_venc_idx'),
+            models.Index(fields=['empresa', 'tipo', 'periodo_apuracao'], name='obrig_emp_tipo_period_idx'),
+            models.Index(fields=['tipo', 'periodo_apuracao'], name='obrig_tipo_period_idx'),
+        ]
 
     def save(self, *args, **kwargs):
         if self.tipo == 'simples_nacional' and not self.data_vencimento:
@@ -434,6 +489,9 @@ class UserCompanyAccess(models.Model):
     created_by = models.ForeignKey(Funcionario, null=True, on_delete=models.SET_NULL, related_name='created_accesses')
     class Meta:
         unique_together = ('user', 'empresa')
+        indexes = [
+            models.Index(fields=['empresa', 'user'], name='usercomp_empresa_user_idx'),
+        ]
 
 class Pendencia(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='pendencias')
@@ -449,6 +507,10 @@ class Pendencia(models.Model):
     class Meta:
         verbose_name = 'Pendência'
         verbose_name_plural = 'Pendências'
+        indexes = [
+            models.Index(fields=['empresa', 'tipo'], name='pendencia_empresa_tipo_idx'),
+            models.Index(fields=['-data_criacao'], name='pendencia_data_desc_idx'),
+        ]
 
     def __str__(self):
         return f"{self.empresa.nome} - {self.tipo}"
@@ -462,6 +524,10 @@ class Notificacao(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['destinatario', 'lida', '-timestamp'], name='notif_dest_lida_data_idx'),
+            models.Index(fields=['destinatario', '-timestamp'], name='notif_dest_data_idx'),
+        ]
 
     def __str__(self):
         return f"Notificação para {self.destinatario.username}: {self.mensagem}"
@@ -512,6 +578,9 @@ class BoletoBB(models.Model):
         indexes = [
             models.Index(fields=['numero_titulo_cliente']),
             models.Index(fields=['nosso_numero']),
+            models.Index(fields=['status', 'data_vencimento'], name='boleto_status_venc_idx'),
+            models.Index(fields=['empresa', 'status'], name='boleto_empresa_status_idx'),
+            models.Index(fields=['-atualizado_em', '-criado_em'], name='boleto_atual_criado_idx'),
         ]
         ordering = ['-criado_em']
 

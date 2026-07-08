@@ -29,7 +29,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.core.files.base import ContentFile
 from datetime import timedelta
-from django.db.models import OuterRef, Subquery, CharField
+from django.db.models import OuterRef, Prefetch, Subquery, CharField
 from django.db import models
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
@@ -80,7 +80,7 @@ from .models import (
 )
 from .serializers import (
     TagSerializer,
-    EmpresaSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
+    EmpresaSerializer, EmpresaCompactSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
     UltimoResultadoSessaoSerializer, BoletoBBSerializer, visible_tags_for_request, unique_tags_by_name
@@ -1172,9 +1172,14 @@ def visualizar_arquivo_empresa(request, tipo_pasta, arquivo_id):
     return response
 
 class EmpresaViewSet(viewsets.ModelViewSet):
-    queryset = Empresa.objects.prefetch_related('socios', 'tags').all().order_by('nome')
+    queryset = Empresa.objects.all().order_by('nome')
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action == 'list' and self.request.query_params.get('compact') == 'true':
+            return EmpresaCompactSerializer
+        return super().get_serializer_class()
 
     def get_permissions(self):
         if self.action in ['create', 'destroy']:  # Apenas create e destroy para admins
@@ -1187,10 +1192,11 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        visible_tag_ids = visible_tags_for_request(self.request).values_list('id', flat=True)
+        visible_tags = visible_tags_for_request(self.request)
+        visible_tag_ids = visible_tags.values_list('id', flat=True)
         tag_id = self.request.query_params.get('tag') or self.request.query_params.get('tag_id')
         if tag_id and str(tag_id).isdigit():
-            if not visible_tags_for_request(self.request).filter(id=tag_id).exists():
+            if not visible_tags.filter(id=tag_id).exists():
                 return queryset.none()
             queryset = queryset.filter(tags__id=tag_id)
 
@@ -1204,11 +1210,20 @@ class EmpresaViewSet(viewsets.ModelViewSet):
                     return queryset.none()
                 queryset = queryset.filter(tags__id__in=scoped_tag_ids)
 
-        if self.request.query_params.get('all') == 'true':
-            return queryset.distinct()
-        if not self.request.user.is_staff and not self.request.user.is_superuser:
+        if (
+            self.request.query_params.get('all') != 'true'
+            and not self.request.user.is_staff
+            and not self.request.user.is_superuser
+        ):
             queryset = queryset.filter(gerenciada_por=self.request.user)
-        return queryset.distinct()
+        queryset = queryset.distinct()
+        if self.action == 'list' and self.request.query_params.get('compact') == 'true':
+            return queryset.only('id', 'nome', 'cnpj', 'ativo')
+        return queryset.prefetch_related(
+            Prefetch('socios', queryset=Socio.objects.order_by('nome', 'id')),
+            Prefetch('tags', queryset=visible_tags.order_by('nome', 'cargo', 'id'), to_attr='visible_tags_cache'),
+            Prefetch('usuarios', queryset=Funcionario.objects.only('id').order_by('id')),
+        )
 
     def destroy(self, request, *args, **kwargs):
         try:
@@ -1267,7 +1282,7 @@ class DocumentosConstitutivosViewSet(viewsets.ModelViewSet):
         empresa_id = self.kwargs.get('empresa_id') or self.request.query_params.get('empresa_id')
         if empresa_id:
             try:
-                empresa = Empresa.objects.get(id=empresa_id)
+                empresa = Empresa.objects.only('nome').get(id=empresa_id)
                 return _exclude_ignored_sync_files(DocumentosConstitutivos.objects.filter(nome_empresa=empresa.nome))
             except Empresa.DoesNotExist:
                 return DocumentosConstitutivos.objects.none()
@@ -1281,7 +1296,7 @@ class DepartamentoPessoalViewSet(viewsets.ModelViewSet):
         empresa_id = self.kwargs.get('empresa_id') or self.request.query_params.get('empresa_id')
         if empresa_id:
             try:
-                empresa = Empresa.objects.get(id=empresa_id)
+                empresa = Empresa.objects.only('cnpj').get(id=empresa_id)
                 return _exclude_ignored_sync_files(DepartamentoPessoal.objects.filter(cnpj_empresa=empresa.cnpj))
             except Empresa.DoesNotExist:
                 return DepartamentoPessoal.objects.none()
@@ -1295,7 +1310,7 @@ class XMLViewSet(viewsets.ModelViewSet):
         empresa_id = self.kwargs.get('empresa_id') or self.request.query_params.get('empresa_id')
         if empresa_id:
             try:
-                empresa = Empresa.objects.get(id=empresa_id)
+                empresa = Empresa.objects.only('cnpj').get(id=empresa_id)
                 return _exclude_ignored_sync_files(XML.objects.filter(cnpj_empresa=empresa.cnpj))
             except Empresa.DoesNotExist:
                 return XML.objects.none()
@@ -1309,7 +1324,7 @@ class SimplesNacionalViewSet(viewsets.ModelViewSet):
         empresa_id = self.kwargs.get('empresa_id') or self.request.query_params.get('empresa_id')
         if empresa_id:
             try:
-                empresa = Empresa.objects.get(id=empresa_id)
+                empresa = Empresa.objects.only('cnpj').get(id=empresa_id)
                 return _exclude_ignored_sync_files(SimplesNacional.objects.filter(cnpj_empresa=empresa.cnpj))
             except Empresa.DoesNotExist:
                 return SimplesNacional.objects.none()
@@ -1323,14 +1338,14 @@ class OutrosViewSet(viewsets.ModelViewSet):
         empresa_id = self.kwargs.get('empresa_id') or self.request.query_params.get('empresa_id')
         if empresa_id:
             try:
-                empresa = Empresa.objects.get(id=empresa_id)
+                empresa = Empresa.objects.only('nome').get(id=empresa_id)
                 return _exclude_ignored_sync_files(Outros.objects.filter(nome_empresa=empresa.nome))
             except Empresa.DoesNotExist:
                 return Outros.objects.none()
         return _exclude_ignored_sync_files(super().get_queryset())
 
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = HistoricoEnvios.objects.all()
+    queryset = HistoricoEnvios.objects.select_related('empresa', 'usuario').all()
     serializer_class = HistoricoEnviosSerializer
     filter_backends = [DjangoFilterBackend] # Adicione esta linha
     filterset_class = HistoricoEnviosFilter   # Adicione esta linha
@@ -1367,7 +1382,9 @@ class TagViewSet(viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
 class FuncionarioViewSet(viewsets.ModelViewSet):
-    queryset = Funcionario.objects.prefetch_related('empresas_gerenciadas').all().order_by('first_name')
+    queryset = Funcionario.objects.prefetch_related(
+        Prefetch('empresas_gerenciadas', queryset=Empresa.objects.only('id').order_by('id'))
+    ).all().order_by('first_name')
     serializer_class = FuncionarioSerializer
     permission_classes = [IsAdminUser]
 
@@ -1386,7 +1403,10 @@ class FuncionarioViewSet(viewsets.ModelViewSet):
         
 class PendenciaAPIView(APIView):
     def get(self, request):
-        pendencias = Pendencia.objects.all()
+        pendencias = Pendencia.objects.select_related('empresa').prefetch_related(
+            Prefetch('empresa__socios', queryset=Socio.objects.order_by('nome', 'id')),
+            Prefetch('empresa__tags', queryset=visible_tags_for_request(request).order_by('nome', 'cargo', 'id'), to_attr='visible_tags_cache'),
+        ).all()
         serializer = PendenciaSerializer(pendencias, many=True)
         return Response(serializer.data)
 
