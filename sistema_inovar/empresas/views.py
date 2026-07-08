@@ -1263,6 +1263,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         queryset = queryset.distinct()
         if self.action == 'list' and self.request.query_params.get('compact') == 'true':
             return queryset.only('id', 'nome', 'cnpj', 'ativo')
+        visible_tags = visible_tags_for_request(self.request)
         return queryset.prefetch_related(
             Prefetch('socios', queryset=Socio.objects.order_by('nome', 'id')),
             Prefetch('tags', queryset=visible_tags.order_by('nome', 'cargo', 'id'), to_attr='visible_tags_cache'),
