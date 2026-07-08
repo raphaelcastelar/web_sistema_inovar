@@ -245,6 +245,29 @@ class EmpresaCompactSerializer(serializers.ModelSerializer):
         fields = ['id', 'nome', 'cnpj', 'ativo']
 
 
+class EmpresaListSerializer(serializers.ModelSerializer):
+    tags = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Empresa
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'carteira_clientes', 'ativo', 'tags']
+
+    def get_tags(self, obj):
+        request = self.context.get('request')
+        tags = getattr(obj, 'visible_tags_cache', None)
+        if tags is None:
+            visible_tag_ids = _get_request_visible_tag_ids(request)
+            prefetched = getattr(obj, '_prefetched_objects_cache', {}).get('tags')
+            tags = prefetched if prefetched is not None else obj.tags.all()
+            if visible_tag_ids is not None:
+                tags = [tag for tag in tags if tag.id in visible_tag_ids]
+
+        tags = sorted(tags, key=lambda tag: ((tag.nome or '').lower(), tag.cargo or '', tag.id))
+        if getattr(getattr(request, 'user', None), 'cargo', None) == 'admin':
+            tags = unique_tags_by_name(tags)
+        return TagSerializer(tags, many=True, context=self.context).data
+
+
 class EmpresaAvulsaFaturamentoSerializer(serializers.ModelSerializer):
     inscricaoEstadual = serializers.CharField(source='inscricao_estadual', required=False, allow_blank=True, allow_null=True)
 

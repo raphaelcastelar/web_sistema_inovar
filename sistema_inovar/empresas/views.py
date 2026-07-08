@@ -36,6 +36,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import viewsets, status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
@@ -80,7 +81,7 @@ from .models import (
 )
 from .serializers import (
     TagSerializer,
-    EmpresaSerializer, EmpresaCompactSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
+    EmpresaSerializer, EmpresaCompactSerializer, EmpresaListSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
     UltimoResultadoSessaoSerializer, BoletoBBSerializer, visible_tags_for_request, unique_tags_by_name
@@ -1171,14 +1172,23 @@ def visualizar_arquivo_empresa(request, tipo_pasta, arquivo_id):
     response['Content-Disposition'] = f'inline; filename="{urllib.parse.quote(doc.nome_arquivo)}"'
     return response
 
+class EmpresaPagination(PageNumberPagination):
+    page_size = 24
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all().order_by('nome')
     serializer_class = EmpresaSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = EmpresaPagination
 
     def get_serializer_class(self):
         if self.action == 'list' and self.request.query_params.get('compact') == 'true':
             return EmpresaCompactSerializer
+        if self.action == 'list' and self.request.query_params.get('paginated') == 'true':
+            return EmpresaListSerializer
         return super().get_serializer_class()
 
     def get_permissions(self):
@@ -1190,7 +1200,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated()]
         return [IsAuthenticated()]  # Padrão para list e retrieve
 
-    def get_queryset(self):
+    def _build_filtered_queryset(self, include_status_filter=True):
         queryset = super().get_queryset()
         visible_tags = visible_tags_for_request(self.request)
         visible_tag_ids = visible_tags.values_list('id', flat=True)
@@ -1210,12 +1220,46 @@ class EmpresaViewSet(viewsets.ModelViewSet):
                     return queryset.none()
                 queryset = queryset.filter(tags__id__in=scoped_tag_ids)
 
+        search = str(self.request.query_params.get('search') or '').strip()
+        if search:
+            search_digits = re.sub(r'\D+', '', search)
+            search_filter = (
+                models.Q(nome__icontains=search) |
+                models.Q(cnpj__icontains=search) |
+                models.Q(email__icontains=search) |
+                models.Q(telefone__icontains=search)
+            )
+            if search_digits:
+                search_filter |= (
+                    models.Q(cnpj__icontains=search_digits) |
+                    models.Q(telefone__icontains=search_digits)
+                )
+            queryset = queryset.filter(search_filter)
+
+        carteira = (
+            self.request.query_params.get('carteira_clientes')
+            or self.request.query_params.get('carteira')
+        )
+        if carteira:
+            queryset = queryset.filter(carteira_clientes=carteira)
+
+        if include_status_filter:
+            ativo = str(self.request.query_params.get('ativo') or '').strip().lower()
+            if ativo in {'true', '1', 'sim', 'ativo', 'ativadas'}:
+                queryset = queryset.filter(ativo=True)
+            elif ativo in {'false', '0', 'nao', 'não', 'inativo', 'inativa', 'desativadas', 'nao-ativadas'}:
+                queryset = queryset.filter(ativo=False)
+
         if (
             self.request.query_params.get('all') != 'true'
             and not self.request.user.is_staff
             and not self.request.user.is_superuser
         ):
             queryset = queryset.filter(gerenciada_por=self.request.user)
+        return queryset.distinct()
+
+    def get_queryset(self):
+        queryset = self._build_filtered_queryset()
         queryset = queryset.distinct()
         if self.action == 'list' and self.request.query_params.get('compact') == 'true':
             return queryset.only('id', 'nome', 'cnpj', 'ativo')
@@ -1224,6 +1268,41 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             Prefetch('tags', queryset=visible_tags.order_by('nome', 'cargo', 'id'), to_attr='visible_tags_cache'),
             Prefetch('usuarios', queryset=Funcionario.objects.only('id').order_by('id')),
         )
+
+    def list(self, request, *args, **kwargs):
+        if request.query_params.get('paginated') != 'true':
+            return super().list(request, *args, **kwargs)
+
+        visible_tags = visible_tags_for_request(request)
+        queryset = self.filter_queryset(
+            self._build_filtered_queryset().prefetch_related(
+                Prefetch('tags', queryset=visible_tags.order_by('nome', 'cargo', 'id'), to_attr='visible_tags_cache'),
+            )
+        )
+        summary_queryset = self._build_filtered_queryset(include_status_filter=False)
+        summary = {
+            'total': summary_queryset.count(),
+            'ativadas': summary_queryset.filter(ativo=True).count(),
+            'nao_ativadas': summary_queryset.filter(ativo=False).count(),
+        }
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            response = self.get_paginated_response(serializer.data)
+            response.data['summary'] = summary
+            response.data['page'] = self.paginator.page.number
+            response.data['page_size'] = self.paginator.get_page_size(request)
+            return response
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'count': len(serializer.data),
+            'next': None,
+            'previous': None,
+            'results': serializer.data,
+            'summary': summary,
+        })
 
     def destroy(self, request, *args, **kwargs):
         try:

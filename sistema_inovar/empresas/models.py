@@ -3,6 +3,7 @@ import os
 import re # Para sanitizar nomes de pastas/arquivos
 import unidecode # Para remover acentos de nomes de pastas/arquivos (pip install unidecode)
 from django.db import models
+from django.contrib.postgres.indexes import GinIndex
 from django.utils import timezone
 from decimal import Decimal
 import logging
@@ -82,6 +83,10 @@ class Empresa(models.Model):
             models.Index(fields=['ativo', 'nome'], name='empresa_ativo_nome_idx'),
             models.Index(fields=['telefone'], name='empresa_telefone_idx'),
             models.Index(fields=['monitorar_simples'], name='empresa_monitorar_idx'),
+            GinIndex(fields=['nome'], name='empresa_nome_trgm_idx', opclasses=['gin_trgm_ops']),
+            GinIndex(fields=['cnpj'], name='empresa_cnpj_trgm_idx', opclasses=['gin_trgm_ops']),
+            GinIndex(fields=['email'], name='empresa_email_trgm_idx', opclasses=['gin_trgm_ops']),
+            GinIndex(fields=['telefone'], name='empresa_tel_trgm_idx', opclasses=['gin_trgm_ops']),
         ]
 
     def save(self, *args, **kwargs):

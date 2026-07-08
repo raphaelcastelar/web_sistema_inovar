@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -7,6 +7,7 @@ import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, Build
 
 const EMPRESA_LIST_STATE_KEY = 'empresaListState';
 const DEFAULT_CARTEIRA_OPTIONS = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
+const PAGE_SIZE = 24;
 
 const getSavedListState = () => {
     try {
@@ -46,10 +47,19 @@ const EmpresaList = () => {
     const [activeTab, setActiveTab] = useState(savedListState?.activeTab || 'ativadas'); // 'ativadas' ou 'nao-ativadas'
     const [reactivatingId, setReactivatingId] = useState(null);
     const [statusMessage, setStatusMessage] = useState(null);
+    const [page, setPage] = useState(Math.max(Number(savedListState?.page) || 1, 1));
+    const [totalCount, setTotalCount] = useState(0);
+    const [nextPageUrl, setNextPageUrl] = useState(null);
+    const [previousPageUrl, setPreviousPageUrl] = useState(null);
+    const [summary, setSummary] = useState({ total: 0, ativadas: 0, naoAtivadas: 0 });
+    const [debouncedSearch, setDebouncedSearch] = useState(savedListState?.search || '');
 
-    // Estado para controle do Infinite Scroll
-    const [visibleCount, setVisibleCount] = useState(Math.max(Number(savedListState?.visibleCount) || 24, 24)); // Começa mostrando 24
-    const observerTarget = React.useRef(null);
+    useEffect(() => {
+        const timeoutId = window.setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 300);
+        return () => window.clearTimeout(timeoutId);
+    }, [search]);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -60,21 +70,6 @@ const EmpresaList = () => {
                 console.error('Erro ao verificar permissões:', err.response?.data || err.message);
                 setError('Erro ao verificar permissões');
                 setIsAdmin(false);
-            }
-        };
-
-        const fetchEmpresas = async () => {
-            setLoading(true);
-            try {
-                const response = await axiosInstance.get('/api/empresas/?all=true');
-                setEmpresas(response.data);
-            } catch (err) {
-                console.error('Erro ao carregar empresas:', err.response?.data || err.message);
-                setError(err.response?.status === 403
-                    ? 'Você não tem permissão para visualizar empresas.'
-                    : `Erro ao carregar empresas: ${err.response?.data?.detail || err.message}`);
-            } finally {
-                setLoading(false);
             }
         };
 
@@ -89,23 +84,68 @@ const EmpresaList = () => {
 
         fetchUser();
         fetchTags();
-        fetchEmpresas();
     }, []);
 
-    // Resetar a contagem visível quando mudar a busca ou a aba
     useEffect(() => {
         if (skipInitialVisibleResetRef.current) {
             skipInitialVisibleResetRef.current = false;
             return;
         }
-        setVisibleCount(24);
-    }, [search, activeTab, selectedTagIds, selectedCarteira]);
+        setPage(1);
+    }, [debouncedSearch, activeTab, selectedTagIds, selectedCarteira]);
+
+    const fetchEmpresas = useCallback(async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const params = {
+                paginated: 'true',
+                page,
+                page_size: PAGE_SIZE,
+                ativo: activeTab === 'ativadas' ? 'true' : 'false',
+            };
+
+            const trimmedSearch = debouncedSearch.trim();
+            if (trimmedSearch) params.search = trimmedSearch;
+            if (selectedCarteira) params.carteira_clientes = selectedCarteira;
+            if (selectedTagIds.length > 0) params.tags = selectedTagIds.join(',');
+
+            const response = await axiosInstance.get('/api/empresas/', { params });
+            const data = response.data || {};
+            const results = Array.isArray(data.results) ? data.results : (Array.isArray(data) ? data : []);
+
+            setEmpresas(results);
+            setTotalCount(Number(data.count) || results.length);
+            setNextPageUrl(data.next || null);
+            setPreviousPageUrl(data.previous || null);
+            setSummary({
+                total: Number(data.summary?.total) || 0,
+                ativadas: Number(data.summary?.ativadas) || 0,
+                naoAtivadas: Number(data.summary?.nao_ativadas) || 0,
+            });
+        } catch (err) {
+            console.error('Erro ao carregar empresas:', err.response?.data || err.message);
+            if (err.response?.status === 404 && page > 1) {
+                setPage(1);
+                return;
+            }
+            setError(err.response?.status === 403
+                ? 'Você não tem permissão para visualizar empresas.'
+                : `Erro ao carregar empresas: ${err.response?.data?.detail || err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    }, [activeTab, debouncedSearch, page, selectedCarteira, selectedTagIds]);
+
+    useEffect(() => {
+        fetchEmpresas();
+    }, [fetchEmpresas]);
 
     const handleDelete = (id) => {
         if (window.confirm('Tem certeza que deseja excluir esta empresa? Esta ação apaga também a pasta da empresa no servidor.')) {
             axiosInstance.delete(`/api/empresas/${id}/`)
                 .then(() => {
-                    setEmpresas(empresas.filter(empresa => empresa.id !== id));
+                    fetchEmpresas();
                 })
                 .catch(error => {
                     console.error('Erro ao excluir empresa:', error.response?.data || error.message);
@@ -122,10 +162,8 @@ const EmpresaList = () => {
 
         try {
             await axiosInstance.patch(`/api/empresas/${empresa.id}/`, { ativo: true });
-            setEmpresas((prev) => prev.map((item) => (
-                item.id === empresa.id ? { ...item, ativo: true } : item
-            )));
             setStatusMessage({ type: 'success', text: `${empresa.nome} foi reativada com sucesso.` });
+            fetchEmpresas();
         } catch (err) {
             console.error('Erro ao reativar empresa:', err.response?.data || err.message);
             setStatusMessage({
@@ -146,7 +184,7 @@ const EmpresaList = () => {
             activeTab,
             selectedTagIds,
             selectedCarteira,
-            visibleCount,
+            page,
         }));
     };
 
@@ -158,97 +196,14 @@ const EmpresaList = () => {
         ));
     };
 
-    const filteredEmpresas = useMemo(() => {
-        const lowercasedSearch = search.toLowerCase().trim();
-        const selectedTagNameById = tags.reduce((acc, tag) => {
-            acc[String(tag.id)] = tag.nome?.toLowerCase().trim();
-            return acc;
-        }, {});
-
-        const matchesSelectedTags = (empresa) => {
-            if (selectedTagIds.length === 0) return true;
-
-            const empresaTagNames = new Set(
-                (empresa.tags || [])
-                    .map((tag) => tag.nome?.toLowerCase().trim())
-                    .filter(Boolean)
-            );
-            const empresaTagIds = new Set((empresa.tags || []).map((tag) => String(tag.id)));
-
-            return selectedTagIds.every((tagId) => {
-                const tagName = selectedTagNameById[tagId];
-                return tagName ? empresaTagNames.has(tagName) : empresaTagIds.has(tagId);
-            });
-        };
-
-        const matchesSelectedCarteira = (empresa) => {
-            if (!selectedCarteira) return true;
-            return empresa.carteira_clientes === selectedCarteira;
-        };
-
-        if (!lowercasedSearch) {
-            return empresas.filter((empresa) => {
-                const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
-                const matchTag = matchesSelectedTags(empresa);
-                const matchCarteira = matchesSelectedCarteira(empresa);
-                return isInTab && matchTag && matchCarteira;
-            });
-        }
-        const searchDigits = search.replace(/\D/g, '');
-        return empresas.filter(empresa => {
-            const matchNome = empresa.nome?.toLowerCase().includes(lowercasedSearch);
-            const matchEmail = empresa.email?.toLowerCase().includes(lowercasedSearch);
-            let matchCnpj = false;
-            if (searchDigits.length > 0) {
-                const cleanedEmpresaCnpj = empresa.cnpj?.replace(/\D/g, '');
-                matchCnpj = cleanedEmpresaCnpj?.includes(searchDigits);
-            }
-            const matchTag = matchesSelectedTags(empresa);
-            const matchCarteira = matchesSelectedCarteira(empresa);
-            const isInTab = activeTab === 'ativadas' ? empresa.ativo : !empresa.ativo;
-            return (matchNome || matchEmail || matchCnpj) && isInTab && matchTag && matchCarteira;
-        });
-    }, [empresas, search, activeTab, selectedTagIds, selectedCarteira, tags]);
-
-    // Intersection Observer para carregar mais itens
-    useEffect(() => {
-        const target = observerTarget.current;
-        if (!target) return;
-
-        // Usa threshold mais baixo e rootMargin para acionar antes do fim da lista
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0].isIntersecting) {
-                    setVisibleCount((prev) => prev + 24);
-                }
-            },
-            { threshold: 0.25, rootMargin: '200px' }
-        );
-
-        observer.observe(target);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, [filteredEmpresas.length, visibleCount]);
-
-    const visibleEmpresas = filteredEmpresas.slice(0, visibleCount);
-
-    const summary = useMemo(() => {
-        const ativadas = empresas.filter((empresa) => empresa.ativo).length;
-        const naoAtivadas = empresas.length - ativadas;
-        return { total: empresas.length, ativadas, naoAtivadas };
-    }, [empresas]);
+    const visibleEmpresas = empresas;
+    const totalPages = Math.max(Math.ceil(totalCount / PAGE_SIZE), 1);
 
     const carteiraOptions = useMemo(() => {
         const options = new Set(DEFAULT_CARTEIRA_OPTIONS);
-        empresas.forEach((empresa) => {
-            if (empresa.carteira_clientes) {
-                options.add(empresa.carteira_clientes);
-            }
-        });
+        if (selectedCarteira) options.add(selectedCarteira);
         return Array.from(options);
-    }, [empresas]);
+    }, [selectedCarteira]);
 
     useEffect(() => {
         const stateToRestore = savedListStateRef.current;
@@ -260,7 +215,7 @@ const EmpresaList = () => {
             sessionStorage.removeItem(EMPRESA_LIST_STATE_KEY);
             savedListStateRef.current = null;
         });
-    }, [loading, filteredEmpresas.length, visibleCount]);
+    }, [loading, empresas.length]);
 
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -404,7 +359,7 @@ const EmpresaList = () => {
                 </div>
             )}
 
-            {filteredEmpresas.length === 0 ? (
+            {visibleEmpresas.length === 0 ? (
                 <div className="rounded-lg border border-gray-200 bg-white p-10 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400" />
                     <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">
@@ -507,12 +462,30 @@ const EmpresaList = () => {
                         })}
                     </motion.div>
 
-                    {/* Elemento sentinela para o Infinite Scroll */}
-                    {visibleCount < filteredEmpresas.length && (
-                        <div ref={observerTarget} className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                            Carregando mais empresas...
+                    <div className="flex flex-col items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 sm:flex-row">
+                        <div>
+                            Mostrando página <span className="font-semibold">{page}</span> de <span className="font-semibold">{totalPages}</span>
+                            {' '}({totalCount} empresa{totalCount === 1 ? '' : 's'})
                         </div>
-                    )}
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                                disabled={!previousPageUrl || loading}
+                                className="rounded-md bg-slate-100 px-3 py-2 font-semibold text-slate-700 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                            >
+                                Anterior
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPage((current) => current + 1)}
+                                disabled={!nextPageUrl || loading}
+                                className="rounded-md bg-slate-900 px-3 py-2 font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+                            >
+                                Próxima
+                            </button>
+                        </div>
+                    </div>
                 </>
             )}
         </div>
