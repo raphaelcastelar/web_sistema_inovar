@@ -5,6 +5,7 @@ import { PencilIcon, TrashIcon, PlusIcon, FolderIcon, MagnifyingGlassIcon, Build
 
 
 const EMPRESA_LIST_STATE_KEY = 'empresaListState';
+const EMPRESA_PAGE_CACHE_KEY = 'empresaListPageCache';
 const DEFAULT_CARTEIRA_OPTIONS = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
 const PAGE_SIZE = 24;
 const PAGE_CACHE_LIMIT = 30;
@@ -14,6 +15,23 @@ const getSavedListState = () => {
         return JSON.parse(sessionStorage.getItem(EMPRESA_LIST_STATE_KEY) || 'null');
     } catch {
         return null;
+    }
+};
+
+const getSavedPageCache = () => {
+    try {
+        const entries = JSON.parse(sessionStorage.getItem(EMPRESA_PAGE_CACHE_KEY) || '[]');
+        return new Map(Array.isArray(entries) ? entries : []);
+    } catch {
+        return new Map();
+    }
+};
+
+const savePageCache = (cache) => {
+    try {
+        sessionStorage.setItem(EMPRESA_PAGE_CACHE_KEY, JSON.stringify(Array.from(cache.entries())));
+    } catch {
+        // Se o navegador negar armazenamento, o cache em memória ainda funciona.
     }
 };
 
@@ -36,7 +54,7 @@ const EmpresaList = () => {
     const savedListStateRef = React.useRef(getSavedListState());
     const skipInitialVisibleResetRef = React.useRef(Boolean(savedListStateRef.current));
     const hasLoadedOnceRef = React.useRef(false);
-    const pageCacheRef = React.useRef(new Map());
+    const pageCacheRef = React.useRef(getSavedPageCache());
     const savedListState = savedListStateRef.current;
     const [empresas, setEmpresas] = useState([]);
     const [search, setSearch] = useState(savedListState?.search || '');
@@ -141,21 +159,8 @@ const EmpresaList = () => {
             const oldestKey = cache.keys().next().value;
             cache.delete(oldestKey);
         }
+        savePageCache(cache);
     }, []);
-
-    const prefetchPage = useCallback(async (pageNumber) => {
-        const cacheKey = getCacheKey(pageNumber);
-        if (pageCacheRef.current.has(cacheKey)) return;
-
-        try {
-            const response = await axiosInstance.get('/api/empresas/', {
-                params: buildRequestParams(pageNumber),
-            });
-            rememberPageData(cacheKey, response.data || {});
-        } catch {
-            // Prefetch é uma melhoria oportunista; falhas aqui não devem incomodar o usuário.
-        }
-    }, [buildRequestParams, getCacheKey, rememberPageData]);
 
     const fetchEmpresas = useCallback(async ({ force = false } = {}) => {
         const cacheKey = getCacheKey(page);
@@ -165,9 +170,6 @@ const EmpresaList = () => {
             hasLoadedOnceRef.current = true;
             setLoading(false);
             setRefreshing(false);
-            if (cachedData.next) {
-                prefetchPage(page + 1);
-            }
             return;
         }
 
@@ -185,9 +187,6 @@ const EmpresaList = () => {
             const data = response.data || {};
             rememberPageData(cacheKey, data);
             applyPageData(data);
-            if (data.next) {
-                prefetchPage(page + 1);
-            }
         } catch (err) {
             console.error('Erro ao carregar empresas:', err.response?.data || err.message);
             if (err.response?.status === 404 && page > 1) {
@@ -202,7 +201,7 @@ const EmpresaList = () => {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [applyPageData, buildRequestParams, getCacheKey, page, prefetchPage, rememberPageData]);
+    }, [applyPageData, buildRequestParams, getCacheKey, page, rememberPageData]);
 
     useEffect(() => {
         fetchEmpresas();
@@ -213,6 +212,7 @@ const EmpresaList = () => {
             axiosInstance.delete(`/api/empresas/${id}/`)
                 .then(() => {
                     pageCacheRef.current.clear();
+                    savePageCache(pageCacheRef.current);
                     fetchEmpresas({ force: true });
                 })
                 .catch(error => {
@@ -232,6 +232,7 @@ const EmpresaList = () => {
             await axiosInstance.patch(`/api/empresas/${empresa.id}/`, { ativo: true });
             setStatusMessage({ type: 'success', text: `${empresa.nome} foi reativada com sucesso.` });
             pageCacheRef.current.clear();
+            savePageCache(pageCacheRef.current);
             fetchEmpresas({ force: true });
         } catch (err) {
             console.error('Erro ao reativar empresa:', err.response?.data || err.message);
