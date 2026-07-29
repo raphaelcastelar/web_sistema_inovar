@@ -9,6 +9,48 @@ import base64
 
 logger = logging.getLogger(__name__)
 
+CNPJ_LENGTH = 14
+_CNPJ_PATTERN = re.compile(r'^[A-Z0-9]{12}[0-9]{2}$')
+_CNPJ_FIRST_DIGIT_WEIGHTS = (5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2)
+_CNPJ_SECOND_DIGIT_WEIGHTS = (6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2)
+
+
+def normalize_cnpj(value):
+    """Remove somente a máscara do CNPJ, preservando eventuais letras."""
+    return re.sub(r'[.\-/\s]', '', str(value or '')).upper()
+
+
+def format_cnpj(value):
+    normalized = normalize_cnpj(value)
+    if len(normalized) != CNPJ_LENGTH:
+        return normalized
+    return (
+        f'{normalized[:2]}.{normalized[2:5]}.{normalized[5:8]}/'
+        f'{normalized[8:12]}-{normalized[12:]}'
+    )
+
+
+def _calculate_cnpj_digit(characters, weights):
+    total = sum((ord(character) - 48) * weight for character, weight in zip(characters, weights))
+    remainder = total % 11
+    return '0' if remainder < 2 else str(11 - remainder)
+
+
+def is_valid_cnpj(value):
+    """Valida CNPJs numéricos legados e CNPJs alfanuméricos."""
+    normalized = normalize_cnpj(value)
+    if not _CNPJ_PATTERN.fullmatch(normalized):
+        return False
+    if len(set(normalized[:12])) == 1:
+        return False
+    first_digit = _calculate_cnpj_digit(normalized[:12], _CNPJ_FIRST_DIGIT_WEIGHTS)
+    second_digit = _calculate_cnpj_digit(
+        normalized[:12] + first_digit,
+        _CNPJ_SECOND_DIGIT_WEIGHTS,
+    )
+    return normalized[-2:] == first_digit + second_digit
+
+
 def gerar_nome_pasta_empresa_padronizado(nome_da_empresa_str):
     """
     Retorna o nome da empresa exatamente como está, sem nenhum tratamento.

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axiosInstance from '../api/axiosInstance';
+import { normalizeCnpj } from '../utils/cnpj';
 
 const Section = ({ title, children }) => {
     const [open, setOpen] = useState(false);
@@ -89,7 +90,7 @@ const GerarBoletoPage = () => {
                 ...prev,
                 pagador: {
                     tipoInscricao: 2,
-                    numeroInscricao: (empresa.cnpj || '').toString().replace(/\D/g, ''),
+                    numeroInscricao: normalizeCnpj(empresa.cnpj),
                     nome: empresa.nome || '',
                     endereco: empresa.endereco || '',
                     cep: (empresa.cep || '').toString(),

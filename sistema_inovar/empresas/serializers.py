@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
+from .utils import format_cnpj, is_valid_cnpj
 import re
 import logging
 
@@ -146,6 +147,13 @@ class EmpresaSerializer(serializers.ModelSerializer):
                 grupos.append(grupo)
 
         return grupos
+
+    def validate_cnpj(self, value):
+        if not is_valid_cnpj(value):
+            raise serializers.ValidationError(
+                "CNPJ inválido. Informe 12 letras/números e 2 dígitos verificadores válidos."
+            )
+        return format_cnpj(value)
 
     def _sync_socios(self, empresa, socios_data):
         socios_data = socios_data or []
@@ -332,6 +340,15 @@ class EmpresaAvulsaFaturamentoSerializer(serializers.ModelSerializer):
         if not nome:
             raise serializers.ValidationError("O nome da empresa avulsa é obrigatório.")
         return nome
+
+    def validate_cnpj(self, value):
+        if value in (None, ''):
+            return value
+        if not is_valid_cnpj(value):
+            raise serializers.ValidationError(
+                "CNPJ inválido. Informe 12 letras/números e 2 dígitos verificadores válidos."
+            )
+        return format_cnpj(value)
 
     def validate_uf(self, value):
         if value in (None, ''):

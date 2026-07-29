@@ -528,10 +528,11 @@ def gerar_e_enviar_das(cnpj_empresa, periodo_apuracao=None, request=None, templa
             return {"sucesso": False, "erro": "CNPJ é obrigatório."}
 
         # Normalizar CNPJ
-        cnpj_empresa_clean = ''.join(filter(str.isdigit, cnpj_empresa))
+        from .utils import normalize_cnpj
+        cnpj_empresa_clean = normalize_cnpj(cnpj_empresa)
         if len(cnpj_empresa_clean) != 14:
             logger.error(f"CNPJ inválido: {cnpj_empresa_clean}")
-            return {"sucesso": False, "erro": "CNPJ inválido. Deve conter 14 dígitos."}
+            return {"sucesso": False, "erro": "CNPJ inválido. Deve conter 14 caracteres."}
         
         cnpj_empresa_formatted = (
             f"{cnpj_empresa_clean[:2]}.{cnpj_empresa_clean[2:5]}.{cnpj_empresa_clean[5:8]}/"

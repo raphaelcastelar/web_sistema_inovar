@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
+import { normalizeCnpj } from '../utils/cnpj';
 import { UsersIcon, CalendarDaysIcon, MagnifyingGlassIcon, DocumentArrowDownIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { motion } from 'framer-motion';
 
@@ -164,7 +165,7 @@ const ConsultarExtratoPage = () => {
             setLoading(false);
             return;
         }
-        const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
+        const cnpjLimpo = normalizeCnpj(empresaSelecionada.cnpj);
 
         try {
             const response = await axiosInstance.post('/api/serpro/consultar-extrato/', {
@@ -221,7 +222,7 @@ const ConsultarExtratoPage = () => {
         setError('');
 
         const empresaSelecionada = empresas.find(e => e.id === parseInt(selectedEmpresaId));
-        const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
+        const cnpjLimpo = normalizeCnpj(empresaSelecionada.cnpj);
 
         try {
             const response = await axiosInstance.post('/api/serpro/download-extrato-pdf/', {

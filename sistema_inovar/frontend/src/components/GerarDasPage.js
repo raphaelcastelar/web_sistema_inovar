@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
+import { normalizeCnpj } from '../utils/cnpj';
 import { 
     DocumentArrowDownIcon, 
     CalendarDaysIcon, 
@@ -64,7 +65,7 @@ const GerarDasPage = () => {
             setLoading(false);
             return;
         }
-        const cnpjLimpo = empresaSelecionada.cnpj.replace(/\D/g, '');
+        const cnpjLimpo = normalizeCnpj(empresaSelecionada.cnpj);
 
         try {
             const response = await axiosInstance.post('/api/serpro/gerar-das/', {

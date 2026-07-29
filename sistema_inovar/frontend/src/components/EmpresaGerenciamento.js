@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { Link } from 'react-router-dom';
 import { CheckCircleIcon, XCircleIcon, PlusIcon, BuildingOffice2Icon, MagnifyingGlassIcon, ExclamationCircleIcon } from '@heroicons/react/24/outline';
+import { normalizeCnpj } from '../utils/cnpj';
 
 const EmpresaGerenciamento = () => {
     const [empresas, setEmpresas] = useState([]);
@@ -59,13 +60,12 @@ const EmpresaGerenciamento = () => {
     const filteredEmpresas = empresas.filter(empresa => {
         const lowercasedSearch = search.toLowerCase().trim();
         if (!lowercasedSearch) return true;
-        const searchDigits = search.replace(/\D/g, '');
+        const normalizedSearchCnpj = normalizeCnpj(search);
         const matchNome = empresa.nome?.toLowerCase().includes(lowercasedSearch);
         const matchEmail = empresa.email?.toLowerCase().includes(lowercasedSearch);
         let matchCnpj = false;
-        if (searchDigits.length > 0) {
-            const cleanedEmpresaCnpj = empresa.cnpj?.replace(/\D/g, '');
-            matchCnpj = cleanedEmpresaCnpj?.includes(searchDigits);
+        if (normalizedSearchCnpj.length > 0) {
+            matchCnpj = normalizeCnpj(empresa.cnpj).includes(normalizedSearchCnpj);
         }
         return matchNome || matchEmail || matchCnpj;
     });

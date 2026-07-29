@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axiosInstance from '../api/axiosInstance';
+import { normalizeCnpj } from '../utils/cnpj';
 import {
     UsersIcon,
     CalendarDaysIcon,
@@ -199,7 +200,7 @@ const CentralDoSimples = () => {
         if (!emp) return null;
         return {
             ...emp,
-            cnpjLimpo: emp.cnpj.replace(/\D/g, '')
+            cnpjLimpo: normalizeCnpj(emp.cnpj)
         };
     };
 

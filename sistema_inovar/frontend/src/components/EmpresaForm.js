@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
+import { formatCnpj, isValidCnpj } from '../utils/cnpj';
 import { motion } from 'framer-motion';
 import {
     InformationCircleIcon,
@@ -360,6 +361,10 @@ const EmpresaForm = () => {
             }
             return;
         }
+        if (!isValidCnpj(empresa.cnpj)) {
+            setError('Informe um CNPJ válido. As 12 primeiras posições aceitam letras e números; os 2 dígitos verificadores são numéricos.');
+            return;
+        }
 
         setLoading(true);
         setError(null);
@@ -527,7 +532,7 @@ const EmpresaForm = () => {
                                 <div className="relative xl:col-span-3">
                                     <label htmlFor="cnpj" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">CNPJ</label>
                                     <UserIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
-                                    <input type="text" name="cnpj" id="cnpj" value={empresa.cnpj} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required />
+                                    <input type="text" name="cnpj" id="cnpj" value={empresa.cnpj} onChange={(event) => setEmpresa((prev) => ({ ...prev, cnpj: formatCnpj(event.target.value) }))} maxLength={18} autoCapitalize="characters" className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 font-mono uppercase text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="XX.XXX.XXX/XXXX-00" required />
                                 </div>
                                 <div className="relative xl:col-span-3">
                                     <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email</label>
