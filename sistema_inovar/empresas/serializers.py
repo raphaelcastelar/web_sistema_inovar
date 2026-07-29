@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
+from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
 from .utils import format_cnpj, is_valid_cnpj
 import re
 import logging
@@ -92,11 +92,20 @@ class SocioSerializer(serializers.ModelSerializer):
         return cleaned_value
 
 
+class HistoricoStatusEmpresaSerializer(serializers.ModelSerializer):
+    alterado_por = serializers.CharField(source='alterado_por.username', read_only=True, allow_null=True)
+
+    class Meta:
+        model = HistoricoStatusEmpresa
+        fields = ['id', 'status_anterior', 'novo_status', 'alterado_em', 'alterado_por']
+
+
 class EmpresaSerializer(serializers.ModelSerializer):
     GRUPO_ATIVIDADE_CHOICES = {'SERVICO', 'COMERCIO', 'INDUSTRIA'}
 
     email = serializers.EmailField(required=False, allow_blank=True)
     socios = SocioSerializer(many=True, required=False)
+    historico_status = HistoricoStatusEmpresaSerializer(many=True, read_only=True)
     tags = serializers.SerializerMethodField()
     tag_ids = serializers.PrimaryKeyRelatedField(
         many=True,
@@ -108,7 +117,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'numero', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'regime_tributario', 'porte_empresa', 'carteira_clientes', 'grupo_atividade', 'anexo_simples', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto', 'socios', 'tags', 'tag_ids']
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'numero', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'regime_tributario', 'porte_empresa', 'carteira_clientes', 'grupo_atividade', 'anexo_simples', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'criado_em', 'desativado_em', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto', 'socios', 'tags', 'tag_ids', 'historico_status']
+        read_only_fields = ['criado_em', 'desativado_em', 'historico_status']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -226,6 +236,10 @@ class EmpresaSerializer(serializers.ModelSerializer):
             validated_data['telefone'] = self._prefix_country_code(telefone_ddd_num)
 
         empresa = super().create(validated_data)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if empresa.ativo is False and user and getattr(user, 'is_authenticated', False):
+            empresa.historico_status.filter(alterado_por__isnull=True).update(alterado_por=user)
         self._sync_socios(empresa, socios_data)
         return empresa
 
@@ -234,6 +248,10 @@ class EmpresaSerializer(serializers.ModelSerializer):
         Chamado ao atualizar uma Empresa existente.
         """
         socios_data = validated_data.pop('socios', None)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if 'ativo' in validated_data and user and getattr(user, 'is_authenticated', False):
+            instance._status_alterado_por = user
         # Verifica se o campo 'telefone' foi incluído nos dados da requisição de atualização
         if 'telefone' in validated_data:
             telefone_ddd_num = validated_data.get('telefone') # Vem limpo de validate_telefone
@@ -243,6 +261,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
             # Mas como tornamos obrigatório, validate_telefone não deve permitir isso.
 
         instance = super().update(instance, validated_data)
+        if hasattr(instance, '_status_alterado_por'):
+            delattr(instance, '_status_alterado_por')
         if socios_data is not None:
             self._sync_socios(instance, socios_data)
         return instance
@@ -259,7 +279,7 @@ class EmpresaListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'carteira_clientes', 'ativo', 'tags']
+        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'carteira_clientes', 'ativo', 'criado_em', 'desativado_em', 'tags']
 
     def get_tags(self, obj):
         request = self.context.get('request')
@@ -304,6 +324,8 @@ class EmpresaOperationalListSerializer(EmpresaListSerializer):
             'honorario',
             'monitorar_simples',
             'ativo',
+            'criado_em',
+            'desativado_em',
             'valor_honorario',
             'dia_vencimento_honorario',
             'juros_mora_taxa',

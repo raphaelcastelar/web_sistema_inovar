@@ -13,7 +13,8 @@ from .models import (
     XML, 
     SimplesNacional, 
     Outros, 
-    HistoricoEnvios
+    HistoricoEnvios,
+    HistoricoStatusEmpresa,
 )
 
 @admin.register(Funcionario)
@@ -32,13 +33,24 @@ class FuncionarioAdmin(UserAdmin):
     # Isso habilita o 'autocomplete_fields' em outros modelos.
     search_fields = ('username', 'first_name', 'last_name', 'email')
 
-# --- Configurações para os outros modelos (sem alterações) ---
+class HistoricoStatusEmpresaInline(admin.TabularInline):
+    model = HistoricoStatusEmpresa
+    extra = 0
+    can_delete = False
+    readonly_fields = ('status_anterior', 'novo_status', 'alterado_em', 'alterado_por')
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Empresa)
 class EmpresaAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'cnpj', 'email', 'telefone', 'monitorar_simples')
+    list_display = ('nome', 'cnpj', 'email', 'ativo', 'criado_em', 'desativado_em', 'monitorar_simples')
     search_fields = ('nome', 'cnpj')
-    list_filter = ('monitorar_simples',)
+    list_filter = ('ativo', 'monitorar_simples')
     filter_horizontal = ('tags',)
+    readonly_fields = ('criado_em', 'desativado_em')
+    inlines = (HistoricoStatusEmpresaInline,)
 
 
 @admin.register(EmpresaAvulsaFaturamento)

@@ -1,6 +1,10 @@
-from django.test import SimpleTestCase
+from types import SimpleNamespace
+
+from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase
 from rest_framework import serializers
 
+from .models import Empresa
 from .serializers import EmpresaAvulsaFaturamentoSerializer, EmpresaSerializer
 from .utils import format_cnpj, is_valid_cnpj, normalize_cnpj
 
@@ -50,3 +54,53 @@ class EmpresaEmailSerializerTests(SimpleTestCase):
 
         with self.assertRaises(serializers.ValidationError):
             field.run_validation('email-invalido')
+
+
+class EmpresaStatusHistoryTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username='responsavel-status',
+            password='senha-teste',
+        )
+        self.empresa = Empresa.objects.create(
+            nome='Empresa com histórico',
+            cnpj='12.345.678/0001-95',
+            email='',
+            telefone='5522999998888',
+        )
+
+    def test_records_deactivation_and_reactivation(self):
+        request = SimpleNamespace(user=self.user)
+
+        serializer = EmpresaSerializer(
+            self.empresa,
+            data={'ativo': False},
+            partial=True,
+            context={'request': request},
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        self.empresa.refresh_from_db()
+
+        self.assertIsNotNone(self.empresa.criado_em)
+        self.assertIsNotNone(self.empresa.desativado_em)
+        desativacao = self.empresa.historico_status.get()
+        self.assertTrue(desativacao.status_anterior)
+        self.assertFalse(desativacao.novo_status)
+        self.assertEqual(desativacao.alterado_por, self.user)
+
+        serializer = EmpresaSerializer(
+            self.empresa,
+            data={'ativo': True},
+            partial=True,
+            context={'request': request},
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        serializer.save()
+        self.empresa.refresh_from_db()
+
+        self.assertIsNone(self.empresa.desativado_em)
+        self.assertEqual(self.empresa.historico_status.count(), 2)
+        reativacao = self.empresa.historico_status.first()
+        self.assertFalse(reativacao.status_anterior)
+        self.assertTrue(reativacao.novo_status)

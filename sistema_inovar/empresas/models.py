@@ -2,7 +2,7 @@
 import os
 import re # Para sanitizar nomes de pastas/arquivos
 import unidecode # Para remover acentos de nomes de pastas/arquivos (pip install unidecode)
-from django.db import models
+from django.db import models, transaction
 from django.contrib.postgres.indexes import GinIndex
 from django.utils import timezone
 from decimal import Decimal
@@ -66,6 +66,8 @@ class Empresa(models.Model):
     usuarios = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='empresas')
     tags = models.ManyToManyField('Tag', related_name='empresas', blank=True)
     ativo = models.BooleanField(default=True, null = True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+    desativado_em = models.DateTimeField(null=True, blank=True)
 
     # Configurações de Boleto
     valor_honorario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Valor do honorário para geração de boleto", null = True)
@@ -91,7 +93,31 @@ class Empresa(models.Model):
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
-        super().save(*args, **kwargs)
+        status_anterior = True
+        if not is_new:
+            status_anterior = type(self).objects.filter(pk=self.pk).values_list('ativo', flat=True).first()
+
+        status_atual = self.ativo is not False
+        status_anterior = status_anterior is not False
+        status_alterado = status_anterior != status_atual
+        alterado_em = timezone.now() if status_alterado else None
+
+        if status_alterado:
+            self.desativado_em = None if status_atual else alterado_em
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None:
+                kwargs['update_fields'] = set(update_fields) | {'desativado_em'}
+
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if status_alterado:
+                HistoricoStatusEmpresa.objects.create(
+                    empresa=self,
+                    status_anterior=status_anterior,
+                    novo_status=status_atual,
+                    alterado_em=alterado_em,
+                    alterado_por=getattr(self, '_status_alterado_por', None),
+                )
         if is_new:
             from .models import Funcionario, UserCompanyAccess
             funcionarios = Funcionario.objects.all()
@@ -103,6 +129,30 @@ class Empresa(models.Model):
                 )
                 funcionario.empresas_gerenciadas.add(self)
             logger.info(f"Empresa {self.nome} criada e atribuída a todos os funcionários.")
+
+
+class HistoricoStatusEmpresa(models.Model):
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name='historico_status',
+    )
+    status_anterior = models.BooleanField()
+    novo_status = models.BooleanField()
+    alterado_em = models.DateTimeField(default=timezone.now)
+    alterado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='alteracoes_status_empresa',
+    )
+
+    class Meta:
+        ordering = ['-alterado_em', '-id']
+        indexes = [
+            models.Index(fields=['empresa', '-alterado_em'], name='hist_status_empresa_data_idx'),
+        ]
 
 
 class Tag(models.Model):
