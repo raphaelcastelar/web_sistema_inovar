@@ -29,6 +29,17 @@ const pastaTypes = Object.keys(pastaConfig);
 const periodFolderTypes = ['xml', 'departamento_pessoal', 'simples_nacional', 'outros'];
 const monthOrder = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const buildFileViewUrl = (tipoPasta, arquivoId) => `${SERVER_FILE_URL_BASE}/api/arquivos/${tipoPasta}/${arquivoId}/visualizar/`;
+const getBrazilianLocalPhoneDigits = (value = '') => {
+    let digits = String(value).replace(/\D/g, '');
+    if (digits.startsWith('55') && digits.length > 11) digits = digits.slice(2);
+    return digits.slice(0, 11);
+};
+const formatBrazilianPhone = (value = '') => {
+    const digits = getBrazilianLocalPhoneDigits(value);
+    if (digits.length <= 2) return digits ? `(${digits}` : '';
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+};
 
 const sortYearsForDisplay = (years) => {
     const currentYear = new Date().getFullYear().toString();
@@ -141,6 +152,7 @@ const PastaManager = () => {
     const [empresaNome, setEmpresaNome] = useState('');
     const [empresaCnpj, setEmpresaCnpj] = useState('');
     const [empresaEmail, setEmpresaEmail] = useState('');
+    const [empresaTelefone, setEmpresaTelefone] = useState('');
     const [arquivos, setArquivos] = useState({});
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -152,6 +164,9 @@ const PastaManager = () => {
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [emailDestinatario, setEmailDestinatario] = useState('');
     const [sendingEmail, setSendingEmail] = useState(false);
+    const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+    const [whatsAppDestinatario, setWhatsAppDestinatario] = useState('');
+    const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
 
     // --- LÓGICA DE DADOS E API ---
     const fetchData = useCallback(() => {
@@ -160,6 +175,7 @@ const PastaManager = () => {
             setEmpresaNome(response.data.nome);
             setEmpresaCnpj(response.data.cnpj);
             setEmpresaEmail(response.data.email || '');
+            setEmpresaTelefone(response.data.telefone || '');
         });
         const promises = pastaTypes.map(tipo => {
             const endpoint = tipo.replace(/_/g, '-');
@@ -271,17 +287,31 @@ const PastaManager = () => {
     
     const handleWhatsAppClick = () => {
         if (selectedFiles.length === 0) { alert('Selecione ao menos um arquivo.'); return; }
-        setLoading(true);
-        axiosInstance.post(`/api/enviar-documentos-whatsapp/`, { empresa_id: empresaId, file_ids: selectedFiles, tipo_pasta: selectedPasta.tipo })
+        setWhatsAppDestinatario(formatBrazilianPhone(empresaTelefone));
+        setShowWhatsAppModal(true);
+    };
+
+    const handleWhatsAppSubmit = (event) => {
+        event.preventDefault();
+        const phoneDigits = getBrazilianLocalPhoneDigits(whatsAppDestinatario);
+        if (phoneDigits.length !== 11) return;
+        setSendingWhatsApp(true);
+        axiosInstance.post(`/api/enviar-documentos-whatsapp/`, {
+            empresa_id: empresaId,
+            file_ids: selectedFiles,
+            tipo_pasta: selectedPasta.tipo,
+            telefone_destinatario: `55${phoneDigits}`,
+        })
             .then(res => {
                 let message = `Relatório de Envio:\n${res.data.message || ''}`;
                 if (res.data.successful_sends?.length > 0) message += `\nSucessos: ${res.data.successful_sends.map(s => s.filename).join(', ')}`;
                 if (res.data.failed_sends?.length > 0) message += `\nFalhas: ${res.data.failed_sends.map(f => f.filename).join(', ')}`;
                 alert(message);
                 setSelectedFiles([]);
+                setShowWhatsAppModal(false);
             })
             .catch(err => alert(`Erro: ${err.response?.data?.error || 'Falha ao enviar por WhatsApp.'}`))
-            .finally(() => setLoading(false));
+            .finally(() => setSendingWhatsApp(false));
     };
 
     // --- RENDERIZAÇÃO DO COMPONENTE ---
@@ -428,6 +458,68 @@ const PastaManager = () => {
                                 <button type="submit" disabled={sendingEmail || !emailDestinatario.trim()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950">
                                     {sendingEmail ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <CheckCircleIcon className="h-4 w-4" />}
                                     {sendingEmail ? 'Enviando...' : 'Confirmar envio'}
+                                </button>
+                            </div>
+                        </motion.form>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showWhatsAppModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+                        onMouseDown={() => !sendingWhatsApp && setShowWhatsAppModal(false)}
+                    >
+                        <motion.form
+                            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onSubmit={handleWhatsAppSubmit}
+                            className="w-full max-w-lg rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+                        >
+                            <div className="flex items-start justify-between border-b border-gray-200 p-5 dark:border-gray-800">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400">Envio avulso</p>
+                                    <h2 className="mt-1 text-xl font-semibold text-gray-950 dark:text-white">Enviar arquivos por WhatsApp</h2>
+                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedFiles.length} arquivo(s) selecionado(s)</p>
+                                </div>
+                                <button type="button" onClick={() => setShowWhatsAppModal(false)} disabled={sendingWhatsApp} className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200">
+                                    <XMarkIcon className="h-5 w-5" />
+                                </button>
+                            </div>
+                            <div className="p-5">
+                                <label htmlFor="whatsapp-destinatario" className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">WhatsApp do destinatário</label>
+                                <div className="mt-2 flex h-11 overflow-hidden rounded-md border border-gray-200 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100 dark:border-gray-700 dark:bg-gray-950 dark:focus-within:ring-emerald-950/40">
+                                    <span className="flex items-center border-r border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">+55</span>
+                                    <input
+                                        id="whatsapp-destinatario"
+                                        type="tel"
+                                        inputMode="numeric"
+                                        required
+                                        autoFocus
+                                        value={whatsAppDestinatario}
+                                        onChange={(event) => setWhatsAppDestinatario(formatBrazilianPhone(event.target.value))}
+                                        placeholder="(28) 99999-9999"
+                                        pattern="[(][0-9]{2}[)] [0-9]{5}-[0-9]{4}"
+                                        title="Digite o número no formato (DD) 99999-9999"
+                                        className="min-w-0 flex-1 bg-transparent px-3 text-sm text-gray-950 outline-none dark:text-white"
+                                    />
+                                </div>
+                                <div className={`mt-3 rounded-md px-3 py-2 text-xs font-semibold ${getBrazilianLocalPhoneDigits(whatsAppDestinatario).length === 11 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'}`}>
+                                    Formato obrigatório: +55 (DD) 99999-9999
+                                </div>
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">O código do Brasil (+55) já será incluído automaticamente.</p>
+                            </div>
+                            <div className="flex flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/70 sm:flex-row sm:justify-end">
+                                <button type="button" onClick={() => setShowWhatsAppModal(false)} disabled={sendingWhatsApp} className="h-10 rounded-md border border-gray-200 px-4 text-sm font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Cancelar</button>
+                                <button type="submit" disabled={sendingWhatsApp || getBrazilianLocalPhoneDigits(whatsAppDestinatario).length !== 11} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                    {sendingWhatsApp ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <ChatBubbleBottomCenterTextIcon className="h-4 w-4" />}
+                                    {sendingWhatsApp ? 'Enviando...' : 'Confirmar envio'}
                                 </button>
                             </div>
                         </motion.form>

@@ -2365,6 +2365,7 @@ def enviar_documentos_whatsapp_api(request):
     empresa_id = request.data.get('empresa_id')
     file_ids = request.data.get('file_ids')
     tipo_pasta = request.data.get('tipo_pasta')
+    telefone_avulso = (request.data.get('telefone_destinatario') or '').strip()
 
     if not all([empresa_id, file_ids, tipo_pasta]):
         return JsonResponse(
@@ -2387,14 +2388,22 @@ def enviar_documentos_whatsapp_api(request):
     except Empresa.DoesNotExist:
         return JsonResponse({"error": "Empresa não encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
-    raw_phone_number = empresa.telefone
+    raw_phone_number = telefone_avulso or empresa.telefone
     if not raw_phone_number:
         logger.warning(f"Empresa {empresa.nome} (ID: {empresa_id}) não possui telefone cadastrado.")
-        return JsonResponse({"error": "Telefone não cadastrado para esta empresa."}, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"error": "Informe um WhatsApp destinatário ou cadastre um telefone para a empresa."}, status=status.HTTP_400_BAD_REQUEST)
 
     recipient_whatsapp_number = re.sub(r'\D', '', raw_phone_number)
+    if telefone_avulso and not (
+        len(recipient_whatsapp_number) == 13
+        and recipient_whatsapp_number.startswith('55')
+    ):
+        return JsonResponse(
+            {"error": "Informe o WhatsApp no formato brasileiro +55 (DD) 99999-9999."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     if not (len(recipient_whatsapp_number) >= 10 and len(recipient_whatsapp_number) <= 13 and recipient_whatsapp_number.isdigit()):
-        return JsonResponse({"error": f"O número de telefone '{raw_phone_number}' cadastrado para a empresa não é válido para WhatsApp."}, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"error": f"O número de WhatsApp '{raw_phone_number}' não é válido."}, status=status.HTTP_400_BAD_REQUEST)
     if not recipient_whatsapp_number.startswith('55') and len(recipient_whatsapp_number) in [10, 11]:
         recipient_whatsapp_number = '55' + recipient_whatsapp_number
     elif not recipient_whatsapp_number.startswith('55'):
