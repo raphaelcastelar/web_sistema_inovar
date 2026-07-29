@@ -44,7 +44,7 @@ class Empresa(models.Model):
     id = models.AutoField(primary_key=True)
     nome = models.CharField(max_length=100, null=False)
     cnpj = models.CharField(max_length=18, unique=True, null=False)
-    email = models.CharField(max_length=255, null=False)
+    email = models.EmailField(max_length=255, blank=True, default='')
     telefone = models.CharField(max_length=20, null=True, blank=False)
     endereco = models.CharField(max_length=255, null=True, blank=True, help_text="Endereço completo da empresa")
     numero = models.CharField(max_length=20, null=True, blank=True, help_text="Numero do endereco da empresa")

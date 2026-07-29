@@ -95,6 +95,7 @@ class SocioSerializer(serializers.ModelSerializer):
 class EmpresaSerializer(serializers.ModelSerializer):
     GRUPO_ATIVIDADE_CHOICES = {'SERVICO', 'COMERCIO', 'INDUSTRIA'}
 
+    email = serializers.EmailField(required=False, allow_blank=True)
     socios = SocioSerializer(many=True, required=False)
     tags = serializers.SerializerMethodField()
     tag_ids = serializers.PrimaryKeyRelatedField(

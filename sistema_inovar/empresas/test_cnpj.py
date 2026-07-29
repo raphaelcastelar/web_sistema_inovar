@@ -1,6 +1,7 @@
 from django.test import SimpleTestCase
+from rest_framework import serializers
 
-from .serializers import EmpresaAvulsaFaturamentoSerializer
+from .serializers import EmpresaAvulsaFaturamentoSerializer, EmpresaSerializer
 from .utils import format_cnpj, is_valid_cnpj, normalize_cnpj
 
 
@@ -34,3 +35,18 @@ class EmpresaAvulsaCnpjSerializerTests(SimpleTestCase):
         )
         self.assertFalse(serializer.is_valid())
         self.assertIn('cnpj', serializer.errors)
+
+
+class EmpresaEmailSerializerTests(SimpleTestCase):
+    def test_email_is_optional_on_create_and_update(self):
+        field = EmpresaSerializer().fields['email']
+
+        self.assertFalse(field.required)
+        self.assertTrue(field.allow_blank)
+        self.assertEqual(field.run_validation(''), '')
+
+    def test_validates_format_when_email_is_informed(self):
+        field = EmpresaSerializer().fields['email']
+
+        with self.assertRaises(serializers.ValidationError):
+            field.run_validation('email-invalido')
