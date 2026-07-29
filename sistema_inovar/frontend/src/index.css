@@ -19,3 +19,86 @@ code {
     monospace;
 }
 
+/* Cadastro de empresas: acompanha a linguagem visual das demais telas do sistema. */
+@layer components {
+  .company-form-shell section,
+  .company-form-shell aside,
+  .company-form-shell form > div > div:last-child {
+    border-radius: 0.5rem;
+    border-color: rgb(229 231 235);
+    background-color: white;
+  }
+
+  .company-form-shell input:not([type='checkbox']):not([type='color']),
+  .company-form-shell select {
+    border-radius: 0.375rem;
+    border-color: rgb(229 231 235);
+    background-color: white;
+  }
+
+  .company-form-shell input:not([type='checkbox']):not([type='color']):focus,
+  .company-form-shell select:focus {
+    border-color: rgb(148 163 184);
+    --tw-ring-color: rgb(226 232 240);
+  }
+
+  .company-form-shell button {
+    border-radius: 0.375rem;
+  }
+
+  .company-form-shell button[class*='bg-indigo-600'] {
+    background-color: rgb(15 23 42);
+  }
+
+  .company-form-shell button[class*='bg-indigo-600']:hover {
+    background-color: rgb(30 41 59);
+  }
+
+  .company-form-shell aside button[class*='bg-indigo-600'] {
+    background-color: rgb(15 23 42);
+  }
+
+  .company-form-shell [class*='text-indigo-'],
+  .company-form-shell [class*='text-indigo-'] svg {
+    color: rgb(71 85 105);
+  }
+
+  .company-form-shell aside button[class*='bg-indigo-600'],
+  .company-form-shell aside button[class*='bg-indigo-600'] span,
+  .company-form-shell aside button[class*='bg-indigo-600'] svg,
+  .company-form-shell button[class*='bg-indigo-600'] {
+    color: white;
+  }
+
+  .company-form-shell [class*='border-indigo-'] {
+    border-color: rgb(148 163 184);
+  }
+
+  .company-form-shell [class*='bg-indigo-50'] {
+    background-color: rgb(248 250 252);
+  }
+
+  .dark .company-form-shell section,
+  .dark .company-form-shell aside,
+  .dark .company-form-shell form > div > div:last-child {
+    border-color: rgb(31 41 55);
+    background-color: rgb(17 24 39);
+  }
+
+  .dark .company-form-shell input:not([type='checkbox']):not([type='color']),
+  .dark .company-form-shell select {
+    border-color: rgb(55 65 81);
+    background-color: rgb(31 41 55);
+  }
+
+  .dark .company-form-shell button[class*='bg-indigo-600'],
+  .dark .company-form-shell aside button[class*='bg-indigo-600'] {
+    background-color: rgb(241 245 249);
+    color: rgb(2 6 23);
+  }
+
+  .dark .company-form-shell aside button[class*='bg-indigo-600'] span,
+  .dark .company-form-shell aside button[class*='bg-indigo-600'] svg {
+    color: rgb(2 6 23);
+  }
+}

@@ -424,19 +424,19 @@ const EmpresaForm = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="min-h-screen bg-gray-50 p-4 dark:bg-gray-900 sm:p-6 lg:p-8"
+            className="company-form-shell w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4"
         >
             <div className="mx-auto max-w-7xl space-y-6">
-                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                    <div className="flex flex-col gap-4 border-b border-gray-200 px-5 py-5 dark:border-gray-700 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600 dark:text-indigo-300">
-                                Cadastro de empresa
+                            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">
+                                Cadastro
                             </p>
-                            <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
+                            <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">
                                 {isEditing ? 'Editar Empresa' : 'Cadastrar Nova Empresa'}
-                            </h2>
-                            <p className="mt-2 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                            </h1>
+                            <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
                                 Dados cadastrais, endereço, classificação, tags e sócios em uma tela organizada para edição rápida.
                             </p>
                         </div>
@@ -459,7 +459,7 @@ const EmpresaForm = () => {
                     </div>
                 </div>
 
-                <form noValidate onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+                <form noValidate onSubmit={handleSubmit} className="grid gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
                     <aside className="h-fit rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:sticky lg:top-6">
                         <div className="space-y-2">
                             {formSections.map(({ id, label, description, icon: Icon }) => {
