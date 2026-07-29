@@ -21,6 +21,8 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 from email.utils import formatdate
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from dateutil.relativedelta import relativedelta
 
 from django.conf import settings
@@ -1969,6 +1971,7 @@ def enviar_email(request):
         empresa_id = int(request.data.get('empresa_id'))
         tipo_pasta = request.data.get('tipo_pasta')
         file_ids = request.data.get('file_ids', [])
+        email_avulso = (request.data.get('email_destinatario') or '').strip()
 
         logger.info(f"Requisição recebida: empresa_id={empresa_id}, tipo_pasta={tipo_pasta}, file_ids={file_ids}")
 
@@ -1978,9 +1981,13 @@ def enviar_email(request):
         try:
             empresa = Empresa.objects.get(id=empresa_id)
             nome_empresa = empresa.nome
-            email_destinatario = empresa.email
+            email_destinatario = email_avulso or (empresa.email or '').strip()
             if not email_destinatario:
-                return Response({'error': f'Email não cadastrado para a empresa ID {empresa_id}.'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'error': 'Informe um email destinatário ou cadastre um email para a empresa.'}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                validate_email(email_destinatario)
+            except ValidationError:
+                return Response({'error': 'Informe um email destinatário válido.'}, status=status.HTTP_400_BAD_REQUEST)
         except Empresa.DoesNotExist:
             return Response({'error': f'Empresa com ID {empresa_id} não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
 
