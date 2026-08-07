@@ -220,6 +220,22 @@ DCTFWEB_SERVICOS_DOCUMENTO = {
 }
 
 
+def _mensagem_erro_dctfweb(resposta, padrao):
+    """Prioriza erros/avisos de negócio e ignora a mensagem protocolar de sucesso."""
+    mensagens = (resposta or {}).get('mensagens') or []
+    textos = []
+    for mensagem in mensagens:
+        codigo = str(mensagem.get('codigo', '')).lower()
+        texto = str(mensagem.get('texto', '')).strip()
+        if not texto or 'sucesso' in codigo:
+            continue
+        if 'favor verificar as demais mensagens' in texto.lower():
+            continue
+        if texto not in textos:
+            textos.append(texto)
+    return ' '.join(textos) or padrao
+
+
 def _encontrar_campo_recursivo(valor, nome_campo):
     if isinstance(valor, dict):
         for chave, item in valor.items():
@@ -258,10 +274,12 @@ def _consultar_ultimo_recibo_dctfweb(tokens, cnpj_empresa, periodo_apuracao, cnp
     except ValueError:
         resposta = None
     if not response.ok:
-        mensagens = (resposta or {}).get('mensagens') or []
-        erro = mensagens[0].get('texto') if mensagens else "Erro ao localizar a última declaração DCTFWeb."
+        erro = _mensagem_erro_dctfweb(resposta, "Erro ao localizar a última declaração DCTFWeb.")
         return None, erro, resposta or response.text
     dados_resposta = (resposta or {}).get('dados')
+    if not dados_resposta:
+        erro = _mensagem_erro_dctfweb(resposta, "Nenhuma declaração DCTFWeb foi encontrada para a competência.")
+        return None, erro, resposta
     dados_internos = json.loads(dados_resposta) if isinstance(dados_resposta, str) else dados_resposta
     numero = _encontrar_campo_recursivo(dados_internos, 'numeroReciboEntrega')
     if numero in (None, ''):
@@ -345,14 +363,12 @@ def obter_documento_dctfweb_serpro(cnpj_empresa, periodo_apuracao, id_servico, n
         except ValueError:
             resposta = None
         if not response.ok:
-            mensagens = (resposta or {}).get('mensagens') or []
-            erro = mensagens[0].get('texto') if mensagens else "Erro retornado pela API Serpro."
+            erro = _mensagem_erro_dctfweb(resposta, "Erro retornado pela API Serpro.")
             return {"sucesso": False, "erro": erro, "detalhes": resposta or response.text}
 
         dados_resposta = resposta.get('dados') if resposta else None
         if not dados_resposta:
-            mensagens = (resposta or {}).get('mensagens') or []
-            erro = mensagens[0].get('texto') if mensagens else "A API não retornou o documento solicitado."
+            erro = _mensagem_erro_dctfweb(resposta, "A API não retornou o documento solicitado.")
             return {"sucesso": False, "erro": erro, "detalhes": resposta}
 
         dados_internos = json.loads(dados_resposta) if isinstance(dados_resposta, str) else dados_resposta
