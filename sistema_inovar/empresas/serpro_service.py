@@ -22,6 +22,7 @@ from rest_framework import status
 from datetime import datetime
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
+from PyPDF2 import PdfReader
 
 
 logger = logging.getLogger(__name__)
@@ -252,6 +253,28 @@ def _encontrar_campo_recursivo(valor, nome_campo):
     return None
 
 
+def _extrair_numero_recibo_pdf(dados_internos):
+    """Extrai o recibo impresso no PDF retornado pelo CONSRECIBO32."""
+    documentos = _documentos_base64_consdecrec(dados_internos)
+    for _, conteudo in documentos:
+        try:
+            leitor = PdfReader(io.BytesIO(conteudo))
+            texto = '\n'.join(pagina.extract_text() or '' for pagina in leitor.pages)
+        except Exception as e:
+            logger.warning("Não foi possível ler o PDF do recibo DCTFWeb: %s", e)
+            continue
+        correspondencia = re.search(
+            r'n[º°o.]?\s*do\s*recibo\s*de\s*entrega\s*[:\-]?\s*([0-9][0-9.\-/\s]{4,})',
+            texto,
+            flags=re.IGNORECASE,
+        )
+        if correspondencia:
+            numero = re.sub(r'\D', '', correspondencia.group(1))
+            if numero:
+                return numero
+    return None
+
+
 def _consultar_ultimo_recibo_dctfweb(tokens, cnpj_empresa, periodo_apuracao, cnpj_contratante):
     """Obtém os dados da declaração DCTFWeb mais recente sem informar recibo."""
     dados = {"categoria": 40, "anoPA": periodo_apuracao[:4], "mesPA": periodo_apuracao[4:]}
@@ -288,6 +311,8 @@ def _consultar_ultimo_recibo_dctfweb(tokens, cnpj_empresa, periodo_apuracao, cnp
         numero = _encontrar_campo_recursivo(resposta, 'numeroReciboEntrega')
     if numero in (None, ''):
         numero = _encontrar_campo_recursivo(resposta, 'numeroRecibo')
+    if numero in (None, ''):
+        numero = _extrair_numero_recibo_pdf(dados_internos)
     if numero in (None, ''):
         return None, "O SERPRO não informou o número do recibo da última declaração.", resposta
     return re.sub(r'\D', '', str(numero)), None, None
