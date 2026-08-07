@@ -9,7 +9,8 @@ import {
     InformationCircleIcon,
     CheckCircleIcon,
     DocumentChartBarIcon,
-    ArrowPathIcon
+    ArrowPathIcon,
+    DocumentDuplicateIcon
 } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -144,10 +145,11 @@ const CentralDoSimples = () => {
 
     const [loadingExtrato, setLoadingExtrato] = useState(false);
     const [loadingDas, setLoadingDas] = useState(false);
+    const [loadingDeclaracao, setLoadingDeclaracao] = useState(false);
 
     // Flow State
     const [step, setStep] = useState(0); // 0: Select Service, 1: Select Data & Execute
-    const [selectedAction, setSelectedAction] = useState(null); // 'extrato' | 'das'
+    const [selectedAction, setSelectedAction] = useState(null); // 'extrato' | 'das' | 'declaracao'
 
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
@@ -221,6 +223,59 @@ const CentralDoSimples = () => {
             await handleConsultarExtrato();
         } else if (selectedAction === 'das') {
             await handleGerarDas();
+        } else if (selectedAction === 'declaracao') {
+            await handleConsultarDeclaracao();
+        }
+    };
+
+    const downloadBlobResponse = (response, fallbackFilename) => {
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        let filename = fallbackFilename;
+        const contentDisposition = response.headers['content-disposition'];
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+            if (match?.[1]) filename = match[1];
+        }
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    };
+
+    const readBlobError = async (err, fallback) => {
+        try {
+            if (err.response?.data instanceof Blob) {
+                const json = JSON.parse(await err.response.data.text());
+                return json.error || fallback;
+            }
+        } catch (_) {
+            // Mantém a mensagem amigável quando a resposta não for JSON.
+        }
+        return fallback;
+    };
+
+    const handleConsultarDeclaracao = async () => {
+        if (!validateSelection()) return;
+
+        resetMessages();
+        setLoadingDeclaracao(true);
+        const empresa = getEmpresaData();
+        const periodo = `${selectedYear}${selectedMonth}`;
+        try {
+            const response = await axiosInstance.post('/api/serpro/consultar-declaracao-recibo/', {
+                cnpj: empresa.cnpjLimpo,
+                periodo,
+            }, { responseType: 'blob' });
+            downloadBlobResponse(response, `Declaracao_Recibo_${empresa.cnpjLimpo}_${periodo}.zip`);
+            setSuccessMessage('Declaração/recibo baixado com sucesso!');
+        } catch (err) {
+            console.error('Erro ao consultar declaração/recibo:', err);
+            setError(await readBlobError(err, 'Erro ao consultar a declaração/recibo.'));
+        } finally {
+            setLoadingDeclaracao(false);
         }
     };
 
@@ -333,7 +388,9 @@ const CentralDoSimples = () => {
                         ? "Escolha o serviço que deseja acessar."
                         : selectedAction === 'extrato'
                             ? "Consulta de Extrato Simples Nacional"
-                            : "Emissão de Guia DAS"
+                            : selectedAction === 'das'
+                                ? "Emissão de Guia DAS"
+                                : "Consulta de Declaração/Recibo"
                     }
                 </p>
             </header>
@@ -345,7 +402,7 @@ const CentralDoSimples = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="grid w-full gap-4 md:grid-cols-2"
+                        className="grid w-full gap-4 md:grid-cols-2 xl:grid-cols-3"
                     >
                             {/* Card Extrato */}
                             <button
@@ -360,6 +417,24 @@ const CentralDoSimples = () => {
                                         <h3 className="text-base font-semibold text-gray-950 dark:text-gray-100">Consultar Extrato</h3>
                                         <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
                                         Visualize o detalhamento completo dos tributos e valores declarados.
+                                        </p>
+                                    </div>
+                                </div>
+                            </button>
+
+                            {/* Card Declaração/Recibo */}
+                            <button
+                                onClick={() => handleSelectAction('declaracao')}
+                                className="group min-w-0 rounded-lg border border-gray-200 bg-white p-4 text-left shadow-sm transition-shadow hover:shadow-md dark:border-gray-800 dark:bg-gray-900 sm:p-5"
+                            >
+                                <div className="flex items-start gap-4">
+                                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                                        <DocumentDuplicateIcon className="h-6 w-6" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="text-base font-semibold text-gray-950 dark:text-gray-100">Consultar Declaração/Recibo</h3>
+                                        <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                            Selecione o mês para baixar a declaração transmitida e o respectivo recibo.
                                         </p>
                                     </div>
                                 </div>
@@ -401,9 +476,11 @@ const CentralDoSimples = () => {
                                     </button>
                                     <div className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${selectedAction === 'extrato'
                                             ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                            : selectedAction === 'das'
+                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
                                         }`}>
-                                        {selectedAction === 'extrato' ? 'Consulta Extrato' : 'Emissão DAS'}
+                                        {selectedAction === 'extrato' ? 'Consulta Extrato' : selectedAction === 'das' ? 'Emissão DAS' : 'Declaração/Recibo'}
                                     </div>
                                 </div>
 
@@ -464,24 +541,30 @@ const CentralDoSimples = () => {
                                     {/* Botão de Ação */}
                                     <button
                                         onClick={handleExecute}
-                                        disabled={loadingExtrato || loadingDas}
+                                        disabled={loadingExtrato || loadingDas || loadingDeclaracao}
                                         className={`flex w-full items-center justify-center gap-3 rounded-md px-6 py-4 font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${selectedAction === 'extrato'
                                                 ? 'bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white'
-                                                : 'bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-400 dark:text-emerald-950 dark:hover:bg-emerald-300'
+                                            : selectedAction === 'das'
+                                                ? 'bg-emerald-700 hover:bg-emerald-800 dark:bg-emerald-400 dark:text-emerald-950 dark:hover:bg-emerald-300'
+                                                : 'bg-amber-700 hover:bg-amber-800 dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-300'
                                             }`}
                                     >
-                                        {(loadingExtrato || loadingDas) ? (
+                                        {(loadingExtrato || loadingDas || loadingDeclaracao) ? (
                                             <ArrowPathIcon className="h-6 w-6 animate-spin" />
                                         ) : selectedAction === 'extrato' ? (
                                             <DocumentChartBarIcon className="h-6 w-6" />
-                                        ) : (
+                                        ) : selectedAction === 'das' ? (
                                             <DocumentArrowDownIcon className="h-6 w-6" />
+                                        ) : (
+                                            <DocumentDuplicateIcon className="h-6 w-6" />
                                         )}
-                                        {loadingExtrato || loadingDas
+                                        {loadingExtrato || loadingDas || loadingDeclaracao
                                             ? 'Processando...'
                                             : selectedAction === 'extrato'
                                                 ? 'Baixar Extrato PDF'
-                                                : 'Gerar Guia DAS PDF'
+                                                : selectedAction === 'das'
+                                                    ? 'Gerar Guia DAS PDF'
+                                                    : 'Baixar Declaração/Recibo'
                                         }
                                     </button>
                                 </div>

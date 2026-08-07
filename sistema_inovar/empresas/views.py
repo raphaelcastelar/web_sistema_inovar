@@ -93,6 +93,7 @@ from .serpro_service import (
     gerar_das_serpro, 
     obter_extrato_pdf_serpro,
     orquestrar_consulta_extrato,
+    consultar_declaracao_recibo_serpro,
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
@@ -2587,6 +2588,28 @@ def consultar_extrato_api(request):
             {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def consultar_declaracao_recibo_api(request):
+    cnpj = ''.join(filter(str.isdigit, str(request.data.get('cnpj', ''))))
+    periodo = ''.join(filter(str.isdigit, str(request.data.get('periodo', ''))))
+
+    if len(cnpj) != 14:
+        return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
+    if len(periodo) != 6 or not 1 <= int(periodo[4:]) <= 12:
+        return Response({"error": "Informe um período válido no formato YYYYMM."}, status=status.HTTP_400_BAD_REQUEST)
+
+    resultado = consultar_declaracao_recibo_serpro(cnpj, periodo)
+    if not resultado.get('sucesso'):
+        return Response(
+            {"error": resultado.get("erro"), "detalhes": resultado.get("detalhes")},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    response = HttpResponse(resultado['file_content'], content_type=resultado['content_type'])
+    response['Content-Disposition'] = f'attachment; filename="{resultado["filename"]}"'
+    return response
     
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

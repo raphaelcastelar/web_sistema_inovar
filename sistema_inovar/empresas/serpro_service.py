@@ -4,6 +4,9 @@ import json
 import os
 import tempfile
 import locale
+import io
+import re
+import zipfile
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
@@ -29,6 +32,179 @@ GATEWAY_URL = getattr(settings, 'SERPRO_GATEWAY_URL', 'https://gateway.apiserpro
 SERPRO_TOKEN_CACHE_KEY = 'serpro_api_tokens_dict'
 SERPRO_AUTH_ERROR_CACHE_KEY = 'serpro_api_auth_error'
 SERPRO_TIMEOUT = 30
+
+
+def _documentos_base64_consdecrec(dados):
+    """Localiza os arquivos retornados pelo CONSDECREC15, mesmo quando aninhados."""
+    documentos = []
+
+    def visitar(valor, caminho="documento"):
+        if isinstance(valor, dict):
+            for chave, item in valor.items():
+                chave_normalizada = str(chave).lower()
+                if chave_normalizada in {"pdf", "arquivo", "conteudo", "base64"} and isinstance(item, str):
+                    try:
+                        conteudo = base64.b64decode(item, validate=True)
+                    except (ValueError, TypeError):
+                        continue
+                    if conteudo.startswith(b"%PDF"):
+                        nome = valor.get("nomeArquivo") or valor.get("nome") or f"{caminho}.pdf"
+                        nome = re.sub(r'[^A-Za-z0-9._-]+', '_', str(nome)).strip('._') or "documento.pdf"
+                        if not nome.lower().endswith('.pdf'):
+                            nome += '.pdf'
+                        documentos.append((nome, conteudo))
+                else:
+                    visitar(item, str(chave))
+        elif isinstance(valor, list):
+            for indice, item in enumerate(valor, 1):
+                visitar(item, f"{caminho}_{indice}")
+
+    visitar(dados)
+    # Algumas respostas repetem o mesmo PDF em estruturas distintas.
+    unicos = []
+    hashes = set()
+    for nome, conteudo in documentos:
+        assinatura = hash(conteudo)
+        if assinatura not in hashes:
+            hashes.add(assinatura)
+            unicos.append((nome, conteudo))
+    return unicos
+
+
+def consultar_declaracao_recibo_serpro(cnpj_empresa, periodo_apuracao):
+    """Localiza a última declaração do mês e consulta seu PDF/recibo."""
+    tokens = get_serpro_token()
+    if not tokens:
+        return {"sucesso": False, **_get_serpro_auth_error()}
+
+    cnpj_empresa = re.sub(r'\D', '', str(cnpj_empresa or ''))
+    periodo_apuracao = re.sub(r'\D', '', str(periodo_apuracao or ''))
+    cnpj_contratante = re.sub(r'\D', '', str(settings.MEU_ESCRITORIO_CNPJ))
+
+    try:
+        numero_declaracao, erro_declaracao = obter_numero_declaracao_periodo(
+            tokens, cnpj_empresa, periodo_apuracao
+        )
+    except requests.exceptions.RequestException as e:
+        detalhes = e.response.text if getattr(e, 'response', None) is not None else str(e)
+        return {"sucesso": False, "erro": "Erro ao localizar a declaração do período no SERPRO.", "detalhes": detalhes}
+    except (ValueError, TypeError, json.JSONDecodeError) as e:
+        return {"sucesso": False, "erro": "A API retornou dados inválidos ao localizar a declaração.", "detalhes": str(e)}
+
+    if not numero_declaracao:
+        return {"sucesso": False, "erro": erro_declaracao}
+
+    payload = {
+        "contratante": {"numero": cnpj_contratante, "tipo": 2},
+        "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+        "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+        "pedidoDados": {
+            "idSistema": "PGDASD",
+            "idServico": "CONSDECREC15",
+            "versaoSistema": "1.0",
+            "dados": json.dumps({"numeroDeclaracao": numero_declaracao}),
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'],
+        "Content-Type": "application/json",
+    }
+    url = f"{GATEWAY_URL}/Consultar"
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+        if response.status_code == 401:
+            cache.delete(SERPRO_TOKEN_CACHE_KEY)
+            tokens = get_serpro_token()
+            if not tokens:
+                return {"sucesso": False, **_get_serpro_auth_error("Falha ao renovar token.")}
+            headers["Authorization"] = f"Bearer {tokens['access_token']}"
+            headers["jwt_token"] = tokens['jwt_token']
+            response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+        response.raise_for_status()
+        resposta = response.json()
+
+        mensagens = resposta.get('mensagens') or []
+        dados_str = resposta.get('dados')
+        if not dados_str:
+            erro = mensagens[0].get('texto') if mensagens else "A API não retornou a declaração ou o recibo."
+            return {"sucesso": False, "erro": erro, "detalhes": resposta}
+
+        dados = json.loads(dados_str) if isinstance(dados_str, str) else dados_str
+        documentos = _documentos_base64_consdecrec(dados)
+        if not documentos:
+            erro = mensagens[0].get('texto') if mensagens else "Nenhum PDF foi encontrado na resposta da API."
+            return {"sucesso": False, "erro": erro, "detalhes": resposta}
+
+        if len(documentos) == 1:
+            nome, conteudo = documentos[0]
+            return {"sucesso": True, "file_content": conteudo, "filename": nome, "content_type": "application/pdf"}
+
+        arquivo_zip = io.BytesIO()
+        with zipfile.ZipFile(arquivo_zip, 'w', zipfile.ZIP_DEFLATED) as pacote:
+            nomes_usados = set()
+            for indice, (nome, conteudo) in enumerate(documentos, 1):
+                if nome in nomes_usados:
+                    raiz, extensao = os.path.splitext(nome)
+                    nome = f"{raiz}_{indice}{extensao}"
+                nomes_usados.add(nome)
+                pacote.writestr(nome, conteudo)
+        return {
+            "sucesso": True,
+            "file_content": arquivo_zip.getvalue(),
+            "filename": f"Declaracao_Recibo_{numero_declaracao}.zip",
+            "content_type": "application/zip",
+        }
+    except requests.exceptions.RequestException as e:
+        detalhes = e.response.text if getattr(e, 'response', None) is not None else str(e)
+        logger.error("Erro ao consultar declaração/recibo no SERPRO: %s", detalhes)
+        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes}
+    except (ValueError, TypeError, json.JSONDecodeError) as e:
+        logger.error("Resposta inválida do CONSDECREC15: %s", e)
+        return {"sucesso": False, "erro": "A API Serpro retornou dados em formato inválido."}
+
+
+def obter_numero_declaracao_periodo(tokens, cnpj_empresa, periodo_apuracao):
+    """Consulta o CONSDECLARACAO13 e retorna a declaração mais recente do mês."""
+    cnpj_contratante = re.sub(r'\D', '', str(settings.MEU_ESCRITORIO_CNPJ))
+    payload = {
+        "contratante": {"numero": cnpj_contratante, "tipo": 2},
+        "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+        "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+        "pedidoDados": {
+            "idSistema": "PGDASD",
+            "idServico": "CONSDECLARACAO13",
+            "versaoSistema": "1.0",
+            "dados": json.dumps({"anoCalendario": periodo_apuracao[:4]}),
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'],
+        "Content-Type": "application/json",
+    }
+    response = requests.post(f"{GATEWAY_URL}/Consultar", json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+    response.raise_for_status()
+    resposta = response.json()
+    dados_str = resposta.get('dados')
+    if not dados_str:
+        mensagens = resposta.get('mensagens') or []
+        erro = mensagens[0].get('texto') if mensagens else "Nenhuma declaração encontrada para o período."
+        return None, erro
+
+    dados = json.loads(dados_str) if isinstance(dados_str, str) else dados_str
+    for periodo in dados.get('periodos', []):
+        if str(periodo.get('periodoApuracao')) != periodo_apuracao:
+            continue
+        # A última operação é a declaração vigente quando existem retificadoras.
+        for operacao in reversed(periodo.get('operacoes') or []):
+            indice = operacao.get('indiceDeclaracao') or {}
+            numero = indice.get('numeroDeclaracao')
+            if numero:
+                return str(numero), None
+        break
+    return None, f"Nenhuma declaração encontrada para {periodo_apuracao[4:]}/{periodo_apuracao[:4]}."
 
 
 def _set_serpro_auth_error(erro, detalhes=None):
