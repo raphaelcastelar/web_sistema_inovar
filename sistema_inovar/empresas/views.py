@@ -94,6 +94,7 @@ from .serpro_service import (
     obter_extrato_pdf_serpro,
     orquestrar_consulta_extrato,
     consultar_declaracao_recibo_serpro,
+    obter_documento_dctfweb_serpro,
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
@@ -2607,6 +2608,33 @@ def consultar_declaracao_recibo_api(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+    response = HttpResponse(resultado['file_content'], content_type=resultado['content_type'])
+    response['Content-Disposition'] = f'attachment; filename="{resultado["filename"]}"'
+    return response
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def documento_dctfweb_api(request, id_servico):
+    servicos_permitidos = {'GERARGUIA31', 'CONSRECIBO32', 'CONSDECCOMPLETA33'}
+    if id_servico not in servicos_permitidos:
+        return Response({"error": "Serviço DCTFWeb inválido."}, status=status.HTTP_404_NOT_FOUND)
+
+    cnpj = ''.join(filter(str.isdigit, str(request.data.get('cnpj', ''))))
+    periodo = ''.join(filter(str.isdigit, str(request.data.get('periodo', ''))))
+    numero_recibo = ''.join(filter(str.isdigit, str(request.data.get('numero_recibo', ''))))
+    if len(cnpj) != 14:
+        return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
+    if len(periodo) != 6 or not 1 <= int(periodo[4:]) <= 12:
+        return Response({"error": "Informe uma competência válida no formato YYYYMM."}, status=status.HTTP_400_BAD_REQUEST)
+    if not numero_recibo:
+        return Response({"error": "O número do recibo de entrega é obrigatório."}, status=status.HTTP_400_BAD_REQUEST)
+
+    resultado = obter_documento_dctfweb_serpro(cnpj, periodo, numero_recibo, id_servico)
+    if not resultado.get('sucesso'):
+        return Response(
+            {"error": resultado.get('erro'), "detalhes": resultado.get('detalhes')},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
     response = HttpResponse(resultado['file_content'], content_type=resultado['content_type'])
     response['Content-Disposition'] = f'attachment; filename="{resultado["filename"]}"'
     return response

@@ -23,6 +23,7 @@ import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
 import PendenciasPage from './components/PendenciasPage';
 import GerenciamentoIntegrado from './components/GerenciamentoIntegrado';
 import CentralDoSimples from './components/CentralDoSimples';
+import CentralDctfWeb from './components/CentralDctfWeb';
 import BoletoMonitorPage from './components/BoletoMonitorPage';
 import BoletosPorEmpresaPage from './components/BoletosPorEmpresaPage';
 import InadimplenciaBoletosPage from './components/InadimplenciaBoletosPage';
@@ -58,6 +59,7 @@ function App() {
             <Route path="/gerenciamento/simples-nacional" element={<GerenciamentoSimplesPage />} />
             <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
             <Route path="/central-simples" element={<CentralDoSimples />} />
+            <Route path="/central-dctfweb" element={<CentralDctfWeb />} />
             <Route path="/gerar-das" element={<GerarDasPage />} />
             <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
             <Route path="/monitor-boletos" element={<BoletoMonitorPage />} />

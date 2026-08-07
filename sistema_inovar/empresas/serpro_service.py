@@ -42,9 +42,15 @@ def _documentos_base64_consdecrec(dados):
         if isinstance(valor, dict):
             for chave, item in valor.items():
                 chave_normalizada = str(chave).lower()
-                if chave_normalizada in {"pdf", "arquivo", "conteudo", "base64"} and isinstance(item, str):
+                chave_tem_documento = (
+                    chave_normalizada in {"pdf", "arquivo", "conteudo", "base64"}
+                    or "pdf" in chave_normalizada
+                    or "base64" in chave_normalizada
+                )
+                if chave_tem_documento and isinstance(item, str):
                     try:
-                        conteudo = base64.b64decode(item, validate=True)
+                        base64_limpo = item.split(',', 1)[-1] if item.startswith('data:') else item
+                        conteudo = base64.b64decode(base64_limpo, validate=True)
                     except (ValueError, TypeError):
                         continue
                     if conteudo.startswith(b"%PDF"):
@@ -205,6 +211,108 @@ def obter_numero_declaracao_periodo(tokens, cnpj_empresa, periodo_apuracao):
                 return str(numero), None
         break
     return None, f"Nenhuma declaração encontrada para {periodo_apuracao[4:]}/{periodo_apuracao[:4]}."
+
+
+DCTFWEB_SERVICOS_DOCUMENTO = {
+    "GERARGUIA31": {"endpoint": "Emitir", "categoria": "GERAL_MENSAL", "nome": "DARF_DCTFWeb"},
+    "CONSRECIBO32": {"endpoint": "Consultar", "categoria": 40, "nome": "Recibo_DCTFWeb"},
+    "CONSDECCOMPLETA33": {"endpoint": "Consultar", "categoria": "GERAL_MENSAL", "nome": "Declaracao_Completa_DCTFWeb"},
+}
+
+
+def obter_documento_dctfweb_serpro(cnpj_empresa, periodo_apuracao, numero_recibo, id_servico):
+    """Executa um dos três serviços documentais DCTFWeb autorizados pela aplicação."""
+    configuracao = DCTFWEB_SERVICOS_DOCUMENTO.get(id_servico)
+    if not configuracao:
+        return {"sucesso": False, "erro": "Serviço DCTFWeb não permitido."}
+
+    tokens = get_serpro_token()
+    if not tokens:
+        return {"sucesso": False, **_get_serpro_auth_error()}
+
+    cnpj_empresa = re.sub(r'\D', '', str(cnpj_empresa or ''))
+    periodo_apuracao = re.sub(r'\D', '', str(periodo_apuracao or ''))
+    numero_recibo = re.sub(r'\D', '', str(numero_recibo or ''))
+    cnpj_contratante = re.sub(r'\D', '', str(settings.MEU_ESCRITORIO_CNPJ))
+    dados = {
+        "categoria": configuracao["categoria"],
+        "anoPA": periodo_apuracao[:4],
+        "mesPA": periodo_apuracao[4:],
+        "numeroReciboEntrega": int(numero_recibo),
+    }
+    payload = {
+        "contratante": {"numero": cnpj_contratante, "tipo": 2},
+        "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+        "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+        "pedidoDados": {
+            "idSistema": "DCTFWEB",
+            "idServico": id_servico,
+            "versaoSistema": "1.0",
+            "dados": json.dumps(dados),
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'],
+        "Content-Type": "application/json",
+    }
+    url = f"{GATEWAY_URL}/{configuracao['endpoint']}"
+
+    try:
+        logger.info("Consultando serviço DCTFWeb %s para a competência %s", id_servico, periodo_apuracao)
+        response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+        if response.status_code == 401:
+            cache.delete(SERPRO_TOKEN_CACHE_KEY)
+            tokens = get_serpro_token()
+            if not tokens:
+                return {"sucesso": False, **_get_serpro_auth_error("Falha ao renovar token.")}
+            headers["Authorization"] = f"Bearer {tokens['access_token']}"
+            headers["jwt_token"] = tokens['jwt_token']
+            response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+
+        # O Integra Contador também envia erros funcionais em JSON com status HTTP 4xx.
+        try:
+            resposta = response.json()
+        except ValueError:
+            resposta = None
+        if not response.ok:
+            mensagens = (resposta or {}).get('mensagens') or []
+            erro = mensagens[0].get('texto') if mensagens else "Erro retornado pela API Serpro."
+            return {"sucesso": False, "erro": erro, "detalhes": resposta or response.text}
+
+        dados_resposta = resposta.get('dados') if resposta else None
+        if not dados_resposta:
+            mensagens = (resposta or {}).get('mensagens') or []
+            erro = mensagens[0].get('texto') if mensagens else "A API não retornou o documento solicitado."
+            return {"sucesso": False, "erro": erro, "detalhes": resposta}
+
+        dados_internos = json.loads(dados_resposta) if isinstance(dados_resposta, str) else dados_resposta
+        documentos = _documentos_base64_consdecrec(dados_internos)
+        if not documentos:
+            return {
+                "sucesso": False,
+                "erro": "Nenhum PDF foi encontrado na resposta da API Serpro.",
+                "detalhes": resposta,
+            }
+
+        nome, conteudo = documentos[0]
+        nome_padrao = f"{configuracao['nome']}_{cnpj_empresa}_{periodo_apuracao}.pdf"
+        # Nomes genéricos inferidos da estrutura são substituídos por um nome útil.
+        if nome.lower() in {'pdf.pdf', 'documento.pdf', 'arquivo.pdf', 'conteudo.pdf', 'base64.pdf'}:
+            nome = nome_padrao
+        return {
+            "sucesso": True,
+            "file_content": conteudo,
+            "filename": nome or nome_padrao,
+            "content_type": "application/pdf",
+        }
+    except requests.exceptions.RequestException as e:
+        detalhes = e.response.text if getattr(e, 'response', None) is not None else str(e)
+        logger.error("Erro de comunicação no serviço DCTFWeb %s: %s", id_servico, detalhes)
+        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes}
+    except (ValueError, TypeError, json.JSONDecodeError) as e:
+        logger.error("Resposta inválida do serviço DCTFWeb %s: %s", id_servico, e)
+        return {"sucesso": False, "erro": "A API Serpro retornou dados em formato inválido."}
 
 
 def _set_serpro_auth_error(erro, detalhes=None):
