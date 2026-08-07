@@ -44,7 +44,7 @@ const navigationSections = [
         title: 'Fiscal',
         icon: ShieldCheckIcon,
         items: [
-            { to: '/central-simples', icon: DocumentChartBarIcon, text: 'Central do Simples', keywords: 'simples nacional central apuracao' },
+            { to: '/central-simples', icon: DocumentChartBarIcon, text: 'Central DAS', keywords: 'simples nacional central das apuracao' },
             { to: '/central-dctfweb', icon: DocumentTextIcon, text: 'Central DCTFWeb', keywords: 'dctfweb darf guia recibo declaracao completa' },
             { to: '/gerar-das', icon: DocumentArrowDownIcon, text: 'Gerar DAS', keywords: 'guia imposto download' },
             { to: '/consultar-extrato', icon: ShieldCheckIcon, text: 'Consultar extrato', keywords: 'extrato consulta serpro declaracao' },
