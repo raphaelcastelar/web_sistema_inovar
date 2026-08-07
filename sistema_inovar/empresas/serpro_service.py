@@ -425,6 +425,91 @@ def obter_documento_dctfweb_serpro(cnpj_empresa, periodo_apuracao, id_servico, n
         return {"sucesso": False, "erro": "A API Serpro retornou dados em formato inválido."}
 
 
+def _requisicao_parcsn(cnpj_empresa, id_servico, endpoint, dados):
+    tokens = get_serpro_token()
+    if not tokens:
+        return None, {"sucesso": False, **_get_serpro_auth_error()}
+
+    cnpj_empresa = re.sub(r'\D', '', str(cnpj_empresa or ''))
+    cnpj_contratante = re.sub(r'\D', '', str(settings.MEU_ESCRITORIO_CNPJ))
+    payload = {
+        "contratante": {"numero": cnpj_contratante, "tipo": 2},
+        "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+        "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+        "pedidoDados": {
+            "idSistema": "PARCSN", "idServico": id_servico,
+            "versaoSistema": "1.0", "dados": dados,
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'], "Content-Type": "application/json",
+    }
+    try:
+        response = requests.post(f"{GATEWAY_URL}/{endpoint}", json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+        if response.status_code == 401:
+            cache.delete(SERPRO_TOKEN_CACHE_KEY)
+            tokens = get_serpro_token()
+            if not tokens:
+                return None, {"sucesso": False, **_get_serpro_auth_error("Falha ao renovar token.")}
+            headers["Authorization"] = f"Bearer {tokens['access_token']}"
+            headers["jwt_token"] = tokens['jwt_token']
+            response = requests.post(f"{GATEWAY_URL}/{endpoint}", json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+        try:
+            resposta = response.json()
+        except ValueError:
+            resposta = None
+        if not response.ok:
+            erro = _mensagem_erro_dctfweb(resposta, "Erro retornado pela API Serpro.")
+            return None, {"sucesso": False, "erro": erro, "detalhes": resposta or response.text}
+        return resposta, None
+    except requests.exceptions.RequestException as e:
+        detalhes = e.response.text if getattr(e, 'response', None) is not None else str(e)
+        return None, {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes}
+
+
+def consultar_parcelas_parcsn_serpro(cnpj_empresa):
+    """Consulta parcelas do parcelamento ordinário disponíveis para emissão."""
+    resposta, erro = _requisicao_parcsn(cnpj_empresa, 'PARCELASPARAGERAR162', 'Consultar', '')
+    if erro:
+        return erro
+    dados_resposta = (resposta or {}).get('dados')
+    if not dados_resposta:
+        mensagem = _mensagem_erro_dctfweb(resposta, "Nenhuma parcela disponível para emissão.")
+        return {"sucesso": False, "erro": mensagem, "detalhes": resposta}
+    try:
+        dados = json.loads(dados_resposta) if isinstance(dados_resposta, str) else dados_resposta
+        parcelas = dados.get('listaParcelas') or dados.get('listaParcela') or []
+        return {"sucesso": True, "parcelas": parcelas}
+    except (ValueError, TypeError, json.JSONDecodeError) as e:
+        return {"sucesso": False, "erro": "A API retornou a lista de parcelas em formato inválido.", "detalhes": str(e)}
+
+
+def gerar_das_parcsn_serpro(cnpj_empresa, parcela_para_emitir):
+    """Emite o DAS de uma parcela ordinária pelo GERARDAS161."""
+    dados = json.dumps({"parcelaParaEmitir": int(parcela_para_emitir)})
+    resposta, erro = _requisicao_parcsn(cnpj_empresa, 'GERARDAS161', 'Emitir', dados)
+    if erro:
+        return erro
+    dados_resposta = (resposta or {}).get('dados')
+    if not dados_resposta:
+        mensagem = _mensagem_erro_dctfweb(resposta, "A API não retornou o DAS da parcela.")
+        return {"sucesso": False, "erro": mensagem, "detalhes": resposta}
+    try:
+        dados_internos = json.loads(dados_resposta) if isinstance(dados_resposta, str) else dados_resposta
+        documentos = _documentos_base64_consdecrec(dados_internos)
+        if not documentos:
+            return {"sucesso": False, "erro": "Nenhum PDF foi encontrado na resposta da API.", "detalhes": resposta}
+        _, conteudo = documentos[0]
+        return {
+            "sucesso": True, "file_content": conteudo,
+            "filename": f"DAS_Parcelamento_{cnpj_empresa}_{parcela_para_emitir}.pdf",
+            "content_type": "application/pdf",
+        }
+    except (ValueError, TypeError, json.JSONDecodeError) as e:
+        return {"sucesso": False, "erro": "A API retornou o DAS em formato inválido.", "detalhes": str(e)}
+
+
 def _set_serpro_auth_error(erro, detalhes=None):
     error_data = {"erro": erro, "detalhes": detalhes}
     cache.set(SERPRO_AUTH_ERROR_CACHE_KEY, error_data, timeout=300)

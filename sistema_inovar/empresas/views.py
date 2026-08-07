@@ -95,6 +95,8 @@ from .serpro_service import (
     orquestrar_consulta_extrato,
     consultar_declaracao_recibo_serpro,
     obter_documento_dctfweb_serpro,
+    consultar_parcelas_parcsn_serpro,
+    gerar_das_parcsn_serpro,
 )
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
@@ -2632,6 +2634,33 @@ def documento_dctfweb_api(request, id_servico):
             {"error": resultado.get('erro'), "detalhes": resultado.get('detalhes')},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    response = HttpResponse(resultado['file_content'], content_type=resultado['content_type'])
+    response['Content-Disposition'] = f'attachment; filename="{resultado["filename"]}"'
+    return response
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def consultar_parcelas_parcsn_api(request):
+    cnpj = ''.join(filter(str.isdigit, str(request.data.get('cnpj', ''))))
+    if len(cnpj) != 14:
+        return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
+    resultado = consultar_parcelas_parcsn_serpro(cnpj)
+    if not resultado.get('sucesso'):
+        return Response({"error": resultado.get('erro'), "detalhes": resultado.get('detalhes')}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({"parcelas": resultado['parcelas']})
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def gerar_das_parcsn_api(request):
+    cnpj = ''.join(filter(str.isdigit, str(request.data.get('cnpj', ''))))
+    parcela = ''.join(filter(str.isdigit, str(request.data.get('parcela', ''))))
+    if len(cnpj) != 14:
+        return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
+    if len(parcela) != 6 or not 1 <= int(parcela[4:]) <= 12:
+        return Response({"error": "Informe uma parcela válida no formato AAAAMM."}, status=status.HTTP_400_BAD_REQUEST)
+    resultado = gerar_das_parcsn_serpro(cnpj, parcela)
+    if not resultado.get('sucesso'):
+        return Response({"error": resultado.get('erro'), "detalhes": resultado.get('detalhes')}, status=status.HTTP_400_BAD_REQUEST)
     response = HttpResponse(resultado['file_content'], content_type=resultado['content_type'])
     response['Content-Disposition'] = f'attachment; filename="{resultado["filename"]}"'
     return response

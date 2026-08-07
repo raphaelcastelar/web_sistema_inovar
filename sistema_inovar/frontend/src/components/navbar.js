@@ -46,6 +46,7 @@ const navigationSections = [
         items: [
             { to: '/central-simples', icon: DocumentChartBarIcon, text: 'Central DAS', keywords: 'simples nacional central das apuracao' },
             { to: '/central-dctfweb', icon: DocumentTextIcon, text: 'Central DCTFWeb', keywords: 'dctfweb darf guia recibo declaracao completa' },
+            { to: '/parcelamento-simples', icon: BanknotesIcon, text: 'Parcelamento SN', keywords: 'parcelamento simples nacional parcelas das parcsn' },
             { to: '/gerar-das', icon: DocumentArrowDownIcon, text: 'Gerar DAS', keywords: 'guia imposto download' },
             { to: '/consultar-extrato', icon: ShieldCheckIcon, text: 'Consultar extrato', keywords: 'extrato consulta serpro declaracao' },
         ],
