@@ -2621,15 +2621,12 @@ def documento_dctfweb_api(request, id_servico):
 
     cnpj = ''.join(filter(str.isdigit, str(request.data.get('cnpj', ''))))
     periodo = ''.join(filter(str.isdigit, str(request.data.get('periodo', ''))))
-    numero_recibo = ''.join(filter(str.isdigit, str(request.data.get('numero_recibo', ''))))
     if len(cnpj) != 14:
         return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
     if len(periodo) != 6 or not 1 <= int(periodo[4:]) <= 12:
         return Response({"error": "Informe uma competência válida no formato YYYYMM."}, status=status.HTTP_400_BAD_REQUEST)
-    if not numero_recibo:
-        return Response({"error": "O número do recibo de entrega é obrigatório."}, status=status.HTTP_400_BAD_REQUEST)
 
-    resultado = obter_documento_dctfweb_serpro(cnpj, periodo, numero_recibo, id_servico)
+    resultado = obter_documento_dctfweb_serpro(cnpj, periodo, id_servico)
     if not resultado.get('sucesso'):
         return Response(
             {"error": resultado.get('erro'), "detalhes": resultado.get('detalhes')},

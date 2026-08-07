@@ -220,7 +220,62 @@ DCTFWEB_SERVICOS_DOCUMENTO = {
 }
 
 
-def obter_documento_dctfweb_serpro(cnpj_empresa, periodo_apuracao, numero_recibo, id_servico):
+def _encontrar_campo_recursivo(valor, nome_campo):
+    if isinstance(valor, dict):
+        for chave, item in valor.items():
+            if str(chave).lower() == nome_campo.lower() and item not in (None, ''):
+                return item
+            encontrado = _encontrar_campo_recursivo(item, nome_campo)
+            if encontrado not in (None, ''):
+                return encontrado
+    elif isinstance(valor, list):
+        for item in reversed(valor):
+            encontrado = _encontrar_campo_recursivo(item, nome_campo)
+            if encontrado not in (None, ''):
+                return encontrado
+    return None
+
+
+def _consultar_ultimo_recibo_dctfweb(tokens, cnpj_empresa, periodo_apuracao, cnpj_contratante):
+    """Obtém os dados da declaração DCTFWeb mais recente sem informar recibo."""
+    dados = {"categoria": 40, "anoPA": periodo_apuracao[:4], "mesPA": periodo_apuracao[4:]}
+    payload = {
+        "contratante": {"numero": cnpj_contratante, "tipo": 2},
+        "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},
+        "contribuinte": {"numero": cnpj_empresa, "tipo": 2},
+        "pedidoDados": {
+            "idSistema": "DCTFWEB", "idServico": "CONSRECIBO32",
+            "versaoSistema": "1.0", "dados": json.dumps(dados),
+        },
+    }
+    headers = {
+        "Authorization": f"Bearer {tokens['access_token']}",
+        "jwt_token": tokens['jwt_token'], "Content-Type": "application/json",
+    }
+    response = requests.post(f"{GATEWAY_URL}/Consultar", json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+    try:
+        resposta = response.json()
+    except ValueError:
+        resposta = None
+    if not response.ok:
+        mensagens = (resposta or {}).get('mensagens') or []
+        erro = mensagens[0].get('texto') if mensagens else "Erro ao localizar a última declaração DCTFWeb."
+        return None, erro, resposta or response.text
+    dados_resposta = (resposta or {}).get('dados')
+    dados_internos = json.loads(dados_resposta) if isinstance(dados_resposta, str) else dados_resposta
+    numero = _encontrar_campo_recursivo(dados_internos, 'numeroReciboEntrega')
+    if numero in (None, ''):
+        numero = _encontrar_campo_recursivo(dados_internos, 'numeroRecibo')
+    if numero in (None, ''):
+        numero = _encontrar_campo_recursivo(resposta, 'numeroReciboEntrega')
+    if numero in (None, ''):
+        numero = _encontrar_campo_recursivo(resposta, 'numeroRecibo')
+    if numero in (None, ''):
+        return None, "O SERPRO não informou o número do recibo da última declaração.", resposta
+    return re.sub(r'\D', '', str(numero)), None, None
+
+
+def obter_documento_dctfweb_serpro(cnpj_empresa, periodo_apuracao, id_servico, numero_recibo=None):
     """Executa um dos três serviços documentais DCTFWeb autorizados pela aplicação."""
     configuracao = DCTFWEB_SERVICOS_DOCUMENTO.get(id_servico)
     if not configuracao:
@@ -234,12 +289,26 @@ def obter_documento_dctfweb_serpro(cnpj_empresa, periodo_apuracao, numero_recibo
     periodo_apuracao = re.sub(r'\D', '', str(periodo_apuracao or ''))
     numero_recibo = re.sub(r'\D', '', str(numero_recibo or ''))
     cnpj_contratante = re.sub(r'\D', '', str(settings.MEU_ESCRITORIO_CNPJ))
+
+    # GERARGUIA31 exige o recibo. A aplicação o descobre pela consulta da
+    # declaração mais recente da competência antes de solicitar a guia.
+    if id_servico == 'GERARGUIA31' and not numero_recibo:
+        try:
+            numero_recibo, erro, detalhes = _consultar_ultimo_recibo_dctfweb(
+                tokens, cnpj_empresa, periodo_apuracao, cnpj_contratante
+            )
+        except (requests.exceptions.RequestException, ValueError, TypeError, json.JSONDecodeError) as e:
+            return {"sucesso": False, "erro": "Erro ao localizar a última declaração DCTFWeb.", "detalhes": str(e)}
+        if not numero_recibo:
+            return {"sucesso": False, "erro": erro, "detalhes": detalhes}
+
     dados = {
         "categoria": configuracao["categoria"],
         "anoPA": periodo_apuracao[:4],
         "mesPA": periodo_apuracao[4:],
-        "numeroReciboEntrega": int(numero_recibo),
     }
+    if numero_recibo:
+        dados["numeroReciboEntrega"] = int(numero_recibo)
     payload = {
         "contratante": {"numero": cnpj_contratante, "tipo": 2},
         "autorPedidoDados": {"numero": cnpj_contratante, "tipo": 2},

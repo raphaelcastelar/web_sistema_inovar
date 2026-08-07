@@ -61,7 +61,6 @@ const CentralDctfWeb = () => {
     const [empresaId, setEmpresaId] = useState('');
     const [month, setMonth] = useState(String(now.getMonth() + 1).padStart(2, '0'));
     const [year, setYear] = useState(String(now.getFullYear()));
-    const [numeroRecibo, setNumeroRecibo] = useState('');
     const [selectedService, setSelectedService] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -104,8 +103,6 @@ const CentralDctfWeb = () => {
     const execute = async () => {
         resetMessages();
         if (!empresaId) return setError('Selecione uma empresa.');
-        if (!numeroRecibo) return setError('Informe o número do recibo de entrega.');
-
         const empresa = empresas.find((item) => item.id === Number(empresaId));
         if (!empresa) return setError('Empresa selecionada não encontrada.');
         const periodo = `${year}${month}`;
@@ -114,7 +111,6 @@ const CentralDctfWeb = () => {
             const response = await axiosInstance.post(`/api/serpro/dctfweb/${selectedService}/`, {
                 cnpj: normalizeCnpj(empresa.cnpj),
                 periodo,
-                numero_recibo: numeroRecibo,
             }, { responseType: 'blob' });
             downloadResponse(response, `DCTFWeb_${selectedService}_${periodo}.pdf`);
             setSuccess(`${services[selectedService].title} baixado com sucesso!`);
@@ -196,10 +192,9 @@ const CentralDctfWeb = () => {
                                     </select>
                                 </div>
                             </div>
-                            <div>
-                                <label htmlFor="numero-recibo-dctfweb" className="mb-2 block text-sm font-semibold">Número do recibo de entrega</label>
-                                <input id="numero-recibo-dctfweb" value={numeroRecibo} onChange={(event) => setNumeroRecibo(event.target.value.replace(/\D/g, ''))} inputMode="numeric" autoComplete="off" placeholder="Informe o número do recibo" className="w-full rounded-md border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800" />
-                            </div>
+                            <p className="rounded-md bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+                                Será utilizada automaticamente a declaração mais recente desta competência.
+                            </p>
                             <button onClick={execute} disabled={loading} className={`flex w-full items-center justify-center gap-3 rounded-md px-6 py-4 font-bold text-white disabled:opacity-60 ${buttonClasses[currentService.color]}`}>
                                 {loading ? <ArrowPathIcon className="h-6 w-6 animate-spin" /> : <CurrentIcon className="h-6 w-6" />}
                                 {loading ? 'Processando...' : currentService.button}
