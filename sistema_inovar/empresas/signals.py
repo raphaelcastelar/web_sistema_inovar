@@ -4,8 +4,6 @@ from django.dispatch import receiver
 from django.conf import settings
 import shutil
 import os
-import re
-import unidecode
 import logging
 import datetime # Necessário para obter o ano atual e formatar meses
 
@@ -14,21 +12,6 @@ from.utils import gerar_nome_pasta_empresa_padronizado
 
 logger = logging.getLogger(__name__)
 
-
-def gerar_nome_pasta_empresa_com_espacos_e_maiusculas(nome_da_empresa_str):
-    # ... (lógica completa da função como mostrado acima) ...
-    if not nome_da_empresa_str:
-        logger.warning("Tentativa de gerar nome de pasta para empresa sem nome.")
-        return "EMPRESA_SEM_NOME_DEFINIDO" 
-    nome_sem_acentos = unidecode.unidecode(str(nome_da_empresa_str))
-    caracteres_invalidos_pattern = r'[<>:"/\\|?*\x00-\x1F]'
-    nome_sanitizado_parcial = re.sub(caracteres_invalidos_pattern, '', nome_sem_acentos)
-    nome_com_espacos_normalizados = re.sub(r'\s+', ' ', nome_sanitizado_parcial).strip()
-    nome_final_pasta = nome_com_espacos_normalizados.upper()
-    if not nome_final_pasta:
-        logger.warning(f"Nome da empresa '{nome_da_empresa_str}' resultou em nome de pasta vazio.")
-        return "NOME_EMPRESA_INVALIDO_PARA_PASTA"
-    return nome_final_pasta
 
 @receiver(post_save, sender=Empresa)
 def criar_pastas_empresa_handler(sender, instance, created, **kwargs):
@@ -42,7 +25,7 @@ def criar_pastas_empresa_handler(sender, instance, created, **kwargs):
             return
 
         try:
-            company_folder_name = gerar_nome_pasta_empresa_com_espacos_e_maiusculas(instance)
+            company_folder_name = gerar_nome_pasta_empresa_padronizado(instance.nome)
             base_company_path = os.path.join(settings.MEDIA_ROOT, company_folder_name)
 
             # Cria a pasta base da empresa

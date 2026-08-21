@@ -55,6 +55,13 @@ const formatOptionLabel = (value) => {
     return labels[value] || value;
 };
 
+const normalizeCompanyName = (value) => value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+
 const EmpresaForm = () => {
     const { empresaId } = useParams();
     const navigate = useNavigate();
@@ -163,7 +170,8 @@ const EmpresaForm = () => {
     }, [empresaId, isEditing, validateAndSetTelefoneFeedback]);
 
     const handleChange = async (e) => {
-        const { name, value } = e.target;
+        const { name } = e.target;
+        const value = name === 'nome' ? normalizeCompanyName(e.target.value) : e.target.value;
         setEmpresa((prev) => ({ ...prev, [name]: value }));
 
         if (name === 'telefone') {
@@ -528,6 +536,7 @@ const EmpresaForm = () => {
                                     <label htmlFor="nome" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Nome da Empresa</label>
                                     <BuildingOfficeIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
                                     <input type="text" name="nome" id="nome" value={empresa.nome} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required />
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">O nome é salvo em maiúsculas e sem acentos ou cedilha para manter a pasta sincronizada.</p>
                                 </div>
                                 <div className="relative xl:col-span-3">
                                     <label htmlFor="cnpj" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">CNPJ</label>

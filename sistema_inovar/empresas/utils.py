@@ -51,17 +51,28 @@ def is_valid_cnpj(value):
     return normalized[-2:] == first_digit + second_digit
 
 
-def gerar_nome_pasta_empresa_padronizado(nome_da_empresa_str):
-    """
-    Retorna o nome da empresa exatamente como está, sem nenhum tratamento.
-    O nome da pasta no servidor deve ser exatamente o nome da empresa.
-    """
+def normalizar_nome_empresa(nome_da_empresa_str):
+    """Normaliza o nome cadastral para que também seja seguro como pasta."""
     if not nome_da_empresa_str:
-        logger.warning("Tentativa de gerar nome de pasta para empresa sem nome.")
-        return "EMPRESA_NOME_VAZIO" 
+        return ''
 
-    # Retorna o nome exatamente como está, sem tratamento
-    return str(nome_da_empresa_str)
+    nome_sem_acentos = unidecode.unidecode(str(nome_da_empresa_str))
+    nome_sem_caracteres_de_caminho = re.sub(
+        r'[<>:"/\\|?*\x00-\x1F]',
+        '',
+        nome_sem_acentos,
+    )
+    return re.sub(r'\s+', ' ', nome_sem_caracteres_de_caminho).strip().upper()
+
+
+def gerar_nome_pasta_empresa_padronizado(nome_da_empresa_str):
+    """Retorna o mesmo nome canônico usado no cadastro da empresa."""
+    nome_padronizado = normalizar_nome_empresa(nome_da_empresa_str)
+    if not nome_padronizado:
+        logger.warning("Tentativa de gerar nome de pasta para empresa sem nome válido.")
+        return "EMPRESA_NOME_VAZIO"
+
+    return nome_padronizado
 
 def sanitize_filename_for_upload(filename):
     """

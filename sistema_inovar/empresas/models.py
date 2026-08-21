@@ -7,7 +7,7 @@ from django.contrib.postgres.indexes import GinIndex
 from django.utils import timezone
 from decimal import Decimal
 import logging
-from .utils import gerar_nome_pasta_empresa_padronizado
+from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 
@@ -68,6 +68,10 @@ class Empresa(models.Model):
     ativo = models.BooleanField(default=True, null = True)
     criado_em = models.DateTimeField(auto_now_add=True)
     desativado_em = models.DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        self.nome = normalizar_nome_empresa(self.nome)
+        super().save(*args, **kwargs)
 
     # Configurações de Boleto
     valor_honorario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Valor do honorário para geração de boleto", null = True)

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
-from .utils import format_cnpj, is_valid_cnpj
+from .utils import format_cnpj, is_valid_cnpj, normalizar_nome_empresa
 import re
 import logging
 
@@ -158,6 +158,14 @@ class EmpresaSerializer(serializers.ModelSerializer):
                 grupos.append(grupo)
 
         return grupos
+
+    def validate_nome(self, value):
+        nome = normalizar_nome_empresa(value)
+        if not nome:
+            raise serializers.ValidationError(
+                "Informe um nome com pelo menos uma letra ou número."
+            )
+        return nome
 
     def validate_cnpj(self, value):
         if not is_valid_cnpj(value):
