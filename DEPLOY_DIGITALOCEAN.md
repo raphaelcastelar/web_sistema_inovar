@@ -453,6 +453,37 @@ curl -I http://167.71.24.230/api/token/
 `/api/token/` via GET pode retornar `405 Method Not Allowed`. Isso e normal; o
 endpoint de login usa POST.
 
+## Migrar Estrutura De Pastas (Agosto/2026)
+
+O comando abaixo e destrutivo. Ele preserva somente os arquivos de
+`DOCUMENTOS CONSTITUTIVOS` e de `DEPARTAMENTO PESSOAL/2026/082026`, atualiza
+os caminhos no banco e cria a nova arvore de pastas.
+
+Primeiro, simule sem alterar nada:
+
+```bash
+cd /opt/apps/web_sistema_inovar/sistema_inovar
+source .venv/bin/activate
+python manage.py migrar_estrutura_pastas_2026
+```
+
+Para validar apenas uma empresa:
+
+```bash
+python manage.py migrar_estrutura_pastas_2026 --empresa="ACOUGUE PONTES"
+```
+
+Depois de revisar a contagem exibida, execute uma unica vez:
+
+```bash
+python manage.py migrar_estrutura_pastas_2026 \
+  --execute \
+  --confirm=APAGAR_ARQUIVOS_E_MIGRAR
+```
+
+O comando ignora empresas que ja nao tenham a estrutura legada, evitando que
+uma segunda execucao apague os arquivos preservados na primeira.
+
 ## Problemas Comuns
 
 ### 404 Cannot POST /api/token/

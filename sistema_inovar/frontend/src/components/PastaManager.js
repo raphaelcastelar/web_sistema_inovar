@@ -19,11 +19,11 @@ const SERVER_FILE_URL_BASE = process.env.REACT_APP_API_URL || '';
 // --- CONFIGURAÇÕES E FUNÇÕES AUXILIARES (DO SEU CÓDIGO ORIGINAL) ---
 
 const pastaConfig = {
-    'documentos_constitutivos': { label: 'Doc. Constitutivos' },
-    'departamento_pessoal': { label: 'Dpto. Pessoal' },
-    'xml': { label: 'XML' },
-    'simples_nacional': { label: 'Simples Nacional' },
-    'outros': { label: 'Honorários' },
+    'documentos_constitutivos': { label: 'Constitutivos / Outros' },
+    'departamento_pessoal': { label: 'Pessoal / Guias' },
+    'xml': { label: 'Fiscal / XML' },
+    'simples_nacional': { label: 'Fiscal / Guias' },
+    'outros': { label: 'Financeiro / Honorários Mensais' },
 };
 const pastaTypes = Object.keys(pastaConfig);
 const periodFolderTypes = ['xml', 'departamento_pessoal', 'simples_nacional', 'outros'];

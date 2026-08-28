@@ -910,31 +910,31 @@ MODEL_CONFIG_MAP_SYNC = {
         'model': DocumentosConstitutivos, 'serializer': DocumentosConstitutivosSerializer,
         'company_field_name_in_doc_model': 'nome_empresa', # Campo no modelo do documento que guarda o nome da empresa
         'company_attr_in_empresa_model': 'nome', # Atributo no modelo Empresa para filtro (geralmente nome ou cnpj)
-        'fs_folder_name': 'DOCUMENTOS CONSTITUTIVOS', 'has_year_month': False
+        'fs_folder_parts': ('CONSTITUTIVOS', 'OUTROS'), 'has_year_month': False
     },
     'departamento_pessoal': {
         'model': DepartamentoPessoal, 'serializer': DepartamentoPessoalSerializer,
         'company_field_name_in_doc_model': 'cnpj_empresa',
         'company_attr_in_empresa_model': 'cnpj',
-        'fs_folder_name': 'DEPARTAMENTO PESSOAL', 'has_year_month': True
+        'fs_folder_parts': ('PESSOAL', 'GUIAS'), 'has_year_month': True
     },
     'simples_nacional': {
         'model': SimplesNacional, 'serializer': SimplesNacionalSerializer,
         'company_field_name_in_doc_model': 'cnpj_empresa',
         'company_attr_in_empresa_model': 'cnpj',
-        'fs_folder_name': 'SIMPLES NACIONAL', 'has_year_month': True
+        'fs_folder_parts': ('FISCAL', 'GUIAS'), 'has_year_month': True
     },
     'xml': {
         'model': XML, 'serializer': XMLSerializer,
         'company_field_name_in_doc_model': 'cnpj_empresa',
         'company_attr_in_empresa_model': 'cnpj',
-        'fs_folder_name': 'XML', 'has_year_month': True
+        'fs_folder_parts': ('FISCAL', 'XML'), 'has_year_month': True
     },
     'outros': {
         'model': Outros, 'serializer': OutrosSerializer,
         'company_field_name_in_doc_model': 'nome_empresa',
         'company_attr_in_empresa_model': 'nome',
-        'fs_folder_name': 'HONORARIOS', 'has_year_month': True
+        'fs_folder_parts': ('FINANCEIRO', 'HONORARIOS MENSAIS'), 'has_year_month': True
     },
 }
 
@@ -945,15 +945,14 @@ def _resolve_document_file_path(doc, empresa, tipo_pasta):
 
     if config_sync:
         company_folder = gerar_nome_pasta_empresa_padronizado(empresa.nome)
-        fs_folder_name = config_sync['fs_folder_name']
-        base_path = os.path.join(settings.MEDIA_ROOT, company_folder, fs_folder_name)
+        fs_folder_parts = config_sync['fs_folder_parts']
+        base_path = os.path.join(settings.MEDIA_ROOT, company_folder, *fs_folder_parts)
 
         if config_sync['has_year_month']:
             doc_ano = str(getattr(doc, 'ano', '') or '')
             doc_mes = str(getattr(doc, 'mes', '') or '').zfill(2)
             if doc_ano and doc_mes:
-                folder_month_year = f"{doc_mes}{doc_ano}"
-                base_path = os.path.join(base_path, doc_ano, folder_month_year)
+                base_path = os.path.join(base_path, doc_ano, doc_mes)
 
         possible_path = os.path.join(base_path, doc.nome_arquivo)
         if os.path.exists(possible_path):
@@ -1056,16 +1055,18 @@ def _find_honorario_file_in_period_folder(period_folder):
     return None
 
 
-def _find_honorario_file_on_disk(empresa, periods, folder_name):
+def _find_honorario_file_on_disk(empresa, periods, folder_parts):
     company_folder_name = gerar_nome_pasta_empresa_padronizado(empresa.nome)
     company_folder, _, _ = _resolve_existing_child_folder(
         settings.MEDIA_ROOT,
         company_folder_name,
     )
-    document_folder, _, _ = _resolve_existing_child_folder(
-        company_folder,
-        folder_name,
-    )
+    document_folder = company_folder
+    for folder_part in folder_parts:
+        document_folder, _, _ = _resolve_existing_child_folder(
+            document_folder,
+            folder_part,
+        )
 
     for year, month in periods:
         period_folder = os.path.join(document_folder, year, f'{month}{year}')
@@ -1104,19 +1105,12 @@ def _find_honorario_file_on_disk(empresa, periods, folder_name):
 def buscar_boleto_honorario_para_cobranca(empresa, boleto):
     periods = _honorario_reference_periods(boleto)
     sources = (
-        ('database', Outros, 'outros', 'HONORARIOS'),
-        ('filesystem', None, 'HONORARIOS', 'HONORARIOS (arquivo físico)'),
-        (
-            'database',
-            DepartamentoPessoal,
-            'departamento_pessoal',
-            'DEPARTAMENTO PESSOAL (legado)',
-        ),
+        ('database', Outros, 'outros', 'FINANCEIRO/HONORARIOS MENSAIS'),
         (
             'filesystem',
             None,
-            'DEPARTAMENTO PESSOAL',
-            'DEPARTAMENTO PESSOAL (arquivo físico legado)',
+            ('FINANCEIRO', 'HONORARIOS MENSAIS'),
+            'FINANCEIRO/HONORARIOS MENSAIS (arquivo físico)',
         ),
     )
 
@@ -1716,8 +1710,8 @@ class BoletoBBViewSet(viewsets.ModelViewSet):
 
             if not caminho_honorario:
                 erro = (
-                    'Boleto HONORARIO não encontrado nas pastas HONORARIOS '
-                    'ou DEPARTAMENTO PESSOAL da empresa para envio da cobrança.'
+                    'Boleto não encontrado em FINANCEIRO/HONORARIOS MENSAIS '
+                    'para envio da cobrança.'
                 )
                 HistoricoEnvios.objects.create(
                     remetente=recipient_number,
@@ -2124,18 +2118,21 @@ def sincronizar_pasta_empresa_api(request):
     
     # USA A SUA FUNÇÃO DO UTILS.PY PARA O NOME DA PASTA DA EMPRESA
     company_folder_name_on_fs = gerar_nome_pasta_empresa_padronizado(empresa.nome)
-    fs_doc_type_folder_name = config['fs_folder_name']
+    fs_doc_type_folder_parts = config['fs_folder_parts']
     company_folder_path_on_fs, company_folder_name_on_fs, company_folder_matched_by_normalization = _resolve_existing_child_folder(
         settings.MEDIA_ROOT,
         company_folder_name_on_fs,
     )
-    if tipo_pasta_sync == 'outros':
-        _rename_legacy_child_folder(company_folder_path_on_fs, 'OUTROS', fs_doc_type_folder_name)
-
-    base_doc_type_path_on_fs, fs_doc_type_folder_name, doc_folder_matched_by_normalization = _resolve_existing_child_folder(
-        company_folder_path_on_fs,
-        fs_doc_type_folder_name,
-    )
+    base_doc_type_path_on_fs = company_folder_path_on_fs
+    resolved_folder_parts = []
+    doc_folder_matched_by_normalization = False
+    for folder_part in fs_doc_type_folder_parts:
+        base_doc_type_path_on_fs, resolved_name, matched = _resolve_existing_child_folder(
+            base_doc_type_path_on_fs,
+            folder_part,
+        )
+        resolved_folder_parts.append(resolved_name)
+        doc_folder_matched_by_normalization = doc_folder_matched_by_normalization or matched
 
     if not os.path.isdir(base_doc_type_path_on_fs):
         try: # Tenta criar a estrutura base se não existir (o sinal deveria ter feito, mas como garantia)
@@ -2147,7 +2144,7 @@ def sincronizar_pasta_empresa_api(request):
                 os.makedirs(caminho_pasta_ano, exist_ok=True)
                 for numero_mes in range(1, 13):
                     mes_formatado_str = f"{numero_mes:02d}"
-                    nome_pasta_mes_ano = f"{mes_formatado_str}{ano_atual_str}"
+                    nome_pasta_mes_ano = mes_formatado_str
                     caminho_pasta_mes_ano = os.path.join(caminho_pasta_ano, nome_pasta_mes_ano)
                     os.makedirs(caminho_pasta_mes_ano, exist_ok=True)
         except Exception as e_mkdir:
@@ -2211,7 +2208,7 @@ def sincronizar_pasta_empresa_api(request):
                         "year": detected_year,
                         "month": detected_month,
                         "relative_dir_parts": relative_dir_parts,
-                        "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name] + relative_dir_parts
+                        "sub_path_parts": [company_folder_name_on_fs] + resolved_folder_parts + relative_dir_parts
                     })
                 else:
                     scan_paths.append({
@@ -2219,7 +2216,7 @@ def sincronizar_pasta_empresa_api(request):
                         "year": None,
                         "month": None,
                         "relative_dir_parts": relative_dir_parts,
-                        "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name] + relative_dir_parts
+                        "sub_path_parts": [company_folder_name_on_fs] + resolved_folder_parts + relative_dir_parts
                     })
     else: # Pastas sem estrutura de ano/mês
         if os.path.exists(base_doc_type_path_on_fs):
@@ -2227,7 +2224,7 @@ def sincronizar_pasta_empresa_api(request):
                 "path": base_doc_type_path_on_fs, 
                 "year": None, 
                 "month": None,
-                "sub_path_parts": [company_folder_name_on_fs, fs_doc_type_folder_name]
+                "sub_path_parts": [company_folder_name_on_fs] + resolved_folder_parts
             })
 
     for item_to_scan in scan_paths:
@@ -2346,7 +2343,7 @@ def sincronizar_pasta_empresa_api(request):
     
     month_summary = _format_sync_month_summary(found_month_counts)
     return Response({
-        "message": f"Sincronização da pasta '{config['fs_folder_name']}' concluída. "
+        "message": f"Sincronização da pasta '{'/'.join(config['fs_folder_parts'])}' concluída. "
                    f"{added_count} arquivo(s) adicionado(s), {removed_count} registro(s) removido(s) do banco. "
                    f"Arquivos encontrados por competencia: {month_summary}. "
                    f"Sem competencia identificada: {files_without_period}. "

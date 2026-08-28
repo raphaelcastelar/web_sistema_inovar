@@ -256,34 +256,33 @@ def sanitize_filename(filename):
 def documentos_constitutivos_upload_path(instance, filename):
     company_folder = get_document_company_folder_name_for_upload(instance)
     clean_filename = sanitize_filename(filename)
-    return os.path.join(company_folder, 'DOCUMENTOS CONSTITUTIVOS', clean_filename)
+    return os.path.join(company_folder, 'CONSTITUTIVOS', 'OUTROS', clean_filename)
 
 def outros_upload_path(instance, filename):
     company_folder = get_document_company_folder_name_for_upload(instance)
     reference_date = timezone.now()
     year = str(instance.ano or reference_date.year)
     month_for_folder = str(instance.mes or reference_date.month).zfill(2)
-    month_year_folder = f"{month_for_folder}{year}"
+    month_year_folder = month_for_folder
     clean_filename = sanitize_filename(filename)
-    return os.path.join(company_folder, 'HONORARIOS', year, month_year_folder, clean_filename)
+    return os.path.join(company_folder, 'FINANCEIRO', 'HONORARIOS MENSAIS', year, month_year_folder, clean_filename)
 
 def timed_folder_upload_path(instance, filename, base_folder_name):
     company_folder = get_document_company_folder_name_for_upload(instance)
     year = str(instance.ano)
     # instance.mes deve ser o número do mês com dois dígitos (ex: "01", "12")
     month_for_folder = str(instance.mes).zfill(2) 
-    month_year_folder = f"{month_for_folder}{year}" # Ex: "012025"
     clean_filename = sanitize_filename(filename)
-    return os.path.join(company_folder, base_folder_name, year, month_year_folder, clean_filename)
+    return os.path.join(company_folder, *base_folder_name, year, month_for_folder, clean_filename)
 
 def departamento_pessoal_upload_path(instance, filename):
-    return timed_folder_upload_path(instance, filename, 'DEPARTAMENTO PESSOAL')
+    return timed_folder_upload_path(instance, filename, ('PESSOAL', 'GUIAS'))
 
 def simples_nacional_upload_path(instance, filename):
-    return timed_folder_upload_path(instance, filename, 'SIMPLES NACIONAL')
+    return timed_folder_upload_path(instance, filename, ('FISCAL', 'GUIAS'))
 
 def xml_upload_path(instance, filename):
-    return timed_folder_upload_path(instance, filename, 'XML')
+    return timed_folder_upload_path(instance, filename, ('FISCAL', 'XML'))
 
 
 class Funcionario(AbstractUser):
