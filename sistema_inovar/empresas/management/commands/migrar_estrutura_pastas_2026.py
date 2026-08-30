@@ -1,3 +1,4 @@
+import errno
 import os
 import shutil
 import tempfile
@@ -217,12 +218,25 @@ class Command(BaseCommand):
         return copied
 
     def _remove_tree_ignoring_missing(self, path):
+        directory_not_empty = False
+
         def handle_remove_error(function, failed_path, exception):
+            nonlocal directory_not_empty
             if isinstance(exception, FileNotFoundError):
+                return
+            if isinstance(exception, OSError) and exception.errno == errno.ENOTEMPTY:
+                directory_not_empty = True
                 return
             raise exception
 
-        shutil.rmtree(path, onexc=handle_remove_error)
+        # Compartilhamentos SMB podem devolver uma listagem defasada: o rmtree
+        # tenta remover a pasta antes de enxergar um arquivo ainda presente.
+        # Repetir a varredura normalmente resolve sem tornar todos os erros silenciosos.
+        for _ in range(3):
+            directory_not_empty = False
+            shutil.rmtree(path, onexc=handle_remove_error)
+            if not os.path.exists(path) or not directory_not_empty:
+                return
 
     @staticmethod
     def _copy_tree_without_overwrite(source, destination):
