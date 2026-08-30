@@ -6,7 +6,12 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from empresas.folder_structure import create_company_folder_structure
+from empresas.folder_structure import (
+    ANNUAL_FOLDERS,
+    MONTHLY_FOLDERS,
+    PLAIN_FOLDERS,
+    create_company_folder_structure,
+)
 from empresas.utils import gerar_nome_pasta_empresa_padronizado
 
 
@@ -111,9 +116,9 @@ class Command(BaseCommand):
 
     def _migrate_company(self, company_path, company_name, execute):
         sources = self._legacy_sources(company_path)
-        if not any(os.path.isdir(source) for source, _ in sources):
+        if not any(os.path.isdir(source) for source, _ in sources) and self._has_complete_new_structure(company_path):
             self.stdout.write(self.style.WARNING(
-                f'{company_name}: nenhuma estrutura legada encontrada; empresa ignorada para evitar uma nova exclusão.'
+                f'{company_name}: nova estrutura já está completa; empresa ignorada para evitar uma nova exclusão.'
             ))
             return {'preserve': 0, 'delete': 0}
         preserved_files = [file_path for source, _ in sources for file_path in self._files_under(source)]
@@ -134,9 +139,14 @@ class Command(BaseCommand):
 
             for entry in os.scandir(company_path):
                 if entry.is_dir(follow_symlinks=False):
-                    shutil.rmtree(entry.path)
+                    self._remove_tree_ignoring_missing(entry.path)
                 else:
-                    os.unlink(entry.path)
+                    try:
+                        os.unlink(entry.path)
+                    except FileNotFoundError:
+                        self.stdout.write(self.style.WARNING(
+                            f'Arquivo já não existia e foi ignorado: {entry.path}'
+                        ))
 
             create_company_folder_structure(company_path, years=(KEEP_YEAR,))
             self._copy_tree_without_overwrite(stage_path, company_path)
@@ -144,6 +154,19 @@ class Command(BaseCommand):
         finally:
             shutil.rmtree(stage_path, ignore_errors=True)
         return stats
+
+    @staticmethod
+    def _has_complete_new_structure(company_path):
+        required_paths = [os.path.join(company_path, *parts) for parts in PLAIN_FOLDERS]
+        required_paths.extend(
+            os.path.join(company_path, *parts, KEEP_YEAR, KEEP_MONTH)
+            for parts in MONTHLY_FOLDERS
+        )
+        required_paths.extend(
+            os.path.join(company_path, *parts, KEEP_YEAR)
+            for parts in ANNUAL_FOLDERS
+        )
+        return all(os.path.isdir(path) for path in required_paths)
 
     def _cleanup_database(self, company_name, company_path, staged_files):
         from empresas.models import (
@@ -195,8 +218,7 @@ class Command(BaseCommand):
         from empresas.models import Empresa
         return Empresa.objects.filter(nome=company_name).values_list('cnpj', flat=True)
 
-    @staticmethod
-    def _copy_files_flat(source, destination):
+    def _copy_files_flat(self, source, destination):
         os.makedirs(destination, exist_ok=True)
         copied = []
         for source_file in Command._files_under(source):
@@ -207,9 +229,26 @@ class Command(BaseCommand):
             while os.path.exists(target_file):
                 target_file = os.path.join(destination, f'{stem}_{counter}{extension}')
                 counter += 1
-            shutil.copy2(source_file, target_file)
+            try:
+                shutil.copy2(source_file, target_file)
+            except FileNotFoundError:
+                self.stdout.write(self.style.WARNING(
+                    f'Arquivo desapareceu durante a cópia e foi ignorado: {source_file}'
+                ))
+                continue
             copied.append(target_file)
         return copied
+
+    def _remove_tree_ignoring_missing(self, path):
+        def handle_remove_error(function, failed_path, exception):
+            if isinstance(exception, FileNotFoundError):
+                self.stdout.write(self.style.WARNING(
+                    f'Arquivo já não existia e foi ignorado: {failed_path}'
+                ))
+                return
+            raise exception
+
+        shutil.rmtree(path, onexc=handle_remove_error)
 
     @staticmethod
     def _copy_tree_without_overwrite(source, destination):
