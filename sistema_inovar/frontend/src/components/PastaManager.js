@@ -164,6 +164,7 @@ const PastaManager = () => {
     // --- ESTADO DO COMPONENTE ---
     const { empresaId } = useParams();
     const [pastas, setPastas] = useState([]);
+    const [activeFolderGroup, setActiveFolderGroup] = useState('Constitutivos');
     const [selectedPasta, setSelectedPasta] = useState(null);
     const [empresaNome, setEmpresaNome] = useState('');
     const [empresaCnpj, setEmpresaCnpj] = useState('');
@@ -257,6 +258,13 @@ const PastaManager = () => {
         setTargetUploadMonth('');
     };
 
+    const handleFolderGroupClick = (group) => {
+        setActiveFolderGroup(group);
+        setSelectedPasta(null);
+        setSelectedFiles([]);
+        setError(null);
+    };
+
     const handleRefreshSelectedPasta = async () => {
         if (!selectedPasta) return;
         setIsRefreshingPasta(true);
@@ -343,24 +351,46 @@ const PastaManager = () => {
             </div>
 
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Pastas</h2>
-                <div className="space-y-5">
-                {Object.entries(pastaGroups).map(([group, tipos]) => (
-                    <div key={group}>
-                        <h3 className="mb-2 text-sm font-bold text-gray-800 dark:text-gray-200">{group}</h3>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                            {tipos.map(tipo => {
-                                const pasta = pastas.find(item => item.tipo === tipo) || { tipo, id: tipo };
-                                return (
-                                    <motion.button key={pasta.id} onClick={() => handlePastaClick(pasta)} whileHover={{ y: -2 }} className={`rounded-md border p-4 text-left transition-all ${selectedPasta?.id === pasta.id ? 'border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950' : 'border-gray-200 bg-white hover:border-[#c49a61] hover:shadow-sm dark:border-gray-700 dark:bg-gray-900'}`}>
-                                        <FolderIcon className={`mb-2 h-7 w-7 ${selectedPasta?.id === pasta.id ? 'text-current' : 'text-[#c49a61]'}`} />
-                                        <span className="block text-sm font-semibold">{pastaConfig[pasta.tipo]?.label}</span>
-                                    </motion.button>
-                                );
-                            })}
-                        </div>
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Pastas gerais</h2>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Escolha uma área para visualizar suas subpastas.</p>
                     </div>
-                ))}
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+                    {Object.entries(pastaGroups).map(([group, tipos]) => {
+                        const fileCount = tipos.reduce((total, tipo) => total + (arquivos[tipo]?.length || 0), 0);
+                        const active = activeFolderGroup === group;
+                        return (
+                            <button key={group} onClick={() => handleFolderGroupClick(group)} className={`flex min-h-20 items-center gap-3 rounded-lg border px-3 py-3 text-left transition ${active ? 'border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950' : 'border-gray-200 bg-gray-50 hover:border-[#c49a61] hover:bg-white dark:border-gray-700 dark:bg-gray-800/60 dark:hover:bg-gray-800'}`}>
+                                <FolderIcon className={`h-7 w-7 shrink-0 ${active ? 'text-current' : 'text-[#c49a61]'}`} />
+                                <span className="min-w-0">
+                                    <span className="block truncate text-sm font-semibold">{group}</span>
+                                    <span className={`mt-0.5 block text-xs ${active ? 'opacity-70' : 'text-gray-500 dark:text-gray-400'}`}>{fileCount} arquivo(s)</span>
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="mt-5 border-t border-gray-200 pt-4 dark:border-gray-800">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Subpastas de {activeFolderGroup}</h3>
+                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {(pastaGroups[activeFolderGroup] || []).map(tipo => {
+                            const pasta = pastas.find(item => item.tipo === tipo) || { tipo, id: tipo };
+                            const active = selectedPasta?.id === pasta.id;
+                            return (
+                                <motion.button key={pasta.id} onClick={() => handlePastaClick(pasta)} whileHover={{ x: 2 }} className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition ${active ? 'border-[#c49a61] bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100' : 'border-gray-200 bg-white hover:border-[#c49a61] dark:border-gray-700 dark:bg-gray-900'}`}>
+                                    <span className="flex min-w-0 items-center gap-3">
+                                        <FolderIcon className="h-5 w-5 shrink-0 text-[#c49a61]" />
+                                        <span className="truncate text-sm font-semibold">{pastaConfig[tipo].label}</span>
+                                    </span>
+                                    <span className="ml-3 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">{arquivos[tipo]?.length || 0}</span>
+                                </motion.button>
+                            );
+                        })}
+                    </div>
                 </div>
             </section>
 
@@ -369,7 +399,7 @@ const PastaManager = () => {
                 <motion.div key={selectedPasta.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                            <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#c49a61]">Pasta selecionada</p><h3 className="mt-1 text-xl font-semibold text-gray-950 dark:text-white">{pastaConfig[selectedPasta.tipo]?.label || selectedPasta.tipo.replace(/_/g, ' ')}</h3></div>
+                            <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#c49a61]">{pastaConfig[selectedPasta.tipo]?.group}</p><h3 className="mt-1 text-xl font-semibold text-gray-950 dark:text-white">{pastaConfig[selectedPasta.tipo]?.label || selectedPasta.tipo.replace(/_/g, ' ')}</h3></div>
                             <button onClick={handleRefreshSelectedPasta} disabled={isRefreshingPasta} className="p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors" title="Sincronizar Pasta">
                                 {isRefreshingPasta ? <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <ArrowPathIcon className="h-5 w-5" />}
                             </button>
