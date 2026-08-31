@@ -19,14 +19,30 @@ const SERVER_FILE_URL_BASE = process.env.REACT_APP_API_URL || '';
 // --- CONFIGURAÇÕES E FUNÇÕES AUXILIARES (DO SEU CÓDIGO ORIGINAL) ---
 
 const pastaConfig = {
-    'documentos_constitutivos': { label: 'Constitutivos / Outros' },
-    'departamento_pessoal': { label: 'Pessoal / Guias' },
-    'xml': { label: 'Fiscal / XML' },
-    'simples_nacional': { label: 'Fiscal / Guias' },
-    'outros': { label: 'Financeiro / Honorários Mensais' },
+    constitutivos_societario: { group: 'Constitutivos', label: 'Societário', period: 'none' },
+    constitutivos_inscricoes: { group: 'Constitutivos', label: 'Inscrições', period: 'none' },
+    constitutivos_outros: { group: 'Constitutivos', label: 'Outros', period: 'none' },
+    pessoal_guias: { group: 'Pessoal', label: 'Guias', period: 'monthly' },
+    pessoal_folha_pagamento: { group: 'Pessoal', label: 'Folha de Pagamento', period: 'monthly' },
+    pessoal_relatorios: { group: 'Pessoal', label: 'Relatórios', period: 'monthly' },
+    fiscal_xml: { group: 'Fiscal', label: 'XML', period: 'monthly' },
+    fiscal_guias: { group: 'Fiscal', label: 'Guias', period: 'monthly' },
+    fiscal_extratos: { group: 'Fiscal', label: 'Extratos', period: 'monthly' },
+    fiscal_declaracoes: { group: 'Fiscal', label: 'Declarações', period: 'annual' },
+    contabil_balanco_anual: { group: 'Contábil', label: 'Balanço Anual', period: 'annual' },
+    contabil_documentos: { group: 'Contábil', label: 'Documentos', period: 'monthly' },
+    financeiro_honorarios_mensais: { group: 'Financeiro', label: 'Honorários Mensais', period: 'monthly' },
+    outros: { group: 'Outros', label: 'Outros', period: 'none' },
 };
 const pastaTypes = Object.keys(pastaConfig);
-const periodFolderTypes = ['xml', 'departamento_pessoal', 'simples_nacional', 'outros'];
+const periodFolderTypes = pastaTypes.filter(tipo => pastaConfig[tipo].period === 'monthly');
+const annualFolderTypes = pastaTypes.filter(tipo => pastaConfig[tipo].period === 'annual');
+const pastaGroups = pastaTypes.reduce((groups, tipo) => {
+    const group = pastaConfig[tipo].group;
+    if (!groups[group]) groups[group] = [];
+    groups[group].push(tipo);
+    return groups;
+}, {});
 const monthOrder = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const buildFileViewUrl = (tipoPasta, arquivoId) => `${SERVER_FILE_URL_BASE}/api/arquivos/${tipoPasta}/${arquivoId}/visualizar/`;
 const getBrazilianLocalPhoneDigits = (value = '') => {
@@ -178,8 +194,7 @@ const PastaManager = () => {
             setEmpresaTelefone(response.data.telefone || '');
         });
         const promises = pastaTypes.map(tipo => {
-            const endpoint = tipo.replace(/_/g, '-');
-            return axiosInstance.get(`/api/${endpoint}/`, { params: { empresa_id: empresaId } })
+            return axiosInstance.get('/api/documentos-empresa/', { params: { empresa_id: empresaId, folder_key: tipo } })
                 .then(response => ({ tipo, data: response.data }))
                 .catch(() => ({ tipo, data: [] }));
         });
@@ -204,9 +219,8 @@ const PastaManager = () => {
             const formData = new FormData();
             formData.append('caminho_arquivo', file);
             formData.append('nome_arquivo', file.name);
-            formData.append('cnpj_empresa', empresaCnpj);
-            formData.append('nome_empresa', empresaNome);
-            formData.append('tipo_documento', pastaTipo.replace(/_/g, '-'));
+            formData.append('empresa', empresaId);
+            formData.append('folder_key', pastaTipo);
             
             // Lógica para usar o mês/ano selecionado ou o mês anterior
             if (periodFolderTypes.includes(pastaTipo)) {
@@ -216,17 +230,16 @@ const PastaManager = () => {
                 formData.append('mes', mesParaSalvar);
                 formData.append('ano', anoParaSalvar);
             }
-            if (['departamento_pessoal', 'simples_nacional'].includes(pastaTipo)) {
-                formData.append('entregue', false);
+            if (annualFolderTypes.includes(pastaTipo)) {
+                formData.append('ano', targetUploadYear || new Date().getFullYear().toString());
             }
-            const endpoint = pastaTipo.replace(/_/g, '-');
-            return axiosInstance.post(`/api/${endpoint}/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            return axiosInstance.post('/api/documentos-empresa/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         });
         Promise.all(uploadPromises)
             .then(() => { fetchData(); })
             .catch(err => { setError(err.response?.data?.detail || err.message || 'Erro no upload.'); })
             .finally(() => setUploading(false));
-    }, [empresaNome, empresaCnpj, targetUploadYear, targetUploadMonth, fetchData]);
+    }, [empresaNome, empresaCnpj, empresaId, targetUploadYear, targetUploadMonth, fetchData]);
     
     // Hook do Dropzone funcional
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -249,7 +262,7 @@ const PastaManager = () => {
         setIsRefreshingPasta(true);
         setError(null);
         try {
-            const response = await axiosInstance.post(`/api/sincronizar-pasta/`, { empresa_id: empresaId, tipo_pasta: selectedPasta.tipo });
+            const response = await axiosInstance.post('/api/documentos-empresa/sincronizar/', { empresa_id: empresaId, folder_key: selectedPasta.tipo });
             alert(response.data.message || 'Pasta sincronizada com sucesso!');
             fetchData();
         } catch (err) {
@@ -331,12 +344,22 @@ const PastaManager = () => {
 
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <h2 className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Pastas</h2>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {pastas.map(pasta => (
-                    <motion.button key={pasta.id} onClick={() => handlePastaClick(pasta)} whileHover={{ y: -2 }} className={`rounded-md border p-4 text-left transition-all ${selectedPasta?.id === pasta.id ? 'border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950' : 'border-gray-200 bg-white hover:border-[#c49a61] hover:shadow-sm dark:border-gray-700 dark:bg-gray-900'}`}>
-                        <FolderIcon className={`mb-2 h-7 w-7 ${selectedPasta?.id === pasta.id ? 'text-current' : 'text-[#c49a61]'}`} />
-                        <span className="text-sm font-semibold">{pastaConfig[pasta.tipo]?.label || pasta.tipo.replace(/_/g, ' ')}</span>
-                    </motion.button>
+                <div className="space-y-5">
+                {Object.entries(pastaGroups).map(([group, tipos]) => (
+                    <div key={group}>
+                        <h3 className="mb-2 text-sm font-bold text-gray-800 dark:text-gray-200">{group}</h3>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                            {tipos.map(tipo => {
+                                const pasta = pastas.find(item => item.tipo === tipo) || { tipo, id: tipo };
+                                return (
+                                    <motion.button key={pasta.id} onClick={() => handlePastaClick(pasta)} whileHover={{ y: -2 }} className={`rounded-md border p-4 text-left transition-all ${selectedPasta?.id === pasta.id ? 'border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-100 dark:bg-slate-100 dark:text-slate-950' : 'border-gray-200 bg-white hover:border-[#c49a61] hover:shadow-sm dark:border-gray-700 dark:bg-gray-900'}`}>
+                                        <FolderIcon className={`mb-2 h-7 w-7 ${selectedPasta?.id === pasta.id ? 'text-current' : 'text-[#c49a61]'}`} />
+                                        <span className="block text-sm font-semibold">{pastaConfig[pasta.tipo]?.label}</span>
+                                    </motion.button>
+                                );
+                            })}
+                        </div>
+                    </div>
                 ))}
                 </div>
             </section>
@@ -358,14 +381,14 @@ const PastaManager = () => {
                                     {error}
                                 </div>
                             )}
-                            {(periodFolderTypes.includes(selectedPasta.tipo)) && (
+                            {([...periodFolderTypes, ...annualFolderTypes].includes(selectedPasta.tipo)) && (
                                 <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Período para Upload (Opcional)</label>
                                     <div className="grid grid-cols-2 gap-4">
-                                        <select value={targetUploadMonth} onChange={(e) => setTargetUploadMonth(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500">
+                                        {periodFolderTypes.includes(selectedPasta.tipo) && <select value={targetUploadMonth} onChange={(e) => setTargetUploadMonth(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500">
                                             <option value="">Mês Anterior</option>
                                             {monthOrder.map((month, index) => <option key={index} value={(index + 1).toString().padStart(2, '0')}>{month.charAt(0).toUpperCase() + month.slice(1)}</option>)}
-                                        </select>
+                                        </select>}
                                         <select value={targetUploadYear} onChange={(e) => setTargetUploadYear(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500">
                                             <option value="">Ano do Mês Anterior</option>
                                             {[...Array(5)].map((_, i) => <option key={i} value={new Date().getFullYear() - i}>{new Date().getFullYear() - i}</option>)}
@@ -387,7 +410,7 @@ const PastaManager = () => {
                                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{selectedFiles.length} arquivo(s) selecionado(s)</span>
                                 <div className="flex-grow"></div>
                                 <button onClick={handleEmailClick} disabled={loading || uploading} className="flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950"><EnvelopeIcon className="h-4 w-4"/> Enviar por e-mail</button>
-                                <button onClick={handleWhatsAppClick} disabled={loading || uploading || selectedPasta.tipo === 'xml'} className="flex items-center gap-2 px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"><ChatBubbleBottomCenterTextIcon className="h-4 w-4"/> Enviar WhatsApp</button>
+                                <button onClick={handleWhatsAppClick} disabled={loading || uploading || selectedPasta.tipo === 'fiscal_xml'} className="flex items-center gap-2 px-3 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"><ChatBubbleBottomCenterTextIcon className="h-4 w-4"/> Enviar WhatsApp</button>
                             </div>
                         )}
 
@@ -404,7 +427,7 @@ const PastaManager = () => {
                                                 <input type="checkbox" checked={selectedFiles.includes(file.id)} onChange={() => toggleFileSelection(file.id)} className="form-checkbox h-4 w-4 rounded bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-indigo-600 focus:ring-indigo-500" />
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                                {file.hasOwnProperty('entregue') && (<span className={`text-xs px-2 py-0.5 font-semibold rounded-full ${file.entregue ? 'bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
+                                                {['pessoal_guias', 'fiscal_guias'].includes(selectedPasta.tipo) && (<span className={`text-xs px-2 py-0.5 font-semibold rounded-full ${file.entregue ? 'bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
                                                 <a href={buildFileViewUrl(selectedPasta.tipo, file.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
                                             </li>
                                         ))}</ul>

@@ -8,6 +8,7 @@ from django.utils import timezone
 from decimal import Decimal
 import logging
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
+from .folder_structure import FOLDER_DEFINITIONS
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 
@@ -283,6 +284,46 @@ def simples_nacional_upload_path(instance, filename):
 
 def xml_upload_path(instance, filename):
     return timed_folder_upload_path(instance, filename, ('FISCAL', 'XML'))
+
+
+def documento_empresa_upload_path(instance, filename):
+    company_folder = gerar_nome_pasta_empresa_padronizado(instance.empresa.nome)
+    definition = FOLDER_DEFINITIONS.get(instance.folder_key)
+    if not definition:
+        raise ValueError(f'Pasta de documento inválida: {instance.folder_key}')
+    parts = [company_folder, *definition['parts']]
+    if definition['period'] in ('annual', 'monthly'):
+        parts.append(str(instance.ano))
+    if definition['period'] == 'monthly':
+        parts.append(str(instance.mes).zfill(2))
+    return os.path.join(*parts, sanitize_filename(filename))
+
+
+class DocumentoEmpresa(models.Model):
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='documentos_nova_estrutura')
+    folder_key = models.CharField(max_length=60)
+    nome_arquivo = models.CharField(max_length=255)
+    caminho_arquivo = models.FileField(upload_to=documento_empresa_upload_path, max_length=500)
+    ano = models.CharField(max_length=4, null=True, blank=True)
+    mes = models.CharField(max_length=2, null=True, blank=True)
+    entregue = models.BooleanField(default=False)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-ano', '-mes', 'nome_arquivo']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa', 'folder_key', 'nome_arquivo', 'ano', 'mes'],
+                name='documento_empresa_pasta_periodo_uniq',
+                nulls_distinct=False,
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['empresa', 'folder_key', 'ano', 'mes'], name='doc_empresa_pasta_periodo_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.empresa.nome} - {self.folder_key} - {self.nome_arquivo}'
 
 
 class Funcionario(AbstractUser):

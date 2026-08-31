@@ -77,18 +77,19 @@ from .utils import get_bb_access_token
 
 from .models import (
     Empresa, EmpresaAvulsaFaturamento, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
+    SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
     Tag,
     UltimoResultadoSessao, BoletoBB
 )
 from .serializers import (
     TagSerializer,
     EmpresaSerializer, EmpresaCompactSerializer, EmpresaListSerializer, EmpresaOperationalListSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
-    DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, 
+    DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, DocumentoEmpresaSerializer,
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
     UltimoResultadoSessaoSerializer, BoletoBBSerializer, visible_tags_for_request, unique_tags_by_name
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
+from .folder_structure import FOLDER_DEFINITIONS
 from .serpro_service import (
     gerar_das_serpro, 
     obter_extrato_pdf_serpro,
@@ -1142,6 +1143,19 @@ def buscar_boleto_honorario_para_cobranca(empresa, boleto):
 
 @api_view(['GET'])
 def visualizar_arquivo_empresa(request, tipo_pasta, arquivo_id):
+    if tipo_pasta in FOLDER_DEFINITIONS:
+        try:
+            doc = DocumentoEmpresa.objects.select_related('empresa').get(id=arquivo_id, folder_key=tipo_pasta)
+        except DocumentoEmpresa.DoesNotExist:
+            return JsonResponse({'error': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        file_path_on_server = doc.caminho_arquivo.path
+        if not os.path.exists(file_path_on_server):
+            return JsonResponse({'error': 'Arquivo físico não encontrado no servidor.'}, status=status.HTTP_404_NOT_FOUND)
+        content_type, _ = mimetypes.guess_type(file_path_on_server)
+        response = FileResponse(open(file_path_on_server, 'rb'), content_type=content_type or 'application/octet-stream')
+        response['Content-Disposition'] = f'inline; filename="{urllib.parse.quote(doc.nome_arquivo)}"'
+        return response
+
     if tipo_pasta not in MODEL_CONFIG_MAP_SYNC:
         return JsonResponse({"error": f"Tipo de pasta '{tipo_pasta}' não suportado."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1431,6 +1445,81 @@ class OutrosViewSet(viewsets.ModelViewSet):
             except Empresa.DoesNotExist:
                 return Outros.objects.none()
         return _exclude_ignored_sync_files(super().get_queryset())
+
+
+class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
+    queryset = DocumentoEmpresa.objects.select_related('empresa').all()
+    serializer_class = DocumentoEmpresaSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        empresa_id = self.request.query_params.get('empresa_id')
+        folder_key = self.request.query_params.get('folder_key')
+        if empresa_id:
+            queryset = queryset.filter(empresa_id=empresa_id)
+        if folder_key:
+            queryset = queryset.filter(folder_key=folder_key)
+        return queryset
+
+    @action(detail=False, methods=['post'])
+    def sincronizar(self, request):
+        empresa_id = request.data.get('empresa_id')
+        folder_key = request.data.get('folder_key')
+        definition = FOLDER_DEFINITIONS.get(folder_key)
+        if not definition:
+            return Response({'error': 'Pasta inválida.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            empresa = Empresa.objects.get(pk=empresa_id)
+        except Empresa.DoesNotExist:
+            return Response({'error': 'Empresa não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+
+        company_path, company_name, _ = _resolve_existing_child_folder(
+            settings.MEDIA_ROOT, gerar_nome_pasta_empresa_padronizado(empresa.nome)
+        )
+        base_path = company_path
+        resolved_parts = []
+        for part in definition['parts']:
+            base_path, resolved, _ = _resolve_existing_child_folder(base_path, part)
+            resolved_parts.append(resolved)
+        os.makedirs(base_path, exist_ok=True)
+
+        found_paths = set()
+        added = 0
+        for current_dir, _, filenames in os.walk(base_path):
+            relative_parts = [] if current_dir == base_path else os.path.relpath(current_dir, base_path).split(os.sep)
+            ano = mes = None
+            if definition['period'] == 'annual' and relative_parts:
+                ano = relative_parts[0] if re.fullmatch(r'\d{4}', relative_parts[0]) else None
+            elif definition['period'] == 'monthly' and len(relative_parts) >= 2:
+                ano = relative_parts[0] if re.fullmatch(r'\d{4}', relative_parts[0]) else None
+                mes = relative_parts[1].zfill(2) if relative_parts[1].isdigit() else None
+            for filename in filenames:
+                if _is_ignored_sync_file(filename):
+                    continue
+                absolute_path = os.path.join(current_dir, filename)
+                if not os.path.isfile(absolute_path):
+                    continue
+                relative_media = _relative_media_path(company_name, *resolved_parts, *relative_parts, filename)
+                found_paths.add(relative_media)
+                _, created = DocumentoEmpresa.objects.update_or_create(
+                    empresa=empresa, folder_key=folder_key, nome_arquivo=filename, ano=ano, mes=mes,
+                    defaults={'caminho_arquivo': relative_media},
+                )
+                added += int(created)
+
+        queryset = DocumentoEmpresa.objects.filter(empresa=empresa, folder_key=folder_key)
+        removed = 0
+        for document in queryset:
+            if str(document.caminho_arquivo.name).replace('\\', '/') not in found_paths:
+                document.delete()
+                removed += 1
+        return Response({
+            'message': f'Sincronização concluída: {added} adicionado(s), {removed} removido(s).',
+            'data': DocumentoEmpresaSerializer(
+                DocumentoEmpresa.objects.filter(empresa=empresa, folder_key=folder_key), many=True
+            ).data,
+        })
 
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = HistoricoEnvios.objects.select_related('empresa', 'usuario').all()
@@ -1989,24 +2078,25 @@ def enviar_email(request):
         except Empresa.DoesNotExist:
             return Response({'error': f'Empresa com ID {empresa_id} não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
 
-        modelos = {
-            'documentos_constitutivos': (DocumentosConstitutivos, 'nome_empresa'),
-            'departamento_pessoal': (DepartamentoPessoal, 'cnpj_empresa'),
-            'xml': (XML, 'cnpj_empresa'),
-            'simples_nacional': (SimplesNacional, 'cnpj_empresa'),
-            'outros': (Outros, 'nome_empresa'), 
-        }
-
-        if tipo_pasta not in modelos:
-            return Response({'error': f'Tipo de pasta inválido: {tipo_pasta}.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        modelo, campo_empresa = modelos[tipo_pasta]
-        if campo_empresa == 'nome_empresa':
-            arquivos = modelo.objects.filter(id__in=file_ids, nome_empresa=nome_empresa)
+        if tipo_pasta in FOLDER_DEFINITIONS:
+            arquivos = DocumentoEmpresa.objects.filter(id__in=file_ids, empresa=empresa, folder_key=tipo_pasta)
         else:
-            arquivos = modelo.objects.filter(id__in=file_ids, cnpj_empresa=empresa.cnpj)
+            modelos = {
+                'documentos_constitutivos': (DocumentosConstitutivos, 'nome_empresa'),
+                'departamento_pessoal': (DepartamentoPessoal, 'cnpj_empresa'),
+                'xml': (XML, 'cnpj_empresa'),
+                'simples_nacional': (SimplesNacional, 'cnpj_empresa'),
+                'outros': (Outros, 'nome_empresa'),
+            }
+            if tipo_pasta not in modelos:
+                return Response({'error': f'Tipo de pasta inválido: {tipo_pasta}.'}, status=status.HTTP_400_BAD_REQUEST)
+            modelo, campo_empresa = modelos[tipo_pasta]
+            if campo_empresa == 'nome_empresa':
+                arquivos = modelo.objects.filter(id__in=file_ids, nome_empresa=nome_empresa)
+            else:
+                arquivos = modelo.objects.filter(id__in=file_ids, cnpj_empresa=empresa.cnpj)
 
-        logger.info(f"Arquivos encontrados: {list(arquivos.values('id', 'nome_arquivo', 'nome_empresa'))}")
+        logger.info(f"Arquivos encontrados: {list(arquivos.values('id', 'nome_arquivo'))}")
 
         if not arquivos.exists():
             return Response({'error': 'Nenhum arquivo encontrado para os IDs fornecidos.'}, status=status.HTTP_404_NOT_FOUND)
@@ -2374,15 +2464,16 @@ def enviar_documentos_whatsapp_api(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    if tipo_pasta == 'xml':
+    if tipo_pasta in ('xml', 'fiscal_xml'):
         return JsonResponse({"error": "Envio de arquivos XML por WhatsApp não é suportado."}, status=status.HTTP_400_BAD_REQUEST)
 
-    if tipo_pasta not in MODEL_CONFIG_MAP:
+    is_new_folder = tipo_pasta in FOLDER_DEFINITIONS
+    if tipo_pasta not in MODEL_CONFIG_MAP and not is_new_folder:
         return JsonResponse({"error": f"Tipo de pasta '{tipo_pasta}' não suportado para envio por WhatsApp."}, status=status.HTTP_400_BAD_REQUEST)
 
-    config = MODEL_CONFIG_MAP[tipo_pasta]
-    DocumentModel = config['model']
-    whatsapp_template_to_use = config['whatsapp_template_name']  # Pega o nome do template do config
+    config = MODEL_CONFIG_MAP.get(tipo_pasta)
+    DocumentModel = DocumentoEmpresa if is_new_folder else config['model']
+    whatsapp_template_to_use = 'envio_documento_com_contato' if is_new_folder else config['whatsapp_template_name']
 
     try:
         empresa = Empresa.objects.get(id=empresa_id)
@@ -2413,7 +2504,10 @@ def enviar_documentos_whatsapp_api(request):
     logger.info(f"Número de WhatsApp a ser utilizado para {empresa.nome}: {recipient_whatsapp_number}")
 
     filter_kwargs = {'id__in': file_ids}
-    filter_kwargs[config['company_field_name']] = getattr(empresa, config['company_attr'])
+    if is_new_folder:
+        filter_kwargs.update({'empresa': empresa, 'folder_key': tipo_pasta})
+    else:
+        filter_kwargs[config['company_field_name']] = getattr(empresa, config['company_attr'])
     documentos_qs = DocumentModel.objects.filter(**filter_kwargs)
 
     if not documentos_qs.exists():
@@ -2432,7 +2526,7 @@ def enviar_documentos_whatsapp_api(request):
             failed_sends.append({"filename": doc.nome_arquivo, "reason": "Caminho do arquivo inválido."})
             continue
         
-        file_path_on_server = _resolve_document_file_path(doc, empresa, tipo_pasta)
+        file_path_on_server = doc.caminho_arquivo.path if is_new_folder else _resolve_document_file_path(doc, empresa, tipo_pasta)
 
         if not file_path_on_server or not os.path.exists(file_path_on_server):
             logger.error(f"Arquivo FÍSICO não encontrado para ID {doc.id}: {doc.nome_arquivo}")

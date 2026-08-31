@@ -3,7 +3,7 @@ from django.urls import path, include
 from rest_framework import routers
 from empresas.views import (
     EmpresaViewSet, EmpresaAvulsaFaturamentoViewSet, DocumentosConstitutivosViewSet, XMLViewSet,
-    DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet,
+    DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, DocumentoEmpresaViewSet,
     enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet,
     current_user,  gerar_e_enviar_das_view, NotificacaoViewSet, BoletoBBViewSet, TagViewSet
 )
@@ -22,6 +22,7 @@ router.register(r'xml', XMLViewSet)
 router.register(r'departamento-pessoal', DepartamentoPessoalViewSet)
 router.register(r'simples-nacional', SimplesNacionalViewSet)
 router.register(r'outros', OutrosViewSet)
+router.register(r'documentos-empresa', DocumentoEmpresaViewSet, basename='documentos-empresa')
 router.register(r'historico-envios', HistoricoEnviosViewSet, basename='historicoenvios')
 router.register(r'funcionarios', FuncionarioViewSet, basename='funcionarios')
 router.register(r'notificacoes', NotificacaoViewSet, basename='notificacao')

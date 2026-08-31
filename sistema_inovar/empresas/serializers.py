@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
+from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
+from .folder_structure import FOLDER_DEFINITIONS
 from .utils import format_cnpj, is_valid_cnpj, normalizar_nome_empresa
 import re
 import logging
@@ -410,6 +411,30 @@ class OutrosSerializer(serializers.ModelSerializer):
     class Meta:
         model = Outros
         fields = '__all__'
+
+
+class DocumentoEmpresaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentoEmpresa
+        fields = ['id', 'empresa', 'folder_key', 'nome_arquivo', 'caminho_arquivo', 'ano', 'mes', 'entregue', 'criado_em']
+        read_only_fields = ['criado_em']
+
+    def validate(self, attrs):
+        folder_key = attrs.get('folder_key', getattr(self.instance, 'folder_key', None))
+        definition = FOLDER_DEFINITIONS.get(folder_key)
+        if not definition:
+            raise serializers.ValidationError({'folder_key': 'Pasta inválida.'})
+        ano = str(attrs.get('ano') or '').strip()
+        mes = str(attrs.get('mes') or '').zfill(2)
+        if definition['period'] in ('annual', 'monthly') and not re.fullmatch(r'\d{4}', ano):
+            raise serializers.ValidationError({'ano': 'Informe o ano com quatro dígitos.'})
+        if definition['period'] == 'monthly' and (not mes.isdigit() or not 1 <= int(mes) <= 12):
+            raise serializers.ValidationError({'mes': 'Informe um mês entre 01 e 12.'})
+        attrs['ano'] = ano or None
+        attrs['mes'] = mes if definition['period'] == 'monthly' else None
+        if definition['period'] == 'none':
+            attrs['ano'] = None
+        return attrs
 
 # serializers.py
 class HistoricoEnviosSerializer(serializers.ModelSerializer):
