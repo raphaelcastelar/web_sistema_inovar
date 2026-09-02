@@ -32,7 +32,7 @@ from django.utils.dateparse import parse_date
 from django.core.files.base import ContentFile
 from datetime import timedelta
 from django.db.models import OuterRef, Prefetch, Subquery, CharField
-from django.db import models
+from django.db import models, transaction
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
@@ -1490,6 +1490,7 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
         added = 0
         repaired_names = 0
         skipped_encoding_errors = 0
+        deduplicated_records = 0
         for current_dir, _, filenames in os.walk(base_path):
             relative_parts = [] if current_dir == base_path else os.path.relpath(current_dir, base_path).split(os.sep)
             ano = mes = None
@@ -1521,10 +1522,51 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
                     continue
                 relative_media = _relative_media_path(company_name, *resolved_parts, *relative_parts, filename)
                 try:
-                    _, created = DocumentoEmpresa.objects.update_or_create(
-                        empresa=empresa, folder_key=folder_key, nome_arquivo=filename, ano=ano, mes=mes,
-                        defaults={'caminho_arquivo': relative_media},
-                    )
+                    with transaction.atomic():
+                        lookup = {
+                            'empresa': empresa,
+                            'folder_key': folder_key,
+                            'nome_arquivo': filename,
+                            'ano': ano,
+                            'mes': mes,
+                        }
+                        document = DocumentoEmpresa.objects.filter(**lookup).first()
+                        path_matches = DocumentoEmpresa.objects.filter(
+                            empresa=empresa,
+                            folder_key=folder_key,
+                            caminho_arquivo=relative_media,
+                        )
+
+                        if document is None:
+                            document = path_matches.order_by('id').first()
+
+                        if document is None:
+                            document = DocumentoEmpresa.objects.create(
+                                **lookup,
+                                caminho_arquivo=relative_media,
+                            )
+                            created = True
+                        else:
+                            created = False
+                            duplicate_queryset = path_matches.exclude(pk=document.pk)
+                            duplicate_count = duplicate_queryset.count()
+                            if duplicate_count:
+                                if duplicate_queryset.filter(entregue=True).exists() and not document.entregue:
+                                    document.entregue = True
+                                duplicate_queryset.delete()
+                                deduplicated_records += duplicate_count
+
+                            document.nome_arquivo = filename
+                            document.ano = ano
+                            document.mes = mes
+                            document.caminho_arquivo = relative_media
+                            document.save(update_fields=[
+                                'nome_arquivo',
+                                'ano',
+                                'mes',
+                                'caminho_arquivo',
+                                'entregue',
+                            ])
                 except UnicodeError as exc:
                     skipped_encoding_errors += 1
                     logger.warning(
@@ -1548,6 +1590,8 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
             message += f' {repaired_names} nome(s) de arquivo corrigido(s).'
         if skipped_encoding_errors:
             message += f' {skipped_encoding_errors} arquivo(s) ignorado(s) por codificação inválida.'
+        if deduplicated_records:
+            message += f' {deduplicated_records} registro(s) duplicado(s) consolidado(s).'
 
         return Response({
             'message': message,
@@ -1556,6 +1600,7 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
             ).data,
             'repaired_names': repaired_names,
             'skipped_encoding_errors': skipped_encoding_errors,
+            'deduplicated_records': deduplicated_records,
         })
 
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):

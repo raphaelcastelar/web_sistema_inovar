@@ -1,5 +1,7 @@
+import importlib
 import os
 import tempfile
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
@@ -77,3 +79,30 @@ class NomeArquivoSincronizacaoTest(SimpleTestCase):
             os.path.join('/documentos', 'CONTRIBUI\udcc7AO.pdf'),
             os.path.join('/documentos', 'CONTRIBUICAO.pdf'),
         )
+
+
+class PeriodoDocumentoEmpresaTest(SimpleTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.migration = importlib.import_module(
+            'empresas.migrations.0024_normalizar_periodos_documento_empresa'
+        )
+
+    def test_pasta_sem_periodo_converte_mes_zero_para_nulo(self):
+        document = SimpleNamespace(
+            folder_key='constitutivos_outros',
+            ano=None,
+            mes='00',
+        )
+
+        self.assertEqual(self.migration._normalized_period(document), (None, None))
+
+    def test_pasta_mensal_normaliza_mes_para_dois_digitos(self):
+        document = SimpleNamespace(
+            folder_key='pessoal_guias',
+            ano='2026',
+            mes='8',
+        )
+
+        self.assertEqual(self.migration._normalized_period(document), ('2026', '08'))
