@@ -180,7 +180,9 @@ def _ensure_sync_safe_filename(directory_path, filename):
         counter += 1
 
     os.replace(source_path, destination_path)
-    logger.info("SYNC: Arquivo com nome invalido renomeado de %s para %s", filename, safe_filename)
+    # %r transforma surrogate escapes em texto ASCII (ex.: ``\udcc7``),
+    # evitando que o proprio logger levante outro UnicodeEncodeError.
+    logger.info("SYNC: Arquivo com nome invalido renomeado de %r para %r", filename, safe_filename)
     return safe_filename
 
 
@@ -1486,6 +1488,8 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
 
         found_paths = set()
         added = 0
+        repaired_names = 0
+        skipped_encoding_errors = 0
         for current_dir, _, filenames in os.walk(base_path):
             relative_parts = [] if current_dir == base_path else os.path.relpath(current_dir, base_path).split(os.sep)
             ano = mes = None
@@ -1497,15 +1501,39 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
             for filename in filenames:
                 if _is_ignored_sync_file(filename):
                     continue
+
+                original_filename = filename
+                try:
+                    filename = _ensure_sync_safe_filename(current_dir, filename)
+                except OSError as exc:
+                    skipped_encoding_errors += 1
+                    logger.warning(
+                        "SYNC: Nao foi possivel corrigir o nome invalido %r em %r: %s",
+                        filename,
+                        current_dir,
+                        exc,
+                    )
+                    continue
+                repaired_names += int(filename != original_filename)
+
                 absolute_path = os.path.join(current_dir, filename)
                 if not os.path.isfile(absolute_path):
                     continue
                 relative_media = _relative_media_path(company_name, *resolved_parts, *relative_parts, filename)
+                try:
+                    _, created = DocumentoEmpresa.objects.update_or_create(
+                        empresa=empresa, folder_key=folder_key, nome_arquivo=filename, ano=ano, mes=mes,
+                        defaults={'caminho_arquivo': relative_media},
+                    )
+                except UnicodeError as exc:
+                    skipped_encoding_errors += 1
+                    logger.warning(
+                        "SYNC: Arquivo ignorado por nome/caminho com codificacao invalida: %r (%s)",
+                        absolute_path,
+                        exc,
+                    )
+                    continue
                 found_paths.add(relative_media)
-                _, created = DocumentoEmpresa.objects.update_or_create(
-                    empresa=empresa, folder_key=folder_key, nome_arquivo=filename, ano=ano, mes=mes,
-                    defaults={'caminho_arquivo': relative_media},
-                )
                 added += int(created)
 
         queryset = DocumentoEmpresa.objects.filter(empresa=empresa, folder_key=folder_key)
@@ -1514,11 +1542,20 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
             if str(document.caminho_arquivo.name).replace('\\', '/') not in found_paths:
                 document.delete()
                 removed += 1
+
+        message = f'Sincronização concluída: {added} adicionado(s), {removed} removido(s).'
+        if repaired_names:
+            message += f' {repaired_names} nome(s) de arquivo corrigido(s).'
+        if skipped_encoding_errors:
+            message += f' {skipped_encoding_errors} arquivo(s) ignorado(s) por codificação inválida.'
+
         return Response({
-            'message': f'Sincronização concluída: {added} adicionado(s), {removed} removido(s).',
+            'message': message,
             'data': DocumentoEmpresaSerializer(
                 DocumentoEmpresa.objects.filter(empresa=empresa, folder_key=folder_key), many=True
             ).data,
+            'repaired_names': repaired_names,
+            'skipped_encoding_errors': skipped_encoding_errors,
         })
 
 class HistoricoEnviosViewSet(viewsets.ReadOnlyModelViewSet):

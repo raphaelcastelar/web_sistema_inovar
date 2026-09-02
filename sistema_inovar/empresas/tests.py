@@ -1,11 +1,13 @@
 import os
 import tempfile
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
 from .folder_structure import create_company_folder_structure
 from .management.commands.migrar_estrutura_pastas_2026 import Command
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
+from .views import _ensure_sync_safe_filename, _repair_surrogate_escapes
 
 
 class NomeEmpresaTest(SimpleTestCase):
@@ -52,3 +54,26 @@ class EstruturaPastasTest(SimpleTestCase):
             self.assertTrue(os.path.isfile(os.path.join(company_path, 'CONSTITUTIVOS', 'OUTROS', 'contrato.pdf')))
             self.assertTrue(os.path.isfile(os.path.join(company_path, 'PESSOAL', 'GUIAS', '2026', '08', 'guia.pdf')))
             self.assertFalse(os.path.exists(os.path.join(company_path, 'XML')))
+
+
+class NomeArquivoSincronizacaoTest(SimpleTestCase):
+    def test_repara_byte_cp1252_exposto_como_surrogate_escape(self):
+        self.assertEqual(
+            _repair_surrogate_escapes('CONTRIBUI\udcc7AO.pdf'),
+            'CONTRIBUIÇAO.pdf',
+        )
+
+    @patch('empresas.views.os.path.exists', return_value=False)
+    @patch('empresas.views.os.replace')
+    def test_renomeia_arquivo_invalido_para_nome_compativel_com_utf8(
+        self,
+        replace_mock,
+        _exists_mock,
+    ):
+        safe_name = _ensure_sync_safe_filename('/documentos', 'CONTRIBUI\udcc7AO.pdf')
+
+        self.assertEqual(safe_name, 'CONTRIBUICAO.pdf')
+        replace_mock.assert_called_once_with(
+            os.path.join('/documentos', 'CONTRIBUI\udcc7AO.pdf'),
+            os.path.join('/documentos', 'CONTRIBUICAO.pdf'),
+        )
