@@ -5,12 +5,16 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
+from django.core.files.storage import FileSystemStorage
 
 from .folder_structure import create_company_folder_structure
 from .management.commands.migrar_estrutura_pastas_2026 import Command
+from .management.commands.inventariar_arquivos import _relative_path, scan_media_root
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
 from .views import _ensure_sync_safe_filename, _repair_surrogate_escapes
 from .serpro_service import gerar_das_serpro, orquestrar_consulta_extrato
+from .document_storage import _atomic_storage_write
+from .management.commands.migrar_arquivos_para_nuvem import _safe_directory
 
 
 class NomeEmpresaTest(SimpleTestCase):
@@ -175,3 +179,51 @@ class TratamentoErrosDasSerproTest(SimpleTestCase):
 
         self.assertFalse(resultado['sucesso'])
         self.assertIn('competência válida', resultado['erro'])
+
+
+class InventarioArquivosTest(SimpleTestCase):
+    def test_scan_contabiliza_sem_modificar_arquivos(self):
+        with tempfile.TemporaryDirectory() as media_root:
+            folder = os.path.join(media_root, 'EMPRESA', 'FISCAL', 'GUIAS', '2026', '08')
+            os.makedirs(folder)
+            file_path = os.path.join(folder, 'DAS.pdf')
+            with open(file_path, 'wb') as document:
+                document.write(b'%PDF-test')
+            original_mtime = os.stat(file_path).st_mtime_ns
+
+            result = scan_media_root(media_root)
+
+            self.assertEqual(len(result['files']), 1)
+            self.assertEqual(result['files']['EMPRESA/FISCAL/GUIAS/2026/08/DAS.pdf']['size'], 9)
+            self.assertEqual(result['extensions'], {'.pdf': 1})
+            self.assertEqual(os.stat(file_path).st_mtime_ns, original_mtime)
+
+    def test_caminho_de_banco_nao_pode_sair_do_media_root(self):
+        with tempfile.TemporaryDirectory() as media_root:
+            self.assertIsNone(_relative_path(media_root, '../segredo.txt'))
+            self.assertIsNone(_relative_path(media_root, '/etc/passwd'))
+            self.assertEqual(
+                _relative_path(media_root, r'EMPRESA\FISCAL\GUIAS\2026\08\DAS.pdf'),
+                'EMPRESA/FISCAL/GUIAS/2026/08/DAS.pdf',
+            )
+
+
+class ArmazenamentoNuvemTest(SimpleTestCase):
+    def test_escrita_atomica_cria_e_substitui_documento(self):
+        with tempfile.TemporaryDirectory() as media_root:
+            storage = FileSystemStorage(location=media_root)
+            relative_name = 'EMPRESA/FISCAL/GUIAS/2026/08/DAS.pdf'
+
+            _atomic_storage_write(storage, relative_name, b'%PDF-primeira-versao')
+            _atomic_storage_write(storage, relative_name, b'%PDF-segunda-versao')
+
+            final_path = os.path.join(media_root, *relative_name.split('/'))
+            with open(final_path, 'rb') as document:
+                self.assertEqual(document.read(), b'%PDF-segunda-versao')
+            self.assertFalse(any(name.endswith('.part') for name in os.listdir(os.path.dirname(final_path))))
+
+    def test_migracao_rejeita_raiz_e_aceita_diretorio_especifico(self):
+        with self.assertRaisesMessage(Exception, 'inseguro'):
+            _safe_directory('/', 'Origem')
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(_safe_directory(directory, 'Origem'), os.path.realpath(directory))

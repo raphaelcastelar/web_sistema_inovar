@@ -32,7 +32,7 @@ from django.utils.dateparse import parse_date
 from django.core.files.base import ContentFile
 from datetime import timedelta
 from django.db.models import OuterRef, Prefetch, Subquery, CharField
-from django.db import models, transaction
+from django.db import DatabaseError, models, transaction
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
@@ -90,6 +90,7 @@ from .serializers import (
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .folder_structure import FOLDER_DEFINITIONS
+from .document_storage import save_generated_das
 from .serpro_service import (
     gerar_das_serpro, 
     obter_extrato_pdf_serpro,
@@ -2707,6 +2708,21 @@ def gerar_das_api(request):
     if resultado.get("sucesso"):
         pdf_content = resultado.get("pdf_content")
         filename = resultado.get("filename", "DAS.pdf")
+        try:
+            documento = save_generated_das(cnpj, periodo, pdf_content)
+        except Empresa.DoesNotExist:
+            logger.warning("DAS gerado para CNPJ não cadastrado: %s", cnpj)
+            return Response(
+                {"error": "O DAS foi gerado, mas a empresa não está cadastrada no sistema para que o arquivo seja salvo."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except (DatabaseError, OSError, ValueError, RuntimeError) as exc:
+            logger.exception("Não foi possível salvar o DAS de %s/%s: %s", cnpj, periodo, exc)
+            return Response(
+                {"error": "O DAS foi gerado, mas não pôde ser salvo na pasta da empresa. Nenhum download foi liberado para evitar perda de controle; tente novamente."},
+                status=status.HTTP_507_INSUFFICIENT_STORAGE,
+            )
+        filename = documento.nome_arquivo
         response = HttpResponse(pdf_content, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

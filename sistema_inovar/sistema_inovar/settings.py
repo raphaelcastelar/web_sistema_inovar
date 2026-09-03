@@ -129,6 +129,15 @@ STATIC_ROOT = config('STATIC_ROOT', default=str(BASE_DIR / 'staticfiles'))
 MEDIA_URL = '/media/'
 MEDIA_ROOT = config('MEDIA_ROOT', default=str(BASE_DIR / 'media'))
 
+# Caminhos da futura migração. São deliberadamente inativos: enquanto
+# MEDIA_ROOT não for alterado, toda a aplicação continua usando o servidor
+# físico atualmente montado.
+CLOUD_MEDIA_ROOT = config('CLOUD_MEDIA_ROOT', default='/srv/sistema-inovar/arquivos')
+PHYSICAL_BACKUP_ROOT = config(
+    'PHYSICAL_BACKUP_ROOT',
+    default='/mnt/servidor-inovar/SISTEMA INOVAR',
+)
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'empresas.Funcionario'
 

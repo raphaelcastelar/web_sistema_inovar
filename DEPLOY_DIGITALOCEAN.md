@@ -294,8 +294,8 @@ Exemplo:
 ```ini
 [Unit]
 Description=Sistema Inovar Django
-After=network.target zerotier-one.service postgresql.service
-Requires=zerotier-one.service
+After=network.target postgresql.service
+Requires=postgresql.service
 
 [Service]
 User=www-data
@@ -483,6 +483,146 @@ python manage.py migrar_estrutura_pastas_2026 \
 
 O comando ignora empresas que ja nao tenham a estrutura legada, evitando que
 uma segunda execucao apague os arquivos preservados na primeira.
+
+## Migrar Arquivos Para o Disco da Droplet
+
+O procedimento preserva o servidor físico e não usa `--delete`.
+
+### 1. Instalar ferramentas e preparar diretórios
+
+```bash
+sudo apt update
+sudo apt install -y rsync util-linux postgresql-client
+sudo install -d -o www-data -g www-data -m 0750 /srv/sistema-inovar/arquivos
+sudo install -d -o www-data -g www-data -m 0750 /srv/sistema-inovar/backup-database
+sudo install -d -o www-data -g www-data -m 0750 /srv/sistema-inovar/logs-backup
+```
+
+Adicionar ao `.env`, mantendo temporariamente o `MEDIA_ROOT` antigo:
+
+```env
+CLOUD_MEDIA_ROOT=/srv/sistema-inovar/arquivos
+PHYSICAL_BACKUP_ROOT=/mnt/servidor-inovar/SISTEMA INOVAR
+```
+
+### 2. Inventariar o acervo atual
+
+```bash
+cd /opt/apps/web_sistema_inovar/sistema_inovar
+source .venv/bin/activate
+python manage.py inventariar_arquivos \
+  --output=/var/tmp/inventario_antes_migracao.json
+```
+
+Esse comando não modifica arquivos nem banco. Executar fora do horário de pico
+para reduzir leitura concorrente no SMB.
+
+### 3. Simular a cópia
+
+```bash
+python manage.py migrar_arquivos_para_nuvem
+```
+
+Revisar toda a saída antes da execução real. A simulação é o comportamento
+padrão.
+
+### 4. Executar a cópia inicial
+
+```bash
+python manage.py migrar_arquivos_para_nuvem \
+  --execute \
+  --confirm=COPIAR_ARQUIVOS_PARA_DROPLET
+```
+
+A aplicação pode continuar funcionando durante essa primeira cópia. Antes da
+virada, fazer uma segunda execução curta para capturar arquivos criados enquanto
+a cópia inicial estava em andamento:
+
+```bash
+python manage.py migrar_arquivos_para_nuvem \
+  --execute \
+  --confirm=COPIAR_ARQUIVOS_PARA_DROPLET
+```
+
+### 5. Verificar conteúdo integral
+
+```bash
+python manage.py migrar_arquivos_para_nuvem --checksum
+```
+
+O resultado não deve listar arquivos pendentes. Essa comparação lê os dois
+lados integralmente e deve ser executada fora do horário de pico.
+
+### 6. Virar o armazenamento principal
+
+Alterar somente esta variável no `.env`:
+
+```env
+MEDIA_ROOT=/srv/sistema-inovar/arquivos
+```
+
+Editar também `/etc/systemd/system/sistema-inovar.service`. Depois da virada, o
+serviço web não deve conter `Requires=zerotier-one.service`, nem depender do
+ZeroTier em `After`. O bloco deve ficar assim:
+
+```ini
+[Unit]
+Description=Sistema Inovar Django
+After=network.target postgresql.service
+Requires=postgresql.service
+```
+
+O ZeroTier continuará sendo exigido somente pelo serviço de backup noturno.
+
+Reiniciar e validar:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart sistema-inovar
+sudo systemctl status sistema-inovar --no-pager
+sudo -u www-data test -w /srv/sistema-inovar/arquivos
+curl -I http://127.0.0.1:8000/admin/
+```
+
+Testar upload, download, visualização, e-mail, WhatsApp e geração de um DAS. Não
+apagar nem desmontar o acervo físico durante a estabilização.
+
+### 7. Instalar e testar o backup diário
+
+```bash
+sudo chmod 0750 /opt/apps/web_sistema_inovar/deploy/scripts/backup_arquivos.sh
+sudo cp /opt/apps/web_sistema_inovar/deploy/systemd/sistema-inovar-backup.service /etc/systemd/system/
+sudo cp /opt/apps/web_sistema_inovar/deploy/systemd/sistema-inovar-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl start sistema-inovar-backup.service
+sudo systemctl status sistema-inovar-backup.service --no-pager
+sudo journalctl -u sistema-inovar-backup.service -n 100 --no-pager
+```
+
+Somente depois do teste manual bem-sucedido:
+
+```bash
+sudo systemctl enable --now sistema-inovar-backup.timer
+systemctl list-timers sistema-inovar-backup.timer --all
+```
+
+O timer usa `America/Sao_Paulo`, executa todos os dias à meia-noite e, por ser
+persistente, executa posteriormente se a Droplet estiver desligada no horário.
+
+### 8. Reversão durante a estabilização
+
+Se ocorrer uma falha crítica, restaurar temporariamente no `.env`:
+
+```env
+MEDIA_ROOT=/mnt/servidor-inovar/SISTEMA INOVAR
+```
+
+Antes de reiniciar, copiar para o físico qualquer arquivo criado exclusivamente
+na Droplet durante a janela. Depois:
+
+```bash
+sudo systemctl restart sistema-inovar
+```
 
 ## Problemas Comuns
 

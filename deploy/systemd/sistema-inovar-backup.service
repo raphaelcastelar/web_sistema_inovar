@@ -1,0 +1,18 @@
+[Unit]
+Description=Backup dos arquivos do Sistema Inovar para o servidor físico
+After=network-online.target zerotier-one.service postgresql.service
+Wants=network-online.target
+Requires=zerotier-one.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/apps/web_sistema_inovar/sistema_inovar
+EnvironmentFile=/opt/apps/web_sistema_inovar/sistema_inovar/sistema_inovar/.env
+ExecStart=/opt/apps/web_sistema_inovar/deploy/scripts/backup_arquivos.sh
+TimeoutStartSec=6h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
