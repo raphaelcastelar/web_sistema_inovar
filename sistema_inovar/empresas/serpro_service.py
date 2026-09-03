@@ -7,6 +7,7 @@ import locale
 import io
 import re
 import zipfile
+import time
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
@@ -33,6 +34,84 @@ GATEWAY_URL = getattr(settings, 'SERPRO_GATEWAY_URL', 'https://gateway.apiserpro
 SERPRO_TOKEN_CACHE_KEY = 'serpro_api_tokens_dict'
 SERPRO_AUTH_ERROR_CACHE_KEY = 'serpro_api_auth_error'
 SERPRO_TIMEOUT = 30
+SERPRO_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+SERPRO_MAX_ATTEMPTS = 3
+
+
+def _periodo_legivel(periodo_apuracao):
+    periodo = re.sub(r'\D', '', str(periodo_apuracao or ''))
+    if len(periodo) == 6:
+        return f'{periodo[4:]}/{periodo[:4]}'
+    return str(periodo_apuracao or '')
+
+
+def _mensagem_serpro(resposta):
+    """Extrai mensagens funcionais sem expor o envelope técnico ao usuário."""
+    if not isinstance(resposta, dict):
+        return None
+    textos = []
+    for mensagem in resposta.get('mensagens') or []:
+        texto = str(mensagem.get('texto') or '').strip()
+        if texto and texto not in textos:
+            textos.append(texto)
+    return ' '.join(textos) or None
+
+
+def _erro_http_serpro(response, acao, periodo_apuracao=None):
+    """Converte status HTTP do gateway em uma orientação compreensível."""
+    try:
+        resposta = response.json()
+    except (ValueError, TypeError):
+        resposta = None
+
+    mensagem_funcional = _mensagem_serpro(resposta)
+    if mensagem_funcional:
+        return mensagem_funcional
+
+    competencia = _periodo_legivel(periodo_apuracao)
+    sufixo = f' para {competencia}' if competencia else ''
+    if response.status_code in (401, 403):
+        return 'Não foi possível autenticar a solicitação no SERPRO. Tente novamente; se persistir, contate o suporte.'
+    if response.status_code == 404:
+        return f'O SERPRO não encontrou os dados necessários para {acao}{sufixo}.'
+    if response.status_code == 429:
+        return 'O limite temporário de consultas do SERPRO foi atingido. Aguarde alguns minutos e tente novamente.'
+    if response.status_code in (500, 502, 503, 504):
+        return f'O SERPRO está temporariamente indisponível para {acao}{sufixo}. Tente novamente em alguns minutos.'
+    return f'O SERPRO não conseguiu concluir {acao}{sufixo}. Tente novamente ou contate o suporte.'
+
+
+def _post_serpro_com_retry(url, payload, headers, acao, periodo_apuracao=None):
+    """Repete somente falhas transitórias e registra dados úteis para suporte."""
+    ultima_resposta = None
+    for tentativa in range(1, SERPRO_MAX_ATTEMPTS + 1):
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+            ultima_resposta = response
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+            logger.warning(
+                'Falha transitória ao acessar SERPRO (%s), tentativa %s/%s: %s',
+                acao, tentativa, SERPRO_MAX_ATTEMPTS, exc,
+            )
+            if tentativa == SERPRO_MAX_ATTEMPTS:
+                raise
+            time.sleep(tentativa)
+            continue
+
+        if response.status_code not in SERPRO_RETRYABLE_STATUS or tentativa == SERPRO_MAX_ATTEMPTS:
+            return response
+
+        try:
+            corpo = response.json()
+        except ValueError:
+            corpo = response.text[:1000]
+        response_id = corpo.get('responseId') if isinstance(corpo, dict) else None
+        logger.warning(
+            'SERPRO retornou HTTP %s em %s, tentativa %s/%s, responseId=%s, resposta=%s',
+            response.status_code, acao, tentativa, SERPRO_MAX_ATTEMPTS, response_id, corpo,
+        )
+        time.sleep(tentativa)
+    return ultima_resposta
 
 
 def _documentos_base64_consdecrec(dados):
@@ -618,6 +697,13 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
     2. Encontra o DAS do mês desejado.
     3. Usa CONSEXTRATO16 para obter o PDF do extrato daquele DAS.
     """
+    cnpj_empresa = re.sub(r'\D', '', str(cnpj_empresa or ''))
+    periodo_apuracao = re.sub(r'\D', '', str(periodo_apuracao or ''))
+    if len(cnpj_empresa) != 14:
+        return {"sucesso": False, "erro": "Informe um CNPJ válido com 14 dígitos."}
+    if not re.fullmatch(r'\d{4}(0[1-9]|1[0-2])', periodo_apuracao):
+        return {"sucesso": False, "erro": "Informe uma competência válida no formato MM/AAAA."}
+
     tokens = get_serpro_token()
     if not tokens:
         return {"sucesso": False, **_get_serpro_auth_error()}
@@ -646,8 +732,14 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
 
     try:
         logger.info(f"Passo A - Buscando lista de declarações para o ano {ano_calendario}")
-        response_lista = requests.post(url_consulta_ano, json=payload_lista_declaracoes, headers=headers, timeout=SERPRO_TIMEOUT)
-        response_lista.raise_for_status()
+        response_lista = _post_serpro_com_retry(
+            url_consulta_ano, payload_lista_declaracoes, headers,
+            'consultar as declarações', periodo_apuracao,
+        )
+        if not response_lista.ok:
+            erro = _erro_http_serpro(response_lista, 'consultar as declarações', periodo_apuracao)
+            logger.error('Falha no CONSDECLARACAO13: HTTP %s - %s', response_lista.status_code, response_lista.text[:2000])
+            return {"sucesso": False, "erro": erro}
         response_data_lista = response_lista.json()
         logger.info(f"Resposta do Passo A (Lista): {response_data_lista}")
 
@@ -670,7 +762,13 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
                     break # Para o loop externo
 
         if not numero_das_alvo:
-            return {"sucesso": False, "erro": f"Não foi encontrada uma guia DAS gerada para o período {periodo_apuracao[4:]}/{periodo_apuracao[:4]}."}
+            return {
+                "sucesso": False,
+                "erro": (
+                    f"Não existe DAS gerado para a competência {_periodo_legivel(periodo_apuracao)}. "
+                    "Verifique se a declaração do período já foi transmitida e se houve imposto a pagar."
+                ),
+            }
 
         # --- PASSO C: Usar o numeroDas para obter o PDF do extrato ---
         url_extrato = f"{GATEWAY_URL}/Consultar"
@@ -682,33 +780,62 @@ def orquestrar_consulta_extrato(cnpj_empresa, periodo_apuracao):
         }
 
         logger.info(f"Passo C - Buscando PDF do extrato para o DAS '{numero_das_alvo}'")
-        response_pdf = requests.post(url_extrato, json=payload_extrato, headers=headers, timeout=SERPRO_TIMEOUT)
-        response_pdf.raise_for_status()
+        response_pdf = _post_serpro_com_retry(
+            url_extrato, payload_extrato, headers,
+            'consultar o extrato do DAS', periodo_apuracao,
+        )
+        if not response_pdf.ok:
+            erro = _erro_http_serpro(response_pdf, 'consultar o extrato do DAS', periodo_apuracao)
+            logger.error(
+                'Falha no CONSEXTRATO16 para DAS %s: HTTP %s - %s',
+                numero_das_alvo, response_pdf.status_code, response_pdf.text[:2000],
+            )
+            return {"sucesso": False, "erro": erro}
         
         # O serviço CONSEXTRATO16 retorna um JSON com o PDF em Base64
         response_pdf_data = response_pdf.json()
         dados_pdf_str = response_pdf_data.get('dados')
-        if not dados_pdf_str: return {"sucesso": False, "erro": "API não retornou dados ao buscar PDF."}
+        if not dados_pdf_str:
+            return {
+                "sucesso": False,
+                "erro": _mensagem_serpro(response_pdf_data) or (
+                    f"O SERPRO localizou o DAS de {_periodo_legivel(periodo_apuracao)}, "
+                    "mas não disponibilizou o PDF do extrato. Tente novamente mais tarde."
+                ),
+            }
 
         dados_pdf = json.loads(dados_pdf_str)
         pdf_base64 = dados_pdf.get('extrato', {}).get('pdf')
-        if not pdf_base64: return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
+        if not pdf_base64:
+            return {"sucesso": False, "erro": "O SERPRO respondeu à consulta, mas não enviou o PDF do extrato."}
         
         pdf_content = base64.b64decode(pdf_base64)
         filename = dados_pdf.get('extrato', {}).get('nomeArquivo', f"Extrato_{cnpj_empresa}_{periodo_apuracao}.pdf")
         
         return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
 
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        logger.error("SERPRO inacessível durante consulta do extrato: %s", e)
+        return {"sucesso": False, "erro": "Não foi possível conectar ao SERPRO. Verifique a conexão e tente novamente em alguns minutos."}
+    except (ValueError, TypeError, json.JSONDecodeError, base64.binascii.Error) as e:
+        logger.error("Resposta inválida durante consulta do extrato: %s", e)
+        return {"sucesso": False, "erro": "O SERPRO retornou uma resposta incompleta ou inválida. Tente novamente mais tarde."}
     except Exception as e:
-        logger.error(f"Erro no fluxo de consulta de extrato: {e}")
-        detalhes = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
-        return {"sucesso": False, "erro": "Erro de comunicação ou resposta inesperada da API Serpro.", "detalhes": detalhes}
+        logger.exception("Erro inesperado no fluxo de consulta de extrato: %s", e)
+        return {"sucesso": False, "erro": "Não foi possível concluir a consulta do extrato. Tente novamente; se persistir, contate o suporte."}
 
 def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     """
     Chama a API Serpro usando o serviço GERARDAS12 para gerar o DAS de um período específico,
-    retornando o PDF mesmo sem débitos, conforme comportamento do e-CAC.
+    retornando o PDF quando houver guia e uma mensagem funcional quando não houver débito.
     """
+    cnpj_empresa = re.sub(r'\D', '', str(cnpj_empresa or ''))
+    periodo_apuracao = re.sub(r'\D', '', str(periodo_apuracao or ''))
+    if len(cnpj_empresa) != 14:
+        return {"sucesso": False, "erro": "Informe um CNPJ válido com 14 dígitos."}
+    if not re.fullmatch(r'\d{4}(0[1-9]|1[0-2])', periodo_apuracao):
+        return {"sucesso": False, "erro": "Informe uma competência válida no formato MM/AAAA."}
+
     tokens = get_serpro_token()
     if not tokens:
         return {"sucesso": False, **_get_serpro_auth_error()}
@@ -737,7 +864,9 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
     logger.info(f"Enviando payload para GERAR DAS: {json.dumps(payload, indent=2)}")
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+        response = _post_serpro_com_retry(
+            url, payload, headers, 'gerar o DAS', periodo_apuracao,
+        )
         
         if response.status_code == 401:
             logger.warning("Token expirado (401). Renovando e tentando novamente.")
@@ -747,9 +876,14 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
                 return {"sucesso": False, **_get_serpro_auth_error("Falha ao renovar token.")}
             headers["Authorization"] = f"Bearer {tokens['access_token']}"
             headers["jwt_token"] = tokens['jwt_token']
-            response = requests.post(url, json=payload, headers=headers, timeout=SERPRO_TIMEOUT)
+            response = _post_serpro_com_retry(
+                url, payload, headers, 'gerar o DAS', periodo_apuracao,
+            )
 
-        response.raise_for_status()
+        if not response.ok:
+            erro = _erro_http_serpro(response, 'gerar o DAS', periodo_apuracao)
+            logger.error('Falha no GERARDAS12: HTTP %s - %s', response.status_code, response.text[:2000])
+            return {"sucesso": False, "erro": erro}
 
         response_data = response.json()
         logger.info(f"Resposta da API Serpro: {json.dumps(response_data, indent=2)}")
@@ -757,56 +891,51 @@ def gerar_das_serpro(cnpj_empresa, periodo_apuracao):
         mensagens = response_data.get('mensagens', [])
         dados_str = response_data.get('dados')
 
-        # Verifica se há mensagem de "sem valor devido" ou sucesso
+        # MSG_E0139 é uma conclusão válida do serviço e não contém PDF.
         if any('MSG_E0139' in msg.get('codigo', '') for msg in mensagens):
-            # Mesmo sem débitos, o e-CAC gera um PDF. A resposta contém uma lista.
-            if not dados_str:
-                return {"sucesso": False, "erro": "Nenhum dado retornado pela API para o período informado."}
-            
-            dados = json.loads(dados_str)
-            if isinstance(dados, list) and len(dados) > 0:
-                dados_item = dados[0]  # Extrai o primeiro item da lista
-                pdf_base64 = dados_item.get('pdf') or dados_item.get('extrato', {}).get('pdf')
-                if not pdf_base64:
-                    return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
-                
-                pdf_content = base64.b64decode(pdf_base64)
-                filename = dados_item.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
-                logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao} (sem débitos).")
-                return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
-            else:
-                return {"sucesso": False, "erro": "Formato de dados inválido: lista vazia ou formato inesperado."}
+            return {
+                "sucesso": False,
+                "erro": (
+                    f"Não há DAS a emitir para a competência {_periodo_legivel(periodo_apuracao)}, "
+                    "pois o SERPRO informou que não existe valor devido."
+                ),
+            }
 
         # Verifica se há sucesso na resposta
         if not any('sucesso' in msg.get('texto', '').lower() for msg in mensagens):
-            error_message = mensagens[0].get('texto', 'Erro não especificado pela API.')
+            error_message = _mensagem_serpro(response_data) or "O SERPRO não informou por que o DAS não pôde ser gerado."
             return {"sucesso": False, "erro": error_message}
 
         # Caso de sucesso com débitos
         if not dados_str:
-            return {"sucesso": False, "erro": "Nenhum dado retornado pela API."}
+            return {"sucesso": False, "erro": "O SERPRO confirmou a solicitação, mas não enviou o PDF do DAS. Tente novamente mais tarde."}
         
         dados = json.loads(dados_str)
         if isinstance(dados, list) and len(dados) > 0:
             dados_item = dados[0]  # Extrai o primeiro item da lista
             pdf_base64 = dados_item.get('pdf') or dados_item.get('extrato', {}).get('pdf')
             if not pdf_base64:
-                return {"sucesso": False, "erro": "PDF não encontrado na resposta da API."}
+                return {"sucesso": False, "erro": "O SERPRO retornou os dados da guia, mas o PDF não estava presente."}
             
             pdf_content = base64.b64decode(pdf_base64)
             filename = dados_item.get('nomeArquivo', f"DAS_{cnpj_empresa}_{periodo_apuracao}.pdf")
             logger.info(f"PDF do DAS gerado com sucesso para {cnpj_empresa}/{periodo_apuracao}.")
             return {"sucesso": True, "pdf_content": pdf_content, "filename": filename}
         else:
-            return {"sucesso": False, "erro": "Formato de dados inválido: lista vazia ou formato inesperado."}
+            return {"sucesso": False, "erro": "O SERPRO retornou a guia em um formato inesperado. Tente novamente mais tarde."}
 
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+        logger.error("SERPRO inacessível durante geração do DAS: %s", e)
+        return {"sucesso": False, "erro": "Não foi possível conectar ao SERPRO. Verifique a conexão e tente novamente em alguns minutos."}
+    except (ValueError, TypeError, json.JSONDecodeError, base64.binascii.Error) as e:
+        logger.error("Resposta inválida durante geração do DAS: %s", e)
+        return {"sucesso": False, "erro": "O SERPRO retornou uma resposta incompleta ou inválida. Tente novamente mais tarde."}
     except requests.exceptions.RequestException as e:
-        logger.error(f"Erro na requisição para gerar DAS: {e}")
-        detalhes_erro = e.response.text if hasattr(e, 'response') and e.response is not None else str(e)
-        return {"sucesso": False, "erro": "Erro de comunicação com a API Serpro.", "detalhes": detalhes_erro}
+        logger.error("Erro HTTP inesperado durante geração do DAS: %s", e)
+        return {"sucesso": False, "erro": "Não foi possível concluir a comunicação com o SERPRO. Tente novamente mais tarde."}
     except Exception as e:
-        logger.error(f"Erro ao processar resposta da API: {e}")
-        return {"sucesso": False, "erro": "Erro ao processar a resposta da API Serpro."}
+        logger.exception("Erro inesperado ao gerar DAS: %s", e)
+        return {"sucesso": False, "erro": "Não foi possível concluir a geração do DAS. Tente novamente; se persistir, contate o suporte."}
     
 def obter_dados_extrato_serpro(cnpj_empresa, periodo_apuracao):
     """
