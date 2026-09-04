@@ -3,6 +3,9 @@
 Este documento descreve como instalar, operar e atualizar o Sistema Inovar na
 droplet da DigitalOcean.
 
+Para acompanhamento diário, falhas, restauração e manutenção do backup, consulte
+também `MANUAL_OPERACAO_BACKUP_ARQUIVOS.md` na raiz do repositório.
+
 Arquitetura atual:
 
 ```txt

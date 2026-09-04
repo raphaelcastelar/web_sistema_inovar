@@ -129,9 +129,8 @@ STATIC_ROOT = config('STATIC_ROOT', default=str(BASE_DIR / 'staticfiles'))
 MEDIA_URL = '/media/'
 MEDIA_ROOT = config('MEDIA_ROOT', default=str(BASE_DIR / 'media'))
 
-# Caminhos da futura migração. São deliberadamente inativos: enquanto
-# MEDIA_ROOT não for alterado, toda a aplicação continua usando o servidor
-# físico atualmente montado.
+# Caminhos do armazenamento principal na Droplet e do backup físico. MEDIA_ROOT
+# continua sendo a configuração que determina onde a aplicação opera.
 CLOUD_MEDIA_ROOT = config('CLOUD_MEDIA_ROOT', default='/srv/sistema-inovar/arquivos')
 PHYSICAL_BACKUP_ROOT = config(
     'PHYSICAL_BACKUP_ROOT',
