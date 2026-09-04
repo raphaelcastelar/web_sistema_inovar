@@ -534,6 +534,20 @@ python manage.py migrar_arquivos_para_nuvem \
   --confirm=COPIAR_ARQUIVOS_PARA_DROPLET
 ```
 
+Para retomar por ordem alfabética e reduzir o consumo de RAM, processe uma pasta
+de empresa por vez. Por exemplo, para começar pela letra J:
+
+```bash
+python manage.py migrar_arquivos_para_nuvem \
+  --start-from=J \
+  --execute \
+  --confirm=COPIAR_ARQUIVOS_PARA_DROPLET
+```
+
+O comando mostra o nome de cada empresa. Se for interrompido, ele pode ser
+executado novamente com o nome da última pasta exibida em `--start-from`. Os
+arquivos completos serão ignorados pelo rsync e os incompletos serão refeitos.
+
 A aplicação pode continuar funcionando durante essa primeira cópia. Antes da
 virada, fazer uma segunda execução curta para capturar arquivos criados enquanto
 a cópia inicial estava em andamento:

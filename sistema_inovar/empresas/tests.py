@@ -14,7 +14,7 @@ from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
 from .views import _ensure_sync_safe_filename, _repair_surrogate_escapes
 from .serpro_service import gerar_das_serpro, orquestrar_consulta_extrato
 from .document_storage import _atomic_storage_write
-from .management.commands.migrar_arquivos_para_nuvem import _safe_directory
+from .management.commands.migrar_arquivos_para_nuvem import _safe_directory, _source_directories
 
 
 class NomeEmpresaTest(SimpleTestCase):
@@ -227,3 +227,10 @@ class ArmazenamentoNuvemTest(SimpleTestCase):
             _safe_directory('/', 'Origem')
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(_safe_directory(directory, 'Origem'), os.path.realpath(directory))
+
+    def test_retomada_seleciona_pastas_a_partir_do_prefixo(self):
+        with tempfile.TemporaryDirectory() as source:
+            for name in ('ALFA', 'ÍCARO', 'JOSE', 'KAPPA'):
+                os.mkdir(os.path.join(source, name))
+
+            self.assertEqual(_source_directories(source, 'J'), ['JOSE', 'KAPPA'])

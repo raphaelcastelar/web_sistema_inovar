@@ -67,17 +67,32 @@ version_root="$PHYSICAL_BACKUP_ROOT/_VERSOES/$timestamp"
 database_destination="$PHYSICAL_BACKUP_ROOT/_BACKUP_BANCO"
 mkdir -p "$version_root" "$database_destination"
 
-echo "Sincronizando documentos novos e alterados."
-rsync \
-    --archive \
-    --human-readable \
-    --itemize-changes \
-    --partial \
-    --protect-args \
-    --no-links \
-    --backup \
-    --backup-dir="$version_root" \
-    "$CLOUD_MEDIA_ROOT/" "$PHYSICAL_BACKUP_ROOT/"
+rsync_options=(
+    --archive
+    --human-readable
+    --itemize-changes
+    --partial
+    --protect-args
+    --no-links
+    --backup
+)
+
+echo "Sincronizando arquivos existentes diretamente na raiz."
+find "$CLOUD_MEDIA_ROOT" -mindepth 1 -maxdepth 1 -type f -printf '%f\0' \
+    | rsync "${rsync_options[@]}" --from0 --files-from=- \
+        --backup-dir="$version_root/_RAIZ" \
+        "$CLOUD_MEDIA_ROOT/" "$PHYSICAL_BACKUP_ROOT/"
+
+echo "Sincronizando documentos novos e alterados, uma empresa por vez."
+while IFS= read -r -d '' company_directory; do
+    company_name="$(basename "$company_directory")"
+    echo "Empresa: $company_name"
+    destination_directory="$PHYSICAL_BACKUP_ROOT/$company_name"
+    mkdir -p "$destination_directory"
+    rsync "${rsync_options[@]}" \
+        --backup-dir="$version_root/$company_name" \
+        "$company_directory/" "$destination_directory/"
+done < <(find "$CLOUD_MEDIA_ROOT" -mindepth 1 -maxdepth 1 -type d -print0 | sort -z)
 
 echo "Copiando backup do banco de dados."
 rsync --archive --partial --protect-args "$database_file" "$database_destination/"
