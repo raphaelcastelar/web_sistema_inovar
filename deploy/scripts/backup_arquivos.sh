@@ -29,9 +29,10 @@ if [[ "$PHYSICAL_BACKUP_ROOT" == "/" || "$PHYSICAL_BACKUP_ROOT" == "/mnt" ]]; th
     echo "Destino inseguro: $PHYSICAL_BACKUP_ROOT"
     exit 2
 fi
-destination_fstype="$(findmnt -T "$PHYSICAL_BACKUP_ROOT" -n -o FSTYPE 2>/dev/null || true)"
-if [[ "$destination_fstype" != "cifs" && "$destination_fstype" != "smb3" ]]; then
-    echo "O destino não pertence a um compartilhamento CIFS/SMB montado: $PHYSICAL_BACKUP_ROOT (tipo: ${destination_fstype:-desconhecido})"
+destination_fstypes="$(findmnt -T "$PHYSICAL_BACKUP_ROOT" -n -o FSTYPE 2>/dev/null || true)"
+if ! grep -Eq '^(cifs|smb3)$' <<< "$destination_fstypes"; then
+    destination_fstypes_display="$(tr '\n' ',' <<< "$destination_fstypes" | sed 's/,$//')"
+    echo "O destino não pertence a um compartilhamento CIFS/SMB montado: $PHYSICAL_BACKUP_ROOT (tipos: ${destination_fstypes_display:-desconhecido})"
     exit 3
 fi
 if [[ "$(realpath "$CLOUD_MEDIA_ROOT")" == "$(realpath "$PHYSICAL_BACKUP_ROOT")" ]]; then
