@@ -604,7 +604,10 @@ apagar nem desmontar o acervo físico durante a estabilização.
 ### 7. Instalar e testar o backup diário
 
 ```bash
-sudo chmod 0750 /opt/apps/web_sistema_inovar/deploy/scripts/backup_arquivos.sh
+sudo sed -i 's/\r$//' /opt/apps/web_sistema_inovar/deploy/scripts/backup_arquivos.sh
+sudo install -o root -g root -m 0755 \
+  /opt/apps/web_sistema_inovar/deploy/scripts/backup_arquivos.sh \
+  /usr/local/sbin/sistema-inovar-backup
 sudo cp /opt/apps/web_sistema_inovar/deploy/systemd/sistema-inovar-backup.service /etc/systemd/system/
 sudo cp /opt/apps/web_sistema_inovar/deploy/systemd/sistema-inovar-backup.timer /etc/systemd/system/
 sudo systemctl daemon-reload

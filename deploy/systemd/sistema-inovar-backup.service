@@ -10,9 +10,8 @@ User=www-data
 Group=www-data
 WorkingDirectory=/opt/apps/web_sistema_inovar/sistema_inovar
 EnvironmentFile=/opt/apps/web_sistema_inovar/sistema_inovar/sistema_inovar/.env
-ExecStart=/opt/apps/web_sistema_inovar/deploy/scripts/backup_arquivos.sh
+ExecStart=/usr/local/sbin/sistema-inovar-backup
 TimeoutStartSec=6h
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
-
