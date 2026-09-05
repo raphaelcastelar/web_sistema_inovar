@@ -31,6 +31,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from django.core.files.base import ContentFile
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 from django.db.models import OuterRef, Prefetch, Subquery, CharField
 from django.db import DatabaseError, models, transaction
 from django.http import JsonResponse
@@ -108,6 +109,8 @@ WKHTMLTOPDF_PATH = settings.WKHTMLTOPDF_PATH
 
 
 logger = logging.getLogger(__name__)
+
+BRAZIL_TIME_ZONE = ZoneInfo('America/Sao_Paulo')
 
 MONTH_NAME_TO_NUMBER = {
     'janeiro': '01',
@@ -3277,6 +3280,18 @@ def convert_date_format(date_str):
         return ""
 
 
+def normalize_bb_emission_date(date_value, brazil_today):
+    """Normaliza a emissão e impede que UTC envie amanhã para o Banco do Brasil."""
+    converted_date = convert_date_format(date_value)
+    try:
+        parsed_date = datetime.datetime.strptime(converted_date, '%d.%m.%Y').date()
+    except (TypeError, ValueError):
+        return converted_date
+    if parsed_date > brazil_today:
+        return brazil_today.strftime('%d.%m.%Y')
+    return converted_date
+
+
 def enviar_boleto_honorario_whatsapp(empresa, pdf_content, nome_arquivo, usuario=None):
     recipient_number = re.sub(r"\D", "", str(empresa.telefone or ""))
 
@@ -3359,7 +3374,7 @@ def enviar_boleto_honorario_whatsapp(empresa, pdf_content, nome_arquivo, usuario
 
 
 def salvar_boleto_honorario(empresa, pdf_content):
-    agora = timezone.now()
+    agora = timezone.now().astimezone(BRAZIL_TIME_ZONE)
     ano_referencia = str(agora.year)
     mes_referencia = str(agora.month).zfill(2)
     nome_arquivo_pasta = 'HONORARIO.pdf'
@@ -3401,7 +3416,7 @@ def salvar_boleto_honorario(empresa, pdf_content):
 
 
 def buscar_boleto_honorario_mes_atual(empresa):
-    agora = timezone.now()
+    agora = timezone.now().astimezone(BRAZIL_TIME_ZONE)
     return Outros.objects.filter(
         nome_empresa=empresa.nome,
         tipo_documento='HONORARIO',
@@ -3471,7 +3486,8 @@ def gerar_boleto_view(request):
     SUA_CARTEIRA = 17              # Geralmente 17 ou 18. CONFIRME.
 
     # --- Lógica de Data de Vencimento e Valores Padrão ---
-    hoje = timezone.now().date()
+    agora_brasil = timezone.now().astimezone(BRAZIL_TIME_ZONE)
+    hoje = agora_brasil.date()
     dia_vencimento = empresa.dia_vencimento_honorario
     
     # Determinar a data de vencimento
@@ -3499,14 +3515,14 @@ def gerar_boleto_view(request):
         data_desconto_str = data_desc_dt.strftime('%d.%m.%Y')
 
     unique_suffix = f"{int(timezone.now().timestamp() * 1_000_000) % 10**10:010d}"
-    fallback_beneficiario = f"{timezone.now().strftime('%H%M%S%f')}{uuid.uuid4().hex[:4]}".upper()
+    fallback_beneficiario = f"{agora_brasil.strftime('%H%M%S%f')}{uuid.uuid4().hex[:4]}".upper()
 
     default_payload = {
         "numeroConvenio": SEU_NUMERO_CONVENIO,
         "carteira": SUA_CARTEIRA,
         # "variacaoCarteira" removida, conforme sua instrução para sandbox.
         "codigoModalidade": 1,
-        "dataEmissao": timezone.now().strftime('%d.%m.%Y'),
+        "dataEmissao": hoje.strftime('%d.%m.%Y'),
         "dataVencimento": data_vencimento_str,
         "valorOriginal": float(empresa.valor_honorario) if empresa.valor_honorario > 0 else 1.00,
         "valorAbatimento": 0.0,
@@ -3534,7 +3550,9 @@ def gerar_boleto_view(request):
         "numeroConvenio": int(incoming_data.get("numeroConvenio") or default_payload["numeroConvenio"]),
         "carteira": int(incoming_data.get("carteira") or default_payload["carteira"]),
         "codigoModalidade": int(incoming_data.get("codigoModalidade") or default_payload["codigoModalidade"]),
-        "dataEmissao": convert_date_format(incoming_data.get("dataEmissao")) or default_payload["dataEmissao"],
+        "dataEmissao": normalize_bb_emission_date(
+            incoming_data.get("dataEmissao"), hoje
+        ) or default_payload["dataEmissao"],
         "dataVencimento": convert_date_format(incoming_data.get("dataVencimento")) or default_payload["dataVencimento"],
         "valorOriginal": float(incoming_data.get("valorOriginal") or default_payload["valorOriginal"]),
         "valorAbatimento": float(incoming_data.get("valorAbatimento") or default_payload["valorAbatimento"]),
@@ -3631,7 +3649,11 @@ def gerar_boleto_view(request):
 
 
     logger.info(f"URL: {register_url}")
-    logger.info(f"HEADERS: {headers}") 
+    logger.info(
+        "Requisição de boleto BB preparada: authorization=%s, developer_key=%s",
+        bool(access_token),
+        bool(settings.BB_DEVELOPER_APPLICATION_KEY),
+    )
     logger.debug(f"PAYLOAD keys: {list(final_payload.keys())} - valorOriginal={final_payload.get('valorOriginal')}")
     response = requests.post(register_url, json=final_payload, headers=headers, timeout=30)
 

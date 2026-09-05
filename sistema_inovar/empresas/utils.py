@@ -99,8 +99,6 @@ def get_bb_access_token():
 
     credentials = f"{settings.BB_CLIENT_ID}:{settings.BB_CLIENT_SECRET}"
     encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
-    logger.debug(f"Credenciais codificadas: {encoded_credentials}")
-
     payload = {
         'grant_type': 'client_credentials',
         # Removido o scope para usar os padrões do app
@@ -111,17 +109,17 @@ def get_bb_access_token():
         'Content-Type': 'application/x-www-form-urlencoded',
     }
 
-    logger.info(f"Obtendo token com URL: {settings.BB_OAUTH_URL}, Payload: {payload}, Headers: {headers}")
+    logger.info("Obtendo token BB em %s", settings.BB_OAUTH_URL)
 
     try:
         response = requests.post(settings.BB_OAUTH_URL, data=payload, headers=headers, timeout=30)
-        logger.info(f"Resposta OAuth: Status {response.status_code}, Headers: {dict(response.headers)}, Body: {response.text}")
+        logger.info("Resposta OAuth BB: status=%s", response.status_code)
         if response.status_code in (200,201):
             token_data = response.json()
             logger.info(f"Token obtido com scopes: {token_data.get('scope')}")
             return token_data.get('access_token')
         else:
-            logger.error(f"Erro no token: Status {response.status_code}, Resposta completa: {response.text}")
+            logger.error("Erro ao obter token BB: status=%s", response.status_code)
             return None
     except requests.exceptions.RequestException as e:
         logger.error(f"Erro de conexão: {str(e)}")

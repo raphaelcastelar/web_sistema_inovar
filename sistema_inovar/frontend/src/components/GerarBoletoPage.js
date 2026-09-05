@@ -2,6 +2,17 @@ import React, { useState, useEffect } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { normalizeCnpj } from '../utils/cnpj';
 
+const formatLocalDateInput = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const today = new Date();
+const defaultDueDate = new Date(today);
+defaultDueDate.setDate(defaultDueDate.getDate() + 30);
+
 const Section = ({ title, children }) => {
     const [open, setOpen] = useState(false);
     return (
@@ -35,8 +46,8 @@ const GerarBoletoPage = () => {
         carteira: '',                   // "carteira" (ex: 17)
         numeroVariacaoCarteira: '',     // opcional
         codigoModalidade: 1,
-        dataEmissao: new Date().toISOString().split('T')[0], // iso yyyy-mm-dd (backend faz conversão)
-        dataVencimento: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        dataEmissao: formatLocalDateInput(today),
+        dataVencimento: formatLocalDateInput(defaultDueDate),
         valorOriginal: '',              // string, será convertido para float
         quantidade: '',                 // string/number
         indicadorPix: 'N',              // 'S' ou 'N'

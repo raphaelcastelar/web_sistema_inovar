@@ -11,7 +11,7 @@ from .folder_structure import create_company_folder_structure
 from .management.commands.migrar_estrutura_pastas_2026 import Command
 from .management.commands.inventariar_arquivos import _relative_path, scan_media_root
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
-from .views import _ensure_sync_safe_filename, _repair_surrogate_escapes
+from .views import _ensure_sync_safe_filename, _repair_surrogate_escapes, normalize_bb_emission_date
 from .serpro_service import gerar_das_serpro, orquestrar_consulta_extrato
 from .document_storage import _atomic_storage_write
 from .management.commands.migrar_arquivos_para_nuvem import _safe_directory, _source_directories
@@ -112,6 +112,23 @@ class PeriodoDocumentoEmpresaTest(SimpleTestCase):
 
         self.assertEqual(self.migration._normalized_period(document), ('2026', '08'))
 
+
+class DataEmissaoBoletoTest(SimpleTestCase):
+    def test_corrige_data_futura_causada_por_virada_do_utc(self):
+        brazil_today = importlib.import_module('datetime').date(2026, 9, 4)
+
+        self.assertEqual(
+            normalize_bb_emission_date('2026-09-05', brazil_today),
+            '04.09.2026',
+        )
+
+    def test_preserva_data_de_emissao_valida(self):
+        brazil_today = importlib.import_module('datetime').date(2026, 9, 4)
+
+        self.assertEqual(
+            normalize_bb_emission_date('2026-09-04', brazil_today),
+            '04.09.2026',
+        )
 
 def _serpro_response(status_code, payload=None, text=''):
     response = Mock()
