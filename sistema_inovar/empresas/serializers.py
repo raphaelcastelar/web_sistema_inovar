@@ -2,6 +2,8 @@ from rest_framework import serializers
 from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
 from .folder_structure import FOLDER_DEFINITIONS
 from .utils import format_cnpj, is_valid_cnpj, normalizar_nome_empresa
+from .company_storage import rename_company_folder
+from django.db import transaction
 import re
 import logging
 
@@ -257,6 +259,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
         Chamado ao atualizar uma Empresa existente.
         """
         socios_data = validated_data.pop('socios', None)
+        previous_company_name = instance.nome
+        next_company_name = validated_data.get('nome', previous_company_name)
         request = self.context.get('request')
         user = getattr(request, 'user', None)
         if 'ativo' in validated_data and user and getattr(user, 'is_authenticated', False):
@@ -269,11 +273,17 @@ class EmpresaSerializer(serializers.ModelSerializer):
             # Se telefone_ddd_num for None ou vazio e o campo fosse opcional, você trataria aqui.
             # Mas como tornamos obrigatório, validate_telefone não deve permitir isso.
 
-        instance = super().update(instance, validated_data)
+        try:
+            with transaction.atomic():
+                instance = super().update(instance, validated_data)
+                if socios_data is not None:
+                    self._sync_socios(instance, socios_data)
+                if next_company_name != previous_company_name:
+                    rename_company_folder(instance, previous_company_name)
+        except FileExistsError as exc:
+            raise serializers.ValidationError({'nome': [str(exc)]}) from exc
         if hasattr(instance, '_status_alterado_por'):
             delattr(instance, '_status_alterado_por')
-        if socios_data is not None:
-            self._sync_socios(instance, socios_data)
         return instance
 
 

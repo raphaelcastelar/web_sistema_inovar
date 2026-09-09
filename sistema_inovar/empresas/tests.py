@@ -6,9 +6,11 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
+from django.test import override_settings
 from django.core.files.storage import FileSystemStorage
 
 from .models import Empresa
+from .company_storage import _update_document_paths, rename_company_folder
 from .folder_structure import create_company_folder_structure
 from .management.commands.migrar_estrutura_pastas_2026 import Command
 from .management.commands.inventariar_arquivos import _relative_path, scan_media_root
@@ -36,6 +38,72 @@ class NomeEmpresaTest(SimpleTestCase):
         self.assertEqual(
             gerar_nome_pasta_empresa_padronizado('Empresa: Teste/ES'),
             'EMPRESA TESTEES',
+        )
+
+
+class RenomearPastaEmpresaTest(SimpleTestCase):
+    @patch('empresas.company_storage.transaction.atomic', return_value=nullcontext())
+    @patch('empresas.company_storage.LEGACY_COMPANY_NAME_MODELS', ())
+    @patch('empresas.company_storage._update_document_paths')
+    def test_move_a_pasta_existente_sem_criar_outra(
+        self,
+        update_paths_mock,
+        _atomic_mock,
+    ):
+        with tempfile.TemporaryDirectory() as media_root:
+            old_path = os.path.join(media_root, 'EMPRESA ANTIGA')
+            new_path = os.path.join(media_root, 'EMPRESA NOVA')
+            os.makedirs(old_path)
+            with open(os.path.join(old_path, 'documento.pdf'), 'wb') as file:
+                file.write(b'%PDF-teste')
+            empresa = Empresa(pk=3, nome='EMPRESA NOVA', cnpj='12.345.678/0001-90')
+
+            with override_settings(MEDIA_ROOT=media_root):
+                moved = rename_company_folder(empresa, 'EMPRESA ANTIGA')
+
+            self.assertTrue(moved)
+            self.assertFalse(os.path.exists(old_path))
+            self.assertTrue(os.path.isfile(os.path.join(new_path, 'documento.pdf')))
+            update_paths_mock.assert_called_once_with('EMPRESA ANTIGA', 'EMPRESA NOVA')
+
+    @patch('empresas.company_storage.transaction.atomic', return_value=nullcontext())
+    @patch('empresas.company_storage.LEGACY_COMPANY_NAME_MODELS', ())
+    def test_nao_sobrescreve_uma_pasta_de_destino_existente(self, _atomic_mock):
+        with tempfile.TemporaryDirectory() as media_root:
+            old_path = os.path.join(media_root, 'EMPRESA ANTIGA')
+            new_path = os.path.join(media_root, 'EMPRESA NOVA')
+            os.makedirs(old_path)
+            os.makedirs(new_path)
+            empresa = Empresa(pk=3, nome='EMPRESA NOVA', cnpj='12.345.678/0001-90')
+
+            with override_settings(MEDIA_ROOT=media_root):
+                with self.assertRaises(FileExistsError):
+                    rename_company_folder(empresa, 'EMPRESA ANTIGA')
+
+            self.assertTrue(os.path.isdir(old_path))
+            self.assertTrue(os.path.isdir(new_path))
+
+    @patch('empresas.company_storage.DOCUMENT_MODELS')
+    def test_atualiza_o_prefixo_dos_caminhos_registrados(self, document_models_mock):
+        document = SimpleNamespace(
+            pk=9,
+            caminho_arquivo=SimpleNamespace(
+                name='EMPRESA ANTIGA/PESSOAL/GUIAS/2026/08/guia.pdf'
+            ),
+        )
+        document_model = Mock()
+        document_model.objects.filter.return_value.only.return_value.iterator.return_value = [document]
+        document_models_mock.__iter__.return_value = iter((document_model,))
+
+        _update_document_paths('EMPRESA ANTIGA', 'EMPRESA NOVA')
+
+        document_model.objects.filter.return_value.only.assert_called_once_with(
+            'pk', 'caminho_arquivo'
+        )
+        document_model.objects.filter.return_value.only.return_value.iterator.assert_called_once_with()
+        document_model.objects.filter.assert_any_call(pk=9)
+        document_model.objects.filter.return_value.update.assert_called_once_with(
+            caminho_arquivo='EMPRESA NOVA/PESSOAL/GUIAS/2026/08/guia.pdf'
         )
 
 
