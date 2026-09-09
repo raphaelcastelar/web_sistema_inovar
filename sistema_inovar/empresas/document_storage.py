@@ -1,4 +1,5 @@
 import os
+import posixpath
 import re
 import uuid
 
@@ -6,6 +7,7 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 
 from .models import DocumentoEmpresa, Empresa
+from .utils import sanitize_filename_for_upload
 
 
 def find_empresa_by_cnpj(cnpj):
@@ -39,6 +41,72 @@ def _atomic_storage_write(storage, relative_name, content):
     finally:
         if os.path.exists(temporary_path):
             os.unlink(temporary_path)
+
+
+def rename_document_file(document, requested_name):
+    """Renomeia o arquivo físico e mantém o registro sincronizado."""
+    requested_name = str(requested_name or '').strip()
+    if (
+        not requested_name
+        or requested_name in {'.', '..'}
+        or '/' in requested_name
+        or '\\' in requested_name
+    ):
+        raise ValueError('Informe somente o novo nome do arquivo.')
+
+    safe_name = sanitize_filename_for_upload(requested_name)
+    if len(safe_name) > DocumentoEmpresa._meta.get_field('nome_arquivo').max_length:
+        raise ValueError('O nome do arquivo deve ter no máximo 255 caracteres.')
+
+    duplicate = DocumentoEmpresa.objects.filter(
+        empresa=document.empresa,
+        folder_key=document.folder_key,
+        nome_arquivo=safe_name,
+        ano=document.ano,
+        mes=document.mes,
+    ).exclude(pk=document.pk)
+    if duplicate.exists():
+        raise FileExistsError('Já existe um arquivo com esse nome nesta pasta.')
+
+    storage = document.caminho_arquivo.storage
+    old_name = str(document.caminho_arquivo.name).replace('\\', '/')
+    new_name = posixpath.join(posixpath.dirname(old_name), safe_name)
+
+    if new_name == old_name:
+        document.nome_arquivo = safe_name
+        document.save(update_fields=['nome_arquivo'])
+        return document
+    if storage.exists(new_name):
+        raise FileExistsError('Já existe um arquivo com esse nome nesta pasta.')
+    if not storage.exists(old_name):
+        raise FileNotFoundError('O arquivo físico não foi encontrado no servidor.')
+
+    # FileSystemStorage permite uma troca atômica, que também facilita desfazer
+    # a movimentação caso a atualização no banco falhe.
+    old_path = storage.path(old_name)
+    new_path = storage.path(new_name)
+    os.makedirs(os.path.dirname(new_path), exist_ok=True)
+    os.replace(old_path, new_path)
+    try:
+        with transaction.atomic():
+            document.nome_arquivo = safe_name
+            document.caminho_arquivo.name = new_name
+            document.save(update_fields=['nome_arquivo', 'caminho_arquivo'])
+    except Exception:
+        if os.path.exists(new_path) and not os.path.exists(old_path):
+            os.replace(new_path, old_path)
+        raise
+    return document
+
+
+def delete_document_file(document):
+    """Exclui o registro e o arquivo físico como uma única operação de serviço."""
+    storage = document.caminho_arquivo.storage
+    stored_name = document.caminho_arquivo.name
+    with transaction.atomic():
+        document.delete()
+        if stored_name and storage.exists(stored_name):
+            storage.delete(stored_name)
 
 
 @transaction.atomic

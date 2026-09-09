@@ -11,7 +11,9 @@ import {
     FolderIcon,
     ArrowUpOnSquareIcon,
     XMarkIcon,
-    CheckCircleIcon
+    CheckCircleIcon,
+    PencilSquareIcon,
+    TrashIcon
 } from '@heroicons/react/24/outline';
 
 const SERVER_FILE_URL_BASE = process.env.REACT_APP_API_URL || '';
@@ -111,8 +113,20 @@ const groupFilesByYearAndMonth = (files) => {
     return result;
 };
 
+const FileActions = ({ file, folderType, onRename, onDelete, busy }) => (
+    <div className="flex flex-shrink-0 items-center gap-1">
+        <a href={buildFileViewUrl(folderType, file.id)} target="_blank" rel="noopener noreferrer" className="rounded-md px-2 py-1 text-sm font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30">Ver</a>
+        <button type="button" onClick={() => onRename(file)} disabled={busy} className="rounded-md p-1.5 text-gray-500 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-amber-950/30 dark:hover:text-amber-300" title={`Renomear ${file.nome_arquivo}`} aria-label={`Renomear ${file.nome_arquivo}`}>
+            <PencilSquareIcon className="h-4 w-4" />
+        </button>
+        <button type="button" onClick={() => onDelete(file)} disabled={busy} className="rounded-md p-1.5 text-gray-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-40 dark:text-gray-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-300" title={`Excluir ${file.nome_arquivo}`} aria-label={`Excluir ${file.nome_arquivo}`}>
+            <TrashIcon className="h-4 w-4" />
+        </button>
+    </div>
+);
+
 // --- SUB-COMPONENTE ACORDEÃO ESTILIZADO ---
-const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, folderType }) => {
+const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, folderType, onRename, onDelete, fileOperationId }) => {
     const [activeYear, setActiveYear] = useState(null);
     const groupedData = useMemo(() => groupFilesByYearAndMonth(files), [files]);
     const sortedYears = useMemo(() => sortYearsForDisplay(Object.keys(groupedData)), [groupedData]);
@@ -145,7 +159,7 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, folderT
                                                 <input type="checkbox" checked={selectedFiles.includes(file.id)} onChange={() => toggleFileSelection(file.id)} className="form-checkbox h-4 w-4 rounded bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-indigo-600 focus:ring-indigo-500"/>
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                                <a href={buildFileViewUrl(folderType, file.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+                                                <FileActions file={file} folderType={folderType} onRename={onRename} onDelete={onDelete} busy={fileOperationId === file.id} />
                                             </li>
                                         ))}
                                     </ul>
@@ -184,6 +198,7 @@ const PastaManager = () => {
     const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
     const [whatsAppDestinatario, setWhatsAppDestinatario] = useState('');
     const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+    const [fileOperationId, setFileOperationId] = useState(null);
 
     // --- LÓGICA DE DADOS E API ---
     const fetchData = useCallback(() => {
@@ -277,6 +292,46 @@ const PastaManager = () => {
             alert(err.response?.data?.error || `Falha ao sincronizar a pasta.`);
         } finally {
             setIsRefreshingPasta(false);
+        }
+    };
+
+    const handleRenameFile = async (file) => {
+        const requestedName = window.prompt('Digite o novo nome do arquivo:', file.nome_arquivo);
+        if (requestedName === null || requestedName.trim() === '' || requestedName.trim() === file.nome_arquivo) return;
+
+        setFileOperationId(file.id);
+        setError(null);
+        try {
+            const response = await axiosInstance.patch(`/api/documentos-empresa/${file.id}/renomear/`, {
+                nome_arquivo: requestedName.trim(),
+            });
+            setArquivos(prev => ({
+                ...prev,
+                [selectedPasta.tipo]: (prev[selectedPasta.tipo] || []).map(item => item.id === file.id ? response.data : item),
+            }));
+        } catch (err) {
+            setError(err.response?.data?.error || 'Não foi possível renomear o arquivo.');
+        } finally {
+            setFileOperationId(null);
+        }
+    };
+
+    const handleDeleteFile = async (file) => {
+        if (!window.confirm(`Excluir permanentemente o arquivo "${file.nome_arquivo}"?`)) return;
+
+        setFileOperationId(file.id);
+        setError(null);
+        try {
+            await axiosInstance.delete(`/api/documentos-empresa/${file.id}/`);
+            setArquivos(prev => ({
+                ...prev,
+                [selectedPasta.tipo]: (prev[selectedPasta.tipo] || []).filter(item => item.id !== file.id),
+            }));
+            setSelectedFiles(prev => prev.filter(id => id !== file.id));
+        } catch (err) {
+            setError(err.response?.data?.error || 'Não foi possível excluir o arquivo.');
+        } finally {
+            setFileOperationId(null);
         }
     };
 
@@ -450,7 +505,7 @@ const PastaManager = () => {
                                 {(!arquivos[selectedPasta.tipo] || arquivos[selectedPasta.tipo].length === 0) ? 
                                     <p className="text-center py-10 text-gray-500 dark:text-gray-400">Nenhum arquivo nesta pasta.</p> :
                                     (periodFolderTypes.includes(selectedPasta.tipo)) ? (
-                                        <YearMonthAccordion files={arquivos[selectedPasta.tipo]} selectedFiles={selectedFiles} toggleFileSelection={toggleFileSelection} folderType={selectedPasta.tipo} />
+                                        <YearMonthAccordion files={arquivos[selectedPasta.tipo]} selectedFiles={selectedFiles} toggleFileSelection={toggleFileSelection} folderType={selectedPasta.tipo} onRename={handleRenameFile} onDelete={handleDeleteFile} fileOperationId={fileOperationId} />
                                     ) : (
                                         <ul className="space-y-1">{(arquivos[selectedPasta.tipo]).map(file => (
                                             <li key={file.id} className="flex items-center space-x-3 p-3 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md">
@@ -458,7 +513,7 @@ const PastaManager = () => {
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
                                                 {['pessoal_guias', 'fiscal_guias'].includes(selectedPasta.tipo) && (<span className={`text-xs px-2 py-0.5 font-semibold rounded-full ${file.entregue ? 'bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
-                                                <a href={buildFileViewUrl(selectedPasta.tipo, file.id)} target="_blank" rel="noopener noreferrer" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">Ver</a>
+                                                <FileActions file={file} folderType={selectedPasta.tipo} onRename={handleRenameFile} onDelete={handleDeleteFile} busy={fileOperationId === file.id} />
                                             </li>
                                         ))}</ul>
                                     )

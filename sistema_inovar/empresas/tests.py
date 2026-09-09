@@ -1,6 +1,7 @@
 import importlib
 import os
 import tempfile
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -13,7 +14,7 @@ from .management.commands.inventariar_arquivos import _relative_path, scan_media
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
 from .views import _ensure_sync_safe_filename, _repair_surrogate_escapes, normalize_bb_emission_date
 from .serpro_service import gerar_das_serpro, orquestrar_consulta_extrato
-from .document_storage import _atomic_storage_write
+from .document_storage import _atomic_storage_write, delete_document_file, rename_document_file
 from .management.commands.migrar_arquivos_para_nuvem import _safe_directory, _source_directories
 
 
@@ -251,3 +252,56 @@ class ArmazenamentoNuvemTest(SimpleTestCase):
                 os.mkdir(os.path.join(source, name))
 
             self.assertEqual(_source_directories(source, 'J'), ['JOSE', 'KAPPA'])
+
+
+class OperacoesArquivoDocumentoTest(SimpleTestCase):
+    def _document(self, storage, relative_name):
+        return SimpleNamespace(
+            pk=7,
+            empresa=SimpleNamespace(pk=3),
+            folder_key='fiscal_guias',
+            nome_arquivo=os.path.basename(relative_name),
+            ano='2026',
+            mes='08',
+            caminho_arquivo=SimpleNamespace(storage=storage, name=relative_name),
+            save=Mock(),
+            delete=Mock(),
+        )
+
+    @patch('empresas.document_storage.transaction.atomic', return_value=nullcontext())
+    @patch('empresas.document_storage.DocumentoEmpresa.objects.filter')
+    def test_renomeia_arquivo_no_disco_e_no_registro(self, filter_mock, _atomic_mock):
+        filter_mock.return_value.exclude.return_value.exists.return_value = False
+        with tempfile.TemporaryDirectory() as media_root:
+            storage = FileSystemStorage(location=media_root)
+            old_name = 'EMPRESA/FISCAL/GUIAS/2026/08/guia.pdf'
+            old_path = os.path.join(media_root, *old_name.split('/'))
+            os.makedirs(os.path.dirname(old_path), exist_ok=True)
+            with open(old_path, 'wb') as file:
+                file.write(b'%PDF-teste')
+            document = self._document(storage, old_name)
+
+            rename_document_file(document, 'Guia atualizada.pdf')
+
+            new_name = 'EMPRESA/FISCAL/GUIAS/2026/08/Guia_atualizada.pdf'
+            self.assertFalse(os.path.exists(old_path))
+            self.assertTrue(os.path.isfile(os.path.join(media_root, *new_name.split('/'))))
+            self.assertEqual(document.nome_arquivo, 'Guia_atualizada.pdf')
+            self.assertEqual(document.caminho_arquivo.name, new_name)
+            document.save.assert_called_once_with(update_fields=['nome_arquivo', 'caminho_arquivo'])
+
+    @patch('empresas.document_storage.transaction.atomic', return_value=nullcontext())
+    def test_exclui_arquivo_do_disco_e_registro(self, _atomic_mock):
+        with tempfile.TemporaryDirectory() as media_root:
+            storage = FileSystemStorage(location=media_root)
+            relative_name = 'EMPRESA/CONSTITUTIVOS/OUTROS/contrato.pdf'
+            file_path = os.path.join(media_root, *relative_name.split('/'))
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'wb') as file:
+                file.write(b'%PDF-teste')
+            document = self._document(storage, relative_name)
+
+            delete_document_file(document)
+
+            document.delete.assert_called_once_with()
+            self.assertFalse(os.path.exists(file_path))

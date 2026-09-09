@@ -91,7 +91,7 @@ from .serializers import (
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .folder_structure import FOLDER_DEFINITIONS
-from .document_storage import save_generated_das
+from .document_storage import delete_document_file, rename_document_file, save_generated_das
 from .serpro_service import (
     gerar_das_serpro, 
     obter_extrato_pdf_serpro,
@@ -1467,6 +1467,37 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
         if folder_key:
             queryset = queryset.filter(folder_key=folder_key)
         return queryset
+
+    @action(detail=True, methods=['patch'])
+    def renomear(self, request, pk=None):
+        document = self.get_object()
+        try:
+            rename_document_file(document, request.data.get('nome_arquivo'))
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except FileExistsError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_409_CONFLICT)
+        except FileNotFoundError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        except OSError:
+            logger.exception('Falha ao renomear o arquivo do documento %s.', document.pk)
+            return Response(
+                {'error': 'Não foi possível renomear o arquivo no servidor.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response(self.get_serializer(document).data)
+
+    def destroy(self, request, *args, **kwargs):
+        document = self.get_object()
+        try:
+            delete_document_file(document)
+        except OSError:
+            logger.exception('Falha ao excluir o arquivo do documento %s.', document.pk)
+            return Response(
+                {'error': 'Não foi possível excluir o arquivo no servidor.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['post'])
     def sincronizar(self, request):
