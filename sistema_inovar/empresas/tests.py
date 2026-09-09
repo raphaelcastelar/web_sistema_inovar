@@ -8,13 +8,19 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 from django.core.files.storage import FileSystemStorage
 
+from .models import Empresa
 from .folder_structure import create_company_folder_structure
 from .management.commands.migrar_estrutura_pastas_2026 import Command
 from .management.commands.inventariar_arquivos import _relative_path, scan_media_root
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
 from .views import _ensure_sync_safe_filename, _repair_surrogate_escapes, normalize_bb_emission_date
 from .serpro_service import gerar_das_serpro, orquestrar_consulta_extrato
-from .document_storage import _atomic_storage_write, delete_document_file, rename_document_file
+from .document_storage import (
+    _atomic_storage_write,
+    delete_document_file,
+    rename_document_file,
+    save_generated_dctfweb,
+)
 from .management.commands.migrar_arquivos_para_nuvem import _safe_directory, _source_directories
 
 
@@ -305,3 +311,58 @@ class OperacoesArquivoDocumentoTest(SimpleTestCase):
 
             document.delete.assert_called_once_with()
             self.assertFalse(os.path.exists(file_path))
+
+
+class ArmazenamentoDctfWebTest(SimpleTestCase):
+    @patch('empresas.document_storage._atomic_storage_write')
+    @patch('empresas.document_storage.DocumentoEmpresa.objects.select_for_update')
+    @patch('empresas.document_storage.find_empresa_by_cnpj')
+    def test_salva_cada_documento_na_pasta_pessoal_correta(
+        self,
+        find_empresa_mock,
+        select_for_update_mock,
+        atomic_write_mock,
+    ):
+        empresa = Empresa(pk=3, nome='EMPRESA TESTE', cnpj='12.345.678/0001-90')
+        find_empresa_mock.return_value = empresa
+        manager = select_for_update_mock.return_value
+        cases = (
+            ('GERARGUIA31', 'pessoal_guias', 'PESSOAL/GUIAS', 'GUIA_DCTFWEB'),
+            ('CONSRECIBO32', 'pessoal_relatorios', 'PESSOAL/RELATORIOS', 'RECIBO_DCTFWEB'),
+            (
+                'CONSDECCOMPLETA33',
+                'pessoal_relatorios',
+                'PESSOAL/RELATORIOS',
+                'DECLARACAO_COMPLETA_DCTFWEB',
+            ),
+        )
+
+        for service_id, folder_key, folder_path, prefix in cases:
+            with self.subTest(service_id=service_id):
+                expected_filename = f'{prefix}_12345678000190_202608.pdf'
+                saved_document = SimpleNamespace(nome_arquivo=expected_filename)
+                manager.update_or_create.return_value = (saved_document, True)
+                atomic_write_mock.reset_mock()
+
+                result = save_generated_dctfweb.__wrapped__(
+                    '12.345.678/0001-90',
+                    '202608',
+                    service_id,
+                    b'%PDF-documento',
+                )
+
+                stored_name = atomic_write_mock.call_args.args[1]
+                written_name = stored_name.replace('\\', '/')
+                self.assertEqual(
+                    written_name,
+                    f'EMPRESA TESTE/{folder_path}/2026/08/{expected_filename}',
+                )
+                manager.update_or_create.assert_called_with(
+                    empresa=empresa,
+                    folder_key=folder_key,
+                    nome_arquivo=expected_filename,
+                    ano='2026',
+                    mes='08',
+                    defaults={'caminho_arquivo': stored_name},
+                )
+                self.assertIs(result, saved_document)

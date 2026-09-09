@@ -91,7 +91,12 @@ from .serializers import (
 )
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .folder_structure import FOLDER_DEFINITIONS
-from .document_storage import delete_document_file, rename_document_file, save_generated_das
+from .document_storage import (
+    delete_document_file,
+    rename_document_file,
+    save_generated_das,
+    save_generated_dctfweb,
+)
 from .serpro_service import (
     gerar_das_serpro, 
     obter_extrato_pdf_serpro,
@@ -2857,8 +2862,30 @@ def documento_dctfweb_api(request, id_servico):
             {"error": resultado.get('erro'), "detalhes": resultado.get('detalhes')},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    response = HttpResponse(resultado['file_content'], content_type=resultado['content_type'])
-    response['Content-Disposition'] = f'attachment; filename="{resultado["filename"]}"'
+    pdf_content = resultado['file_content']
+    try:
+        documento = save_generated_dctfweb(cnpj, periodo, id_servico, pdf_content)
+    except Empresa.DoesNotExist:
+        logger.warning('Documento DCTFWeb gerado para CNPJ não cadastrado: %s', cnpj)
+        return Response(
+            {"error": "O documento DCTFWeb foi gerado, mas a empresa não está cadastrada no sistema para que o arquivo seja salvo."},
+            status=status.HTTP_409_CONFLICT,
+        )
+    except (DatabaseError, OSError, ValueError, RuntimeError) as exc:
+        logger.exception(
+            'Não foi possível salvar o documento DCTFWeb %s de %s/%s: %s',
+            id_servico,
+            cnpj,
+            periodo,
+            exc,
+        )
+        return Response(
+            {"error": "O documento DCTFWeb foi gerado, mas não pôde ser salvo na pasta da empresa. Nenhum download foi liberado para evitar perda de controle; tente novamente."},
+            status=status.HTTP_507_INSUFFICIENT_STORAGE,
+        )
+
+    response = HttpResponse(pdf_content, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{documento.nome_arquivo}"'
     return response
 
 @api_view(['POST'])

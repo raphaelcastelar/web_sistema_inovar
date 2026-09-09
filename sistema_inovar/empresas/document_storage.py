@@ -10,6 +10,22 @@ from .models import DocumentoEmpresa, Empresa
 from .utils import sanitize_filename_for_upload
 
 
+DCTFWEB_DOCUMENT_CONFIG = {
+    'GERARGUIA31': {
+        'folder_key': 'pessoal_guias',
+        'filename_prefix': 'GUIA_DCTFWEB',
+    },
+    'CONSRECIBO32': {
+        'folder_key': 'pessoal_relatorios',
+        'filename_prefix': 'RECIBO_DCTFWEB',
+    },
+    'CONSDECCOMPLETA33': {
+        'folder_key': 'pessoal_relatorios',
+        'filename_prefix': 'DECLARACAO_COMPLETA_DCTFWEB',
+    },
+}
+
+
 def find_empresa_by_cnpj(cnpj):
     """Localiza a empresa mesmo quando o CNPJ está armazenado com pontuação."""
     normalized = re.sub(r'\D', '', str(cnpj or ''))
@@ -145,6 +161,52 @@ def save_generated_das(cnpj, periodo, pdf_content):
     saved_document, _ = DocumentoEmpresa.objects.select_for_update().update_or_create(
         empresa=empresa,
         folder_key='fiscal_guias',
+        nome_arquivo=filename,
+        ano=year,
+        mes=month,
+        defaults={'caminho_arquivo': relative_name},
+    )
+    return saved_document
+
+
+@transaction.atomic
+def save_generated_dctfweb(cnpj, periodo, service_id, pdf_content):
+    """Salva documentos da DCTFWeb na pasta pessoal da empresa."""
+    config = DCTFWEB_DOCUMENT_CONFIG.get(service_id)
+    if not config:
+        raise ValueError('Serviço DCTFWeb inválido para armazenamento.')
+
+    normalized_cnpj = re.sub(r'\D', '', str(cnpj or ''))
+    normalized_period = re.sub(r'\D', '', str(periodo or ''))
+    if len(normalized_cnpj) != 14:
+        raise ValueError('CNPJ inválido para salvar o documento DCTFWeb.')
+    if not re.fullmatch(r'\d{4}(0[1-9]|1[0-2])', normalized_period):
+        raise ValueError('Competência inválida para salvar o documento DCTFWeb.')
+    if not isinstance(pdf_content, bytes) or not pdf_content.startswith(b'%PDF'):
+        raise ValueError('O conteúdo retornado da DCTFWeb não é um PDF válido.')
+
+    empresa = find_empresa_by_cnpj(normalized_cnpj)
+    if not empresa:
+        raise Empresa.DoesNotExist(f'Empresa com CNPJ {normalized_cnpj} não cadastrada.')
+
+    year, month = normalized_period[:4], normalized_period[4:]
+    filename = f"{config['filename_prefix']}_{normalized_cnpj}_{normalized_period}.pdf"
+    document = DocumentoEmpresa(
+        empresa=empresa,
+        folder_key=config['folder_key'],
+        nome_arquivo=filename,
+        ano=year,
+        mes=month,
+    )
+    relative_name = document.caminho_arquivo.field.generate_filename(document, filename)
+
+    if not hasattr(default_storage, 'path') or not hasattr(default_storage, 'location'):
+        raise RuntimeError('O armazenamento configurado não oferece filesystem local.')
+    _atomic_storage_write(default_storage, relative_name, pdf_content)
+
+    saved_document, _ = DocumentoEmpresa.objects.select_for_update().update_or_create(
+        empresa=empresa,
+        folder_key=config['folder_key'],
         nome_arquivo=filename,
         ano=year,
         mes=month,
