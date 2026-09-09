@@ -228,7 +228,7 @@ const CarteiraEmpresasPage = () => {
           <FolderOpenIcon className="h-4 w-4" />
           Pasta
         </Link>
-        <Link to="/gerar-das" className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-200 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+        <Link to="/central-simples" className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-200 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
           <DocumentArrowDownIcon className="h-4 w-4" />
           DAS
         </Link>

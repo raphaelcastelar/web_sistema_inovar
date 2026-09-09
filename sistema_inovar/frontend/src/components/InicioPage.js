@@ -979,8 +979,7 @@ const InicioPage = () => {
           <div className="mt-4 space-y-2">
             {[
               { to: '/carteira-empresas', label: 'Carteira de Empresas' },
-              { to: '/gerar-das', label: 'Gerar Guia DAS' },
-              { to: '/consultar-extrato', label: 'Consultar Extrato' },
+              { to: '/central-simples', label: 'Central DAS' },
               { to: '/pendencias', label: 'Ver Pendências' },
             ].map((item) => (
               <Link

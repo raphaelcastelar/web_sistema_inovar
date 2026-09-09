@@ -1,6 +1,6 @@
 // src/App.js
 import React from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 
 // Layouts e Utilitários (caminhos a partir de src/)
 import MainLayout from './layouts/MainLayout';
@@ -16,8 +16,6 @@ import HistoricoWhatsApp from './components/HistoricoWhatsapp';
 import LoginPage from './components/LoginPage';
 import FuncionarioList from './components/FuncionarioList';
 import FuncionarioForm from './components/FuncionarioForm';
-import GerarDasPage from './components/GerarDasPage';
-import ConsultarExtratoPage from './components/ConsultarExtratoPage';
 import GerenciamentoSimplesPage from './components/GerenciamentoSimplesPage';
 import GerenciarAtribuicoesPage from './components/GerenciarAtribuicoesPage';
 import PendenciasPage from './components/PendenciasPage';
@@ -62,8 +60,8 @@ function App() {
             <Route path="/central-simples" element={<CentralDoSimples />} />
             <Route path="/central-dctfweb" element={<CentralDctfWeb />} />
             <Route path="/parcelamento-simples" element={<CentralParcelamentoSimples />} />
-            <Route path="/gerar-das" element={<GerarDasPage />} />
-            <Route path="/consultar-extrato" element={<ConsultarExtratoPage />} />
+            <Route path="/gerar-das" element={<Navigate to="/central-simples" replace />} />
+            <Route path="/consultar-extrato" element={<Navigate to="/central-simples" replace />} />
             <Route path="/monitor-boletos" element={<BoletoMonitorPage />} />
             <Route path="/boletos-por-empresa" element={<BoletosPorEmpresaPage />} />
             <Route path="/inadimplencia-boletos" element={<InadimplenciaBoletosPage />} />
