@@ -96,6 +96,7 @@ from .document_storage import (
     rename_document_file,
     save_generated_das,
     save_generated_dctfweb,
+    save_generated_fiscal_document,
 )
 from .serpro_service import (
     gerar_das_serpro, 
@@ -2807,11 +2808,25 @@ def consultar_extrato_api(request):
     resultado = orquestrar_consulta_extrato(cnpj_empresa=cnpj, periodo_apuracao=periodo)
 
     if resultado.get("sucesso"):
-        # Se funcionou, retorna o PDF para download
         pdf_content = resultado.get("pdf_content")
-        filename = resultado.get("filename", "Extrato.pdf")
+        try:
+            documento = save_generated_fiscal_document(
+                cnpj, periodo, 'extrato_simples', pdf_content
+            )
+        except Empresa.DoesNotExist:
+            logger.warning('Extrato do Simples gerado para CNPJ não cadastrado: %s', cnpj)
+            return Response(
+                {"error": "O extrato foi gerado, mas a empresa não está cadastrada no sistema para que o arquivo seja salvo."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        except (DatabaseError, OSError, ValueError, RuntimeError) as exc:
+            logger.exception('Não foi possível salvar o extrato de %s/%s: %s', cnpj, periodo, exc)
+            return Response(
+                {"error": "O extrato foi gerado, mas não pôde ser salvo na pasta da empresa. Nenhum download foi liberado; tente novamente."},
+                status=status.HTTP_507_INSUFFICIENT_STORAGE,
+            )
         response = HttpResponse(pdf_content, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Disposition'] = f'attachment; filename="{documento.nome_arquivo}"'
         return response
     else:
         # Se falhou, retorna a mensagem de erro em JSON
@@ -2838,8 +2853,26 @@ def consultar_declaracao_recibo_api(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    response = HttpResponse(resultado['file_content'], content_type=resultado['content_type'])
-    response['Content-Disposition'] = f'attachment; filename="{resultado["filename"]}"'
+    file_content = resultado['file_content']
+    try:
+        documento = save_generated_fiscal_document(
+            cnpj, periodo, 'recibo_simples', file_content
+        )
+    except Empresa.DoesNotExist:
+        logger.warning('Recibo do Simples gerado para CNPJ não cadastrado: %s', cnpj)
+        return Response(
+            {"error": "O recibo foi gerado, mas a empresa não está cadastrada no sistema para que o arquivo seja salvo."},
+            status=status.HTTP_409_CONFLICT,
+        )
+    except (DatabaseError, OSError, ValueError, RuntimeError) as exc:
+        logger.exception('Não foi possível salvar o recibo de %s/%s: %s', cnpj, periodo, exc)
+        return Response(
+            {"error": "O recibo foi gerado, mas não pôde ser salvo na pasta da empresa. Nenhum download foi liberado; tente novamente."},
+            status=status.HTTP_507_INSUFFICIENT_STORAGE,
+        )
+
+    response = HttpResponse(file_content, content_type=resultado['content_type'])
+    response['Content-Disposition'] = f'attachment; filename="{documento.nome_arquivo}"'
     return response
 
 @api_view(['POST'])
@@ -2911,8 +2944,26 @@ def gerar_das_parcsn_api(request):
     resultado = gerar_das_parcsn_serpro(cnpj, parcela)
     if not resultado.get('sucesso'):
         return Response({"error": resultado.get('erro'), "detalhes": resultado.get('detalhes')}, status=status.HTTP_400_BAD_REQUEST)
-    response = HttpResponse(resultado['file_content'], content_type=resultado['content_type'])
-    response['Content-Disposition'] = f'attachment; filename="{resultado["filename"]}"'
+    pdf_content = resultado['file_content']
+    try:
+        documento = save_generated_fiscal_document(
+            cnpj, parcela, 'parcelamento_sn', pdf_content
+        )
+    except Empresa.DoesNotExist:
+        logger.warning('Guia do Parcelamento SN gerada para CNPJ não cadastrado: %s', cnpj)
+        return Response(
+            {"error": "A guia foi gerada, mas a empresa não está cadastrada no sistema para que o arquivo seja salvo."},
+            status=status.HTTP_409_CONFLICT,
+        )
+    except (DatabaseError, OSError, ValueError, RuntimeError) as exc:
+        logger.exception('Não foi possível salvar a guia do Parcelamento SN de %s/%s: %s', cnpj, parcela, exc)
+        return Response(
+            {"error": "A guia foi gerada, mas não pôde ser salva na pasta da empresa. Nenhum download foi liberado; tente novamente."},
+            status=status.HTTP_507_INSUFFICIENT_STORAGE,
+        )
+
+    response = HttpResponse(pdf_content, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{documento.nome_arquivo}"'
     return response
     
 @api_view(['GET'])

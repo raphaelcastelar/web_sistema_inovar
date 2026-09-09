@@ -20,6 +20,7 @@ from .document_storage import (
     delete_document_file,
     rename_document_file,
     save_generated_dctfweb,
+    save_generated_fiscal_document,
 )
 from .management.commands.migrar_arquivos_para_nuvem import _safe_directory, _source_directories
 
@@ -355,6 +356,76 @@ class ArmazenamentoDctfWebTest(SimpleTestCase):
                 written_name = stored_name.replace('\\', '/')
                 self.assertEqual(
                     written_name,
+                    f'EMPRESA TESTE/{folder_path}/2026/08/{expected_filename}',
+                )
+                manager.update_or_create.assert_called_with(
+                    empresa=empresa,
+                    folder_key=folder_key,
+                    nome_arquivo=expected_filename,
+                    ano='2026',
+                    mes='08',
+                    defaults={'caminho_arquivo': stored_name},
+                )
+                self.assertIs(result, saved_document)
+
+
+class ArmazenamentoDocumentosFiscaisTest(SimpleTestCase):
+    @patch('empresas.document_storage._atomic_storage_write')
+    @patch('empresas.document_storage.DocumentoEmpresa.objects.select_for_update')
+    @patch('empresas.document_storage.find_empresa_by_cnpj')
+    def test_salva_extrato_recibo_e_parcelamento_nas_pastas_corretas(
+        self,
+        find_empresa_mock,
+        select_for_update_mock,
+        atomic_write_mock,
+    ):
+        empresa = Empresa(pk=3, nome='EMPRESA TESTE', cnpj='12.345.678/0001-90')
+        find_empresa_mock.return_value = empresa
+        manager = select_for_update_mock.return_value
+        cases = (
+            (
+                'extrato_simples',
+                'fiscal_extratos',
+                'FISCAL/EXTRATOS',
+                'EXTRATO_SIMPLES',
+                b'%PDF-extrato',
+                'pdf',
+            ),
+            (
+                'recibo_simples',
+                'fiscal_extratos',
+                'FISCAL/EXTRATOS',
+                'RECIBO_SIMPLES',
+                b'PK\x03\x04-recibo',
+                'zip',
+            ),
+            (
+                'parcelamento_sn',
+                'fiscal_guias',
+                'FISCAL/GUIAS',
+                'GUIA_PARCELAMENTO_SN',
+                b'%PDF-parcelamento',
+                'pdf',
+            ),
+        )
+
+        for document_type, folder_key, folder_path, prefix, content, extension in cases:
+            with self.subTest(document_type=document_type):
+                expected_filename = f'{prefix}_12345678000190_202608.{extension}'
+                saved_document = SimpleNamespace(nome_arquivo=expected_filename)
+                manager.update_or_create.return_value = (saved_document, True)
+                atomic_write_mock.reset_mock()
+
+                result = save_generated_fiscal_document.__wrapped__(
+                    '12.345.678/0001-90',
+                    '202608',
+                    document_type,
+                    content,
+                )
+
+                stored_name = atomic_write_mock.call_args.args[1]
+                self.assertEqual(
+                    stored_name.replace('\\', '/'),
                     f'EMPRESA TESTE/{folder_path}/2026/08/{expected_filename}',
                 )
                 manager.update_or_create.assert_called_with(

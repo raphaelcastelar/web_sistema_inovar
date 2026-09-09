@@ -25,6 +25,24 @@ DCTFWEB_DOCUMENT_CONFIG = {
     },
 }
 
+FISCAL_DOCUMENT_CONFIG = {
+    'extrato_simples': {
+        'folder_key': 'fiscal_extratos',
+        'filename_prefix': 'EXTRATO_SIMPLES',
+        'allowed_extensions': ('pdf',),
+    },
+    'recibo_simples': {
+        'folder_key': 'fiscal_extratos',
+        'filename_prefix': 'RECIBO_SIMPLES',
+        'allowed_extensions': ('pdf', 'zip'),
+    },
+    'parcelamento_sn': {
+        'folder_key': 'fiscal_guias',
+        'filename_prefix': 'GUIA_PARCELAMENTO_SN',
+        'allowed_extensions': ('pdf',),
+    },
+}
+
 
 def find_empresa_by_cnpj(cnpj):
     """Localiza a empresa mesmo quando o CNPJ está armazenado com pontuação."""
@@ -203,6 +221,61 @@ def save_generated_dctfweb(cnpj, periodo, service_id, pdf_content):
     if not hasattr(default_storage, 'path') or not hasattr(default_storage, 'location'):
         raise RuntimeError('O armazenamento configurado não oferece filesystem local.')
     _atomic_storage_write(default_storage, relative_name, pdf_content)
+
+    saved_document, _ = DocumentoEmpresa.objects.select_for_update().update_or_create(
+        empresa=empresa,
+        folder_key=config['folder_key'],
+        nome_arquivo=filename,
+        ano=year,
+        mes=month,
+        defaults={'caminho_arquivo': relative_name},
+    )
+    return saved_document
+
+
+@transaction.atomic
+def save_generated_fiscal_document(cnpj, periodo, document_type, file_content):
+    """Salva extratos, recibos e guias do Simples nas pastas fiscais."""
+    config = FISCAL_DOCUMENT_CONFIG.get(document_type)
+    if not config:
+        raise ValueError('Tipo de documento fiscal inválido para armazenamento.')
+
+    normalized_cnpj = re.sub(r'\D', '', str(cnpj or ''))
+    normalized_period = re.sub(r'\D', '', str(periodo or ''))
+    if len(normalized_cnpj) != 14:
+        raise ValueError('CNPJ inválido para salvar o documento fiscal.')
+    if not re.fullmatch(r'\d{4}(0[1-9]|1[0-2])', normalized_period):
+        raise ValueError('Competência inválida para salvar o documento fiscal.')
+    if not isinstance(file_content, bytes):
+        raise ValueError('O conteúdo retornado para o documento fiscal é inválido.')
+
+    if file_content.startswith(b'%PDF'):
+        extension = 'pdf'
+    elif file_content.startswith(b'PK'):
+        extension = 'zip'
+    else:
+        raise ValueError('O conteúdo retornado não é um PDF ou ZIP válido.')
+    if extension not in config['allowed_extensions']:
+        raise ValueError(f'O formato {extension.upper()} não é permitido para este documento.')
+
+    empresa = find_empresa_by_cnpj(normalized_cnpj)
+    if not empresa:
+        raise Empresa.DoesNotExist(f'Empresa com CNPJ {normalized_cnpj} não cadastrada.')
+
+    year, month = normalized_period[:4], normalized_period[4:]
+    filename = f"{config['filename_prefix']}_{normalized_cnpj}_{normalized_period}.{extension}"
+    document = DocumentoEmpresa(
+        empresa=empresa,
+        folder_key=config['folder_key'],
+        nome_arquivo=filename,
+        ano=year,
+        mes=month,
+    )
+    relative_name = document.caminho_arquivo.field.generate_filename(document, filename)
+
+    if not hasattr(default_storage, 'path') or not hasattr(default_storage, 'location'):
+        raise RuntimeError('O armazenamento configurado não oferece filesystem local.')
+    _atomic_storage_write(default_storage, relative_name, file_content)
 
     saved_document, _ = DocumentoEmpresa.objects.select_for_update().update_or_create(
         empresa=empresa,
