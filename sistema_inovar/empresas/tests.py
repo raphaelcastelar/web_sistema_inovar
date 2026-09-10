@@ -15,7 +15,13 @@ from .folder_structure import create_company_folder_structure
 from .management.commands.migrar_estrutura_pastas_2026 import Command
 from .management.commands.inventariar_arquivos import _relative_path, scan_media_root
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
-from .views import _ensure_sync_safe_filename, _repair_surrogate_escapes, normalize_bb_emission_date
+from .views import (
+    _ensure_sync_safe_filename,
+    _repair_surrogate_escapes,
+    boleto_honorario_arquivo_disponivel,
+    normalize_bb_emission_date,
+    responder_com_boleto_honorario_existente,
+)
 from .serpro_service import gerar_das_serpro, orquestrar_consulta_extrato
 from .document_storage import (
     _atomic_storage_write,
@@ -39,6 +45,42 @@ class NomeEmpresaTest(SimpleTestCase):
             gerar_nome_pasta_empresa_padronizado('Empresa: Teste/ES'),
             'EMPRESA TESTEES',
         )
+
+
+class ReutilizacaoBoletoHonorarioTest(SimpleTestCase):
+    def test_download_reutiliza_documento_existente(self):
+        arquivo = Mock()
+        arquivo.path = '/tmp/HONORARIO.pdf'
+        arquivo.url = '/media/HONORARIO.pdf'
+        documento = SimpleNamespace(
+            caminho_arquivo=arquivo,
+            nome_arquivo='HONORARIO.pdf',
+        )
+        request = SimpleNamespace(
+            build_absolute_uri=lambda url: f'https://sistema.test{url}',
+        )
+
+        with patch('empresas.views.os.path.exists', return_value=True):
+            response = responder_com_boleto_honorario_existente(
+                request,
+                SimpleNamespace(nome='EMPRESA TESTE'),
+                documento,
+                'baixar',
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['from_cache'])
+        self.assertEqual(
+            response.data['download_url'],
+            'https://sistema.test/media/HONORARIO.pdf',
+        )
+
+    def test_documento_sem_arquivo_fisico_nao_e_reutilizado(self):
+        documento = SimpleNamespace(
+            caminho_arquivo=SimpleNamespace(path='/tmp/arquivo-ausente.pdf'),
+        )
+        with patch('empresas.views.os.path.exists', return_value=False):
+            self.assertFalse(boleto_honorario_arquivo_disponivel(documento))
 
 
 class RenomearPastaEmpresaTest(SimpleTestCase):

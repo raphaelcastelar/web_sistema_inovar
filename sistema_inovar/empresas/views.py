@@ -3543,6 +3543,63 @@ def boleto_honorario_arquivo_disponivel(documento):
     )
 
 
+def buscar_registro_boleto_honorario_mes_atual(empresa):
+    """Localiza uma cobranca ja registrada no BB durante a competencia atual."""
+    agora = timezone.now().astimezone(BRAZIL_TIME_ZONE)
+    inicio_mes = agora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    inicio_proximo_mes = (inicio_mes + relativedelta(months=1))
+    return BoletoBB.objects.filter(
+        empresa=empresa,
+        criado_em__gte=inicio_mes,
+        criado_em__lt=inicio_proximo_mes,
+    ).exclude(status='cancelado').order_by('criado_em').first()
+
+
+def responder_com_boleto_honorario_existente(request, empresa, documento, action):
+    """Reutiliza o PDF mensal para download ou WhatsApp, sem registrar outro boleto."""
+    if not boleto_honorario_arquivo_disponivel(documento):
+        return None
+
+    download_url = request.build_absolute_uri(documento.caminho_arquivo.url)
+    if action == 'baixar':
+        return Response({
+            "success": True,
+            "message": "Boleto já existente encontrado. Disponível para download.",
+            "from_cache": True,
+            "download_url": download_url,
+            "arquivo_pasta": documento.nome_arquivo,
+        }, status=status.HTTP_200_OK)
+
+    with documento.caminho_arquivo.open('rb') as arquivo:
+        pdf_content = arquivo.read()
+    nome_base_empresa = empresa.nome or 'empresa'
+    nome_arquivo = sanitize_filename_for_upload(
+        f"honorario_{nome_base_empresa}.pdf"
+    ).lower()
+    usuario = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
+    message_id, whatsapp_error = enviar_boleto_honorario_whatsapp(
+        empresa=empresa,
+        pdf_content=pdf_content,
+        nome_arquivo=nome_arquivo,
+        usuario=usuario,
+    )
+    if not message_id:
+        return Response({
+            "error": f"O boleto existente não pôde ser enviado pelo WhatsApp: {whatsapp_error}",
+            "from_cache": True,
+            "download_url": download_url,
+            "arquivo_pasta": documento.nome_arquivo,
+        }, status=status.HTTP_502_BAD_GATEWAY)
+    return Response({
+        "success": True,
+        "message": "Boleto já existente reutilizado e enviado pelo WhatsApp.",
+        "from_cache": True,
+        "message_id": message_id,
+        "download_url": download_url,
+        "arquivo_pasta": documento.nome_arquivo,
+    }, status=status.HTTP_200_OK)
+
+
 def usuario_pode_gerenciar_empresa(user, empresa):
     if not user or not user.is_authenticated:
         return False
@@ -3552,6 +3609,7 @@ def usuario_pode_gerenciar_empresa(user, empresa):
 
 
 @api_view(['POST'])
+@transaction.atomic
 def gerar_boleto_view(request):
     empresa_id = request.data.get('empresa_id')
     incoming_data = request.data.get('boleto_data', {})
@@ -3561,7 +3619,9 @@ def gerar_boleto_view(request):
         return Response({"error": "empresa_id é obrigatório."}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        empresa = Empresa.objects.get(id=empresa_id)
+        # Serializa a verificacao/geracao por empresa. Assim, requisicoes
+        # simultaneas nao conseguem registrar dois boletos para o mesmo mes.
+        empresa = Empresa.objects.select_for_update().get(id=empresa_id)
     except Empresa.DoesNotExist:
         return Response({"error": "Empresa não encontrada."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -3569,23 +3629,26 @@ def gerar_boleto_view(request):
     if not usuario_pode_gerenciar_empresa(request.user, empresa):
         return Response({"error": "Você não tem permissão para gerar boleto para esta empresa."}, status=status.HTTP_403_FORBIDDEN)
 
-    # Controle para manter apenas 1 boleto por mês por empresa
+    # Controle para manter apenas 1 boleto por mês por empresa, em todas as ações.
     boleto_existente = buscar_boleto_honorario_mes_atual(empresa)
+    resposta_existente = responder_com_boleto_honorario_existente(
+        request, empresa, boleto_existente, action
+    )
+    if resposta_existente is not None:
+        return resposta_existente
 
-    # Ação: somente download. Se existe arquivo, devolve link; se não, continua e gera novo (sem enviar)
-    if action == "baixar" and boleto_existente and boleto_existente.caminho_arquivo:
-        try:
-            boleto_existente.caminho_arquivo.open('rb').close()
-            return Response({
-                "success": True,
-                "message": "Boleto encontrado. Disponível para download.",
-                "from_cache": True,
-                "download_url": request.build_absolute_uri(boleto_existente.caminho_arquivo.url),
-                "arquivo_pasta": boleto_existente.nome_arquivo,
-            }, status=status.HTTP_200_OK)
-        except Exception:
-            # Se o arquivo foi registrado mas não está mais disponível, segue para gerar novamente
-            pass
+    # Um registro no BB sem PDF não autoriza uma nova cobrança. Essa situação
+    # precisa de recuperação do documento ou cancelamento explícito do título.
+    registro_bb_existente = buscar_registro_boleto_honorario_mes_atual(empresa)
+    if registro_bb_existente:
+        return Response({
+            "error": (
+                "Já existe um boleto de honorários registrado para esta empresa no mês atual, "
+                "mas o PDF não está disponível na pasta. A geração de outro boleto foi bloqueada."
+            ),
+            "boleto_id": registro_bb_existente.id,
+            "nosso_numero": registro_bb_existente.nosso_numero,
+        }, status=status.HTTP_409_CONFLICT)
 
     # --- INÍCIO DA CORREÇÃO FINAL ---
 
