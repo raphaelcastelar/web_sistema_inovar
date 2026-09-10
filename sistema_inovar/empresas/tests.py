@@ -1,4 +1,5 @@
 import importlib
+import datetime
 import os
 import tempfile
 from contextlib import nullcontext
@@ -19,6 +20,8 @@ from .views import (
     _ensure_sync_safe_filename,
     _repair_surrogate_escapes,
     boleto_honorario_arquivo_disponivel,
+    calcular_vencimento_honorario,
+    normalizar_competencia_honorario,
     normalize_bb_emission_date,
     responder_com_boleto_honorario_existente,
 )
@@ -48,6 +51,19 @@ class NomeEmpresaTest(SimpleTestCase):
 
 
 class ReutilizacaoBoletoHonorarioTest(SimpleTestCase):
+    def test_competencia_explicita_e_mes_do_vencimento(self):
+        empresa = SimpleNamespace(dia_vencimento_honorario=31)
+
+        self.assertEqual(normalizar_competencia_honorario('02/2028', empresa), '202802')
+        self.assertEqual(
+            calcular_vencimento_honorario(empresa, '202802'),
+            datetime.date(2028, 2, 29),
+        )
+
+    def test_rejeita_competencia_invalida(self):
+        with self.assertRaisesMessage(ValueError, 'competência válida'):
+            normalizar_competencia_honorario('13/2026')
+
     def test_download_reutiliza_documento_existente(self):
         arquivo = Mock()
         arquivo.path = '/tmp/HONORARIO.pdf'

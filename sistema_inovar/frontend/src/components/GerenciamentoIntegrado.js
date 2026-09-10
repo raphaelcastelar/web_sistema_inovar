@@ -13,10 +13,24 @@ import {
     ArrowPathIcon,
     EyeIcon,
     PaperAirplaneIcon,
-    TagIcon
+    TagIcon,
+    CalendarDaysIcon
 } from '@heroicons/react/24/outline';
 
 const DEFAULT_CARTEIRA_OPTIONS = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
+const MONTHS = [
+    ['01', 'Janeiro'], ['02', 'Fevereiro'], ['03', 'Março'], ['04', 'Abril'],
+    ['05', 'Maio'], ['06', 'Junho'], ['07', 'Julho'], ['08', 'Agosto'],
+    ['09', 'Setembro'], ['10', 'Outubro'], ['11', 'Novembro'], ['12', 'Dezembro'],
+];
+
+const currentCompetencia = () => {
+    const now = new Date();
+    return {
+        month: String(now.getMonth() + 1).padStart(2, '0'),
+        year: String(now.getFullYear()),
+    };
+};
 
 function MetricCard({ label, value, icon: Icon, tone = 'neutral' }) {
     const toneClasses = {
@@ -40,6 +54,7 @@ function MetricCard({ label, value, icon: Icon, tone = 'neutral' }) {
 }
 
 const GerenciamentoIntegrado = () => {
+    const initialCompetencia = useMemo(currentCompetencia, []);
     // --- State ---
     const [empresas, setEmpresas] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -65,6 +80,13 @@ const GerenciamentoIntegrado = () => {
     const [updatingHonorarioIds, setUpdatingHonorarioIds] = useState([]);
     const [retryingEmpresaIds, setRetryingEmpresaIds] = useState([]);
     const [lastSessionUpdatedAt, setLastSessionUpdatedAt] = useState(null);
+    const [boletoMonth, setBoletoMonth] = useState(initialCompetencia.month);
+    const [boletoYear, setBoletoYear] = useState(initialCompetencia.year);
+    const boletoCompetencia = `${boletoYear}${boletoMonth}`;
+    const boletoYears = useMemo(() => {
+        const current = new Date().getFullYear();
+        return Array.from({ length: 8 }, (_, index) => String(current + 1 - index));
+    }, []);
 
     // --- Modal Config State ---
     const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -172,11 +194,15 @@ const GerenciamentoIntegrado = () => {
         }
     };
 
-    const processarBoletoEmpresa = async (empresaId) => {
+    const processarBoletoEmpresa = async (empresaId, competencia = boletoCompetencia) => {
         const empresa = empresas.find((item) => item.id === empresaId);
 
         try {
-            const response = await axiosInstance.post('/api/gerar-boleto/', { empresa_id: empresaId });
+            const response = await axiosInstance.post('/api/gerar-boleto/', {
+                empresa_id: empresaId,
+                action: 'gerar_enviar',
+                competencia,
+            });
             let message = response?.data?.message || 'Boleto processado com sucesso.';
 
             if (!empresa?.honorario) {
@@ -241,6 +267,7 @@ const GerenciamentoIntegrado = () => {
             const response = await axiosInstance.post('/api/gerar-boleto/', {
                 empresa_id: empresaId,
                 action,
+                competencia: boletoCompetencia,
             });
 
             if (action === 'baixar') {
@@ -366,6 +393,7 @@ const GerenciamentoIntegrado = () => {
 
         const nextBatchSummary = {
             total: results.length,
+            competencia: boletoCompetencia,
             successCount: successResults.length,
             errorCount: errorResults.length,
             successResults,
@@ -409,7 +437,7 @@ const GerenciamentoIntegrado = () => {
         try {
             const response = await axiosInstance.post(
                 '/api/gerar-boletos-pdf-unico/',
-                { empresa_ids: selectedEmpresaIds },
+                { empresa_ids: selectedEmpresaIds, competencia: boletoCompetencia },
                 { responseType: 'blob' }
             );
 
@@ -443,7 +471,7 @@ const GerenciamentoIntegrado = () => {
             }
             setTimeout(() => setSuccess(''), 5000);
         } catch (err) {
-            let message = 'Falha ao gerar e baixar o PDF unico.';
+            let message = 'Falha ao baixar o PDF único.';
             const data = err?.response?.data;
             if (data instanceof Blob) {
                 try {
@@ -451,7 +479,7 @@ const GerenciamentoIntegrado = () => {
                     const parsed = JSON.parse(text);
                     message = parsed.error || parsed.message || message;
                 } catch (e) {
-                    message = 'Falha ao gerar e baixar o PDF unico.';
+                    message = 'Falha ao baixar o PDF único.';
                 }
             } else {
                 message = err?.response?.data?.error || err?.response?.data?.message || err.message || message;
@@ -467,7 +495,10 @@ const GerenciamentoIntegrado = () => {
         setError('');
 
         try {
-            const retryResult = await processarBoletoEmpresa(empresaId);
+            const retryResult = await processarBoletoEmpresa(
+                empresaId,
+                batchSummary?.competencia || boletoCompetencia,
+            );
             let nextBatchSummary = null;
 
             setBatchSummary((currentSummary) => {
@@ -736,10 +767,24 @@ const GerenciamentoIntegrado = () => {
                                 Monte uma remessa para enviar ou baixar os boletos sem sair da tela.
                             </h2>
                             <p className="max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                                Abra o seletor, marque as empresas ativas e escolha entre enviar pelo WhatsApp ou baixar todos os boletos em um PDF unico.
+                                Escolha o mês de vencimento. Baixar consulta somente boletos existentes; gerar e enviar cria apenas os que ainda não existem.
                             </p>
                         </div>
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                            <div className="grid grid-cols-[minmax(8rem,1fr)_6rem] gap-2 rounded-lg border border-gray-200 bg-slate-50 p-3 dark:border-gray-800 dark:bg-slate-900/70">
+                                <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                    Mês do vencimento
+                                    <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                        {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                    </select>
+                                </label>
+                                <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                    Ano
+                                    <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                        {boletoYears.map((year) => <option key={year} value={year}>{year}</option>)}
+                                    </select>
+                                </label>
+                            </div>
                             <div className="rounded-lg border border-gray-200 bg-slate-50 px-4 py-3 text-sm dark:border-gray-800 dark:bg-slate-900/70">
                                 <div className="text-xs uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Elegíveis agora</div>
                                 <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{activeEmpresas.length}</div>
@@ -809,7 +854,9 @@ const GerenciamentoIntegrado = () => {
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Ultima Remessa</p>
                                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                                    Resultado consolidado em um popup para nao ocupar a area principal da tela.
+                                    Resultado consolidado{batchSummary.competencia
+                                        ? ` para ${batchSummary.competencia.slice(4)}/${batchSummary.competencia.slice(0, 4)}`
+                                        : ''} em um popup para não ocupar a área principal da tela.
                                 </p>
                                 {lastSessionUpdatedAt && (
                                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
@@ -1027,7 +1074,7 @@ const GerenciamentoIntegrado = () => {
                                 <div>
                                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Boleto Avulso</p>
                                     <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{boletoActionModal.nome}</h2>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Escolha a ação para o honorário deste mês.</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Honorário com vencimento em {boletoMonth}/{boletoYear}.</p>
                                 </div>
                                 <button
                                     onClick={() => !boletoActionLoading && setBoletoActionModal(null)}
@@ -1037,13 +1084,27 @@ const GerenciamentoIntegrado = () => {
                                 </button>
                             </div>
                             <div className="p-6 space-y-4">
+                                <div className="grid grid-cols-[1fr_7rem] gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
+                                    <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                        Mês do vencimento
+                                        <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={boletoActionLoading} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+                                            {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                        </select>
+                                    </label>
+                                    <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                        Ano
+                                        <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} disabled={boletoActionLoading} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+                                            {boletoYears.map((year) => <option key={year} value={year}>{year}</option>)}
+                                        </select>
+                                    </label>
+                                </div>
                                 <button
                                     onClick={() => handleBoletoAction('baixar')}
                                     disabled={boletoActionLoading}
                                     className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800 transition-colors hover:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
                                     {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <DocumentArrowDownIcon className="h-5 w-5" />}
-                                    Baixar boleto (usa existente se houver)
+                                    Baixar boleto existente
                                 </button>
                                 <button
                                     onClick={() => handleBoletoAction('gerar_enviar')}
@@ -1078,9 +1139,9 @@ const GerenciamentoIntegrado = () => {
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="max-w-2xl">
                                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Selecao em Lote</p>
-                                        <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Quais empresas ativas vao receber honorario agora?</h2>
+                                        <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Honorários com vencimento em {boletoMonth}/{boletoYear}</h2>
                                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                                            Escolha as empresas ativas e decida se quer baixar um PDF unico ou disparar o envio pelo WhatsApp.
+                                            O download busca somente arquivos existentes. Gerar e enviar cria apenas os boletos ausentes desta competência.
                                         </p>
                                     </div>
                                     <button
@@ -1095,6 +1156,20 @@ const GerenciamentoIntegrado = () => {
 
                             <div className="grid max-h-[calc(100vh-10rem)] gap-6 overflow-y-auto p-4 sm:p-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                                 <aside className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900">
+                                    <div>
+                                        <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                                            <CalendarDaysIcon className="h-4 w-4" />
+                                            Mês do vencimento
+                                        </label>
+                                        <div className="grid grid-cols-[1fr_6rem] gap-2">
+                                            <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos} className="h-10 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                                {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                            </select>
+                                            <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos} className="h-10 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                                {boletoYears.map((year) => <option key={year} value={year}>{year}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Resumo</div>
                                         <div className="mt-3 grid grid-cols-2 gap-3">
@@ -1282,7 +1357,7 @@ const GerenciamentoIntegrado = () => {
                                                 disabled={isGeneratingBoletos || isDownloadingBoletos || selectedEmpresasCount === 0}
                                             >
                                                 <DocumentArrowDownIcon className="h-5 w-5" />
-                                                {isDownloadingBoletos ? 'Baixando...' : 'Gerar e Baixar PDF'}
+                                                {isDownloadingBoletos ? 'Baixando...' : 'Baixar PDF existente'}
                                             </button>
                                             <button
                                                 onClick={handleGerarBoletosEmLote}
