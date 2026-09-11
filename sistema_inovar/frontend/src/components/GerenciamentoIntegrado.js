@@ -16,6 +16,7 @@ import {
     TagIcon,
     CalendarDaysIcon
 } from '@heroicons/react/24/outline';
+import { CentralCarregando } from './centralShared';
 
 const DEFAULT_CARTEIRA_OPTIONS = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
 const MONTHS = [
@@ -825,18 +826,7 @@ const GerenciamentoIntegrado = () => {
         return { active, honorariosMarcados };
     }, [empresas, matchesSelectedCarteira]);
 
-    if (loading) {
-        return (
-            <div className="flex min-h-[60vh] items-center justify-center text-gray-900 dark:text-gray-100">
-                <div className="animate-pulse flex flex-col items-center">
-                    <div className="mb-4 h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-800"></div>
-                    <div className="h-4 w-48 rounded bg-gray-200 dark:bg-gray-800"></div>
-                </div>
-            </div>
-        );
-    }
-
-    if (!isAdmin) {
+    if (!loading && !isAdmin) {
         return (
             <div className="flex min-h-[60vh] flex-col items-center justify-center p-6 text-gray-900 dark:text-gray-100">
                 <ExclamationCircleIcon className="h-16 w-16 text-red-500 mb-4" />
@@ -1010,6 +1000,9 @@ const GerenciamentoIntegrado = () => {
                 )}
 
                 {/* Table View */}
+                {loading ? (
+                    <CentralCarregando />
+                ) : (
                 <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     {filteredEmpresas.length === 0 ? (
                         <div className="text-center py-16 px-4">
@@ -1096,35 +1089,42 @@ const GerenciamentoIntegrado = () => {
                                 ))}
                             </div>
 
-                            <div className="hidden overflow-x-auto xl:block">
-                            <table className="w-full text-left">
+                            <div className="hidden xl:block">
+                            <table className="w-full table-fixed text-left">
+                                <colgroup>
+                                    <col className="w-[34%]" />
+                                    <col className="w-[17%]" />
+                                    <col className="w-[10%]" />
+                                    <col className="w-[10%]" />
+                                    <col className="w-[29%]" />
+                                </colgroup>
                                 <thead className="bg-slate-50 dark:bg-slate-900">
                                     <tr>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">Empresa</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">Contato</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em] text-center">Honorário</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">Status</th>
-                                        <th className="px-6 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em] text-right">Ações</th>
+                                        <th className="px-4 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">Empresa</th>
+                                        <th className="px-3 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">Contato</th>
+                                        <th className="px-3 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em] text-center">Honorário</th>
+                                        <th className="px-3 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em]">Status</th>
+                                        <th className="px-3 py-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-[0.12em] text-right">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                     {filteredEmpresas.map((empresa) => (
                                         <tr key={empresa.id} className="group transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/60">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center">
+                                            <td className="px-4 py-4">
+                                                <div className="flex min-w-0 items-center">
                                                     <div className="h-10 w-10 flex-shrink-0 bg-slate-100 dark:bg-slate-800 rounded-md flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-sm">
                                                         {empresa.nome.substring(0, 2).toUpperCase()}
                                                     </div>
-                                                    <div className="ml-4">
-                                                        <div className="text-sm font-medium text-gray-900 dark:text-white">{empresa.nome}</div>
+                                                    <div className="ml-3 min-w-0">
+                                                        <div className="truncate text-sm font-medium text-gray-900 dark:text-white" title={empresa.nome}>{empresa.nome}</div>
                                                         <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">{empresa.cnpj}</div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm text-gray-500 dark:text-gray-400">{empresa.email}</div>
+                                            <td className="max-w-0 px-3 py-4">
+                                                <div className="truncate text-sm text-gray-500 dark:text-gray-400" title={empresa.email}>{empresa.email}</div>
                                             </td>
-                                            <td className="px-6 py-4 text-center">
+                                            <td className="px-3 py-4 text-center">
                                                 <button
                                                     type="button"
                                                     onClick={() => handleToggleHonorario(empresa.id, empresa.honorario)}
@@ -1140,7 +1140,7 @@ const GerenciamentoIntegrado = () => {
                                                     />
                                                 </button>
                                             </td>
-                                            <td className="px-6 py-4">
+                                            <td className="px-3 py-4">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${empresa.ativo
                                                     ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800'
                                                     : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800'
@@ -1148,28 +1148,28 @@ const GerenciamentoIntegrado = () => {
                                                     {empresa.ativo ? 'Ativa' : 'Inativa'}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                            <td className="px-3 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-0.5 whitespace-nowrap opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                                 <button
                                                     onClick={() => handleConfiguracoes(empresa.id)}
-                                                    className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-200 rounded-md transition-colors"
+                                                    className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                                                     title="Configurações"
                                                 >
                                                     <CogIcon className="h-5 w-5" />
                                                 </button>
-                                                <button onClick={() => handleBoletoAction('gerar', empresa)} className="rounded-md p-2 text-amber-600 transition-colors hover:bg-amber-50 hover:text-amber-800 disabled:opacity-60 dark:hover:bg-amber-950/30" title={`Gerar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
+                                                <button onClick={() => handleBoletoAction('gerar', empresa)} className="rounded-md p-1.5 text-amber-600 transition-colors hover:bg-amber-50 hover:text-amber-800 disabled:opacity-60 dark:hover:bg-amber-950/30" title={`Gerar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
                                                     {generatingBoletoId === empresa.id ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <PlusIcon className="h-5 w-5" />}
                                                 </button>
-                                                <button onClick={() => handleBoletoAction('baixar', empresa)} className="rounded-md p-2 text-sky-600 transition-colors hover:bg-sky-50 hover:text-sky-800 disabled:opacity-60 dark:hover:bg-sky-950/30" title={`Baixar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
+                                                <button onClick={() => handleBoletoAction('baixar', empresa)} className="rounded-md p-1.5 text-sky-600 transition-colors hover:bg-sky-50 hover:text-sky-800 disabled:opacity-60 dark:hover:bg-sky-950/30" title={`Baixar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
                                                     <DocumentArrowDownIcon className="h-5 w-5" />
                                                 </button>
-                                                <button onClick={() => handleBoletoAction('enviar', empresa)} className="rounded-md p-2 text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-60 dark:hover:bg-emerald-950/30" title={`Enviar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
+                                                <button onClick={() => handleBoletoAction('enviar', empresa)} className="rounded-md p-1.5 text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-60 dark:hover:bg-emerald-950/30" title={`Enviar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
                                                     <PaperAirplaneIcon className="h-5 w-5 rotate-45" />
                                                 </button>
-                                                <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+                                                <div className="mx-0.5 h-6 w-px bg-gray-200 dark:bg-gray-700"></div>
                                                 <button
                                                     onClick={() => handleToggleAtivo(empresa.id, empresa.ativo)}
-                                                    className={`p-2 rounded-lg transition-colors ${empresa.ativo
+                                                    className={`rounded-lg p-1.5 transition-colors ${empresa.ativo
                                                         ? 'text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30'
                                                             : 'text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30'
                                                             }`}
@@ -1187,21 +1187,22 @@ const GerenciamentoIntegrado = () => {
                         </>
                     )}
                 </div>
+                )}
 
                 {/* Modal Configurações */}
                 {boletoModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-2 sm:p-4">
                         <div
                             className="absolute inset-0"
                             onClick={() => !isGeneratingBoletos && !isDownloadingBoletos && !isSendingBoletos && setBoletoModalOpen(false)}
                         />
-                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
-                            <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
+                        <div className="relative flex max-h-[min(92vh,760px)] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
+                            <div className="shrink-0 border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-5">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="max-w-2xl">
                                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Selecao em Lote</p>
-                                        <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Honorários de {boletoMonth}/{boletoYear}</h2>
-                                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                        <h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-white sm:text-xl">Honorários de {boletoMonth}/{boletoYear}</h2>
+                                        <p className="mt-1 hidden text-sm text-gray-600 dark:text-gray-300 sm:block">
                                             Vencimento em {vencimentoCompetencia}. Gere, baixe ou envie em etapas independentes.
                                         </p>
                                     </div>
@@ -1215,32 +1216,32 @@ const GerenciamentoIntegrado = () => {
                                 </div>
                             </div>
 
-                            <div className="grid max-h-[calc(100vh-10rem)] gap-6 overflow-y-auto p-4 sm:p-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-                                <aside className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900">
+                            <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 sm:p-4 lg:grid-cols-[230px_minmax(0,1fr)] lg:overflow-hidden">
+                                <aside className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900 lg:overflow-y-auto">
                                     <div>
                                         <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
                                             <CalendarDaysIcon className="h-4 w-4" />
                                             Mês do honorário
                                         </label>
-                                        <div className="grid grid-cols-[1fr_6rem] gap-2">
-                                            <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-10 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                        <div className="grid grid-cols-[1fr_5.25rem] gap-2">
+                                            <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
                                                 {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                             </select>
-                                            <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-10 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                            <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
                                                 {boletoYears.map((year) => <option key={year} value={year}>{year}</option>)}
                                             </select>
                                         </div>
                                     </div>
                                     <div>
                                         <div className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Resumo</div>
-                                        <div className="mt-3 grid grid-cols-2 gap-3">
-                                            <div className="rounded-lg bg-white p-4 dark:bg-gray-800">
+                                        <div className="mt-2 grid grid-cols-2 gap-2">
+                                            <div className="rounded-lg bg-white p-2.5 dark:bg-gray-800">
                                                 <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Ativas</div>
-                                                <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{modalActiveEmpresas.length}</div>
+                                                <div className="mt-0.5 text-xl font-bold text-gray-900 dark:text-white">{modalActiveEmpresas.length}</div>
                                             </div>
-                                            <div className="rounded-lg bg-white p-4 dark:bg-gray-800">
+                                            <div className="rounded-lg bg-white p-2.5 dark:bg-gray-800">
                                                 <div className="text-xs uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">Marcadas</div>
-                                                <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{selectedEmpresasCount}</div>
+                                                <div className="mt-0.5 text-xl font-bold text-gray-900 dark:text-white">{selectedEmpresasCount}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -1256,7 +1257,7 @@ const GerenciamentoIntegrado = () => {
                                                 value={boletoBatchSearch}
                                                 onChange={(e) => setBoletoBatchSearch(e.target.value)}
                                                 placeholder="Nome, CNPJ ou email"
-                                                className="w-full rounded-md border border-gray-200 bg-white py-3 pl-10 pr-4 text-sm text-gray-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-slate-500/20"
+                                                className="h-9 w-full rounded-md border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm text-gray-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-slate-500/20"
                                             />
                                         </div>
                                     </div>
@@ -1278,7 +1279,7 @@ const GerenciamentoIntegrado = () => {
                                                 </button>
                                             )}
                                         </div>
-                                        <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                                        <div className="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
                                             {carteiraOptions.map((carteira) => {
                                                 const selected = boletoSelectedCarteiras.includes(carteira);
                                                 return (
@@ -1321,7 +1322,7 @@ const GerenciamentoIntegrado = () => {
                                                 Nenhuma tag disponivel.
                                             </div>
                                         ) : (
-                                            <div className="flex max-h-32 flex-wrap gap-2 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+                                            <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
                                                 {tags.map((tag) => {
                                                     const selected = boletoSelectedTagIds.includes(String(tag.id));
                                                     return (
@@ -1346,14 +1347,14 @@ const GerenciamentoIntegrado = () => {
 
                                     <button
                                         onClick={handleToggleAllModalEmpresas}
-                                        className="w-full rounded-md border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                                     >
                                         {allModalEmpresasSelected ? 'Desmarcar visiveis' : 'Marcar visiveis'}
                                     </button>
                                 </aside>
 
-                                <div className="space-y-4">
-                                    <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                                <div className="flex min-h-0 flex-col gap-3">
+                                    <div className="max-h-[min(44vh,340px)] space-y-2 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
                                         {filteredActiveEmpresasForModal.length === 0 ? (
                                             <div className="rounded-lg border border-dashed border-gray-300 px-6 py-12 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
                                                 Nenhuma empresa ativa encontrada com esse filtro.
@@ -1367,12 +1368,12 @@ const GerenciamentoIntegrado = () => {
                                                         key={empresa.id}
                                                         type="button"
                                                         onClick={() => handleToggleEmpresaSelection(empresa.id)}
-                                                        className={`w-full rounded-lg border p-4 text-left transition-colors ${selected
+                                                        className={`w-full rounded-lg border p-3 text-left transition-colors ${selected
                                                             ? 'border-slate-900 bg-slate-50 dark:border-slate-100 dark:bg-slate-800'
                                                             : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700'
                                                             }`}
                                                     >
-                                                        <div className="flex items-start gap-4">
+                                                        <div className="flex items-start gap-3">
                                                             <CheckCircleIcon
                                                                 className={`mt-0.5 h-6 w-6 shrink-0 ${selected
                                                                     ? 'text-green-500'
@@ -1389,7 +1390,7 @@ const GerenciamentoIntegrado = () => {
                                                                         Ativa
                                                                     </span>
                                                                 </div>
-                                                                <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">{empresa.email}</div>
+                                                                <div className="mt-1.5 truncate text-sm text-gray-500 dark:text-gray-400" title={empresa.email}>{empresa.email}</div>
                                                             </div>
                                                         </div>
                                                     </button>
@@ -1398,23 +1399,23 @@ const GerenciamentoIntegrado = () => {
                                         )}
                                     </div>
 
-                                    <div className="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-gray-800 lg:flex-row lg:items-center lg:justify-between">
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <div className="shrink-0 border-t border-gray-200 pt-3 dark:border-gray-800">
+                                        <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
                                             {selectedEmpresasCount === 0
                                                 ? 'Nenhuma empresa selecionada.'
                                                 : `${selectedEmpresasCount} empresa(s) selecionada(s) para gerar, baixar ou enviar.`}
                                         </p>
-                                        <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
+                                        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
                                             <button
                                                 onClick={() => setBoletoModalOpen(false)}
-                                                className="min-w-[120px] rounded-md px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                                                className="rounded-md px-3 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                                                 disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos}
                                             >
                                                 Fechar
                                             </button>
                                             <button
                                                 onClick={handleBaixarBoletosPdfUnico}
-                                                className="inline-flex min-w-[190px] items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                                className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                                                 disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos || selectedEmpresasCount === 0}
                                             >
                                                 <DocumentArrowDownIcon className="h-5 w-5" />
@@ -1422,14 +1423,14 @@ const GerenciamentoIntegrado = () => {
                                             </button>
                                             <button
                                                 onClick={handleGerarBoletosEmLote}
-                                                className="min-w-[150px] rounded-md border border-amber-300 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                                className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                                                 disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos || selectedEmpresasCount === 0}
                                             >
                                                 {isGeneratingBoletos ? 'Gerando...' : 'Gerar boletos'}
                                             </button>
                                             <button
                                                 onClick={handleEnviarBoletosEmLote}
-                                                className="inline-flex min-w-[160px] items-center justify-center gap-2 rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                                                className="inline-flex items-center justify-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                                                 disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos || selectedEmpresasCount === 0}
                                             >
                                                 <PaperAirplaneIcon className="h-5 w-5 rotate-45" />
