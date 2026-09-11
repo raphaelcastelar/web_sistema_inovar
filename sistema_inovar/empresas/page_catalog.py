@@ -1,5 +1,5 @@
 PAGE_CATALOG = [
-    {'chave': 'dashboard', 'nome': 'Dashboard', 'rota': '/', 'secao': 'Operação', 'descricao': 'Resumo e indicadores do sistema.'},
+    {'chave': 'dashboard', 'nome': 'Dashboard', 'rota': '/dashboard', 'secao': 'Operação', 'descricao': 'Resumo e indicadores do sistema.'},
     {'chave': 'carteira', 'nome': 'Carteira', 'rota': '/carteira-empresas', 'secao': 'Operação', 'descricao': 'Carteira de empresas e operação mensal.'},
     {'chave': 'honorarios', 'nome': 'Honorários', 'rota': '/gerenciamento-integrado', 'secao': 'Operação', 'descricao': 'Geração, download e envio de honorários.'},
     {'chave': 'pendencias', 'nome': 'Pendências', 'rota': '/pendencias', 'secao': 'Operação', 'descricao': 'Alertas, vencimentos e tarefas.'},

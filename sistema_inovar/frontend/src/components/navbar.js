@@ -33,7 +33,7 @@ const navigationSections = [
         title: 'Operação',
         icon: RocketLaunchIcon,
         items: [
-            { pageKey: 'dashboard', to: '/', icon: HomeIcon, text: 'Dashboard', keywords: 'dashboard painel resumo' },
+            { pageKey: 'dashboard', to: '/dashboard', icon: HomeIcon, text: 'Dashboard', keywords: 'dashboard painel resumo' },
             { pageKey: 'carteira', to: '/carteira-empresas', icon: BuildingOfficeIcon, text: 'Carteira', keywords: 'carteira empresas atribuidas operacao mensal' },
             { pageKey: 'honorarios', to: '/gerenciamento-integrado', icon: Squares2X2Icon, text: 'Honorários', keywords: 'honorarios boletos gestao gerenciamento integrado empresas' },
             { pageKey: 'pendencias', to: '/pendencias', icon: ExclamationTriangleIcon, text: 'Pendências', keywords: 'alertas vencimentos tarefas' },

@@ -45,7 +45,8 @@ function App() {
         {/* ROTAS PROTEGIDAS: Todas as rotas aqui dentro usam o MainLayout (com a Navbar) e exigem login */}
         <Route element={<PrivateRoute />}>
           <Route element={<MainLayout />}>
-            <Route path="/" element={<PageGate pageKey="dashboard"><InicioPage /></PageGate>} />
+            <Route path="/" element={<Navigate to="/empresas" replace />} />
+            <Route path="/dashboard" element={<PageGate pageKey="dashboard"><InicioPage /></PageGate>} />
             <Route path="/carteira-empresas" element={<PageGate pageKey="carteira"><CarteiraEmpresasPage /></PageGate>} />
             <Route path="/empresas" element={<PageGate pageKey="empresas"><EmpresaList /></PageGate>} />
             <Route path="/empresas/cadastrar" element={<PageGate pageKey="empresas"><EmpresaForm /></PageGate>} />
