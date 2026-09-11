@@ -368,6 +368,36 @@ class Funcionario(AbstractUser):
                 self.empresas_gerenciadas.add(empresa)
             logger.info(f"Funcionário {self.username} criado e atribuído a todas as empresas.")
 
+
+class PaginaSistema(models.Model):
+    chave = models.SlugField(max_length=60, unique=True)
+    nome = models.CharField(max_length=100)
+    rota = models.CharField(max_length=160)
+    secao = models.CharField(max_length=60)
+    descricao = models.CharField(max_length=255, blank=True, default='')
+    ativa = models.BooleanField(default=True)
+    permite_admin = models.BooleanField(default=True)
+    permite_fiscal = models.BooleanField(default=True)
+    permite_pessoal = models.BooleanField(default=True)
+    gerenciavel = models.BooleanField(default=True)
+    ordem = models.PositiveSmallIntegerField(default=0)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='paginas_atualizadas',
+    )
+
+    class Meta:
+        ordering = ['ordem', 'nome']
+        verbose_name = 'Página do sistema'
+        verbose_name_plural = 'Páginas do sistema'
+
+    def __str__(self):
+        return self.nome
+
 class DocumentosConstitutivos(models.Model):
     id = models.AutoField(primary_key=True)
     nome_arquivo = models.CharField(max_length=255, null=False)

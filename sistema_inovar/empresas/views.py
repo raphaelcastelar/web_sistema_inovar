@@ -80,15 +80,16 @@ from .models import (
     Empresa, EmpresaAvulsaFaturamento, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
     SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
     Tag,
-    UltimoResultadoSessao, BoletoBB
+    UltimoResultadoSessao, BoletoBB, PaginaSistema
 )
 from .serializers import (
     TagSerializer,
     EmpresaSerializer, EmpresaCompactSerializer, EmpresaListSerializer, EmpresaOperationalListSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, DocumentoEmpresaSerializer,
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
-    UltimoResultadoSessaoSerializer, BoletoBBSerializer, visible_tags_for_request, unique_tags_by_name
+    UltimoResultadoSessaoSerializer, BoletoBBSerializer, PaginaSistemaSerializer, visible_tags_for_request, unique_tags_by_name
 )
+from .page_catalog import sync_page_catalog
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
 from .folder_structure import FOLDER_DEFINITIONS
 from .document_storage import (
@@ -3117,6 +3118,44 @@ def current_user(request):
     except Exception as e:
         logger.error(f"Error in current_user: {str(e)}")
         return Response({'error': f'Erro ao obter dados do usuário: {str(e)}'}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def paginas_acesso(request):
+    sync_page_catalog()
+    paginas = PaginaSistema.objects.select_related('atualizado_por').all()
+    serializer = PaginaSistemaSerializer(paginas, many=True, context={'request': request})
+    return Response({
+        'is_admin': bool(request.user.is_staff or request.user.is_superuser),
+        'paginas': serializer.data,
+    })
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAdminUser])
+def atualizar_pagina_acesso(request, chave):
+    sync_page_catalog()
+    try:
+        pagina = PaginaSistema.objects.get(chave=chave)
+    except PaginaSistema.DoesNotExist:
+        return Response({'detail': 'Página não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not pagina.gerenciavel:
+        return Response(
+            {'detail': 'A página de gerenciamento não pode ser desativada ou ter suas permissões removidas.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    serializer = PaginaSistemaSerializer(
+        pagina,
+        data=request.data,
+        partial=True,
+        context={'request': request},
+    )
+    serializer.is_valid(raise_exception=True)
+    serializer.save(atualizado_por=request.user)
+    return Response(serializer.data)
 
 
 @api_view(['POST'])

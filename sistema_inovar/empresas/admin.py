@@ -15,7 +15,16 @@ from .models import (
     Outros, 
     HistoricoEnvios,
     HistoricoStatusEmpresa,
+    PaginaSistema,
 )
+
+
+@admin.register(PaginaSistema)
+class PaginaSistemaAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'secao', 'rota', 'ativa', 'permite_admin', 'permite_fiscal', 'permite_pessoal')
+    list_filter = ('ativa', 'secao', 'permite_admin', 'permite_fiscal', 'permite_pessoal')
+    search_fields = ('nome', 'rota', 'descricao')
+    readonly_fields = ('chave', 'rota', 'secao', 'gerenciavel', 'ordem', 'atualizado_em', 'atualizado_por')
 
 @admin.register(Funcionario)
 class FuncionarioAdmin(UserAdmin):

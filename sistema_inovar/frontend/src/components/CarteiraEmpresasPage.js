@@ -18,6 +18,7 @@ import {
   getTaskDefinitions,
   taskPalette,
 } from '../utils/carteiraEmpresas';
+import { usePageAccess } from '../context/PageAccessContext';
 
 const filterOptions = [
   { id: 'acao', label: 'Precisa de ação' },
@@ -69,6 +70,7 @@ function SummaryCard({ label, value, tone }) {
 }
 
 const CarteiraEmpresasPage = () => {
+  const { canAccess } = usePageAccess();
   const [empresas, setEmpresas] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -223,23 +225,19 @@ const CarteiraEmpresasPage = () => {
         {tasks.map((task) => renderTaskPill(empresa, task))}
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <Link to={`/empresas/${empresa.id}/pastas`} className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-200 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
-          <FolderOpenIcon className="h-4 w-4" />
-          Pasta
-        </Link>
-        <Link to="/central-simples" className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-200 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
-          <DocumentArrowDownIcon className="h-4 w-4" />
-          DAS
-        </Link>
-        <Link to="/boletos-por-empresa" className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-200 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
-          <BanknotesIcon className="h-4 w-4" />
-          Boletos
-        </Link>
-        <Link to="/gerenciamento-integrado" className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-slate-900 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white">
-          <Squares2X2Icon className="h-4 w-4" />
-          Operar
-        </Link>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {canAccess('empresas') && <Link to={`/empresas/${empresa.id}/pastas`} className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+          <FolderOpenIcon className="h-4 w-4" /> Pasta
+        </Link>}
+        {canAccess('central_das') && <Link to="/central-simples" className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+          <DocumentArrowDownIcon className="h-4 w-4" /> DAS
+        </Link>}
+        {canAccess('boletos_empresa') && <Link to="/boletos-por-empresa" className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+          <BanknotesIcon className="h-4 w-4" /> Boletos
+        </Link>}
+        {canAccess('honorarios') && <Link to="/gerenciamento-integrado" className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950">
+          <Squares2X2Icon className="h-4 w-4" /> Operar
+        </Link>}
       </div>
     </div>
   );
@@ -371,8 +369,8 @@ const CarteiraEmpresasPage = () => {
                     <td className="px-4 py-3 tabular-nums text-gray-700 dark:text-gray-200">{status.pending}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <Link to={`/empresas/${empresa.id}/pastas`} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Pasta</Link>
-                        <Link to="/gerenciamento-integrado" className="rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950">Operar</Link>
+                        {canAccess('empresas') && <Link to={`/empresas/${empresa.id}/pastas`} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Pasta</Link>}
+                        {canAccess('honorarios') && <Link to="/gerenciamento-integrado" className="rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950">Operar</Link>}
                       </div>
                     </td>
                   </tr>

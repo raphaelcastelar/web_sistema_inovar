@@ -32,6 +32,7 @@ import {
   getStatusClasses,
   getTaskDefinitions,
 } from '../utils/carteiraEmpresas';
+import { usePageAccess } from '../context/PageAccessContext';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Filler);
 
@@ -138,6 +139,7 @@ const NotificationDropdown = ({ notifications, onMarkAsRead, onClearAll }) => (
 );
 
 const InicioPage = () => {
+  const { canAccess } = usePageAccess();
   const [empresasSelecionadas, setEmpresasSelecionadas] = useState([]);
   const [boletoMetrics, setBoletoMetrics] = useState(null);
   const [userCargo, setUserCargo] = useState(null);
@@ -857,13 +859,15 @@ const InicioPage = () => {
               <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100">Volume de boletos</h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">Gerados e pagos em {currentMonthLabel}</p>
             </div>
-            <Link
-              to="/boletos-por-empresa"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
-            >
-              Ver boletos
-              <ArrowRightIcon className="h-4 w-4" />
-            </Link>
+            {canAccess('boletos_empresa') && (
+              <Link
+                to="/boletos-por-empresa"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
+              >
+                Ver boletos
+                <ArrowRightIcon className="h-4 w-4" />
+              </Link>
+            )}
           </div>
           <div className="mt-4 h-[240px] sm:h-[280px]">
             <Line data={boletoVolumeData} options={boletoVolumeOptions} />
@@ -917,13 +921,15 @@ const InicioPage = () => {
               <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100">Empresas que precisam de atenção</h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">Prioridade calculada por pendências e vencimento mensal.</p>
             </div>
-            <Link
-              to="/carteira-empresas"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
-            >
-              Abrir carteira
-              <ArrowRightIcon className="h-4 w-4" />
-            </Link>
+            {canAccess('carteira') && (
+              <Link
+                to="/carteira-empresas"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
+              >
+                Abrir carteira
+                <ArrowRightIcon className="h-4 w-4" />
+              </Link>
+            )}
           </div>
 
           <div className="mt-4 space-y-3">
@@ -933,9 +939,13 @@ const InicioPage = () => {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Link to={`/empresas/${empresa.id}/pastas`} className="truncate font-semibold text-gray-950 hover:underline dark:text-gray-100">
-                          {empresa.nome}
-                        </Link>
+                        {canAccess('empresas') ? (
+                          <Link to={`/empresas/${empresa.id}/pastas`} className="truncate font-semibold text-gray-950 hover:underline dark:text-gray-100">
+                            {empresa.nome}
+                          </Link>
+                        ) : (
+                          <span className="truncate font-semibold text-gray-950 dark:text-gray-100">{empresa.nome}</span>
+                        )}
                         <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusClasses(status.tone)}`}>
                           {status.label}
                         </span>

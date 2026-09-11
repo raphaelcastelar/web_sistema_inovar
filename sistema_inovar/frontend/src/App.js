@@ -30,6 +30,8 @@ import GerarProLaborePage from './components/GerarProLaborePage';
 import CalculadoraHonorariosPage from './components/CalculadoraHonorariosPage';
 import RelacaoFaturamentoPage from './components/RelacaoFaturamentoPage';
 import RelatoriosPage from './components/RelatoriosPage';
+import GerenciarPaginasPage from './components/GerenciarPaginasPage';
+import { PageGate } from './context/PageAccessContext';
 
 import './App.css';
 
@@ -43,37 +45,38 @@ function App() {
         {/* ROTAS PROTEGIDAS: Todas as rotas aqui dentro usam o MainLayout (com a Navbar) e exigem login */}
         <Route element={<PrivateRoute />}>
           <Route element={<MainLayout />}>
-            <Route path="/" element={<InicioPage />} />
-            <Route path="/carteira-empresas" element={<CarteiraEmpresasPage />} />
-            <Route path="/empresas" element={<EmpresaList />} />
-            <Route path="/empresas/cadastrar" element={<EmpresaForm />} />
-            <Route path="/empresas/editar/:empresaId" element={<EmpresaForm />} />
-            <Route path="/empresas/:empresaId/pastas" element={<PastaManager />} />
-            <Route path="/gerenciar-atribuicoes" element={<GerenciarAtribuicoesPage />} />
+            <Route path="/" element={<PageGate pageKey="dashboard"><InicioPage /></PageGate>} />
+            <Route path="/carteira-empresas" element={<PageGate pageKey="carteira"><CarteiraEmpresasPage /></PageGate>} />
+            <Route path="/empresas" element={<PageGate pageKey="empresas"><EmpresaList /></PageGate>} />
+            <Route path="/empresas/cadastrar" element={<PageGate pageKey="empresas"><EmpresaForm /></PageGate>} />
+            <Route path="/empresas/editar/:empresaId" element={<PageGate pageKey="empresas"><EmpresaForm /></PageGate>} />
+            <Route path="/empresas/:empresaId/pastas" element={<PageGate pageKey="empresas"><PastaManager /></PageGate>} />
+            <Route path="/gerenciar-atribuicoes" element={<PageGate pageKey="atribuicoes"><GerenciarAtribuicoesPage /></PageGate>} />
 
-            <Route path="/gerenciar-usuarios" element={<FuncionarioList />} />
-            <Route path="/gerenciar-usuarios/novo" element={<FuncionarioForm />} />
-            <Route path="/gerenciar-usuarios/editar/:funcionarioId" element={<FuncionarioForm />} />
+            <Route path="/gerenciar-usuarios" element={<PageGate pageKey="usuarios"><FuncionarioList /></PageGate>} />
+            <Route path="/gerenciar-usuarios/novo" element={<PageGate pageKey="usuarios"><FuncionarioForm /></PageGate>} />
+            <Route path="/gerenciar-usuarios/editar/:funcionarioId" element={<PageGate pageKey="usuarios"><FuncionarioForm /></PageGate>} />
+            <Route path="/gerenciar-paginas" element={<PageGate pageKey="gerenciar_paginas"><GerenciarPaginasPage /></PageGate>} />
 
-            <Route path="/gerenciamento/simples-nacional" element={<GerenciamentoSimplesPage />} />
-            <Route path="/historico-whatsapp" element={<HistoricoWhatsApp />} />
-            <Route path="/central-simples" element={<CentralDoSimples />} />
-            <Route path="/central-dctfweb" element={<CentralDctfWeb />} />
-            <Route path="/parcelamento-simples" element={<CentralParcelamentoSimples />} />
+            <Route path="/gerenciamento/simples-nacional" element={<PageGate pageKey="gerenciamento_simples"><GerenciamentoSimplesPage /></PageGate>} />
+            <Route path="/historico-whatsapp" element={<PageGate pageKey="historico_whatsapp"><HistoricoWhatsApp /></PageGate>} />
+            <Route path="/central-simples" element={<PageGate pageKey="central_das"><CentralDoSimples /></PageGate>} />
+            <Route path="/central-dctfweb" element={<PageGate pageKey="central_dctfweb"><CentralDctfWeb /></PageGate>} />
+            <Route path="/parcelamento-simples" element={<PageGate pageKey="parcelamento_simples"><CentralParcelamentoSimples /></PageGate>} />
             <Route path="/gerar-das" element={<Navigate to="/central-simples" replace />} />
             <Route path="/consultar-extrato" element={<Navigate to="/central-simples" replace />} />
-            <Route path="/monitor-boletos" element={<BoletoMonitorPage />} />
-            <Route path="/boletos-por-empresa" element={<BoletosPorEmpresaPage />} />
-            <Route path="/inadimplencia-boletos" element={<InadimplenciaBoletosPage />} />
-            <Route path="/gerar-pro-labore" element={<GerarProLaborePage />} />
-            <Route path="/calculadora-honorarios" element={<CalculadoraHonorariosPage />} />
-            <Route path="/relacao-faturamento" element={<RelacaoFaturamentoPage />} />
-            <Route path="/relatorios" element={<RelatoriosPage />} />
+            <Route path="/monitor-boletos" element={<PageGate pageKey="monitor_boletos"><BoletoMonitorPage /></PageGate>} />
+            <Route path="/boletos-por-empresa" element={<PageGate pageKey="boletos_empresa"><BoletosPorEmpresaPage /></PageGate>} />
+            <Route path="/inadimplencia-boletos" element={<PageGate pageKey="inadimplencia"><InadimplenciaBoletosPage /></PageGate>} />
+            <Route path="/gerar-pro-labore" element={<PageGate pageKey="pro_labore"><GerarProLaborePage /></PageGate>} />
+            <Route path="/calculadora-honorarios" element={<PageGate pageKey="calculadora_honorarios"><CalculadoraHonorariosPage /></PageGate>} />
+            <Route path="/relacao-faturamento" element={<PageGate pageKey="faturamento"><RelacaoFaturamentoPage /></PageGate>} />
+            <Route path="/relatorios" element={<PageGate pageKey="relatorios"><RelatoriosPage /></PageGate>} />
 
             {/* Unified Management Route (Replaces separate pages) */}
-            <Route path="/gerenciamento-integrado" element={<GerenciamentoIntegrado />} />
+            <Route path="/gerenciamento-integrado" element={<PageGate pageKey="honorarios"><GerenciamentoIntegrado /></PageGate>} />
 
-            <Route path="/pendencias" element={<PendenciasPage />} />
+            <Route path="/pendencias" element={<PageGate pageKey="pendencias"><PendenciasPage /></PageGate>} />
           </Route>
         </Route>
       </Routes>

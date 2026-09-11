@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB
+from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB, PaginaSistema
 from .folder_structure import FOLDER_DEFINITIONS
 from .utils import format_cnpj, is_valid_cnpj, normalizar_nome_empresa
 from .company_storage import rename_company_folder
@@ -552,6 +552,39 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         instance.save()
         logger.info(f"Usuário salvo com cargo: {instance.cargo}")
         return instance
+
+
+class PaginaSistemaSerializer(serializers.ModelSerializer):
+    atualizado_por_nome = serializers.SerializerMethodField()
+    acessivel = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PaginaSistema
+        fields = [
+            'chave', 'nome', 'rota', 'secao', 'descricao', 'ativa',
+            'permite_admin', 'permite_fiscal', 'permite_pessoal',
+            'gerenciavel', 'ordem', 'atualizado_em', 'atualizado_por_nome',
+            'acessivel',
+        ]
+        read_only_fields = [
+            'chave', 'nome', 'rota', 'secao', 'descricao', 'gerenciavel',
+            'ordem', 'atualizado_em', 'atualizado_por_nome', 'acessivel',
+        ]
+
+    def get_atualizado_por_nome(self, obj):
+        if not obj.atualizado_por:
+            return None
+        return obj.atualizado_por.get_full_name() or obj.atualizado_por.username
+
+    def get_acessivel(self, obj):
+        user = self.context['request'].user
+        is_system_admin = user.is_staff or user.is_superuser
+        if not obj.gerenciavel:
+            return is_system_admin
+        if not obj.ativa:
+            return False
+        cargo = 'admin' if is_system_admin else getattr(user, 'cargo', 'pessoal')
+        return bool(getattr(obj, f'permite_{cargo}', False))
     
 class PendenciaSerializer(serializers.ModelSerializer):
     empresa = EmpresaSerializer(read_only=True)

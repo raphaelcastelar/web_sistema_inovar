@@ -11,6 +11,7 @@ from django.test import override_settings
 from django.core.files.storage import FileSystemStorage
 
 from .models import Empresa
+from .serializers import PaginaSistemaSerializer
 from .company_storage import _update_document_paths, rename_company_folder
 from .folder_structure import create_company_folder_structure
 from .management.commands.migrar_estrutura_pastas_2026 import Command
@@ -34,6 +35,33 @@ from .document_storage import (
     save_generated_fiscal_document,
 )
 from .management.commands.migrar_arquivos_para_nuvem import _safe_directory, _source_directories
+
+
+class PermissaoPaginaSistemaTest(SimpleTestCase):
+    def serializer_for(self, user):
+        return PaginaSistemaSerializer(context={'request': SimpleNamespace(user=user)})
+
+    def test_pagina_desativada_bloqueia_inclusive_administrador(self):
+        admin = SimpleNamespace(is_staff=True, is_superuser=False, cargo='admin')
+        pagina = SimpleNamespace(gerenciavel=True, ativa=False, permite_admin=True)
+
+        self.assertFalse(self.serializer_for(admin).get_acessivel(pagina))
+
+    def test_permissao_respeita_cargo_do_usuario(self):
+        fiscal = SimpleNamespace(is_staff=False, is_superuser=False, cargo='fiscal')
+        pagina = SimpleNamespace(gerenciavel=True, ativa=True, permite_fiscal=False)
+
+        self.assertFalse(self.serializer_for(fiscal).get_acessivel(pagina))
+        pagina.permite_fiscal = True
+        self.assertTrue(self.serializer_for(fiscal).get_acessivel(pagina))
+
+    def test_painel_de_paginas_e_permanente_e_exclusivo_de_admin(self):
+        pagina = SimpleNamespace(gerenciavel=False, ativa=False)
+        admin = SimpleNamespace(is_staff=True, is_superuser=False, cargo='admin')
+        fiscal = SimpleNamespace(is_staff=False, is_superuser=False, cargo='fiscal')
+
+        self.assertTrue(self.serializer_for(admin).get_acessivel(pagina))
+        self.assertFalse(self.serializer_for(fiscal).get_acessivel(pagina))
 
 
 class NomeEmpresaTest(SimpleTestCase):
