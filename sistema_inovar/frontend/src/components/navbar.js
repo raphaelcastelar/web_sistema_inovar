@@ -34,7 +34,7 @@ const navigationSections = [
         items: [
             { to: '/', icon: HomeIcon, text: 'Dashboard', keywords: 'dashboard painel resumo' },
             { to: '/carteira-empresas', icon: BuildingOfficeIcon, text: 'Carteira', keywords: 'carteira empresas atribuidas operacao mensal' },
-            { to: '/gerenciamento-integrado', icon: Squares2X2Icon, text: 'Gestão integrada', keywords: 'gestao gerenciamento integrado empresas tarefas' },
+            { to: '/gerenciamento-integrado', icon: Squares2X2Icon, text: 'Honorários', keywords: 'honorarios boletos gestao gerenciamento integrado empresas' },
             { to: '/pendencias', icon: ExclamationTriangleIcon, text: 'Pendências', keywords: 'alertas vencimentos tarefas' },
             { to: '/empresas', icon: BuildingOfficeIcon, text: 'Empresas', match: ['/empresas'], keywords: 'clientes cadastro pastas documentos' },
         ],

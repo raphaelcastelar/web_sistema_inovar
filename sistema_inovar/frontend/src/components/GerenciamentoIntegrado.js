@@ -862,19 +862,12 @@ const GerenciamentoIntegrado = () => {
                     <div>
                         <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Operação mensal</p>
                         <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">
-                            Gestão integrada
+                            Honorários
                         </h1>
                         <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-                            Gestão de empresas, boletos e permissões.
+                            Gere, baixe e envie os boletos de honorários.
                         </p>
                     </div>
-                    <Link
-                        to="/empresas/cadastrar"
-                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
-                    >
-                        <PlusIcon className="h-4 w-4" />
-                        Nova Empresa
-                    </Link>
                 </header>
 
                 {/* Stats Cards */}
