@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-    HomeIcon,
     UserGroupIcon,
     ClockIcon,
     ArrowLeftOnRectangleIcon,
@@ -18,7 +17,6 @@ import {
     FolderOpenIcon,
     ShieldCheckIcon,
     CurrencyDollarIcon,
-    RocketLaunchIcon,
     BanknotesIcon,
     ChevronDownIcon,
     TableCellsIcon,
@@ -30,14 +28,19 @@ import { usePageAccess } from '../context/PageAccessContext';
 
 const navigationSections = [
     {
-        title: 'Operação',
-        icon: RocketLaunchIcon,
+        title: 'Cadastros',
+        icon: BuildingOfficeIcon,
         items: [
-            { pageKey: 'dashboard', to: '/dashboard', icon: HomeIcon, text: 'Dashboard', keywords: 'dashboard painel resumo' },
-            { pageKey: 'carteira', to: '/carteira-empresas', icon: BuildingOfficeIcon, text: 'Carteira', keywords: 'carteira empresas atribuidas operacao mensal' },
-            { pageKey: 'honorarios', to: '/gerenciamento-integrado', icon: Squares2X2Icon, text: 'Honorários', keywords: 'honorarios boletos gestao gerenciamento integrado empresas' },
-            { pageKey: 'pendencias', to: '/pendencias', icon: ExclamationTriangleIcon, text: 'Pendências', keywords: 'alertas vencimentos tarefas' },
             { pageKey: 'empresas', to: '/empresas', icon: BuildingOfficeIcon, text: 'Empresas', match: ['/empresas'], keywords: 'clientes cadastro pastas documentos' },
+            { pageKey: 'usuarios', to: '/gerenciar-usuarios', icon: UserGroupIcon, text: 'Usuários', match: ['/gerenciar-usuarios'], keywords: 'funcionarios equipe colaboradores' },
+        ],
+    },
+    {
+        title: 'Arquivo',
+        icon: FolderOpenIcon,
+        items: [
+            { pageKey: 'carteira', to: '/carteira-empresas', icon: FolderOpenIcon, text: 'Pastas', keywords: 'pastas arquivos empresas documentos' },
+            { pageKey: 'historico_whatsapp', to: '/historico-whatsapp', icon: ClockIcon, text: 'Histórico de envios', keywords: 'historico mensagens whatsapp envios' },
         ],
     },
     {
@@ -45,31 +48,42 @@ const navigationSections = [
         icon: ShieldCheckIcon,
         items: [
             { pageKey: 'central_das', to: '/central-simples', icon: DocumentChartBarIcon, text: 'Central DAS', keywords: 'simples nacional central das apuracao' },
-            { pageKey: 'central_dctfweb', to: '/central-dctfweb', icon: DocumentTextIcon, text: 'Central DCTFWeb', keywords: 'dctfweb darf guia recibo declaracao completa' },
-            { pageKey: 'parcelamento_simples', to: '/parcelamento-simples', icon: BanknotesIcon, text: 'Parcelamento SN', keywords: 'parcelamento simples nacional parcelas das parcsn' },
+            { pageKey: 'parcelamento_simples', to: '/parcelamento-simples', icon: BanknotesIcon, text: 'Central Parcelamento SN', keywords: 'central parcelamento simples nacional parcelas das parcsn' },
+        ],
+    },
+    {
+        title: 'Pessoal',
+        icon: UserGroupIcon,
+        items: [
+            { pageKey: 'central_dctfweb', to: '/central-dctfweb', icon: DocumentTextIcon, text: 'Central DCTF-Web', keywords: 'dctfweb darf guia recibo declaracao completa' },
         ],
     },
     {
         title: 'Financeiro',
         icon: BanknotesIcon,
         items: [
-            { pageKey: 'monitor_boletos', to: '/monitor-boletos', icon: ClipboardDocumentCheckIcon, text: 'Monitor boletos', keywords: 'acompanhar cobrancas pagamentos' },
+            { pageKey: 'honorarios', to: '/gerenciamento-integrado', icon: Squares2X2Icon, text: 'Honorários', keywords: 'honorarios boletos gestao gerenciamento integrado empresas' },
             { pageKey: 'boletos_empresa', to: '/boletos-por-empresa', icon: FolderOpenIcon, text: 'Boletos por empresa', keywords: 'cliente empresa boletos' },
+            { pageKey: 'monitor_boletos', to: '/monitor-boletos', icon: ClipboardDocumentCheckIcon, text: 'Monitor de boletos', keywords: 'monitor acompanhar cobrancas pagamentos' },
             { pageKey: 'inadimplencia', to: '/inadimplencia-boletos', icon: ExclamationTriangleIcon, text: 'Inadimplência', keywords: 'inadimplencia boletos vencidos cobrancas' },
-            { pageKey: 'calculadora_honorarios', to: '/calculadora-honorarios', icon: CalculatorIcon, text: 'Honorários', keywords: 'calculo honorarios mensalidade' },
-            { pageKey: 'faturamento', to: '/relacao-faturamento', icon: CurrencyDollarIcon, text: 'Faturamento', keywords: 'relacao faturamento receita' },
-            { pageKey: 'relatorios', to: '/relatorios', icon: TableCellsIcon, text: 'Relatorios Excel', keywords: 'relatorios excel planilhas exportar banco dados' },
-            { pageKey: 'pro_labore', to: '/gerar-pro-labore', icon: DocumentTextIcon, text: 'Pró-labore PDF', keywords: 'pro labore documento pdf socios' },
+            { pageKey: 'calculadora_honorarios', to: '/calculadora-honorarios', icon: CalculatorIcon, text: 'Calculadora de honorários', keywords: 'calculadora calculo honorarios mensalidade' },
         ],
     },
     {
-        title: 'Administração',
+        title: 'Documentos',
+        icon: DocumentTextIcon,
+        items: [
+            { pageKey: 'relatorios', to: '/relatorios', icon: TableCellsIcon, text: 'Relatórios Excel', keywords: 'relatorios excel planilhas exportar banco dados' },
+            { pageKey: 'pro_labore', to: '/gerar-pro-labore', icon: DocumentTextIcon, text: 'Pró-labore', keywords: 'pro labore documento pdf socios' },
+            { pageKey: 'faturamento', to: '/relacao-faturamento', icon: CurrencyDollarIcon, text: 'Relação de faturamento', keywords: 'relacao faturamento receita' },
+        ],
+    },
+    {
+        title: 'Controle',
         icon: Cog6ToothIcon,
         items: [
-            { pageKey: 'gerenciar_paginas', to: '/gerenciar-paginas', icon: ShieldCheckIcon, text: 'Gerenciar páginas', keywords: 'paginas acessos permissoes disponibilidade' },
-            { pageKey: 'usuarios', to: '/gerenciar-usuarios', icon: UserGroupIcon, text: 'Usuários', match: ['/gerenciar-usuarios'], keywords: 'funcionarios equipe colaboradores' },
             { pageKey: 'atribuicoes', to: '/gerenciar-atribuicoes', icon: Cog6ToothIcon, text: 'Atribuições', keywords: 'responsaveis tarefas distribuicao' },
-            { pageKey: 'historico_whatsapp', to: '/historico-whatsapp', icon: ClockIcon, text: 'Histórico WhatsApp', keywords: 'mensagens whatsapp envios' },
+            { pageKey: 'gerenciar_paginas', to: '/gerenciar-paginas', icon: ShieldCheckIcon, text: 'Gerenciar páginas', keywords: 'paginas acessos permissoes disponibilidade' },
         ],
     },
 ];

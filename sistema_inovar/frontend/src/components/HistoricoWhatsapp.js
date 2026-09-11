@@ -303,7 +303,7 @@ const HistoricoWhatsApp = ({ companyName: companyNameProp = null }) => {
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-[0.22em] text-emerald-600 dark:text-emerald-300">Comunicação</p>
-                    <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Histórico WhatsApp</h1>
+                    <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Histórico de envios</h1>
                     <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-400">
                         Leitura rápida dos envios, falhas, empresas acionadas e documentos disparados.
                     </p>
