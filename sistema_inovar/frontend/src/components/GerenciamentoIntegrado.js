@@ -80,6 +80,7 @@ const GerenciamentoIntegrado = () => {
     const [resultsModalOpen, setResultsModalOpen] = useState(false);
     const [updatingHonorarioIds, setUpdatingHonorarioIds] = useState([]);
     const [retryingEmpresaIds, setRetryingEmpresaIds] = useState([]);
+    const [isResolvingMissing, setIsResolvingMissing] = useState(false);
     const [lastSessionUpdatedAt, setLastSessionUpdatedAt] = useState(null);
     const [boletoMonth, setBoletoMonth] = useState(initialCompetencia.month);
     const [boletoYear, setBoletoYear] = useState(initialCompetencia.year);
@@ -483,7 +484,36 @@ const GerenciamentoIntegrado = () => {
             }
 
             if (summary?.error_count > 0) {
-                setSuccess(`PDF baixado com ${summary.total_pdf} boleto(s). ${summary.error_count} empresa(s) nao foram incluidas.`);
+                const successResults = (summary.results || [])
+                    .filter((item) => item.status !== 'erro')
+                    .map((item) => ({
+                        empresaId: item.empresa_id,
+                        empresa: item.empresa_nome,
+                        status: 'success',
+                        message: 'Boleto incluído no PDF.',
+                    }));
+                const errorResults = (summary.results || [])
+                    .filter((item) => item.status === 'erro')
+                    .map((item) => ({
+                        empresaId: item.empresa_id,
+                        empresa: item.empresa_nome || `Empresa ${item.empresa_id}`,
+                        status: 'error',
+                        message: item.error || 'Boleto não encontrado.',
+                    }));
+                const nextSummary = {
+                    total: summary.total_solicitado,
+                    competencia: summary.competencia || boletoCompetencia,
+                    action: 'baixar',
+                    successCount: successResults.length,
+                    errorCount: errorResults.length,
+                    successResults,
+                    errorResults,
+                };
+                setBatchSummary(nextSummary);
+                await persistBatchSummary(nextSummary);
+                setSelectedEmpresaIds(errorResults.map((item) => item.empresaId));
+                setResultsModalOpen(true);
+                setSuccess(`PDF baixado com ${summary.total_pdf} boleto(s). ${summary.error_count} empresa(s) não foram incluídas.`);
             } else {
                 setSuccess(`PDF baixado com ${summary?.total_pdf || selectedEmpresaIds.length} boleto(s).`);
                 setSelectedEmpresaIds([]);
@@ -491,21 +521,117 @@ const GerenciamentoIntegrado = () => {
             setTimeout(() => setSuccess(''), 5000);
         } catch (err) {
             let message = 'Falha ao baixar o PDF único.';
+            let parsedError = null;
             const data = err?.response?.data;
             if (data instanceof Blob) {
                 try {
                     const text = await data.text();
-                    const parsed = JSON.parse(text);
-                    message = parsed.error || parsed.message || message;
+                    parsedError = JSON.parse(text);
+                    message = parsedError.error || parsedError.message || message;
                 } catch (e) {
                     message = 'Falha ao baixar o PDF único.';
                 }
             } else {
+                parsedError = data;
                 message = err?.response?.data?.error || err?.response?.data?.message || err.message || message;
             }
             setError(message);
+            if (parsedError?.results?.length) {
+                const errorResults = parsedError.results.map((item) => ({
+                    empresaId: item.empresa_id,
+                    empresa: item.empresa_nome || `Empresa ${item.empresa_id}`,
+                    status: 'error',
+                    message: item.error || 'Boleto não encontrado.',
+                }));
+                const nextSummary = {
+                    total: errorResults.length,
+                    competencia: boletoCompetencia,
+                    action: 'baixar',
+                    successCount: 0,
+                    errorCount: errorResults.length,
+                    successResults: [],
+                    errorResults,
+                };
+                setBatchSummary(nextSummary);
+                await persistBatchSummary(nextSummary);
+                setSelectedEmpresaIds(errorResults.map((item) => item.empresaId));
+                setResultsModalOpen(true);
+            }
         } finally {
             setIsDownloadingBoletos(false);
+        }
+    };
+
+    const gerarEEnviarEmpresa = async (empresaId, competencia) => {
+        const generated = await processarBoletoEmpresa(empresaId, 'gerar', competencia);
+        if (generated.status === 'error') return generated;
+        return processarBoletoEmpresa(empresaId, 'enviar', competencia);
+    };
+
+    const handleGerarEEnviarFaltante = async (empresaId) => {
+        const competencia = batchSummary?.competencia || boletoCompetencia;
+        setRetryingEmpresaIds((current) => Array.from(new Set([...current, empresaId])));
+        try {
+            const result = await gerarEEnviarEmpresa(empresaId, competencia);
+            let nextSummary = null;
+            setBatchSummary((current) => {
+                if (!current) return current;
+                const successResults = current.successResults.filter((item) => item.empresaId !== empresaId);
+                const errorResults = current.errorResults.filter((item) => item.empresaId !== empresaId);
+                (result.status === 'success' ? successResults : errorResults).push(result);
+                nextSummary = {
+                    ...current,
+                    successCount: successResults.length,
+                    errorCount: errorResults.length,
+                    successResults,
+                    errorResults,
+                };
+                return nextSummary;
+            });
+            if (nextSummary) await persistBatchSummary(nextSummary);
+            if (result.status === 'success') {
+                setSelectedEmpresaIds((current) => current.filter((id) => id !== empresaId));
+                setSuccess(`${result.empresa}: boleto gerado e enviado com sucesso.`);
+            } else {
+                setError(`${result.empresa}: ${result.message}`);
+            }
+        } finally {
+            setRetryingEmpresaIds((current) => current.filter((id) => id !== empresaId));
+        }
+    };
+
+    const handleGerarEEnviarFaltantes = async () => {
+        const faltantes = batchSummary?.errorResults || [];
+        if (!faltantes.length) return;
+        const competencia = batchSummary?.competencia || boletoCompetencia;
+        setIsResolvingMissing(true);
+        setError('');
+        const results = [];
+        for (const item of faltantes) {
+            results.push(await gerarEEnviarEmpresa(item.empresaId, competencia));
+        }
+        const novosSucessos = results.filter((item) => item.status === 'success');
+        const novosErros = results.filter((item) => item.status === 'error');
+        const successResults = [
+            ...(batchSummary?.successResults || []),
+            ...novosSucessos,
+        ].filter((item, index, items) => items.findIndex((other) => other.empresaId === item.empresaId) === index);
+        const nextSummary = {
+            ...batchSummary,
+            action: 'enviar',
+            successCount: successResults.length,
+            errorCount: novosErros.length,
+            successResults,
+            errorResults: novosErros,
+        };
+        setBatchSummary(nextSummary);
+        await persistBatchSummary(nextSummary);
+        setSelectedEmpresaIds(novosErros.map((item) => item.empresaId));
+        setIsResolvingMissing(false);
+        if (novosErros.length) {
+            setError(`${novosErros.length} empresa(s) ainda não puderam ser geradas ou enviadas.`);
+        } else {
+            setSuccess(`${novosSucessos.length} boleto(s) faltante(s) foram gerados e enviados.`);
         }
     };
 
@@ -1494,12 +1620,25 @@ const GerenciamentoIntegrado = () => {
                                             Revise os retornos sem ocupar a tela principal. As falhas podem ser configuradas e reenviadas por aqui.
                                         </p>
                                     </div>
-                                    <button
-                                        onClick={() => setResultsModalOpen(false)}
-                                        className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-                                    >
-                                        <XCircleIcon className="h-6 w-6" />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        {batchSummary.errorCount > 0 && (
+                                            <button
+                                                onClick={handleGerarEEnviarFaltantes}
+                                                disabled={isResolvingMissing}
+                                                className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-950"
+                                            >
+                                                <PaperAirplaneIcon className="h-4 w-4 rotate-45" />
+                                                {isResolvingMissing ? 'Processando faltantes...' : 'Gerar e enviar faltantes'}
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => setResultsModalOpen(false)}
+                                            disabled={isResolvingMissing}
+                                            className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                                        >
+                                            <XCircleIcon className="h-6 w-6" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1509,7 +1648,7 @@ const GerenciamentoIntegrado = () => {
                                     <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{batchSummary.total}</div>
                                 </div>
                                 <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
-                                    <div className="text-xs uppercase tracking-[0.12em] text-green-700 dark:text-green-300">Enviadas</div>
+                                    <div className="text-xs uppercase tracking-[0.12em] text-green-700 dark:text-green-300">Concluídas</div>
                                     <div className="mt-1 text-2xl font-bold text-green-700 dark:text-green-300">{batchSummary.successCount}</div>
                                 </div>
                                 <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
@@ -1546,7 +1685,7 @@ const GerenciamentoIntegrado = () => {
                                 <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                                         <ExclamationCircleIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
-                                        Empresas que precisam de configuracao
+                                        Empresas sem boleto ou com erro
                                     </div>
                                     <div className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
                                         {batchSummary.errorResults.length === 0 ? (
@@ -1562,7 +1701,7 @@ const GerenciamentoIntegrado = () => {
                                                                 <div className="font-semibold text-red-800 dark:text-red-200">{result.empresa}</div>
                                                                 <div className="mt-1 text-xs text-red-700 dark:text-red-300">{result.message}</div>
                                                                 <div className="mt-2 text-xs font-medium text-red-800 dark:text-red-200">
-                                                                    Configure o boleto dessa empresa antes de tentar novamente, se necessario.
+                                                                    Você pode ajustar a configuração ou gerar e enviar o boleto desta empresa.
                                                                 </div>
                                                             </div>
                                                             <div className="flex flex-col gap-2 sm:flex-row">
@@ -1576,6 +1715,15 @@ const GerenciamentoIntegrado = () => {
                                                                     Configurar boleto
                                                                 </button>
                                                                 <button
+                                                                    onClick={() => handleGerarEEnviarFaltante(result.empresaId)}
+                                                                    className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-950"
+                                                                    disabled={isRetrying || isResolvingMissing}
+                                                                >
+                                                                    <PaperAirplaneIcon className="h-4 w-4 rotate-45" />
+                                                                    {isRetrying ? 'Processando...' : 'Gerar e enviar'}
+                                                                </button>
+                                                                {batchSummary.action === 'enviar' && (
+                                                                <button
                                                                     onClick={() => handleRetryEmpresa(result.empresaId)}
                                                                     className="inline-flex items-center justify-center gap-2 rounded-md border border-red-300 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-700 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
                                                                     disabled={isRetrying}
@@ -1583,6 +1731,7 @@ const GerenciamentoIntegrado = () => {
                                                                     <ArrowPathIcon className={`h-4 w-4 ${isRetrying ? 'animate-spin' : ''}`} />
                                                                     {isRetrying ? 'Reenviando...' : 'Reenviar'}
                                                                 </button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
