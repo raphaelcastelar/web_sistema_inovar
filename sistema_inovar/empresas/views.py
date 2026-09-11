@@ -3483,7 +3483,7 @@ def enviar_boleto_honorario_whatsapp(empresa, pdf_content, nome_arquivo, usuario
 
 
 def normalizar_competencia_honorario(competencia=None, empresa=None):
-    """Retorna AAAAMM; sem valor explicito, preserva a regra antiga de vencimento."""
+    """Retorna a competência de referência no formato AAAAMM."""
     competencia = re.sub(r'\D', '', str(competencia or ''))
     if competencia:
         if re.fullmatch(r'(0[1-9]|1[0-2])\d{4}', competencia):
@@ -3492,19 +3492,16 @@ def normalizar_competencia_honorario(competencia=None, empresa=None):
             raise ValueError('Informe uma competência válida no formato MM/AAAA.')
         return competencia
 
-    hoje = timezone.now().astimezone(BRAZIL_TIME_ZONE).date()
-    dia_vencimento = int(getattr(empresa, 'dia_vencimento_honorario', 15) or 15)
-    referencia = hoje.replace(day=1)
-    if hoje.day > dia_vencimento:
-        referencia += relativedelta(months=1)
-    return referencia.strftime('%Y%m')
+    return timezone.now().astimezone(BRAZIL_TIME_ZONE).strftime('%Y%m')
 
 
 def calcular_vencimento_honorario(empresa, competencia):
-    """Calcula o vencimento dentro da competência escolhida, limitando ao último dia."""
+    """Calcula o vencimento no mês seguinte à referência selecionada."""
     import calendar
-    ano = int(competencia[:4])
-    mes = int(competencia[4:])
+    referencia = datetime.date(int(competencia[:4]), int(competencia[4:]), 1)
+    mes_vencimento = referencia + relativedelta(months=1)
+    ano = mes_vencimento.year
+    mes = mes_vencimento.month
     ultimo_dia = calendar.monthrange(ano, mes)[1]
     dia = min(max(int(empresa.dia_vencimento_honorario or 15), 1), ultimo_dia)
     return datetime.date(ano, mes, dia)
@@ -3577,9 +3574,10 @@ def boleto_honorario_arquivo_disponivel(documento):
 
 
 def buscar_registro_boleto_honorario(empresa, competencia=None):
-    """Localiza uma cobrança pela competência de sua data de vencimento."""
+    """Localiza a cobrança cujo vencimento é no mês seguinte à referência."""
     competencia = normalizar_competencia_honorario(competencia, empresa)
-    inicio_mes = datetime.date(int(competencia[:4]), int(competencia[4:]), 1)
+    mes_referencia = datetime.date(int(competencia[:4]), int(competencia[4:]), 1)
+    inicio_mes = mes_referencia + relativedelta(months=1)
     inicio_proximo_mes = inicio_mes + relativedelta(months=1)
     return BoletoBB.objects.filter(
         empresa=empresa,
@@ -3589,13 +3587,22 @@ def buscar_registro_boleto_honorario(empresa, competencia=None):
 
 
 def recuperar_boleto_honorario_legado(empresa, registro_bb, competencia):
-    """Move para a competência de vencimento um PDF salvo pela antiga regra de emissão."""
-    criado_em = registro_bb.criado_em.astimezone(BRAZIL_TIME_ZONE)
-    competencia_emissao = criado_em.strftime('%Y%m')
-    if competencia_emissao == competencia:
-        return None
+    """Recupera PDF antigo salvo no mês de emissão ou de vencimento."""
+    competencias_legadas = []
+    criado_em = registro_bb.criado_em.astimezone(BRAZIL_TIME_ZONE).strftime('%Y%m')
+    vencimento = registro_bb.data_vencimento.strftime('%Y%m') if registro_bb.data_vencimento else None
+    for candidata in (criado_em, vencimento):
+        if candidata and candidata != competencia and candidata not in competencias_legadas:
+            competencias_legadas.append(candidata)
 
-    documento_legado = buscar_boleto_honorario(empresa, competencia_emissao)
+    documento_legado = None
+    competencia_origem = None
+    for candidata in competencias_legadas:
+        candidato = buscar_boleto_honorario(empresa, candidata)
+        if boleto_honorario_arquivo_disponivel(candidato):
+            documento_legado = candidato
+            competencia_origem = candidata
+            break
     if not boleto_honorario_arquivo_disponivel(documento_legado):
         return None
 
@@ -3609,22 +3616,27 @@ def recuperar_boleto_honorario_legado(empresa, registro_bb, competencia):
     logger.info(
         "Boleto legado de %s movido da competência %s para %s.",
         empresa.nome,
-        competencia_emissao,
+        competencia_origem,
         competencia,
     )
     return documento_novo
 
 
 def responder_com_boleto_honorario_existente(request, empresa, documento, action):
-    """Reutiliza o PDF mensal para download ou WhatsApp, sem registrar outro boleto."""
+    """Executa a ação solicitada usando um boleto já existente."""
     if not boleto_honorario_arquivo_disponivel(documento):
         return None
 
     download_url = request.build_absolute_uri(documento.caminho_arquivo.url)
-    if action == 'baixar':
+    if action in {'baixar', 'gerar'}:
+        mensagem = (
+            "Boleto já existente encontrado. Disponível para download."
+            if action == 'baixar'
+            else "O boleto desta competência já havia sido gerado. Nenhuma nova cobrança foi criada."
+        )
         return Response({
             "success": True,
-            "message": "Boleto já existente encontrado. Disponível para download.",
+            "message": mensagem,
             "from_cache": True,
             "download_url": download_url,
             "arquivo_pasta": documento.nome_arquivo,
@@ -3673,7 +3685,7 @@ def usuario_pode_gerenciar_empresa(user, empresa):
 def gerar_boleto_view(request):
     empresa_id = request.data.get('empresa_id')
     incoming_data = request.data.get('boleto_data', {})
-    action = request.data.get('action', "gerar_enviar")  # gerar_enviar (padrão) ou baixar
+    action = request.data.get('action', "gerar_enviar")  # compatibilidade com telas antigas
 
     if not empresa_id:
         return Response({"error": "empresa_id é obrigatório."}, status=status.HTTP_400_BAD_REQUEST)
@@ -3689,7 +3701,7 @@ def gerar_boleto_view(request):
     if not usuario_pode_gerenciar_empresa(request.user, empresa):
         return Response({"error": "Você não tem permissão para gerar boleto para esta empresa."}, status=status.HTTP_403_FORBIDDEN)
 
-    if action not in {'gerar_enviar', 'baixar'}:
+    if action not in {'gerar', 'baixar', 'enviar', 'gerar_enviar'}:
         return Response({"error": "Ação de boleto inválida."}, status=status.HTTP_400_BAD_REQUEST)
 
     competencia_informada = request.data.get('competencia')
@@ -3697,9 +3709,10 @@ def gerar_boleto_view(request):
     if not competencia_informada and vencimento_informado:
         vencimento_normalizado = convert_date_format(vencimento_informado)
         try:
-            competencia_informada = datetime.datetime.strptime(
+            mes_vencimento = datetime.datetime.strptime(
                 vencimento_normalizado, '%d.%m.%Y'
-            ).strftime('%Y%m')
+            ).date().replace(day=1)
+            competencia_informada = (mes_vencimento - relativedelta(months=1)).strftime('%Y%m')
         except (TypeError, ValueError):
             pass
 
@@ -3710,7 +3723,7 @@ def gerar_boleto_view(request):
     except ValueError as exc:
         return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-    # A competência representa o mês de vencimento, não o mês em que o botão foi clicado.
+    # A competência representa o mês do honorário; o vencimento fica no mês seguinte.
     boleto_existente = buscar_boleto_honorario(empresa, competencia)
     resposta_existente = responder_com_boleto_honorario_existente(
         request, empresa, boleto_existente, action
@@ -3743,12 +3756,13 @@ def gerar_boleto_view(request):
             "competencia": competencia,
         }, status=status.HTTP_409_CONFLICT)
 
-    # Baixar é uma operação somente de leitura: nunca registra uma cobrança nova.
-    if action == 'baixar':
+    # Baixar e enviar são operações sobre arquivo existente e nunca geram cobrança.
+    if action in {'baixar', 'enviar'}:
+        verbo = 'baixar' if action == 'baixar' else 'enviar'
         return Response({
             "error": (
                 f"Nenhum boleto de honorários foi encontrado para a competência "
-                f"{competencia[4:]}/{competencia[:4]}. Gere e envie o boleto primeiro."
+                f"{competencia[4:]}/{competencia[:4]}. Gere o boleto antes de {verbo}."
             ),
             "competencia": competencia,
         }, status=status.HTTP_404_NOT_FOUND)
@@ -3849,11 +3863,15 @@ def gerar_boleto_view(request):
         ).strftime('%Y%m')
     except ValueError:
         return Response({"error": "A data de vencimento informada é inválida."}, status=status.HTTP_400_BAD_REQUEST)
-    if vencimento_payload != competencia:
+    competencia_vencimento = (
+        datetime.date(int(competencia[:4]), int(competencia[4:]), 1)
+        + relativedelta(months=1)
+    ).strftime('%Y%m')
+    if vencimento_payload != competencia_vencimento:
         return Response({
             "error": (
-                "A data de vencimento informada não pertence à competência selecionada "
-                f"({competencia[4:]}/{competencia[:4]})."
+                "A data de vencimento informada deve pertencer ao mês seguinte à competência "
+                f"selecionada ({competencia[4:]}/{competencia[:4]})."
             )
         }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -4145,6 +4163,17 @@ def gerar_boleto_view(request):
     nome_arquivo_boleto = sanitize_filename_for_upload(f"honorario_{nome_base_empresa}.pdf").lower()
     usuario_envio = request.user if getattr(request, 'user', None) and request.user.is_authenticated else None
 
+    if action == 'gerar':
+        return Response({
+            "success": True,
+            "message": "Boleto gerado e salvo. Nenhum envio foi realizado.",
+            "from_cache": False,
+            "download_url": request.build_absolute_uri(documento_honorario.caminho_arquivo.url),
+            "arquivo_pasta": documento_honorario.nome_arquivo,
+            "caminho_arquivo": documento_honorario.caminho_arquivo.name,
+            "competencia": competencia,
+        }, status=status.HTTP_200_OK)
+
     try:
         message_id, whatsapp_error = enviar_boleto_honorario_whatsapp(
             empresa=empresa,
@@ -4293,8 +4322,7 @@ def gerar_boletos_pdf_unico_view(request):
         merger.close()
 
     output.seek(0)
-    hoje = timezone.localdate().strftime('%Y-%m-%d')
-    filename = f"boletos_honorarios_{hoje}.pdf"
+    filename = f"boletos_honorarios_{competencia}.pdf"
     summary = {
         "total_solicitado": len(ordered_ids),
         "total_pdf": len(pdf_entries),

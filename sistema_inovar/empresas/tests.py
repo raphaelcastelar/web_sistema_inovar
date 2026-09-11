@@ -57,7 +57,13 @@ class ReutilizacaoBoletoHonorarioTest(SimpleTestCase):
         self.assertEqual(normalizar_competencia_honorario('02/2028', empresa), '202802')
         self.assertEqual(
             calcular_vencimento_honorario(empresa, '202802'),
-            datetime.date(2028, 2, 29),
+            datetime.date(2028, 3, 31),
+        )
+
+        empresa.dia_vencimento_honorario = 15
+        self.assertEqual(
+            calcular_vencimento_honorario(empresa, '202612'),
+            datetime.date(2027, 1, 15),
         )
 
     def test_rejeita_competencia_invalida(self):
@@ -97,6 +103,21 @@ class ReutilizacaoBoletoHonorarioTest(SimpleTestCase):
         )
         with patch('empresas.views.os.path.exists', return_value=False):
             self.assertFalse(boleto_honorario_arquivo_disponivel(documento))
+
+    @patch('empresas.views.enviar_boleto_honorario_whatsapp')
+    def test_gerar_nao_envia_boleto_que_ja_existe(self, enviar_mock):
+        arquivo = Mock(path='/tmp/HONORARIO.pdf', url='/media/HONORARIO.pdf')
+        documento = SimpleNamespace(caminho_arquivo=arquivo, nome_arquivo='HONORARIO.pdf')
+        request = SimpleNamespace(build_absolute_uri=lambda url: url)
+
+        with patch('empresas.views.os.path.exists', return_value=True):
+            response = responder_com_boleto_honorario_existente(
+                request, SimpleNamespace(nome='EMPRESA TESTE'), documento, 'gerar'
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['from_cache'])
+        enviar_mock.assert_not_called()
 
 
 class RenomearPastaEmpresaTest(SimpleTestCase):

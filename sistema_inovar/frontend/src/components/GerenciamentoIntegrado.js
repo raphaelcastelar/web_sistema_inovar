@@ -70,6 +70,7 @@ const GerenciamentoIntegrado = () => {
     const [selectedCarteira, setSelectedCarteira] = useState('INOVAR ES');
     const [selectedEmpresaIds, setSelectedEmpresaIds] = useState([]);
     const [isGeneratingBoletos, setIsGeneratingBoletos] = useState(false);
+    const [isSendingBoletos, setIsSendingBoletos] = useState(false);
     const [isDownloadingBoletos, setIsDownloadingBoletos] = useState(false);
     const [generatingBoletoId, setGeneratingBoletoId] = useState(null);
     const [boletoActionModal, setBoletoActionModal] = useState(null); // { id, nome }
@@ -83,6 +84,10 @@ const GerenciamentoIntegrado = () => {
     const [boletoMonth, setBoletoMonth] = useState(initialCompetencia.month);
     const [boletoYear, setBoletoYear] = useState(initialCompetencia.year);
     const boletoCompetencia = `${boletoYear}${boletoMonth}`;
+    const vencimentoCompetencia = useMemo(() => {
+        const next = new Date(Number(boletoYear), Number(boletoMonth), 1);
+        return `${String(next.getMonth() + 1).padStart(2, '0')}/${next.getFullYear()}`;
+    }, [boletoMonth, boletoYear]);
     const boletoYears = useMemo(() => {
         const current = new Date().getFullYear();
         return Array.from({ length: 8 }, (_, index) => String(current + 1 - index));
@@ -194,18 +199,18 @@ const GerenciamentoIntegrado = () => {
         }
     };
 
-    const processarBoletoEmpresa = async (empresaId, competencia = boletoCompetencia) => {
+    const processarBoletoEmpresa = async (empresaId, action = 'gerar', competencia = boletoCompetencia) => {
         const empresa = empresas.find((item) => item.id === empresaId);
 
         try {
             const response = await axiosInstance.post('/api/gerar-boleto/', {
                 empresa_id: empresaId,
-                action: 'gerar_enviar',
+                action,
                 competencia,
             });
             let message = response?.data?.message || 'Boleto processado com sucesso.';
 
-            if (!empresa?.honorario) {
+            if (action === 'enviar' && !empresa?.honorario) {
                 const honorarioAtualizado = await updateHonorarioStatus(empresaId, true, false);
 
                 if (!honorarioAtualizado) {
@@ -296,10 +301,17 @@ const GerenciamentoIntegrado = () => {
                 setSuccess('Boleto baixado.');
                 setBoletoActionResult({ type: 'success', text: 'Download liberado.' });
             } else {
-                const msg = response.data?.message || 'Boleto gerado/enviado com sucesso.';
+                const msg = response.data?.message || (action === 'gerar'
+                    ? 'Boleto gerado com sucesso.'
+                    : 'Boleto enviado com sucesso.');
                 setSuccess(msg);
-                setBoletoActionResult({ type: 'success', text: 'Envio concluído.' });
-                await updateHonorarioStatus(empresaId, true, false);
+                setBoletoActionResult({
+                    type: 'success',
+                    text: action === 'gerar' ? 'Geração concluída.' : 'Envio concluído.',
+                });
+                if (action === 'enviar') {
+                    await updateHonorarioStatus(empresaId, true, false);
+                }
             }
             setTimeout(() => setSuccess(''), 4000);
         } catch (err) {
@@ -371,13 +383,14 @@ const GerenciamentoIntegrado = () => {
         setSelectedEmpresaIds((currentIds) => Array.from(new Set([...currentIds, ...modalEmpresaIds])));
     };
 
-    const handleGerarBoletosEmLote = async () => {
+    const handleProcessarBoletosEmLote = async (action) => {
         if (selectedEmpresaIds.length === 0) {
             setError('Selecione pelo menos uma empresa ativa para gerar os boletos.');
             return;
         }
 
-        setIsGeneratingBoletos(true);
+        if (action === 'gerar') setIsGeneratingBoletos(true);
+        if (action === 'enviar') setIsSendingBoletos(true);
         setError('');
         setSuccess('');
         setBatchSummary(null);
@@ -385,7 +398,7 @@ const GerenciamentoIntegrado = () => {
         const results = [];
 
         for (const empresaId of selectedEmpresaIds) {
-            results.push(await processarBoletoEmpresa(empresaId));
+            results.push(await processarBoletoEmpresa(empresaId, action));
         }
 
         const successResults = results.filter((result) => result.status === 'success');
@@ -394,6 +407,7 @@ const GerenciamentoIntegrado = () => {
         const nextBatchSummary = {
             total: results.length,
             competencia: boletoCompetencia,
+            action,
             successCount: successResults.length,
             errorCount: errorResults.length,
             successResults,
@@ -404,12 +418,13 @@ const GerenciamentoIntegrado = () => {
         await persistBatchSummary(nextBatchSummary);
 
         if (successResults.length > 0) {
-            setSuccess(`Remessa concluida: ${successResults.length} empresa(s) processada(s) com sucesso.`);
+            const operacao = action === 'gerar' ? 'Geração' : 'Envio';
+            setSuccess(`${operacao} concluído: ${successResults.length} empresa(s) processada(s) com sucesso.`);
             setTimeout(() => setSuccess(''), 5000);
         }
 
         if (errorResults.length > 0) {
-            setError(`${errorResults.length} empresa(s) precisam de ajuste antes do envio.`);
+            setError(`${errorResults.length} empresa(s) não puderam concluir a operação.`);
             setResultsModalOpen(true);
         } else {
             setSelectedEmpresaIds([]);
@@ -422,7 +437,11 @@ const GerenciamentoIntegrado = () => {
 
         setBoletoModalOpen(false);
         setIsGeneratingBoletos(false);
+        setIsSendingBoletos(false);
     };
+
+    const handleGerarBoletosEmLote = () => handleProcessarBoletosEmLote('gerar');
+    const handleEnviarBoletosEmLote = () => handleProcessarBoletosEmLote('enviar');
 
     const handleBaixarBoletosPdfUnico = async () => {
         if (selectedEmpresaIds.length === 0) {
@@ -497,6 +516,7 @@ const GerenciamentoIntegrado = () => {
         try {
             const retryResult = await processarBoletoEmpresa(
                 empresaId,
+                batchSummary?.action || 'gerar',
                 batchSummary?.competencia || boletoCompetencia,
             );
             let nextBatchSummary = null;
@@ -532,7 +552,8 @@ const GerenciamentoIntegrado = () => {
 
             if (retryResult.status === 'success') {
                 setSelectedEmpresaIds((currentIds) => currentIds.filter((id) => id !== empresaId));
-                setSuccess(`${retryResult.empresa}: boleto gerado e enviado com sucesso.`);
+                const operacao = (batchSummary?.action || 'gerar') === 'enviar' ? 'enviado' : 'gerado';
+                setSuccess(`${retryResult.empresa}: boleto ${operacao} com sucesso.`);
                 setTimeout(() => setSuccess(''), 4000);
             } else {
                 setSelectedEmpresaIds((currentIds) => Array.from(new Set([...currentIds, empresaId])));
@@ -767,13 +788,13 @@ const GerenciamentoIntegrado = () => {
                                 Monte uma remessa para enviar ou baixar os boletos sem sair da tela.
                             </h2>
                             <p className="max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                                Escolha o mês de vencimento. Baixar consulta somente boletos existentes; gerar e enviar cria apenas os que ainda não existem.
+                                Escolha o mês do honorário. O boleto vence em {vencimentoCompetencia} e fica salvo na pasta de {boletoMonth}/{boletoYear}.
                             </p>
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                             <div className="grid grid-cols-[minmax(8rem,1fr)_6rem] gap-2 rounded-lg border border-gray-200 bg-slate-50 p-3 dark:border-gray-800 dark:bg-slate-900/70">
                                 <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                    Mês do vencimento
+                                    Mês do honorário
                                     <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
                                         {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                     </select>
@@ -852,7 +873,7 @@ const GerenciamentoIntegrado = () => {
                     <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Ultima Remessa</p>
+                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Última operação</p>
                                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                                     Resultado consolidado{batchSummary.competencia
                                         ? ` para ${batchSummary.competencia.slice(4)}/${batchSummary.competencia.slice(0, 4)}`
@@ -1074,7 +1095,7 @@ const GerenciamentoIntegrado = () => {
                                 <div>
                                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Boleto Avulso</p>
                                     <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{boletoActionModal.nome}</h2>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Honorário com vencimento em {boletoMonth}/{boletoYear}.</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Honorário de {boletoMonth}/{boletoYear} · vencimento em {vencimentoCompetencia}.</p>
                                 </div>
                                 <button
                                     onClick={() => !boletoActionLoading && setBoletoActionModal(null)}
@@ -1086,7 +1107,7 @@ const GerenciamentoIntegrado = () => {
                             <div className="p-6 space-y-4">
                                 <div className="grid grid-cols-[1fr_7rem] gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
                                     <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                        Mês do vencimento
+                                        Mês do honorário
                                         <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={boletoActionLoading} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
                                             {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                         </select>
@@ -1099,6 +1120,14 @@ const GerenciamentoIntegrado = () => {
                                     </label>
                                 </div>
                                 <button
+                                    onClick={() => handleBoletoAction('gerar')}
+                                    disabled={boletoActionLoading}
+                                    className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <DocumentArrowDownIcon className="h-5 w-5" />}
+                                    Gerar boleto
+                                </button>
+                                <button
                                     onClick={() => handleBoletoAction('baixar')}
                                     disabled={boletoActionLoading}
                                     className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800 transition-colors hover:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -1107,12 +1136,12 @@ const GerenciamentoIntegrado = () => {
                                     Baixar boleto existente
                                 </button>
                                 <button
-                                    onClick={() => handleBoletoAction('gerar_enviar')}
+                                    onClick={() => handleBoletoAction('enviar')}
                                     disabled={boletoActionLoading}
                                     className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
                                     {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <PaperAirplaneIcon className="h-5 w-5 rotate-45" />}
-                                    Gerar e enviar pelo WhatsApp
+                                    Enviar boleto pelo WhatsApp
                                 </button>
                                 {boletoActionResult && (
                                     <div className={`rounded-lg px-4 py-3 text-sm font-semibold ${boletoActionResult.type === 'success'
@@ -1132,22 +1161,22 @@ const GerenciamentoIntegrado = () => {
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
                         <div
                             className="absolute inset-0"
-                            onClick={() => !isGeneratingBoletos && !isDownloadingBoletos && setBoletoModalOpen(false)}
+                            onClick={() => !isGeneratingBoletos && !isDownloadingBoletos && !isSendingBoletos && setBoletoModalOpen(false)}
                         />
                         <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
                             <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="max-w-2xl">
                                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Selecao em Lote</p>
-                                        <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Honorários com vencimento em {boletoMonth}/{boletoYear}</h2>
+                                        <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Honorários de {boletoMonth}/{boletoYear}</h2>
                                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                                            O download busca somente arquivos existentes. Gerar e enviar cria apenas os boletos ausentes desta competência.
+                                            Vencimento em {vencimentoCompetencia}. Gere, baixe ou envie em etapas independentes.
                                         </p>
                                     </div>
                                     <button
-                                        onClick={() => !isGeneratingBoletos && !isDownloadingBoletos && setBoletoModalOpen(false)}
+                                        onClick={() => !isGeneratingBoletos && !isDownloadingBoletos && !isSendingBoletos && setBoletoModalOpen(false)}
                                         className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-                                        disabled={isGeneratingBoletos || isDownloadingBoletos}
+                                        disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos}
                                     >
                                         <XCircleIcon className="h-6 w-6" />
                                     </button>
@@ -1159,13 +1188,13 @@ const GerenciamentoIntegrado = () => {
                                     <div>
                                         <label className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
                                             <CalendarDaysIcon className="h-4 w-4" />
-                                            Mês do vencimento
+                                            Mês do honorário
                                         </label>
                                         <div className="grid grid-cols-[1fr_6rem] gap-2">
-                                            <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos} className="h-10 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                            <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-10 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
                                                 {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                             </select>
-                                            <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos} className="h-10 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                            <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-10 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
                                                 {boletoYears.map((year) => <option key={year} value={year}>{year}</option>)}
                                             </select>
                                         </div>
@@ -1210,7 +1239,7 @@ const GerenciamentoIntegrado = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => setBoletoSelectedCarteiras([])}
-                                                    disabled={isGeneratingBoletos}
+                                                    disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos}
                                                     className="text-xs font-semibold text-slate-700 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300 dark:hover:text-white"
                                                 >
                                                     Limpar
@@ -1225,7 +1254,7 @@ const GerenciamentoIntegrado = () => {
                                                         key={carteira}
                                                         type="button"
                                                         onClick={() => handleToggleBoletoCarteiraFilter(carteira)}
-                                                        disabled={isGeneratingBoletos}
+                                                        disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos}
                                                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${selected
                                                             ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950'
                                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
@@ -1248,7 +1277,7 @@ const GerenciamentoIntegrado = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => setBoletoSelectedTagIds([])}
-                                                    disabled={isGeneratingBoletos}
+                                                    disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos}
                                                     className="text-xs font-semibold text-slate-700 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300 dark:hover:text-white"
                                                 >
                                                     Limpar
@@ -1268,7 +1297,7 @@ const GerenciamentoIntegrado = () => {
                                                             key={tag.id}
                                                             type="button"
                                                             onClick={() => handleToggleBoletoTagFilter(String(tag.id))}
-                                                            disabled={isGeneratingBoletos}
+                                                            disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos}
                                                             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${selected
                                                                 ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950'
                                                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
@@ -1341,30 +1370,38 @@ const GerenciamentoIntegrado = () => {
                                         <p className="text-sm text-gray-500 dark:text-gray-400">
                                             {selectedEmpresasCount === 0
                                                 ? 'Nenhuma empresa selecionada.'
-                                                : `${selectedEmpresasCount} empresa(s) pronta(s) para baixar ou enviar honorario.`}
+                                                : `${selectedEmpresasCount} empresa(s) selecionada(s) para gerar, baixar ou enviar.`}
                                         </p>
                                         <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
                                             <button
                                                 onClick={() => setBoletoModalOpen(false)}
                                                 className="min-w-[120px] rounded-md px-4 py-3 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                                                disabled={isGeneratingBoletos || isDownloadingBoletos}
+                                                disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos}
                                             >
                                                 Fechar
                                             </button>
                                             <button
                                                 onClick={handleBaixarBoletosPdfUnico}
                                                 className="inline-flex min-w-[190px] items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                                disabled={isGeneratingBoletos || isDownloadingBoletos || selectedEmpresasCount === 0}
+                                                disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos || selectedEmpresasCount === 0}
                                             >
                                                 <DocumentArrowDownIcon className="h-5 w-5" />
                                                 {isDownloadingBoletos ? 'Baixando...' : 'Baixar PDF existente'}
                                             </button>
                                             <button
                                                 onClick={handleGerarBoletosEmLote}
-                                                className="min-w-[150px] rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                                                disabled={isGeneratingBoletos || isDownloadingBoletos || selectedEmpresasCount === 0}
+                                                className="min-w-[150px] rounded-md border border-amber-300 bg-amber-50 px-5 py-3 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                                disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos || selectedEmpresasCount === 0}
                                             >
-                                                {isGeneratingBoletos ? 'Processando...' : 'Gerar E Enviar'}
+                                                {isGeneratingBoletos ? 'Gerando...' : 'Gerar boletos'}
+                                            </button>
+                                            <button
+                                                onClick={handleEnviarBoletosEmLote}
+                                                className="inline-flex min-w-[160px] items-center justify-center gap-2 rounded-md bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                                                disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos || selectedEmpresasCount === 0}
+                                            >
+                                                <PaperAirplaneIcon className="h-5 w-5 rotate-45" />
+                                                {isSendingBoletos ? 'Enviando...' : 'Enviar existentes'}
                                             </button>
                                         </div>
                                     </div>
@@ -1451,8 +1488,8 @@ const GerenciamentoIntegrado = () => {
                             <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
-                                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Resultados da Remessa</p>
-                                        <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Empresas enviadas e empresas que ainda precisam de ajuste</h2>
+                                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Resultados da operação</p>
+                                        <h2 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Empresas concluídas e empresas que ainda precisam de ajuste</h2>
                                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                                             Revise os retornos sem ocupar a tela principal. As falhas podem ser configuradas e reenviadas por aqui.
                                         </p>
@@ -1485,7 +1522,7 @@ const GerenciamentoIntegrado = () => {
                                 <section className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                                     <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                                         <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                        Empresas enviadas com sucesso
+                                        Empresas processadas com sucesso
                                     </div>
                                     <div className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
                                         {batchSummary.successResults.length === 0 ? (
