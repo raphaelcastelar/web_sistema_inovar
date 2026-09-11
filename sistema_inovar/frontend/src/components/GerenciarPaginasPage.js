@@ -76,7 +76,7 @@ const GerenciarPaginasPage = () => {
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Administração</p>
                 <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Gerenciar páginas</h1>
                 <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-                    Controle a disponibilidade das áreas e quais equipes podem acessá-las.
+                    Controle o navbar, a disponibilidade das áreas e quais equipes podem acessá-las.
                 </p>
             </header>
 
@@ -135,6 +135,11 @@ const GerenciarPaginasPage = () => {
                 <section key={section} className="space-y-3">
                     <div className="flex items-center gap-3">
                         <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{section}</h2>
+                        {section === 'Fora do menu' && (
+                            <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                                Rotas preservadas
+                            </span>
+                        )}
                         <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
                     </div>
                     <div className="grid gap-3 xl:grid-cols-2">
