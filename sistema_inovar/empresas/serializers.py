@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB, PaginaSistema
 from .folder_structure import FOLDER_DEFINITIONS
 from .utils import format_cnpj, is_valid_cnpj, normalizar_nome_empresa
+from .page_catalog import NAVBAR_SECTIONS
 from .company_storage import rename_company_folder
 from django.db import transaction
 import re
@@ -567,9 +568,14 @@ class PaginaSistemaSerializer(serializers.ModelSerializer):
             'acessivel',
         ]
         read_only_fields = [
-            'chave', 'nome', 'rota', 'secao', 'descricao', 'gerenciavel',
+            'chave', 'nome', 'rota', 'descricao', 'gerenciavel',
             'ordem', 'atualizado_em', 'atualizado_por_nome', 'acessivel',
         ]
+
+    def validate_secao(self, value):
+        if value not in NAVBAR_SECTIONS:
+            raise serializers.ValidationError('Categoria inválida para o navbar.')
+        return value
 
     def get_atualizado_por_nome(self, obj):
         if not obj.atualizado_por:

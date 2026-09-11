@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 from django.test import override_settings
 from django.core.files.storage import FileSystemStorage
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 from .models import Empresa
 from .serializers import PaginaSistemaSerializer
@@ -62,6 +63,13 @@ class PermissaoPaginaSistemaTest(SimpleTestCase):
 
         self.assertTrue(self.serializer_for(admin).get_acessivel(pagina))
         self.assertFalse(self.serializer_for(fiscal).get_acessivel(pagina))
+
+    def test_categoria_da_pagina_deve_existir_no_navbar(self):
+        serializer = PaginaSistemaSerializer()
+
+        self.assertEqual(serializer.validate_secao('Financeiro'), 'Financeiro')
+        with self.assertRaisesMessage(DRFValidationError, 'Categoria inválida para o navbar.'):
+            serializer.validate_secao('Outros')
 
 
 class NomeEmpresaTest(SimpleTestCase):

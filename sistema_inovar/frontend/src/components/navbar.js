@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
+    HomeIcon,
     UserGroupIcon,
     ClockIcon,
     ArrowLeftOnRectangleIcon,
@@ -26,66 +27,37 @@ import ThemeToggle from './ThemeToggle';
 import axiosInstance from '../api/axiosInstance';
 import { usePageAccess } from '../context/PageAccessContext';
 
-const navigationSections = [
-    {
-        title: 'Cadastros',
-        icon: BuildingOfficeIcon,
-        items: [
-            { pageKey: 'empresas', to: '/empresas', icon: BuildingOfficeIcon, text: 'Empresas', match: ['/empresas'], keywords: 'clientes cadastro pastas documentos' },
-            { pageKey: 'usuarios', to: '/gerenciar-usuarios', icon: UserGroupIcon, text: 'Usuários', match: ['/gerenciar-usuarios'], keywords: 'funcionarios equipe colaboradores' },
-        ],
-    },
-    {
-        title: 'Arquivo',
-        icon: FolderOpenIcon,
-        items: [
-            { pageKey: 'carteira', to: '/carteira-empresas', icon: FolderOpenIcon, text: 'Pastas', keywords: 'pastas arquivos empresas documentos' },
-            { pageKey: 'historico_whatsapp', to: '/historico-whatsapp', icon: ClockIcon, text: 'Histórico de envios', keywords: 'historico mensagens whatsapp envios' },
-        ],
-    },
-    {
-        title: 'Fiscal',
-        icon: ShieldCheckIcon,
-        items: [
-            { pageKey: 'central_das', to: '/central-simples', icon: DocumentChartBarIcon, text: 'Central DAS', keywords: 'simples nacional central das apuracao' },
-            { pageKey: 'parcelamento_simples', to: '/parcelamento-simples', icon: BanknotesIcon, text: 'Central Parcelamento SN', keywords: 'central parcelamento simples nacional parcelas das parcsn' },
-        ],
-    },
-    {
-        title: 'Pessoal',
-        icon: UserGroupIcon,
-        items: [
-            { pageKey: 'central_dctfweb', to: '/central-dctfweb', icon: DocumentTextIcon, text: 'Central DCTF-Web', keywords: 'dctfweb darf guia recibo declaracao completa' },
-        ],
-    },
-    {
-        title: 'Financeiro',
-        icon: BanknotesIcon,
-        items: [
-            { pageKey: 'honorarios', to: '/gerenciamento-integrado', icon: Squares2X2Icon, text: 'Honorários', keywords: 'honorarios boletos gestao gerenciamento integrado empresas' },
-            { pageKey: 'boletos_empresa', to: '/boletos-por-empresa', icon: FolderOpenIcon, text: 'Boletos por empresa', keywords: 'cliente empresa boletos' },
-            { pageKey: 'monitor_boletos', to: '/monitor-boletos', icon: ClipboardDocumentCheckIcon, text: 'Monitor de boletos', keywords: 'monitor acompanhar cobrancas pagamentos' },
-            { pageKey: 'inadimplencia', to: '/inadimplencia-boletos', icon: ExclamationTriangleIcon, text: 'Inadimplência', keywords: 'inadimplencia boletos vencidos cobrancas' },
-            { pageKey: 'calculadora_honorarios', to: '/calculadora-honorarios', icon: CalculatorIcon, text: 'Calculadora de honorários', keywords: 'calculadora calculo honorarios mensalidade' },
-        ],
-    },
-    {
-        title: 'Documentos',
-        icon: DocumentTextIcon,
-        items: [
-            { pageKey: 'relatorios', to: '/relatorios', icon: TableCellsIcon, text: 'Relatórios Excel', keywords: 'relatorios excel planilhas exportar banco dados' },
-            { pageKey: 'pro_labore', to: '/gerar-pro-labore', icon: DocumentTextIcon, text: 'Pró-labore', keywords: 'pro labore documento pdf socios' },
-            { pageKey: 'faturamento', to: '/relacao-faturamento', icon: CurrencyDollarIcon, text: 'Relação de faturamento', keywords: 'relacao faturamento receita' },
-        ],
-    },
-    {
-        title: 'Controle',
-        icon: Cog6ToothIcon,
-        items: [
-            { pageKey: 'atribuicoes', to: '/gerenciar-atribuicoes', icon: Cog6ToothIcon, text: 'Atribuições', keywords: 'responsaveis tarefas distribuicao' },
-            { pageKey: 'gerenciar_paginas', to: '/gerenciar-paginas', icon: ShieldCheckIcon, text: 'Gerenciar páginas', keywords: 'paginas acessos permissoes disponibilidade' },
-        ],
-    },
+const navigationCategories = [
+    { title: 'Cadastros', icon: BuildingOfficeIcon },
+    { title: 'Arquivo', icon: FolderOpenIcon },
+    { title: 'Fiscal', icon: ShieldCheckIcon },
+    { title: 'Pessoal', icon: UserGroupIcon },
+    { title: 'Financeiro', icon: BanknotesIcon },
+    { title: 'Documentos', icon: DocumentTextIcon },
+    { title: 'Controle', icon: Cog6ToothIcon },
+];
+
+const navigationItems = [
+    { pageKey: 'empresas', to: '/empresas', icon: BuildingOfficeIcon, text: 'Empresas', match: ['/empresas'], keywords: 'clientes cadastro pastas documentos' },
+    { pageKey: 'usuarios', to: '/gerenciar-usuarios', icon: UserGroupIcon, text: 'Usuários', match: ['/gerenciar-usuarios'], keywords: 'funcionarios equipe colaboradores' },
+    { pageKey: 'carteira', to: '/carteira-empresas', icon: FolderOpenIcon, text: 'Pastas', keywords: 'pastas arquivos empresas documentos' },
+    { pageKey: 'historico_whatsapp', to: '/historico-whatsapp', icon: ClockIcon, text: 'Histórico de envios', keywords: 'historico mensagens whatsapp envios' },
+    { pageKey: 'central_das', to: '/central-simples', icon: DocumentChartBarIcon, text: 'Central DAS', keywords: 'simples nacional central das apuracao' },
+    { pageKey: 'parcelamento_simples', to: '/parcelamento-simples', icon: BanknotesIcon, text: 'Central Parcelamento SN', keywords: 'central parcelamento simples nacional parcelas das parcsn' },
+    { pageKey: 'central_dctfweb', to: '/central-dctfweb', icon: DocumentTextIcon, text: 'Central DCTF-Web', keywords: 'dctfweb darf guia recibo declaracao completa' },
+    { pageKey: 'honorarios', to: '/gerenciamento-integrado', icon: Squares2X2Icon, text: 'Honorários', keywords: 'honorarios boletos gestao gerenciamento integrado empresas' },
+    { pageKey: 'boletos_empresa', to: '/boletos-por-empresa', icon: FolderOpenIcon, text: 'Boletos por empresa', keywords: 'cliente empresa boletos' },
+    { pageKey: 'monitor_boletos', to: '/monitor-boletos', icon: ClipboardDocumentCheckIcon, text: 'Monitor de boletos', keywords: 'monitor acompanhar cobrancas pagamentos' },
+    { pageKey: 'inadimplencia', to: '/inadimplencia-boletos', icon: ExclamationTriangleIcon, text: 'Inadimplência', keywords: 'inadimplencia boletos vencidos cobrancas' },
+    { pageKey: 'calculadora_honorarios', to: '/calculadora-honorarios', icon: CalculatorIcon, text: 'Calculadora de honorários', keywords: 'calculadora calculo honorarios mensalidade' },
+    { pageKey: 'relatorios', to: '/relatorios', icon: TableCellsIcon, text: 'Relatórios Excel', keywords: 'relatorios excel planilhas exportar banco dados' },
+    { pageKey: 'pro_labore', to: '/gerar-pro-labore', icon: DocumentTextIcon, text: 'Pró-labore', keywords: 'pro labore documento pdf socios' },
+    { pageKey: 'faturamento', to: '/relacao-faturamento', icon: CurrencyDollarIcon, text: 'Relação de faturamento', keywords: 'relacao faturamento receita' },
+    { pageKey: 'atribuicoes', to: '/gerenciar-atribuicoes', icon: Cog6ToothIcon, text: 'Atribuições', keywords: 'responsaveis tarefas distribuicao' },
+    { pageKey: 'gerenciar_paginas', to: '/gerenciar-paginas', icon: ShieldCheckIcon, text: 'Gerenciar páginas', keywords: 'paginas acessos permissoes disponibilidade' },
+    { pageKey: 'dashboard', to: '/dashboard', icon: HomeIcon, text: 'Dashboard', keywords: 'dashboard painel resumo' },
+    { pageKey: 'pendencias', to: '/pendencias', icon: ExclamationTriangleIcon, text: 'Pendências', keywords: 'alertas vencimentos tarefas' },
+    { pageKey: 'gerenciamento_simples', to: '/gerenciamento/simples-nacional', icon: Cog6ToothIcon, text: 'Gerenciamento do Simples', keywords: 'gerenciamento monitoramento simples nacional' },
 ];
 
 const Navbar = () => {
@@ -93,9 +65,9 @@ const Navbar = () => {
     const navigate = useNavigate();
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
-    const { canAccess } = usePageAccess();
+    const { canAccess, pagesByKey } = usePageAccess();
     const [openSections, setOpenSections] = useState(() => (
-        navigationSections.reduce((acc, section) => ({ ...acc, [section.title]: true }), {})
+        navigationCategories.reduce((acc, section) => ({ ...acc, [section.title]: true }), {})
     ));
 
     const userDisplayName = useMemo(() => {
@@ -112,12 +84,14 @@ const Navbar = () => {
             .join('')
             .toUpperCase() || 'U'
     ), [userDisplayName]);
-    const visibleNavigationSections = useMemo(() => navigationSections
-        .map((section) => ({
-            ...section,
-            items: section.items.filter((item) => canAccess(item.pageKey)),
+    const visibleNavigationSections = useMemo(() => navigationCategories
+        .map((category) => ({
+            ...category,
+            items: navigationItems
+                .filter((item) => canAccess(item.pageKey) && pagesByKey[item.pageKey]?.secao === category.title)
+                .sort((left, right) => (pagesByKey[left.pageKey]?.ordem || 0) - (pagesByKey[right.pageKey]?.ordem || 0)),
         }))
-        .filter((section) => section.items.length > 0), [canAccess]);
+        .filter((section) => section.items.length > 0), [canAccess, pagesByKey]);
 
     useEffect(() => {
         let isMounted = true;

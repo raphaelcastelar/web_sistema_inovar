@@ -18,6 +18,7 @@ const roles = [
     { field: 'permite_fiscal', label: 'Departamento Fiscal', short: 'Fiscal' },
     { field: 'permite_pessoal', label: 'Departamento Pessoal', short: 'Pessoal' },
 ];
+const navbarCategories = ['Cadastros', 'Arquivo', 'Fiscal', 'Pessoal', 'Financeiro', 'Documentos', 'Controle'];
 
 const GerenciarPaginasPage = () => {
     const { pages, loading, refreshPages } = usePageAccess();
@@ -38,11 +39,9 @@ const GerenciarPaginasPage = () => {
         });
     }, [pages, search, statusFilter]);
 
-    const groupedPages = useMemo(() => filteredPages.reduce((groups, page) => {
-        if (!groups[page.secao]) groups[page.secao] = [];
-        groups[page.secao].push(page);
-        return groups;
-    }, {}), [filteredPages]);
+    const groupedPages = useMemo(() => navbarCategories
+        .map((category) => [category, filteredPages.filter((page) => page.secao === category)])
+        .filter(([, categoryPages]) => categoryPages.length > 0), [filteredPages]);
 
     const stats = useMemo(() => ({
         total: pages.length,
@@ -51,7 +50,8 @@ const GerenciarPaginasPage = () => {
     }), [pages]);
 
     const updatePage = async (page, changes) => {
-        if (!page.gerenciavel || savingKeys.includes(page.chave)) return;
+        const changesOnlyCategory = Object.keys(changes).every((field) => field === 'secao');
+        if ((!page.gerenciavel && !changesOnlyCategory) || savingKeys.includes(page.chave)) return;
         setSavingKeys((current) => [...current, page.chave]);
         setFeedback(null);
         try {
@@ -127,19 +127,14 @@ const GerenciarPaginasPage = () => {
                 </div>
             </section>
 
-            {Object.keys(groupedPages).length === 0 ? (
+            {groupedPages.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-300 bg-white p-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
                     Nenhuma página encontrada com esses filtros.
                 </div>
-            ) : Object.entries(groupedPages).map(([section, sectionPages]) => (
+            ) : groupedPages.map(([section, sectionPages]) => (
                 <section key={section} className="space-y-3">
                     <div className="flex items-center gap-3">
                         <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">{section}</h2>
-                        {section === 'Fora do menu' && (
-                            <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                                Rotas preservadas
-                            </span>
-                        )}
                         <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
                     </div>
                     <div className="grid gap-3 xl:grid-cols-2">
@@ -164,6 +159,21 @@ const GerenciarPaginasPage = () => {
                                                     Alterada por {page.atualizado_por_nome} em {new Date(page.atualizado_em).toLocaleString('pt-BR')}
                                                 </p>
                                             )}
+                                            <label className="mt-3 block max-w-xs">
+                                                <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500 dark:text-gray-400">
+                                                    Categoria no navbar
+                                                </span>
+                                                <select
+                                                    value={page.secao}
+                                                    onChange={(event) => updatePage(page, { secao: event.target.value })}
+                                                    disabled={saving}
+                                                    className="h-9 w-full rounded-md border border-gray-200 bg-white px-2.5 text-sm font-medium text-gray-800 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-slate-500/20"
+                                                >
+                                                    {navbarCategories.map((category) => (
+                                                        <option key={category} value={category}>{category}</option>
+                                                    ))}
+                                                </select>
+                                            </label>
                                         </div>
                                         <button
                                             type="button"

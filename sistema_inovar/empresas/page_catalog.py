@@ -30,18 +30,20 @@ PAGE_CATALOG = [
     {'chave': 'atribuicoes', 'nome': 'Atribuições', 'rota': '/gerenciar-atribuicoes', 'secao': 'Controle', 'descricao': 'Distribuição de empresas e responsabilidades.'},
     {'chave': 'gerenciar_paginas', 'nome': 'Gerenciar páginas', 'rota': '/gerenciar-paginas', 'secao': 'Controle', 'descricao': 'Disponibilidade e permissões das páginas.', 'gerenciavel': False},
 
-    # Rotas preservadas, mas removidas do navbar atual.
-    {'chave': 'dashboard', 'nome': 'Dashboard', 'rota': '/dashboard', 'secao': 'Fora do menu', 'descricao': 'Resumo e indicadores do sistema.'},
-    {'chave': 'pendencias', 'nome': 'Pendências', 'rota': '/pendencias', 'secao': 'Fora do menu', 'descricao': 'Alertas, vencimentos e tarefas.'},
-    {'chave': 'gerenciamento_simples', 'nome': 'Gerenciamento do Simples', 'rota': '/gerenciamento/simples-nacional', 'secao': 'Fora do menu', 'descricao': 'Configuração do monitoramento do Simples Nacional.'},
+    # Páginas complementares recebem uma categoria inicial e podem ser movidas pelo administrador.
+    {'chave': 'dashboard', 'nome': 'Dashboard', 'rota': '/dashboard', 'secao': 'Controle', 'descricao': 'Resumo e indicadores do sistema.'},
+    {'chave': 'pendencias', 'nome': 'Pendências', 'rota': '/pendencias', 'secao': 'Controle', 'descricao': 'Alertas, vencimentos e tarefas.'},
+    {'chave': 'gerenciamento_simples', 'nome': 'Gerenciamento do Simples', 'rota': '/gerenciamento/simples-nacional', 'secao': 'Fiscal', 'descricao': 'Configuração do monitoramento do Simples Nacional.'},
 ]
+
+NAVBAR_SECTIONS = ('Cadastros', 'Arquivo', 'Fiscal', 'Pessoal', 'Financeiro', 'Documentos', 'Controle')
 
 
 def sync_page_catalog():
     from .models import PaginaSistema
 
     for position, item in enumerate(PAGE_CATALOG):
-        defaults = {
+        create_defaults = {
             'nome': item['nome'],
             'rota': item['rota'],
             'secao': item['secao'],
@@ -49,9 +51,13 @@ def sync_page_catalog():
             'ordem': position,
             'gerenciavel': item.get('gerenciavel', True),
         }
-        pagina, created = PaginaSistema.objects.get_or_create(chave=item['chave'], defaults=defaults)
+        pagina, created = PaginaSistema.objects.get_or_create(chave=item['chave'], defaults=create_defaults)
         if created:
             continue
+        defaults = {key: value for key, value in create_defaults.items() if key != 'secao'}
+        # Converte a categoria temporária usada antes de o navbar se tornar configurável.
+        if pagina.secao in {'Outros', 'Fora do menu', 'Operação', 'Administração'}:
+            defaults['secao'] = item['secao']
         changed_fields = []
         for field, value in defaults.items():
             if getattr(pagina, field) != value:

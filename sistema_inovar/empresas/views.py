@@ -3141,9 +3141,10 @@ def atualizar_pagina_acesso(request, chave):
     except PaginaSistema.DoesNotExist:
         return Response({'detail': 'Página não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
 
-    if not pagina.gerenciavel:
+    requested_fields = set(request.data.keys())
+    if not pagina.gerenciavel and not requested_fields.issubset({'secao'}):
         return Response(
-            {'detail': 'A página de gerenciamento não pode ser desativada ou ter suas permissões removidas.'},
+            {'detail': 'Esta página é permanente; somente sua categoria no navbar pode ser alterada.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
