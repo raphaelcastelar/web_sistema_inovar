@@ -73,9 +73,6 @@ const GerenciamentoIntegrado = () => {
     const [isSendingBoletos, setIsSendingBoletos] = useState(false);
     const [isDownloadingBoletos, setIsDownloadingBoletos] = useState(false);
     const [generatingBoletoId, setGeneratingBoletoId] = useState(null);
-    const [boletoActionModal, setBoletoActionModal] = useState(null); // { id, nome }
-    const [boletoActionLoading, setBoletoActionLoading] = useState(false);
-    const [boletoActionResult, setBoletoActionResult] = useState(null); // {type,text}
     const [batchSummary, setBatchSummary] = useState(null);
     const [resultsModalOpen, setResultsModalOpen] = useState(false);
     const [updatingHonorarioIds, setUpdatingHonorarioIds] = useState([]);
@@ -253,21 +250,12 @@ const GerenciamentoIntegrado = () => {
         }
     };
 
-    const handleAbrirModalBoleto = (empresa) => {
-        setBoletoActionModal({ id: empresa.id, nome: empresa.nome });
-        setError('');
-        setSuccess('');
-        setBoletoActionResult(null);
-    };
-
-    const handleBoletoAction = async (action) => {
-        if (!boletoActionModal) return;
-        const empresaId = boletoActionModal.id;
+    const handleBoletoAction = async (action, empresaSelecionada) => {
+        if (!empresaSelecionada) return;
+        const empresaId = empresaSelecionada.id;
         setGeneratingBoletoId(empresaId);
-        setBoletoActionLoading(true);
         setError('');
         setSuccess('');
-        setBoletoActionResult(null);
 
         try {
             const response = await axiosInstance.post('/api/gerar-boleto/', {
@@ -279,7 +267,7 @@ const GerenciamentoIntegrado = () => {
             if (action === 'baixar') {
                 const downloadUrl = response.data?.download_url;
                 if (downloadUrl) {
-                    const nomeEmpresa = boletoActionModal?.nome || 'empresa';
+                    const nomeEmpresa = empresaSelecionada?.nome || 'empresa';
                     const normalizedName = nomeEmpresa
                         .normalize('NFD')
                         .replace(/[\u0300-\u036f]/g, '') // remove acentos
@@ -300,16 +288,11 @@ const GerenciamentoIntegrado = () => {
                     window.URL.revokeObjectURL(blobUrl);
                 }
                 setSuccess('Boleto baixado.');
-                setBoletoActionResult({ type: 'success', text: 'Download liberado.' });
             } else {
                 const msg = response.data?.message || (action === 'gerar'
                     ? 'Boleto gerado com sucesso.'
                     : 'Boleto enviado com sucesso.');
                 setSuccess(msg);
-                setBoletoActionResult({
-                    type: 'success',
-                    text: action === 'gerar' ? 'Geração concluída.' : 'Envio concluído.',
-                });
                 if (action === 'enviar') {
                     await updateHonorarioStatus(empresaId, true, false);
                 }
@@ -317,15 +300,8 @@ const GerenciamentoIntegrado = () => {
             setTimeout(() => setSuccess(''), 4000);
         } catch (err) {
             setError(err.response?.data?.error || err.message || 'Falha ao processar boleto.');
-            setBoletoActionResult({ type: 'error', text: 'Falha ao processar.' });
         } finally {
             setGeneratingBoletoId(null);
-            setBoletoActionLoading(false);
-            // Mantém modal aberto para o usuário ver o status; fecha após curto intervalo
-            setTimeout(() => {
-                setBoletoActionModal(null);
-                setBoletoActionResult(null);
-            }, 1200);
         }
     };
 
@@ -1091,13 +1067,17 @@ const GerenciamentoIntegrado = () => {
                                                     >
                                                         <CogIcon className="h-5 w-5" />
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleAbrirModalBoleto(empresa)}
-                                                        className="rounded-md p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                                                        title="Gerar/baixar boleto"
-                                                        disabled={generatingBoletoId === empresa.id}
-                                                    >
-                                                        {generatingBoletoId === empresa.id ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <DocumentArrowDownIcon className="h-5 w-5" />}
+                                                    <button onClick={() => handleBoletoAction('gerar', empresa)} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-50 hover:text-amber-900 disabled:opacity-60 dark:hover:bg-amber-950/30" title={`Gerar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
+                                                        {generatingBoletoId === empresa.id ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <PlusIcon className="h-5 w-5" />}
+                                                        Gerar
+                                                    </button>
+                                                    <button onClick={() => handleBoletoAction('baixar', empresa)} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-sky-700 transition-colors hover:bg-sky-50 hover:text-sky-900 disabled:opacity-60 dark:hover:bg-sky-950/30" title={`Baixar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
+                                                        <DocumentArrowDownIcon className="h-5 w-5" />
+                                                        Baixar
+                                                    </button>
+                                                    <button onClick={() => handleBoletoAction('enviar', empresa)} className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 hover:text-emerald-900 disabled:opacity-60 dark:hover:bg-emerald-950/30" title={`Enviar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
+                                                        <PaperAirplaneIcon className="h-5 w-5 rotate-45" />
+                                                        Enviar
                                                     </button>
                                                     <button
                                                         onClick={() => handleToggleAtivo(empresa.id, empresa.ativo)}
@@ -1177,15 +1157,14 @@ const GerenciamentoIntegrado = () => {
                                                 >
                                                     <CogIcon className="h-5 w-5" />
                                                 </button>
-                                                <button
-                                                    onClick={() => handleAbrirModalBoleto(empresa)}
-                                                    className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-200 rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                                    title="Gerar/baixar boleto"
-                                                    disabled={generatingBoletoId === empresa.id}
-                                                >
-                                                    {generatingBoletoId === empresa.id
-                                                        ? <ArrowPathIcon className="h-5 w-5 animate-spin" />
-                                                        : <DocumentArrowDownIcon className="h-5 w-5" />}
+                                                <button onClick={() => handleBoletoAction('gerar', empresa)} className="rounded-md p-2 text-amber-600 transition-colors hover:bg-amber-50 hover:text-amber-800 disabled:opacity-60 dark:hover:bg-amber-950/30" title={`Gerar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
+                                                    {generatingBoletoId === empresa.id ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <PlusIcon className="h-5 w-5" />}
+                                                </button>
+                                                <button onClick={() => handleBoletoAction('baixar', empresa)} className="rounded-md p-2 text-sky-600 transition-colors hover:bg-sky-50 hover:text-sky-800 disabled:opacity-60 dark:hover:bg-sky-950/30" title={`Baixar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
+                                                    <DocumentArrowDownIcon className="h-5 w-5" />
+                                                </button>
+                                                <button onClick={() => handleBoletoAction('enviar', empresa)} className="rounded-md p-2 text-emerald-600 transition-colors hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-60 dark:hover:bg-emerald-950/30" title={`Enviar honorário de ${boletoMonth}/${boletoYear}`} disabled={generatingBoletoId === empresa.id}>
+                                                    <PaperAirplaneIcon className="h-5 w-5 rotate-45" />
                                                 </button>
                                                 <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
                                                 <button
@@ -1208,79 +1187,6 @@ const GerenciamentoIntegrado = () => {
                         </>
                     )}
                 </div>
-
-                {/* Modal ação boleto avulso */}
-                {boletoActionModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                        <div
-                            className="absolute inset-0"
-                            onClick={() => !boletoActionLoading && setBoletoActionModal(null)}
-                        />
-                        <div className="relative max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-800 dark:bg-gray-900">
-                            <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-800 flex items-start justify-between">
-                                <div>
-                                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Boleto Avulso</p>
-                                    <h2 className="mt-1 text-xl font-bold text-gray-900 dark:text-white">{boletoActionModal.nome}</h2>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Honorário de {boletoMonth}/{boletoYear} · vencimento em {vencimentoCompetencia}.</p>
-                                </div>
-                                <button
-                                    onClick={() => !boletoActionLoading && setBoletoActionModal(null)}
-                                    className="p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                >
-                                    <XCircleIcon className="h-6 w-6" />
-                                </button>
-                            </div>
-                            <div className="p-6 space-y-4">
-                                <div className="grid grid-cols-[1fr_7rem] gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800">
-                                    <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                        Mês do honorário
-                                        <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={boletoActionLoading} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
-                                            {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                                        </select>
-                                    </label>
-                                    <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                        Ano
-                                        <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} disabled={boletoActionLoading} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
-                                            {boletoYears.map((year) => <option key={year} value={year}>{year}</option>)}
-                                        </select>
-                                    </label>
-                                </div>
-                                <button
-                                    onClick={() => handleBoletoAction('gerar')}
-                                    disabled={boletoActionLoading}
-                                    className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 transition-colors hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <DocumentArrowDownIcon className="h-5 w-5" />}
-                                    Gerar boleto
-                                </button>
-                                <button
-                                    onClick={() => handleBoletoAction('baixar')}
-                                    disabled={boletoActionLoading}
-                                    className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-800 transition-colors hover:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <DocumentArrowDownIcon className="h-5 w-5" />}
-                                    Baixar boleto existente
-                                </button>
-                                <button
-                                    onClick={() => handleBoletoAction('enviar')}
-                                    disabled={boletoActionLoading}
-                                    className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {boletoActionLoading ? <ArrowPathIcon className="h-5 w-5 animate-spin" /> : <PaperAirplaneIcon className="h-5 w-5 rotate-45" />}
-                                    Enviar boleto pelo WhatsApp
-                                </button>
-                                {boletoActionResult && (
-                                    <div className={`rounded-lg px-4 py-3 text-sm font-semibold ${boletoActionResult.type === 'success'
-                                        ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-200'
-                                        : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-200'
-                                        }`}>
-                                        {boletoActionResult.text}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 {/* Modal Configurações */}
                 {boletoModalOpen && (
