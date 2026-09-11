@@ -8,7 +8,6 @@ import {
     CheckCircleIcon,
     EnvelopeIcon,
     ExclamationTriangleIcon,
-    FolderIcon,
     FunnelIcon,
     MagnifyingGlassIcon,
     PencilIcon,
@@ -397,7 +396,7 @@ const EmpresaList = () => {
                     <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Cadastro</p>
                     <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Empresas</h1>
                     <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-                        Consulte empresas, filtre por tags e acesse cadastro, edição e pastas.
+                        Consulte empresas, filtre por tags e mantenha os cadastros atualizados.
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -767,15 +766,6 @@ const EmpresaList = () => {
                                             aria-label={`Editar ${empresa.nome}`}
                                         >
                                             <PencilIcon className="mx-auto h-5 w-5" />
-                                        </Link>
-                                        <Link
-                                            to={`/empresas/${empresa.id}/pastas`}
-                                            onClick={saveListPosition}
-                                            className="flex-1 rounded-md px-3 py-2 text-center text-sm text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800"
-                                            title="Acessar pastas"
-                                            aria-label={`Acessar pastas de ${empresa.nome}`}
-                                        >
-                                            <FolderIcon className="mx-auto h-5 w-5" />
                                         </Link>
                                         {isAdmin && (
                                             <button

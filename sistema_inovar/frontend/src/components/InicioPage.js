@@ -939,13 +939,7 @@ const InicioPage = () => {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        {canAccess('empresas') ? (
-                          <Link to={`/empresas/${empresa.id}/pastas`} className="truncate font-semibold text-gray-950 hover:underline dark:text-gray-100">
-                            {empresa.nome}
-                          </Link>
-                        ) : (
-                          <span className="truncate font-semibold text-gray-950 dark:text-gray-100">{empresa.nome}</span>
-                        )}
+                        <span className="truncate font-semibold text-gray-950 dark:text-gray-100">{empresa.nome}</span>
                         <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusClasses(status.tone)}`}>
                           {status.label}
                         </span>

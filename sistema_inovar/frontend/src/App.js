@@ -51,7 +51,7 @@ function App() {
             <Route path="/empresas" element={<PageGate pageKey="empresas"><EmpresaList /></PageGate>} />
             <Route path="/empresas/cadastrar" element={<PageGate pageKey="empresas"><EmpresaForm /></PageGate>} />
             <Route path="/empresas/editar/:empresaId" element={<PageGate pageKey="empresas"><EmpresaForm /></PageGate>} />
-            <Route path="/empresas/:empresaId/pastas" element={<PageGate pageKey="empresas"><PastaManager /></PageGate>} />
+            <Route path="/empresas/:empresaId/pastas" element={<PageGate pageKey="carteira"><PastaManager /></PageGate>} />
             <Route path="/gerenciar-atribuicoes" element={<PageGate pageKey="atribuicoes"><GerenciarAtribuicoesPage /></PageGate>} />
 
             <Route path="/gerenciar-usuarios" element={<PageGate pageKey="usuarios"><FuncionarioList /></PageGate>} />

@@ -226,7 +226,7 @@ const CarteiraEmpresasPage = () => {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {canAccess('empresas') && <Link to={`/empresas/${empresa.id}/pastas`} className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+        {canAccess('carteira') && <Link to={`/empresas/${empresa.id}/pastas`} className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
           <FolderOpenIcon className="h-4 w-4" /> Pasta
         </Link>}
         {canAccess('central_das') && <Link to="/central-simples" className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
@@ -369,7 +369,7 @@ const CarteiraEmpresasPage = () => {
                     <td className="px-4 py-3 tabular-nums text-gray-700 dark:text-gray-200">{status.pending}</td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        {canAccess('empresas') && <Link to={`/empresas/${empresa.id}/pastas`} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Pasta</Link>}
+                        {canAccess('carteira') && <Link to={`/empresas/${empresa.id}/pastas`} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Pasta</Link>}
                         {canAccess('honorarios') && <Link to="/gerenciamento-integrado" className="rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950">Operar</Link>}
                       </div>
                     </td>
