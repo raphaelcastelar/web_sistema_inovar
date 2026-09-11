@@ -16,7 +16,13 @@ import {
     TagIcon,
     CalendarDaysIcon
 } from '@heroicons/react/24/outline';
-import { CentralCarregando } from './centralShared';
+import {
+    CentralCarregando,
+    chipClass,
+    chipOff,
+    controlClass,
+    labelClass,
+} from './centralShared';
 
 const DEFAULT_CARTEIRA_OPTIONS = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
 const MONTHS = [
@@ -90,6 +96,13 @@ const GerenciamentoIntegrado = () => {
     const boletoYears = useMemo(() => {
         const current = new Date().getFullYear();
         return Array.from({ length: 8 }, (_, index) => String(current + 1 - index));
+    }, []);
+    const applyBoletoCompetencia = useCallback((monthOffset) => {
+        const date = new Date();
+        date.setDate(1);
+        date.setMonth(date.getMonth() - monthOffset);
+        setBoletoMonth(String(date.getMonth() + 1).padStart(2, '0'));
+        setBoletoYear(String(date.getFullYear()));
     }, []);
 
     // --- Modal Config State ---
@@ -870,45 +883,55 @@ const GerenciamentoIntegrado = () => {
                     <MetricCard label="Honorários Marcados" value={stats.honorariosMarcados} icon={CheckCircleIcon} tone="success" />
                 </div>
 
-                <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:p-5">
-                    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="max-w-2xl space-y-2">
-                            <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#c49a61]">
-                                Disparo de Honorários
-                            </span>
-                            <h2 className="text-base font-semibold text-gray-950 dark:text-gray-100 sm:text-lg">
-                                Monte uma remessa para enviar ou baixar os boletos sem sair da tela.
-                            </h2>
-                            <p className="max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                                Escolha o mês do honorário. O boleto vence em {vencimentoCompetencia} e fica salvo na pasta de {boletoMonth}/{boletoYear}.
+                <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="w-full max-w-md">
+                            <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[#c49a61]">
+                                Disparo de honorários
                             </p>
-                        </div>
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                            <div className="grid grid-cols-[minmax(8rem,1fr)_6rem] gap-2 rounded-lg border border-gray-200 bg-slate-50 p-3 dark:border-gray-800 dark:bg-slate-900/70">
-                                <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                    Mês do honorário
-                                    <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
-                                        {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                                    </select>
-                                </label>
-                                <label className="text-xs font-semibold text-gray-600 dark:text-gray-300">
-                                    Ano
-                                    <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} className="mt-1 block h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className={labelClass}>Competência</label>
+                                    <div className="relative">
+                                        <select
+                                            value={boletoMonth}
+                                            onChange={(event) => setBoletoMonth(event.target.value)}
+                                            className={`${controlClass} appearance-none pr-9 font-medium`}
+                                        >
+                                            {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                                        </select>
+                                        <CalendarDaysIcon className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Ano</label>
+                                    <select
+                                        value={boletoYear}
+                                        onChange={(event) => setBoletoYear(event.target.value)}
+                                        className={`${controlClass} font-medium`}
+                                    >
                                         {boletoYears.map((year) => <option key={year} value={year}>{year}</option>)}
                                     </select>
-                                </label>
+                                </div>
                             </div>
-                            <div className="rounded-lg border border-gray-200 bg-slate-50 px-4 py-3 text-sm dark:border-gray-800 dark:bg-slate-900/70">
-                                <div className="text-xs uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Elegíveis agora</div>
-                                <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{activeEmpresas.length}</div>
-                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button type="button" onClick={() => applyBoletoCompetencia(0)} className={`${chipClass} ${chipOff}`}>Mês atual</button>
+                            <button type="button" onClick={() => applyBoletoCompetencia(1)} className={`${chipClass} ${chipOff}`}>Mês anterior</button>
+                            <span className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold tabular-nums text-white dark:bg-slate-100 dark:text-slate-950">
+                                <CalendarDaysIcon className="h-4 w-4" />
+                                {boletoMonth}/{boletoYear}
+                            </span>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                {activeEmpresas.length} elegíveis
+                            </span>
                             <button
                                 onClick={handleOpenBoletoModal}
                                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
                                 disabled={activeEmpresas.length === 0}
                             >
-                                <DocumentArrowDownIcon className="h-4 w-4" />
-                                Selecionar Empresas
+                                Selecionar empresas
                             </button>
                         </div>
                     </div>
