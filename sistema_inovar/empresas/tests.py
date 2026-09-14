@@ -20,6 +20,7 @@ from .management.commands.inventariar_arquivos import _relative_path, scan_media
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
 from .views import (
     _ensure_sync_safe_filename,
+    _normalize_whatsapp_number,
     _repair_surrogate_escapes,
     boleto_honorario_arquivo_disponivel,
     calcular_vencimento_honorario,
@@ -84,6 +85,24 @@ class NomeEmpresaTest(SimpleTestCase):
             gerar_nome_pasta_empresa_padronizado('Empresa: Teste/ES'),
             'EMPRESA TESTEES',
         )
+
+
+class NormalizacaoWhatsAppTest(SimpleTestCase):
+    def test_aceita_numero_brasileiro_com_oito_digitos(self):
+        self.assertEqual(
+            _normalize_whatsapp_number('+55 33 9983-1371'),
+            '553399831371',
+        )
+
+    def test_aceita_numero_brasileiro_com_nove_digitos(self):
+        self.assertEqual(
+            _normalize_whatsapp_number('+55 (33) 99983-1371'),
+            '5533999831371',
+        )
+
+    def test_adiciona_ddi_a_numeros_locais(self):
+        self.assertEqual(_normalize_whatsapp_number('(33) 9983-1371'), '553399831371')
+        self.assertEqual(_normalize_whatsapp_number('(33) 99983-1371'), '5533999831371')
 
 
 class ReutilizacaoBoletoHonorarioTest(SimpleTestCase):

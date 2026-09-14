@@ -137,7 +137,7 @@ MONTH_NAME_TO_NUMBER = {
 
 def _normalize_whatsapp_number(raw_number):
     digits = re.sub(r'\D', '', str(raw_number or ''))
-    if digits and not digits.startswith('55') and len(digits) in (10, 11):
+    if len(digits) in (10, 11):
         digits = f'55{digits}'
     return digits
 
@@ -2609,21 +2609,12 @@ def enviar_documentos_whatsapp_api(request):
         logger.warning(f"Empresa {empresa.nome} (ID: {empresa_id}) não possui telefone cadastrado.")
         return JsonResponse({"error": "Informe um WhatsApp destinatário ou cadastre um telefone para a empresa."}, status=status.HTTP_400_BAD_REQUEST)
 
-    recipient_whatsapp_number = re.sub(r'\D', '', raw_phone_number)
-    if telefone_avulso and not (
-        len(recipient_whatsapp_number) == 13
-        and recipient_whatsapp_number.startswith('55')
+    recipient_whatsapp_number = _normalize_whatsapp_number(raw_phone_number)
+    if not (
+        recipient_whatsapp_number.startswith('55')
+        and len(recipient_whatsapp_number) in (12, 13)
     ):
-        return JsonResponse(
-            {"error": "Informe o WhatsApp no formato brasileiro +55 (DD) 99999-9999."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    if not (len(recipient_whatsapp_number) >= 10 and len(recipient_whatsapp_number) <= 13 and recipient_whatsapp_number.isdigit()):
         return JsonResponse({"error": f"O número de WhatsApp '{raw_phone_number}' não é válido."}, status=status.HTTP_400_BAD_REQUEST)
-    if not recipient_whatsapp_number.startswith('55') and len(recipient_whatsapp_number) in [10, 11]:
-        recipient_whatsapp_number = '55' + recipient_whatsapp_number
-    elif not recipient_whatsapp_number.startswith('55'):
-        return JsonResponse({"error": f"O DDI (ex: 55 para Brasil) parece estar faltando no número de telefone '{raw_phone_number}'."}, status=status.HTTP_400_BAD_REQUEST)
 
     logger.info(f"Número de WhatsApp a ser utilizado para {empresa.nome}: {recipient_whatsapp_number}")
 

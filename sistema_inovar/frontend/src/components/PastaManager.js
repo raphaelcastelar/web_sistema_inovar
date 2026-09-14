@@ -55,8 +55,10 @@ const getBrazilianLocalPhoneDigits = (value = '') => {
 const formatBrazilianPhone = (value = '') => {
     const digits = getBrazilianLocalPhoneDigits(value);
     if (digits.length <= 2) return digits ? `(${digits}` : '';
-    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    const subscriberNumber = digits.slice(2);
+    if (subscriberNumber.length <= 4) return `(${digits.slice(0, 2)}) ${subscriberNumber}`;
+    const prefixLength = digits.length === 11 ? 5 : 4;
+    return `(${digits.slice(0, 2)}) ${subscriberNumber.slice(0, prefixLength)}-${subscriberNumber.slice(prefixLength)}`;
 };
 
 const sortYearsForDisplay = (years) => {
@@ -370,7 +372,7 @@ const PastaManager = () => {
     const handleWhatsAppSubmit = (event) => {
         event.preventDefault();
         const phoneDigits = getBrazilianLocalPhoneDigits(whatsAppDestinatario);
-        if (phoneDigits.length !== 11) return;
+        if (![10, 11].includes(phoneDigits.length)) return;
         setSendingWhatsApp(true);
         axiosInstance.post(`/api/enviar-documentos-whatsapp/`, {
             empresa_id: empresaId,
@@ -612,20 +614,20 @@ const PastaManager = () => {
                                         autoFocus
                                         value={whatsAppDestinatario}
                                         onChange={(event) => setWhatsAppDestinatario(formatBrazilianPhone(event.target.value))}
-                                        placeholder="(28) 99999-9999"
-                                        pattern="[(][0-9]{2}[)] [0-9]{5}-[0-9]{4}"
-                                        title="Digite o número no formato (DD) 99999-9999"
+                                        placeholder="(28) 99999-9999 ou (28) 9999-9999"
+                                        pattern="[(][0-9]{2}[)] [0-9]{4,5}-[0-9]{4}"
+                                        title="Digite o número no formato (DD) 99999-9999 ou (DD) 9999-9999"
                                         className="min-w-0 flex-1 bg-transparent px-3 text-sm text-gray-950 outline-none dark:text-white"
                                     />
                                 </div>
-                                <div className={`mt-3 rounded-md px-3 py-2 text-xs font-semibold ${getBrazilianLocalPhoneDigits(whatsAppDestinatario).length === 11 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'}`}>
-                                    Formato obrigatório: +55 (DD) 99999-9999
+                                <div className={`mt-3 rounded-md px-3 py-2 text-xs font-semibold ${[10, 11].includes(getBrazilianLocalPhoneDigits(whatsAppDestinatario).length) ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'}`}>
+                                    Formatos aceitos: +55 (DD) 99999-9999 ou +55 (DD) 9999-9999
                                 </div>
                                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">O código do Brasil (+55) já será incluído automaticamente.</p>
                             </div>
                             <div className="flex flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/70 sm:flex-row sm:justify-end">
                                 <button type="button" onClick={() => setShowWhatsAppModal(false)} disabled={sendingWhatsApp} className="h-10 rounded-md border border-gray-200 px-4 text-sm font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Cancelar</button>
-                                <button type="submit" disabled={sendingWhatsApp || getBrazilianLocalPhoneDigits(whatsAppDestinatario).length !== 11} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                <button type="submit" disabled={sendingWhatsApp || ![10, 11].includes(getBrazilianLocalPhoneDigits(whatsAppDestinatario).length)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
                                     {sendingWhatsApp ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <ChatBubbleBottomCenterTextIcon className="h-4 w-4" />}
                                     {sendingWhatsApp ? 'Enviando...' : 'Confirmar envio'}
                                 </button>
