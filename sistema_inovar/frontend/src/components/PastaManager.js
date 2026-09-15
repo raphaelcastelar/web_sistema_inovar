@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDropzone } from 'react-dropzone';
@@ -12,11 +12,26 @@ import {
     ArrowUpOnSquareIcon,
     XMarkIcon,
     CheckCircleIcon,
+    BuildingOffice2Icon,
+    ChevronUpDownIcon,
+    MagnifyingGlassIcon,
     PencilSquareIcon,
     TrashIcon
 } from '@heroicons/react/24/outline';
 
 const SERVER_FILE_URL_BASE = process.env.REACT_APP_API_URL || '';
+
+const normalizeSearchText = (value = '') => String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .trim();
+
+const formatCnpj = (value = '') => {
+    const digits = String(value).replace(/\D/g, '');
+    if (digits.length !== 14) return value || 'CNPJ não informado';
+    return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+};
 
 // --- CONFIGURAÇÕES E FUNÇÕES AUXILIARES (DO SEU CÓDIGO ORIGINAL) ---
 
@@ -179,6 +194,8 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, folderT
 const PastaManager = () => {
     // --- ESTADO DO COMPONENTE ---
     const { empresaId } = useParams();
+    const navigate = useNavigate();
+    const companySwitcherRef = useRef(null);
     const [pastas, setPastas] = useState([]);
     const [activeFolderGroup, setActiveFolderGroup] = useState('Constitutivos');
     const [selectedPasta, setSelectedPasta] = useState(null);
@@ -201,6 +218,26 @@ const PastaManager = () => {
     const [whatsAppDestinatario, setWhatsAppDestinatario] = useState('');
     const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
     const [fileOperationId, setFileOperationId] = useState(null);
+    const [empresasDisponiveis, setEmpresasDisponiveis] = useState([]);
+    const [companySearch, setCompanySearch] = useState('');
+    const [showCompanySwitcher, setShowCompanySwitcher] = useState(false);
+    const [loadingCompanies, setLoadingCompanies] = useState(true);
+    const [activeCompanyIndex, setActiveCompanyIndex] = useState(0);
+
+    const companyResults = useMemo(() => {
+        const term = normalizeSearchText(companySearch);
+        const digits = companySearch.replace(/\D/g, '');
+
+        return empresasDisponiveis
+            .filter(empresa => String(empresa.id) !== String(empresaId))
+            .filter(empresa => {
+                if (!term && !digits) return true;
+                return normalizeSearchText(empresa.nome).includes(term)
+                    || (digits && String(empresa.cnpj || '').replace(/\D/g, '').includes(digits));
+            })
+            .sort((left, right) => String(left.nome || '').localeCompare(String(right.nome || ''), 'pt-BR', { sensitivity: 'base' }))
+            .slice(0, 8);
+    }, [companySearch, empresasDisponiveis, empresaId]);
 
     // --- LÓGICA DE DADOS E API ---
     const fetchData = useCallback(() => {
@@ -223,6 +260,69 @@ const PastaManager = () => {
             setLoading(false);
         });
     }, [empresaId]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        axiosInstance.get('/api/empresas/', { params: { compact: 'true' } })
+            .then(response => {
+                if (isMounted) {
+                    setEmpresasDisponiveis(Array.isArray(response.data) ? response.data : response.data?.results || []);
+                }
+            })
+            .catch(() => {
+                if (isMounted) setEmpresasDisponiveis([]);
+            })
+            .finally(() => {
+                if (isMounted) setLoadingCompanies(false);
+            });
+
+        return () => { isMounted = false; };
+    }, []);
+
+    useEffect(() => {
+        const handleOutsideClick = event => {
+            if (companySwitcherRef.current && !companySwitcherRef.current.contains(event.target)) {
+                setShowCompanySwitcher(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleOutsideClick);
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, []);
+
+    useEffect(() => {
+        setActiveCompanyIndex(0);
+    }, [companyResults.length, companySearch]);
+
+    const handleCompanyChange = empresa => {
+        setShowCompanySwitcher(false);
+        setCompanySearch('');
+        setSelectedPasta(null);
+        setSelectedFiles([]);
+        setActiveFolderGroup('Constitutivos');
+        setArquivos({});
+        setEmpresaNome(empresa.nome || '');
+        setEmpresaCnpj(empresa.cnpj || '');
+        setEmpresaEmail('');
+        setEmpresaTelefone('');
+        navigate(`/empresas/${empresa.id}/pastas`);
+    };
+
+    const handleCompanySearchKeyDown = event => {
+        if (event.key === 'ArrowDown' && companyResults.length > 0) {
+            event.preventDefault();
+            setActiveCompanyIndex(current => Math.min(current + 1, companyResults.length - 1));
+        } else if (event.key === 'ArrowUp' && companyResults.length > 0) {
+            event.preventDefault();
+            setActiveCompanyIndex(current => Math.max(current - 1, 0));
+        } else if (event.key === 'Enter' && companyResults[activeCompanyIndex]) {
+            event.preventDefault();
+            handleCompanyChange(companyResults[activeCompanyIndex]);
+        } else if (event.key === 'Escape') {
+            setShowCompanySwitcher(false);
+        }
+    };
 
     useEffect(() => {
         setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
@@ -406,6 +506,88 @@ const PastaManager = () => {
                     </div>
                 )}
             </div>
+
+            <section ref={companySwitcherRef} className="relative z-30 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <div className="flex shrink-0 items-center gap-3 lg:w-64">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
+                            <BuildingOffice2Icon className="h-5 w-5" />
+                        </span>
+                        <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">Trocar de empresa</p>
+                            <p className="mt-0.5 truncate text-sm text-gray-600 dark:text-gray-300">Acesse outra pasta rapidamente</p>
+                        </div>
+                    </div>
+
+                    <div className="relative min-w-0 flex-1">
+                        <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="text"
+                            role="combobox"
+                            aria-expanded={showCompanySwitcher}
+                            aria-controls="company-switcher-results"
+                            aria-autocomplete="list"
+                            value={companySearch}
+                            onChange={event => {
+                                setCompanySearch(event.target.value);
+                                setShowCompanySwitcher(true);
+                            }}
+                            onFocus={() => setShowCompanySwitcher(true)}
+                            onKeyDown={handleCompanySearchKeyDown}
+                            placeholder="Pesquise pelo nome ou CNPJ da empresa"
+                            className="h-11 w-full rounded-lg border border-gray-200 bg-gray-50 pl-10 pr-11 text-sm text-gray-950 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-2 focus:ring-sky-500/15 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:border-sky-400 dark:focus:bg-gray-900"
+                        />
+                        {companySearch ? (
+                            <button
+                                type="button"
+                                onClick={() => setCompanySearch('')}
+                                aria-label="Limpar pesquisa de empresa"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                            >
+                                <XMarkIcon className="h-4 w-4" />
+                            </button>
+                        ) : (
+                            <ChevronUpDownIcon className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                        )}
+
+                        {showCompanySwitcher && (
+                            <div id="company-switcher-results" role="listbox" className="absolute left-0 right-0 top-full z-40 mt-2 max-h-80 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                                {loadingCompanies ? (
+                                    <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-gray-500 dark:text-gray-400">
+                                        <ArrowPathIcon className="h-4 w-4 animate-spin" /> Carregando empresas…
+                                    </div>
+                                ) : companyResults.length === 0 ? (
+                                    <div className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                                        {empresasDisponiveis.length <= 1 ? 'Nenhuma outra empresa disponível.' : 'Nenhuma empresa encontrada.'}
+                                    </div>
+                                ) : (
+                                    companyResults.map((empresa, index) => (
+                                        <button
+                                            key={empresa.id}
+                                            type="button"
+                                            role="option"
+                                            aria-selected={index === activeCompanyIndex}
+                                            onMouseEnter={() => setActiveCompanyIndex(index)}
+                                            onClick={() => handleCompanyChange(empresa)}
+                                            className={`flex w-full min-w-0 items-center gap-3 rounded-md px-3 py-2.5 text-left transition ${index === activeCompanyIndex ? 'bg-sky-50 text-sky-900 dark:bg-sky-950/50 dark:text-sky-100' : 'text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800'}`}
+                                        >
+                                            <FolderIcon className="h-5 w-5 shrink-0 text-[#c49a61]" />
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block truncate text-sm font-semibold">{empresa.nome}</span>
+                                                <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{formatCnpj(empresa.cnpj)}</span>
+                                            </span>
+                                            {!empresa.ativo && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Não ativada</span>}
+                                        </button>
+                                    ))
+                                )}
+                                {companyResults.length === 8 && (
+                                    <p className="border-t border-gray-100 px-3 py-2 text-center text-[11px] text-gray-500 dark:border-gray-800 dark:text-gray-400">Continue digitando para refinar a pesquisa.</p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </section>
 
             <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex items-center justify-between gap-3">

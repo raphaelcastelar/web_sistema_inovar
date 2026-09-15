@@ -262,6 +262,12 @@ const Navbar = () => {
 };
 
 const isItemActive = (pathname, item) => {
+    const isCompanyFolderPath = /^\/empresas\/[^/]+\/pastas(?:\/|$)/.test(pathname);
+
+    if (isCompanyFolderPath) {
+        return item.pageKey === 'carteira';
+    }
+
     if (item.to === '/') {
         return pathname === '/';
     }
