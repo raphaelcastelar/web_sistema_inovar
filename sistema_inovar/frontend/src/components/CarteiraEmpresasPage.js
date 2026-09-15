@@ -1,386 +1,273 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowPathIcon,
-  BanknotesIcon,
   BuildingOffice2Icon,
-  CheckCircleIcon,
-  DocumentArrowDownIcon,
+  ChevronRightIcon,
   FolderOpenIcon,
   MagnifyingGlassIcon,
-  Squares2X2Icon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import axiosInstance from '../api/axiosInstance';
-import {
-  buildCompanyStatus,
-  getDaysToDue,
-  getStatusClasses,
-  getTaskDefinitions,
-  taskPalette,
-} from '../utils/carteiraEmpresas';
-import { usePageAccess } from '../context/PageAccessContext';
-
-const filterOptions = [
-  { id: 'acao', label: 'Precisa de ação' },
-  { id: 'pendencias', label: 'Com pendências' },
-  { id: 'vencendo', label: 'Vencendo' },
-  { id: 'em-dia', label: 'Em dia' },
-  { id: 'todas', label: 'Todas' },
-];
-
-const areaOptions = ['Todas', 'Fiscal', 'Pessoal', 'Financeiro'];
 
 function normalizeText(value) {
-  return String(value || '').toLowerCase();
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .trim();
 }
 
 function formatCnpj(value) {
-  return value || 'CNPJ não informado';
-}
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length !== 14) return value || 'CNPJ não informado';
 
-function getResponsibleName(empresa) {
-  return empresa.responsavel_nome || empresa.responsavel || empresa.usuario_responsavel || 'Sem responsável';
-}
-
-function ProgressBar({ value }) {
-  return (
-    <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-      <div
-        className="h-full rounded-full bg-gradient-to-r from-sky-200 via-violet-200 to-emerald-200 transition-all"
-        style={{ width: `${value}%` }}
-      />
-    </div>
+  return digits.replace(
+    /^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,
+    '$1.$2.$3/$4-$5',
   );
 }
 
-function SummaryCard({ label, value, tone }) {
-  const toneClass = {
-    neutral: 'bg-slate-50 text-slate-700 ring-slate-200 dark:bg-slate-900/70 dark:text-slate-200 dark:ring-slate-800',
-    success: 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:ring-emerald-900',
-    warning: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-950/30 dark:text-orange-300 dark:ring-orange-900',
-    attention: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-900',
-  }[tone || 'neutral'];
+function getInitials(name) {
+  const parts = String(name || 'Empresa').trim().split(/\s+/).filter(Boolean);
+  const selectedParts = parts.length > 1 ? [parts[0], parts[parts.length - 1]] : parts;
+  return selectedParts.map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+}
 
-  return (
-    <div className={`min-w-0 rounded-lg px-4 py-3 ring-1 ${toneClass}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-70">{label}</p>
-      <p className="mt-2 break-words text-2xl font-bold tabular-nums">{value}</p>
-    </div>
-  );
+function getGroupLetter(name) {
+  const firstCharacter = normalizeText(name).charAt(0).toUpperCase();
+  return /[A-Z]/.test(firstCharacter) ? firstCharacter : '#';
 }
 
 const CarteiraEmpresasPage = () => {
-  const { canAccess } = usePageAccess();
   const [empresas, setEmpresas] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('acao');
-  const [areaFilter, setAreaFilter] = useState('Todas');
-  const [viewMode, setViewMode] = useState('cards');
-  const [updatingIds, setUpdatingIds] = useState([]);
+  const searchInputRef = useRef(null);
 
-  const userCargo = currentUser?.cargo || 'admin';
-  const isSuperuser = Boolean(currentUser?.is_superuser);
-  const tasks = useMemo(() => getTaskDefinitions(userCargo, isSuperuser), [userCargo, isSuperuser]);
-  const daysToDue = useMemo(() => getDaysToDue(userCargo), [userCargo]);
-
-  const fetchData = useCallback(async () => {
+  const fetchEmpresas = useCallback(async () => {
     setLoading(true);
     setError('');
+
     try {
-      const [userResponse, empresasResponse] = await Promise.all([
-        axiosInstance.get('/api/current-user/'),
-        axiosInstance.get('/api/empresas/'),
-      ]);
-      setCurrentUser(userResponse.data);
-      setEmpresas(Array.isArray(empresasResponse.data) ? empresasResponse.data : []);
+      const response = await axiosInstance.get('/api/empresas/');
+      const data = Array.isArray(response.data)
+        ? response.data
+        : response.data?.results || [];
+      setEmpresas(data);
     } catch (err) {
-      setError(err?.response?.data?.detail || 'Não foi possível carregar a carteira de empresas.');
+      setError(err?.response?.data?.detail || 'Não foi possível carregar as empresas.');
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchEmpresas();
+  }, [fetchEmpresas]);
 
-  const empresasComStatus = useMemo(() => (
-    empresas.map((empresa) => ({
-      empresa,
-      status: buildCompanyStatus(empresa, tasks, daysToDue),
-    }))
-  ), [empresas, tasks, daysToDue]);
+  useEffect(() => {
+    const handleShortcut = (event) => {
+      const target = event.target;
+      const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName);
 
-  const summary = useMemo(() => {
-    const total = empresasComStatus.length;
-    const emDia = empresasComStatus.filter((item) => item.status.tone === 'success').length;
-    const vencendo = empresasComStatus.filter((item) => item.status.tone === 'warning').length;
-    const pendencias = empresasComStatus.filter((item) => ['warning', 'attention'].includes(item.status.tone)).length;
+      if (event.key === '/' && !isTyping) {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
 
-    return { total, emDia, vencendo, pendencias };
-  }, [empresasComStatus]);
+      if (event.key === 'Escape' && document.activeElement === searchInputRef.current) {
+        setSearch('');
+        searchInputRef.current?.blur();
+      }
+    };
+
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, []);
 
   const filteredEmpresas = useMemo(() => {
     const term = normalizeText(search);
     const digits = search.replace(/\D/g, '');
-    const areaTasks = areaFilter === 'Todas'
-      ? tasks
-      : tasks.filter((task) => task.area === areaFilter);
 
-    return empresasComStatus
-      .filter(({ empresa, status }) => {
-        const matchesSearch = !term && !digits
-          ? true
-          : normalizeText(empresa.nome).includes(term)
-            || normalizeText(empresa.cnpj).includes(term)
-            || (digits && String(empresa.cnpj || '').replace(/\D/g, '').includes(digits));
+    return empresas
+      .filter((empresa) => {
+        if (!term && !digits) return true;
 
-        const hasAreaTask = areaFilter === 'Todas' || areaTasks.some((task) => task.key in empresa);
+        const nameMatches = normalizeText(empresa.nome).includes(term);
+        const cnpjMatches = digits
+          && String(empresa.cnpj || '').replace(/\D/g, '').includes(digits);
 
-        const matchesStatus = (() => {
-          if (statusFilter === 'todas') return true;
-          if (statusFilter === 'acao') return ['warning', 'attention'].includes(status.tone);
-          if (statusFilter === 'pendencias') return status.pending > 0;
-          if (statusFilter === 'vencendo') return status.tone === 'warning';
-          if (statusFilter === 'em-dia') return status.tone === 'success';
-          return true;
-        })();
-
-        return matchesSearch && hasAreaTask && matchesStatus;
+        return nameMatches || cnpjMatches;
       })
-      .sort((a, b) => a.status.priority - b.status.priority || a.empresa.nome.localeCompare(b.empresa.nome));
-  }, [areaFilter, empresasComStatus, search, statusFilter, tasks]);
+      .sort((left, right) => String(left.nome || '').localeCompare(
+        String(right.nome || ''),
+        'pt-BR',
+        { sensitivity: 'base' },
+      ));
+  }, [empresas, search]);
 
-  const handleTaskToggle = async (empresa, task) => {
-    const id = String(empresa.id);
-    if (updatingIds.includes(id)) return;
-    const nextValue = !empresa[task.key];
+  const groupedEmpresas = useMemo(() => (
+    filteredEmpresas.reduce((groups, empresa) => {
+      const letter = getGroupLetter(empresa.nome);
+      const currentGroup = groups.find((group) => group.letter === letter);
 
-    setUpdatingIds((current) => [...current, id]);
-    setEmpresas((current) => current.map((item) => (
-      String(item.id) === id ? { ...item, [task.key]: nextValue } : item
-    )));
+      if (currentGroup) {
+        currentGroup.empresas.push(empresa);
+      } else {
+        groups.push({ letter, empresas: [empresa] });
+      }
 
-    try {
-      const response = await axiosInstance.patch(`/api/empresas/${empresa.id}/`, {
-        [task.key]: nextValue,
-      });
-      setEmpresas((current) => current.map((item) => (
-        String(item.id) === id ? { ...item, ...response.data } : item
-      )));
-    } catch (err) {
-      setEmpresas((current) => current.map((item) => (
-        String(item.id) === id ? { ...item, [task.key]: !nextValue } : item
-      )));
-      setError(err?.response?.data?.detail || `Falha ao atualizar ${task.label}.`);
-    } finally {
-      setUpdatingIds((current) => current.filter((itemId) => itemId !== id));
-    }
-  };
-
-  const renderTaskPill = (empresa, task) => {
-    const done = Boolean(empresa[task.key]);
-    return (
-      <button
-        key={task.key}
-        type="button"
-        onClick={() => handleTaskToggle(empresa, task)}
-        disabled={updatingIds.includes(String(empresa.id))}
-        className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-wait disabled:opacity-60 ${done ? taskPalette.done : taskPalette.pending}`}
-      >
-        <CheckCircleIcon className="h-3.5 w-3.5" />
-        {task.label}
-      </button>
-    );
-  };
-
-  const renderCompanyCard = ({ empresa, status }) => (
-    <div key={empresa.id} className="min-w-0 rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="min-w-0 break-words text-base font-semibold text-gray-950 dark:text-gray-100">{empresa.nome}</h2>
-            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getStatusClasses(status.tone)}`}>
-              {status.label}
-            </span>
-          </div>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{formatCnpj(empresa.cnpj)}</p>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{getResponsibleName(empresa)}</p>
-        </div>
-
-        <div className="w-full min-w-0 lg:w-56">
-          <div className="mb-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>{status.done}/{status.total} concluídas</span>
-            <span>{status.progress}%</span>
-          </div>
-          <ProgressBar value={status.progress} />
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{status.description}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {tasks.map((task) => renderTaskPill(empresa, task))}
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        {canAccess('carteira') && <Link to={`/empresas/${empresa.id}/pastas`} className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
-          <FolderOpenIcon className="h-4 w-4" /> Pasta
-        </Link>}
-        {canAccess('central_das') && <Link to="/central-simples" className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
-          <DocumentArrowDownIcon className="h-4 w-4" /> DAS
-        </Link>}
-        {canAccess('boletos_empresa') && <Link to="/boletos-por-empresa" className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
-          <BanknotesIcon className="h-4 w-4" /> Boletos
-        </Link>}
-        {canAccess('honorarios') && <Link to="/gerenciamento-integrado" className="inline-flex h-9 min-w-28 flex-1 items-center justify-center gap-2 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950">
-          <Squares2X2Icon className="h-4 w-4" /> Operar
-        </Link>}
-      </div>
-    </div>
-  );
+      return groups;
+    }, [])
+  ), [filteredEmpresas]);
 
   return (
-    <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <main className="w-full max-w-none space-y-6 px-0 py-2 text-gray-900 dark:text-gray-100 sm:py-4">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Operação mensal</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Carteira de Empresas</h1>
-          <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-            Acompanhe obrigações, progresso e próximas ações das empresas atribuídas.
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">
+            Arquivos das empresas
+          </p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">
+            Pastas
+          </h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Selecione uma empresa para acessar seus documentos.
           </p>
         </div>
+
         <button
           type="button"
-          onClick={fetchData}
-          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white sm:w-auto"
+          onClick={fetchEmpresas}
+          disabled={loading}
+          className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
         >
           <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Atualizar
         </button>
-      </div>
+      </header>
 
-      <div className="grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Atribuídas" value={summary.total} />
-        <SummaryCard label="Em dia" value={summary.emDia} tone="success" />
-        <SummaryCard label="Com pendências" value={summary.pendencias} tone="attention" />
-        <SummaryCard label="Vencendo" value={summary.vencendo} tone="warning" />
-      </div>
-
-      <div className="w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1fr)_auto_auto] xl:items-center">
-          <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-            <MagnifyingGlassIcon className="h-4 w-4" />
+      <section className="sticky top-0 z-10 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 transition focus-within:border-sky-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-sky-500/15 dark:border-gray-700 dark:bg-gray-950 dark:focus-within:border-sky-400 dark:focus-within:bg-gray-900">
+            <MagnifyingGlassIcon className="h-5 w-5 shrink-0 text-gray-400" />
             <input
+              ref={searchInputRef}
+              type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por empresa ou CNPJ"
-              className="min-w-0 flex-1 bg-transparent text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
+              placeholder="Buscar empresa por nome ou CNPJ"
+              aria-label="Buscar empresa por nome ou CNPJ"
+              className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400 dark:text-gray-100"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  searchInputRef.current?.focus();
+                }}
+                aria-label="Limpar busca"
+                className="rounded-md p-1 text-gray-400 transition hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            )}
           </label>
 
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-            {filterOptions.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setStatusFilter(option.id)}
-                className={`h-9 rounded-md px-2 text-xs font-semibold transition-colors sm:px-3 ${
-                  statusFilter === option.id
-                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-            <select
-              value={areaFilter}
-              onChange={(event) => setAreaFilter(event.target.value)}
-              className="h-9 min-w-0 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-            >
-              {areaOptions.map((area) => (
-                <option key={area} value={area}>{area}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => setViewMode(viewMode === 'cards' ? 'tabela' : 'cards')}
-              className="h-9 rounded-md border border-gray-200 px-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              {viewMode === 'cards' ? 'Tabela' : 'Cards'}
-            </button>
+          <div className="flex items-center justify-between gap-3 px-1 text-sm text-gray-500 dark:text-gray-400 sm:justify-end sm:px-0">
+            <span>
+              <strong className="font-semibold text-gray-900 dark:text-gray-100">{filteredEmpresas.length}</strong>
+              {' '}{filteredEmpresas.length === 1 ? 'empresa' : 'empresas'}
+            </span>
+            <span className="hidden rounded-md border border-gray-200 px-2 py-1 text-xs dark:border-gray-700 lg:inline">
+              / para buscar
+            </span>
           </div>
         </div>
-      </div>
+      </section>
 
       {error && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
-          Carregando carteira...
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" aria-label="Carregando empresas">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-20 animate-pulse rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+            />
+          ))}
         </div>
-      ) : filteredEmpresas.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-10 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      ) : groupedEmpresas.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center dark:border-gray-700 dark:bg-gray-900">
           <BuildingOffice2Icon className="mx-auto h-10 w-10 text-gray-400" />
-          <p className="mt-3 text-sm font-semibold text-gray-700 dark:text-gray-200">Nenhuma empresa encontrada</p>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Ajuste os filtros ou faça uma nova busca.</p>
-        </div>
-      ) : viewMode === 'cards' ? (
-        <div className="grid w-full gap-4">
-          {filteredEmpresas.map(renderCompanyCard)}
+          <p className="mt-3 text-sm font-semibold text-gray-800 dark:text-gray-200">
+            Nenhuma empresa encontrada
+          </p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Verifique o nome ou CNPJ informado.
+          </p>
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white"
+            >
+              Limpar busca
+            </button>
+          )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <div className="overflow-x-auto">
-            <table className="min-w-[760px] text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.12em] text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                <tr>
-                  <th className="px-4 py-3">Empresa</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Progresso</th>
-                  <th className="px-4 py-3">Pendências</th>
-                  <th className="px-4 py-3">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {filteredEmpresas.map(({ empresa, status }) => (
-                  <tr key={empresa.id}>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-gray-950 dark:text-gray-100">{empresa.nome}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{formatCnpj(empresa.cnpj)}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusClasses(status.tone)}`}>{status.label}</span>
-                    </td>
-                    <td className="min-w-48 px-4 py-3">
-                      <ProgressBar value={status.progress} />
-                      <div className="mt-1 text-xs text-gray-500">{status.progress}%</div>
-                    </td>
-                    <td className="px-4 py-3 tabular-nums text-gray-700 dark:text-gray-200">{status.pending}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        {canAccess('carteira') && <Link to={`/empresas/${empresa.id}/pastas`} className="rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Pasta</Link>}
-                        {canAccess('honorarios') && <Link to="/gerenciamento-integrado" className="rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950">Operar</Link>}
-                      </div>
-                    </td>
-                  </tr>
+        <div className="space-y-7">
+          {groupedEmpresas.map((group) => (
+            <section key={group.letter} aria-labelledby={`grupo-${group.letter}`}>
+              <div className="mb-3 flex items-center gap-3">
+                <h2
+                  id={`grupo-${group.letter}`}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-950"
+                >
+                  {group.letter}
+                </h2>
+                <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {group.empresas.map((empresa) => (
+                  <Link
+                    key={empresa.id}
+                    to={`/empresas/${empresa.id}/pastas`}
+                    aria-label={`Abrir pasta de ${empresa.nome}`}
+                    className="group flex min-h-20 min-w-0 items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-sky-700 dark:focus:ring-offset-gray-950"
+                  >
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sm font-bold text-sky-700 transition group-hover:bg-sky-100 dark:bg-sky-950/50 dark:text-sky-300 dark:group-hover:bg-sky-950">
+                      {getInitials(empresa.nome)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-gray-950 dark:text-gray-100" title={empresa.nome}>
+                        {empresa.nome}
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-gray-500 dark:text-gray-400">
+                        {formatCnpj(empresa.cnpj)}
+                      </span>
+                    </span>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition group-hover:bg-sky-50 group-hover:text-sky-700 dark:group-hover:bg-sky-950/50 dark:group-hover:text-sky-300">
+                      <FolderOpenIcon className="h-5 w-5 group-hover:hidden" />
+                      <ChevronRightIcon className="hidden h-5 w-5 group-hover:block" />
+                    </span>
+                  </Link>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </section>
+          ))}
         </div>
       )}
-    </div>
+    </main>
   );
 };
 
