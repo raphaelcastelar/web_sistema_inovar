@@ -66,15 +66,15 @@ class PropostaComercialPdfTest(SimpleTestCase):
             'hon_total': 'R$ 481,50',
         }
 
-    def test_gera_modelo_sem_desconto_sem_campos_editaveis(self):
+    def test_gera_modelo_sem_desconto_com_campos_editaveis(self):
         pdf = build_proposta_comercial_pdf(self.campos, com_desconto=False)
         reader = PdfReader(BytesIO(pdf))
-        texto = reader.pages[0].extract_text()
+        campos = reader.get_fields()
 
         self.assertEqual(len(reader.pages), 1)
-        self.assertNotIn('/Annots', reader.pages[0])
-        self.assertIn('EMPRESA TESTE LTDA', texto)
-        self.assertNotIn('Desconto comercial', texto)
+        self.assertIn('/Annots', reader.pages[0])
+        self.assertEqual(campos['cliente_razao']['/V'], 'EMPRESA TESTE LTDA')
+        self.assertNotIn('desconto_descricao', campos)
 
     def test_gera_modelo_com_desconto(self):
         campos = {
@@ -83,29 +83,13 @@ class PropostaComercialPdfTest(SimpleTestCase):
             'hon_desconto': 'R$ 53,50',
         }
         pdf = build_proposta_comercial_pdf(campos, com_desconto=True)
-        texto = PdfReader(BytesIO(pdf)).pages[0].extract_text()
+        campos_pdf = PdfReader(BytesIO(pdf)).get_fields()
 
-        self.assertIn('Desconto de 10%', texto)
-        self.assertIn('R$ 53,50', texto)
+        self.assertEqual(campos_pdf['desconto_descricao']['/V'], 'Desconto de 10%')
+        self.assertEqual(campos_pdf['hon_desconto']['/V'], 'R$ 53,50')
 
-    @patch('empresas.views._visible_empresas_for_report')
-    def test_rota_gera_pdf_com_cnpj_formatado(self, visible_empresas_mock):
-        socios = Mock()
-        socios.first.return_value = SimpleNamespace(nome='Responsavel Teste')
-        empresa = SimpleNamespace(
-            id=1,
-            nome='EMPRESA TESTE LTDA',
-            cnpj='12345678000190',
-            regime_tributario='SIMPLES NACIONAL',
-            get_regime_tributario_display=lambda: 'Simples Nacional',
-            socios=socios,
-            telefone='5528999999999',
-            email='cliente@example.com',
-            dia_vencimento_honorario=10,
-        )
-        visible_empresas_mock.return_value.get.return_value = empresa
+    def test_rota_gera_pdf_editavel_sem_empresa_cadastrada(self):
         request = APIRequestFactory().post('/api/gerar-proposta-comercial-pdf/', {
-            'empresa_id': 1,
             'faixa_faturamento': 'Ate 50 mil',
             'grupo_atividade': 'Servico',
             'honorario_contabil_fiscal': '300.00',
@@ -119,11 +103,14 @@ class PropostaComercialPdfTest(SimpleTestCase):
         force_authenticate(request, user=SimpleNamespace(is_authenticated=True))
 
         response = gerar_proposta_comercial_pdf(request)
-        texto = PdfReader(BytesIO(response.content)).pages[0].extract_text()
+        reader = PdfReader(BytesIO(response.content))
+        campos = reader.get_fields()
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'application/pdf')
-        self.assertIn('12.345.678/0001-90', texto)
+        self.assertIn('/Annots', reader.pages[0])
+        self.assertEqual(campos['cliente_razao']['/V'], '')
+        self.assertEqual(campos['hon_total']['/V'], 'R$ 350,00')
 
 
 class PermissaoPaginaSistemaTest(SimpleTestCase):

@@ -472,13 +472,6 @@ def _format_cpf(value):
     return f'{digits[:3]}.{digits[3:6]}.{digits[6:9]}-{digits[9:]}'
 
 
-def _format_cnpj(value):
-    digits = re.sub(r'\D', '', str(value or ''))
-    if len(digits) != 14:
-        return value or ''
-    return f'{digits[:2]}.{digits[2:5]}.{digits[5:8]}/{digits[8:12]}-{digits[12:]}'
-
-
 def _parse_report_date(value):
     if not value:
         return None
@@ -916,29 +909,9 @@ def _format_proposal_currency(value):
     return f'R$ {formatted}'
 
 
-def _format_proposal_phone(value):
-    digits = re.sub(r'\D', '', str(value or ''))
-    if len(digits) in (12, 13) and digits.startswith('55'):
-        digits = digits[2:]
-    if len(digits) == 11:
-        return f'({digits[:2]}) {digits[2:7]}-{digits[7:]}'
-    if len(digits) == 10:
-        return f'({digits[:2]}) {digits[2:6]}-{digits[6:]}'
-    return str(value or '').strip()
-
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def gerar_proposta_comercial_pdf(request):
-    empresa_id = request.data.get('empresa_id')
-    if not empresa_id:
-        return Response({'error': 'Selecione uma empresa.'}, status=status.HTTP_400_BAD_REQUEST)
-
-    try:
-        empresa = _visible_empresas_for_report(request).get(pk=empresa_id)
-    except (Empresa.DoesNotExist, ValueError, TypeError):
-        return Response({'error': 'Empresa nao encontrada ou sem acesso.'}, status=status.HTTP_404_NOT_FOUND)
-
     try:
         honorario_contabil = _proposal_decimal(
             request.data.get('honorario_contabil_fiscal'),
@@ -990,22 +963,17 @@ def gerar_proposta_comercial_pdf(request):
 
     total_liquido = total_bruto - desconto
     agora = timezone.localtime(timezone.now(), BRAZIL_TIME_ZONE)
-    primeiro_socio = empresa.socios.first()
-    contato = _format_proposal_phone(empresa.telefone) or empresa.email or ''
-    vencimento = empresa.dia_vencimento_honorario or 10
-    numero_proposta = f'PC-{agora:%Y%m%d}-{empresa.id:04d}'
+    numero_proposta = f'PC-{agora:%Y%m%d-%H%M%S}'
 
     field_values = {
         'proposta_num': numero_proposta,
         'proposta_data': agora.strftime('%d/%m/%Y'),
         'validade': '30 dias',
-        'vencimento': f'Todo dia {vencimento}',
-        'escritorio_cnpj': '',
-        'cliente_razao': empresa.nome,
-        'cliente_cnpj': _format_cnpj(empresa.cnpj),
-        'cliente_regime': empresa.get_regime_tributario_display() if empresa.regime_tributario else '',
-        'cliente_resp': primeiro_socio.nome if primeiro_socio else '',
-        'cliente_contato': contato,
+        'cliente_razao': '',
+        'cliente_cnpj': '',
+        'cliente_regime': '',
+        'cliente_resp': '',
+        'cliente_contato': '',
         'cf_faixa': str(request.data.get('faixa_faturamento') or '').strip(),
         'cf_grupo': str(request.data.get('grupo_atividade') or '').strip(),
         'hon_contabil_fiscal': _format_proposal_currency(honorario_contabil),
@@ -1024,9 +992,8 @@ def gerar_proposta_comercial_pdf(request):
         field_values,
         com_desconto=desconto_tipo != 'nenhum',
     )
-    nome_empresa = sanitize_filename_for_upload(empresa.nome).rsplit('.', 1)[0]
     response = HttpResponse(pdf, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="proposta_comercial_{nome_empresa}.pdf"'
+    response['Content-Disposition'] = f'attachment; filename="proposta_comercial_{agora:%Y%m%d_%H%M%S}.pdf"'
     return response
 
 MODEL_CONFIG_MAP = {

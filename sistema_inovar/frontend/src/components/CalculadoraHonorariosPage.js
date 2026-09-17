@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import {
     BanknotesIcon,
@@ -12,7 +12,6 @@ import {
     CheckCircleIcon,
     CloudArrowUpIcon,
     DocumentArrowDownIcon,
-    BuildingOffice2Icon,
     XMarkIcon,
     UsersIcon,
 } from '@heroicons/react/24/outline';
@@ -183,21 +182,11 @@ const CalculadoraHonorariosPage = () => {
     const [configOpen, setConfigOpen] = useState(false);
     const [configuracao, setConfiguracao] = useState(carregarConfiguracao);
     const [configuracaoSalva, setConfiguracaoSalva] = useState(false);
-    const [empresas, setEmpresas] = useState([]);
-    const [empresaId, setEmpresaId] = useState('');
-    const [carregandoEmpresas, setCarregandoEmpresas] = useState(true);
     const [modalProposta, setModalProposta] = useState(null);
     const [descontoTipo, setDescontoTipo] = useState('percentual');
     const [descontoValor, setDescontoValor] = useState('');
     const [gerandoProposta, setGerandoProposta] = useState(false);
     const [mensagemProposta, setMensagemProposta] = useState(null);
-
-    useEffect(() => {
-        axiosInstance.get('/api/empresas/?compact=true')
-            .then((response) => setEmpresas(Array.isArray(response.data) ? response.data : []))
-            .catch(() => setMensagemProposta({ tipo: 'erro', texto: 'Nao foi possivel carregar as empresas.' }))
-            .finally(() => setCarregandoEmpresas(false));
-    }, []);
 
     const atividades = useMemo(() => (
         atividadesBase.map((atividade) => {
@@ -271,10 +260,6 @@ const CalculadoraHonorariosPage = () => {
 
     const abrirGeracaoProposta = () => {
         setMensagemProposta(null);
-        if (!empresaId) {
-            setMensagemProposta({ tipo: 'erro', texto: 'Selecione a empresa antes de gerar a proposta.' });
-            return;
-        }
         if (clampNumber(funcionarios) >= 15 && parseConfigNumber(valorPorFuncionario) <= 0) {
             setMensagemProposta({ tipo: 'erro', texto: 'Informe o valor por funcionario para concluir a proposta.' });
             return;
@@ -358,7 +343,6 @@ const CalculadoraHonorariosPage = () => {
         try {
             const faixaSelecionada = faixasFaturamento.find((item) => item.id === faturamento);
             const response = await axiosInstance.post('/api/gerar-proposta-comercial-pdf/', {
-                empresa_id: empresaId,
                 faixa_faturamento: faixaSelecionada?.label || '',
                 grupo_atividade: calculo.atividadesSelecionadas.map((item) => item.label).join(', '),
                 honorario_contabil_fiscal: calculo.honorarioComAtividades,
@@ -563,33 +547,6 @@ const CalculadoraHonorariosPage = () => {
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
                 <section className="space-y-6">
                     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                        <div className="mb-3 flex items-center gap-2">
-                            <BuildingOffice2Icon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
-                            <label htmlFor="empresa-proposta" className={labelClass}>Empresa da proposta</label>
-                        </div>
-                        <select
-                            id="empresa-proposta"
-                            value={empresaId}
-                            onChange={(event) => {
-                                setEmpresaId(event.target.value);
-                                setMensagemProposta(null);
-                            }}
-                            disabled={carregandoEmpresas}
-                            className={inputClass}
-                        >
-                            <option value="">{carregandoEmpresas ? 'Carregando empresas...' : 'Selecione uma empresa'}</option>
-                            {empresas.map((empresa) => (
-                                <option key={empresa.id} value={empresa.id}>
-                                    {empresa.nome} - {empresa.cnpj}
-                                </option>
-                            ))}
-                        </select>
-                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            Os dados cadastrais desta empresa serao inseridos automaticamente no PDF.
-                        </p>
-                    </div>
-
-                    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                             <div>
                                 <label className={labelClass}>Atividades</label>
@@ -791,6 +748,9 @@ const CalculadoraHonorariosPage = () => {
                                 <DocumentArrowDownIcon className="h-5 w-5" />
                                 Gerar proposta
                             </button>
+                            <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
+                                Os dados do cliente poderao ser preenchidos e alterados diretamente no PDF.
+                            </p>
                         </>
                     )}
                 </aside>
