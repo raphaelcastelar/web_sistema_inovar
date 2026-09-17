@@ -19,6 +19,7 @@ from .management.commands.migrar_estrutura_pastas_2026 import Command
 from .management.commands.inventariar_arquivos import _relative_path, scan_media_root
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
 from .views import (
+    DocumentoEmpresaViewSet,
     _ensure_sync_safe_filename,
     _normalize_whatsapp_number,
     _repair_surrogate_escapes,
@@ -103,6 +104,46 @@ class NormalizacaoWhatsAppTest(SimpleTestCase):
     def test_adiciona_ddi_a_numeros_locais(self):
         self.assertEqual(_normalize_whatsapp_number('(33) 9983-1371'), '553399831371')
         self.assertEqual(_normalize_whatsapp_number('(33) 99983-1371'), '5533999831371')
+
+
+class BuscaDasSalvoTest(SimpleTestCase):
+    @patch('empresas.views.DocumentoEmpresa.objects.filter')
+    @patch('empresas.views.Empresa.objects.only')
+    def test_localiza_o_arquivo_exato_da_competencia_sem_gerar(self, empresa_only, documento_filter):
+        empresa = SimpleNamespace(id=7, cnpj='51.541.297/0001-33')
+        empresa_only.return_value.get.return_value = empresa
+        storage = Mock()
+        storage.exists.return_value = True
+        arquivo = SimpleNamespace(
+            id=19,
+            nome_arquivo='DAS_51541297000133_202608.pdf',
+            caminho_arquivo=SimpleNamespace(
+                storage=storage,
+                name='EMPRESA/FISCAL/GUIAS/2026/08/DAS_51541297000133_202608.pdf',
+            ),
+        )
+        documento_filter.return_value.first.return_value = arquivo
+        request = SimpleNamespace(query_params={'empresa_id': '7', 'periodo': '202608'})
+        view = DocumentoEmpresaViewSet()
+        view.get_serializer = Mock(return_value=SimpleNamespace(data={'id': 19, 'nome_arquivo': arquivo.nome_arquivo}))
+
+        response = view.das_salvo(request)
+
+        self.assertEqual(response.status_code, 200)
+        documento_filter.assert_called_once_with(
+            empresa=empresa,
+            folder_key='fiscal_guias',
+            ano='2026',
+            mes='08',
+            nome_arquivo='DAS_51541297000133_202608.pdf',
+        )
+        storage.exists.assert_called_once_with(arquivo.caminho_arquivo.name)
+
+    def test_rejeita_competencia_invalida(self):
+        request = SimpleNamespace(query_params={'empresa_id': '7', 'periodo': '202613'})
+        response = DocumentoEmpresaViewSet().das_salvo(request)
+
+        self.assertEqual(response.status_code, 400)
 
 
 class ReutilizacaoBoletoHonorarioTest(SimpleTestCase):

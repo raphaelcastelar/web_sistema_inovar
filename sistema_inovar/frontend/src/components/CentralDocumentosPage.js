@@ -3,11 +3,16 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
     ArrowPathIcon,
     CalendarDaysIcon,
+    ChatBubbleBottomCenterTextIcon,
     CheckCircleIcon,
+    DocumentCheckIcon,
+    EnvelopeIcon,
     ExclamationTriangleIcon,
     InformationCircleIcon,
+    PaperAirplaneIcon,
     XMarkIcon,
 } from '@heroicons/react/24/outline';
+import axiosInstance from '../api/axiosInstance';
 import {
     CentralCarregando,
     CentralVazio,
@@ -45,6 +50,21 @@ const shiftCompetencia = (monthsBack) => {
     };
 };
 
+const getBrazilianLocalPhoneDigits = (value = '') => {
+    const digits = String(value).replace(/\D/g, '');
+    return digits.startsWith('55') && digits.length > 11 ? digits.slice(2) : digits;
+};
+
+const formatBrazilianPhone = (value = '') => {
+    const digits = getBrazilianLocalPhoneDigits(value).slice(0, 11);
+    if (digits.length <= 2) return digits;
+    const ddd = digits.slice(0, 2);
+    const number = digits.slice(2);
+    if (number.length <= 4) return `(${ddd}) ${number}`;
+    if (number.length <= 8) return `(${ddd}) ${number.slice(0, 4)}-${number.slice(4)}`;
+    return `(${ddd}) ${number.slice(0, 5)}-${number.slice(5)}`;
+};
+
 const CentralDocumentosPage = ({
     eyebrow = 'Fiscal',
     titulo,
@@ -54,6 +74,7 @@ const CentralDocumentosPage = ({
     extraFilters = [],
     observacao,
     periodoLabel = 'Competência',
+    compartilhamento = null,
 }) => {
     const cancelBatchRef = useRef(false);
     const inicial = useMemo(() => shiftCompetencia(0), []);
@@ -70,6 +91,7 @@ const CentralDocumentosPage = ({
     const [pending, setPending] = useState({});
     const [rowStatus, setRowStatus] = useState({});
     const [batch, setBatch] = useState(null);
+    const [shareModal, setShareModal] = useState(null);
 
     // Restaura a competência salva na última visita.
     useEffect(() => {
@@ -182,6 +204,75 @@ const CentralDocumentosPage = ({
     };
 
     const isBatchRunning = Boolean(batch?.running);
+
+    const openShareModal = async (empresa) => {
+        setShareModal({
+            empresa,
+            documento: null,
+            email: empresa.email || '',
+            telefone: formatBrazilianPhone(empresa.telefone || ''),
+            loading: true,
+            sending: '',
+            error: '',
+        });
+        try {
+            const response = await compartilhamento.findDocument({ empresa, periodo });
+            setShareModal((current) => current?.empresa.id === empresa.id
+                ? { ...current, documento: response.data, loading: false }
+                : current);
+        } catch (error) {
+            setShareModal((current) => current?.empresa.id === empresa.id
+                ? {
+                    ...current,
+                    loading: false,
+                    error: error.response?.data?.error || 'Não foi possível procurar o documento salvo.',
+                }
+                : current);
+        }
+    };
+
+    const sendSavedDocument = async (channel) => {
+        if (!shareModal?.documento) return;
+        const { empresa, documento, email, telefone } = shareModal;
+        setShareModal((current) => ({ ...current, sending: channel, error: '' }));
+        try {
+            let response;
+            if (channel === 'email') {
+                response = await axiosInstance.post('/api/enviar-email/', {
+                    empresa_id: empresa.id,
+                    tipo_pasta: compartilhamento.folderKey,
+                    file_ids: [documento.id],
+                    email_destinatario: email.trim(),
+                });
+            } else {
+                const phoneDigits = getBrazilianLocalPhoneDigits(telefone);
+                response = await axiosInstance.post('/api/enviar-documentos-whatsapp/', {
+                    empresa_id: empresa.id,
+                    tipo_pasta: compartilhamento.folderKey,
+                    file_ids: [documento.id],
+                    telefone_destinatario: `55${phoneDigits}`,
+                });
+            }
+            const text = response.data?.message || `${compartilhamento.label} enviado com sucesso.`;
+            setFeedback({ type: 'success', text });
+            setRowStatus((current) => ({
+                ...current,
+                [empresa.id]: {
+                    ok: true,
+                    label: channel === 'email' ? 'Enviado por e-mail' : 'Enviado por WhatsApp',
+                    competencia: `${month}/${year}`,
+                    message: text,
+                },
+            }));
+            setShareModal(null);
+        } catch (error) {
+            setShareModal((current) => ({
+                ...current,
+                sending: '',
+                error: error.response?.data?.error || `Falha ao enviar por ${channel === 'email' ? 'e-mail' : 'WhatsApp'}.`,
+            }));
+        }
+    };
 
     return (
         <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
@@ -477,6 +568,18 @@ const CentralDocumentosPage = ({
                                                             </button>
                                                         );
                                                     })}
+                                                    {compartilhamento && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openShareModal(empresa)}
+                                                            disabled={!cnpjValido || isBatchRunning}
+                                                            className={`${rowActionClass} border-emerald-200 text-emerald-700 hover:border-emerald-400 dark:border-emerald-900 dark:text-emerald-300 dark:hover:border-emerald-700`}
+                                                            title={`Enviar documento já salvo da competência ${month}/${year}`}
+                                                        >
+                                                            <PaperAirplaneIcon className="h-4 w-4" />
+                                                            Enviar
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -491,6 +594,134 @@ const CentralDocumentosPage = ({
                     </div>
                 </div>
             )}
+
+            <AnimatePresence>
+                {shareModal && (
+                    <motion.div
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onMouseDown={() => !shareModal.sending && setShareModal(null)}
+                    >
+                        <motion.div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="share-document-title"
+                            className="w-full max-w-lg overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+                            initial={{ opacity: 0, scale: 0.97, y: 8 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.97, y: 8 }}
+                            onMouseDown={(event) => event.stopPropagation()}
+                        >
+                            <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-800">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#c49a61]">Documento salvo · {month}/{year}</p>
+                                    <h2 id="share-document-title" className="mt-1 truncate text-xl font-semibold text-gray-950 dark:text-white">
+                                        Enviar {compartilhamento.label}
+                                    </h2>
+                                    <p className="mt-1 truncate text-sm text-gray-500 dark:text-gray-400">{shareModal.empresa.nome}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShareModal(null)}
+                                    disabled={Boolean(shareModal.sending)}
+                                    className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                                    aria-label="Fechar"
+                                >
+                                    <XMarkIcon className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4 p-5">
+                                {shareModal.loading ? (
+                                    <div className="flex items-center justify-center gap-2 rounded-lg bg-gray-50 px-4 py-8 text-sm text-gray-600 dark:bg-gray-800/60 dark:text-gray-300">
+                                        <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                                        Procurando o DAS na pasta da competência…
+                                    </div>
+                                ) : shareModal.documento ? (
+                                    <>
+                                        <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+                                            <DocumentCheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                            <div className="min-w-0">
+                                                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Arquivo encontrado</p>
+                                                <p className="mt-0.5 break-all text-sm text-emerald-900 dark:text-emerald-100">{shareModal.documento.nome_arquivo}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label htmlFor="das-email-destinatario" className={labelClass}>E-mail do destinatário</label>
+                                            <div className="flex gap-2">
+                                                <div className="relative min-w-0 flex-1">
+                                                    <EnvelopeIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                                    <input
+                                                        id="das-email-destinatario"
+                                                        type="email"
+                                                        value={shareModal.email}
+                                                        onChange={(event) => setShareModal((current) => ({ ...current, email: event.target.value }))}
+                                                        disabled={Boolean(shareModal.sending)}
+                                                        placeholder="destinatario@exemplo.com"
+                                                        className={`${controlClass} pl-9`}
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => sendSavedDocument('email')}
+                                                    disabled={Boolean(shareModal.sending) || !shareModal.email.trim()}
+                                                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950"
+                                                >
+                                                    {shareModal.sending === 'email' ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <EnvelopeIcon className="h-4 w-4" />}
+                                                    E-mail
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label htmlFor="das-whatsapp-destinatario" className={labelClass}>WhatsApp do destinatário</label>
+                                            <div className="flex gap-2">
+                                                <div className="relative min-w-0 flex-1">
+                                                    <ChatBubbleBottomCenterTextIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                                    <input
+                                                        id="das-whatsapp-destinatario"
+                                                        type="tel"
+                                                        value={shareModal.telefone}
+                                                        onChange={(event) => setShareModal((current) => ({ ...current, telefone: formatBrazilianPhone(event.target.value) }))}
+                                                        disabled={Boolean(shareModal.sending)}
+                                                        placeholder="(00) 00000-0000"
+                                                        className={`${controlClass} pl-9`}
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => sendSavedDocument('whatsapp')}
+                                                    disabled={Boolean(shareModal.sending) || ![10, 11].includes(getBrazilianLocalPhoneDigits(shareModal.telefone).length)}
+                                                    className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    {shareModal.sending === 'whatsapp' ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <ChatBubbleBottomCenterTextIcon className="h-4 w-4" />}
+                                                    WhatsApp
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : null}
+
+                                {shareModal.error && (
+                                    <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+                                        <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                                        <span>{shareModal.error}</span>
+                                    </div>
+                                )}
+
+                                {!shareModal.loading && !shareModal.documento && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        O envio não gera um novo documento. Gere o DAS desta competência primeiro e tente novamente.
+                                    </p>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

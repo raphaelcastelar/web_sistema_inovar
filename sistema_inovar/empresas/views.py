@@ -1469,11 +1469,60 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         empresa_id = self.request.query_params.get('empresa_id')
         folder_key = self.request.query_params.get('folder_key')
+        ano = self.request.query_params.get('ano')
+        mes = self.request.query_params.get('mes')
         if empresa_id:
             queryset = queryset.filter(empresa_id=empresa_id)
         if folder_key:
             queryset = queryset.filter(folder_key=folder_key)
+        if ano:
+            queryset = queryset.filter(ano=ano)
+        if mes:
+            queryset = queryset.filter(mes=str(mes).zfill(2))
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='das-salvo')
+    def das_salvo(self, request):
+        """Localiza o DAS já salvo sem consultar ou gerar dados no SERPRO."""
+        empresa_id = request.query_params.get('empresa_id')
+        periodo = re.sub(r'\D', '', request.query_params.get('periodo') or '')
+        if not empresa_id or not re.fullmatch(r'\d{4}(0[1-9]|1[0-2])', periodo):
+            return Response(
+                {'error': 'Informe a empresa e uma competência válida no formato YYYYMM.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            empresa = Empresa.objects.only('id', 'cnpj').get(pk=empresa_id)
+        except (Empresa.DoesNotExist, ValueError, TypeError):
+            return Response({'error': 'Empresa não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
+
+        cnpj = re.sub(r'\D', '', empresa.cnpj or '')
+        filename = f'DAS_{cnpj}_{periodo}.pdf'
+        document = DocumentoEmpresa.objects.filter(
+            empresa=empresa,
+            folder_key='fiscal_guias',
+            ano=periodo[:4],
+            mes=periodo[4:],
+            nome_arquivo=filename,
+        ).first()
+        if not document or not document.caminho_arquivo:
+            return Response(
+                {'error': 'Nenhum DAS salvo foi encontrado para esta empresa e competência.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            arquivo_existe = document.caminho_arquivo.storage.exists(document.caminho_arquivo.name)
+        except (OSError, ValueError):
+            arquivo_existe = False
+        if not arquivo_existe:
+            return Response(
+                {'error': 'O registro do DAS existe, mas o arquivo não foi encontrado na pasta da competência.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(self.get_serializer(document).data)
 
     @action(detail=True, methods=['patch'])
     def renomear(self, request, pk=None):
