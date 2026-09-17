@@ -1481,9 +1481,9 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(mes=str(mes).zfill(2))
         return queryset
 
-    @action(detail=False, methods=['get'], url_path='das-salvo')
-    def das_salvo(self, request):
-        """Localiza o DAS já salvo sem consultar ou gerar dados no SERPRO."""
+    @action(detail=False, methods=['get'], url_path='documentos-salvos-simples')
+    def documentos_salvos_simples(self, request):
+        """Localiza os documentos do Simples já salvos, sem consultar o SERPRO."""
         empresa_id = request.query_params.get('empresa_id')
         periodo = re.sub(r'\D', '', request.query_params.get('periodo') or '')
         if not empresa_id or not re.fullmatch(r'\d{4}(0[1-9]|1[0-2])', periodo):
@@ -1498,31 +1498,45 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Empresa não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
 
         cnpj = re.sub(r'\D', '', empresa.cnpj or '')
-        filename = f'DAS_{cnpj}_{periodo}.pdf'
-        document = DocumentoEmpresa.objects.filter(
-            empresa=empresa,
-            folder_key='fiscal_guias',
-            ano=periodo[:4],
-            mes=periodo[4:],
-            nome_arquivo=filename,
-        ).first()
-        if not document or not document.caminho_arquivo:
-            return Response(
-                {'error': 'Nenhum DAS salvo foi encontrado para esta empresa e competência.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        try:
-            arquivo_existe = document.caminho_arquivo.storage.exists(document.caminho_arquivo.name)
-        except (OSError, ValueError):
+        definitions = (
+            ('das', 'DAS', 'fiscal_guias', (f'DAS_{cnpj}_{periodo}.pdf',)),
+            ('extrato', 'Extrato', 'fiscal_extratos', (f'EXTRATO_SIMPLES_{cnpj}_{periodo}.pdf',)),
+            (
+                'declaracao',
+                'Declaração/Recibo',
+                'fiscal_extratos',
+                (f'RECIBO_SIMPLES_{cnpj}_{periodo}.pdf', f'RECIBO_SIMPLES_{cnpj}_{periodo}.zip'),
+            ),
+        )
+        items = []
+        for key, label, folder_key, filenames in definitions:
+            document = DocumentoEmpresa.objects.filter(
+                empresa=empresa,
+                folder_key=folder_key,
+                ano=periodo[:4],
+                mes=periodo[4:],
+                nome_arquivo__in=filenames,
+            ).first()
             arquivo_existe = False
-        if not arquivo_existe:
-            return Response(
-                {'error': 'O registro do DAS existe, mas o arquivo não foi encontrado na pasta da competência.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            if document and document.caminho_arquivo:
+                try:
+                    arquivo_existe = document.caminho_arquivo.storage.exists(document.caminho_arquivo.name)
+                except (OSError, ValueError):
+                    arquivo_existe = False
 
-        return Response(self.get_serializer(document).data)
+            items.append({
+                'key': key,
+                'label': label,
+                'folder_key': folder_key,
+                'documento': self.get_serializer(document).data if document and arquivo_existe else None,
+                'error': (
+                    None if arquivo_existe
+                    else 'O registro existe, mas o arquivo físico não foi encontrado.' if document
+                    else 'Documento ainda não gerado nesta competência.'
+                ),
+            })
+
+        return Response({'documentos': items})
 
     @action(detail=True, methods=['patch'])
     def renomear(self, request, pk=None):
@@ -2251,7 +2265,13 @@ def enviar_email(request):
         except Empresa.DoesNotExist:
             return Response({'error': f'Empresa com ID {empresa_id} não encontrada.'}, status=status.HTTP_404_NOT_FOUND)
 
-        if tipo_pasta in FOLDER_DEFINITIONS:
+        if tipo_pasta == 'central_simples':
+            arquivos = DocumentoEmpresa.objects.filter(
+                id__in=file_ids,
+                empresa=empresa,
+                folder_key__in=('fiscal_guias', 'fiscal_extratos'),
+            )
+        elif tipo_pasta in FOLDER_DEFINITIONS:
             arquivos = DocumentoEmpresa.objects.filter(id__in=file_ids, empresa=empresa, folder_key=tipo_pasta)
         else:
             modelos = {
@@ -2640,7 +2660,8 @@ def enviar_documentos_whatsapp_api(request):
     if tipo_pasta in ('xml', 'fiscal_xml'):
         return JsonResponse({"error": "Envio de arquivos XML por WhatsApp não é suportado."}, status=status.HTTP_400_BAD_REQUEST)
 
-    is_new_folder = tipo_pasta in FOLDER_DEFINITIONS
+    is_central_simples = tipo_pasta == 'central_simples'
+    is_new_folder = tipo_pasta in FOLDER_DEFINITIONS or is_central_simples
     if tipo_pasta not in MODEL_CONFIG_MAP and not is_new_folder:
         return JsonResponse({"error": f"Tipo de pasta '{tipo_pasta}' não suportado para envio por WhatsApp."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2668,7 +2689,12 @@ def enviar_documentos_whatsapp_api(request):
     logger.info(f"Número de WhatsApp a ser utilizado para {empresa.nome}: {recipient_whatsapp_number}")
 
     filter_kwargs = {'id__in': file_ids}
-    if is_new_folder:
+    if is_central_simples:
+        filter_kwargs.update({
+            'empresa': empresa,
+            'folder_key__in': ('fiscal_guias', 'fiscal_extratos'),
+        })
+    elif is_new_folder:
         filter_kwargs.update({'empresa': empresa, 'folder_key': tipo_pasta})
     else:
         filter_kwargs[config['company_field_name']] = getattr(empresa, config['company_attr'])

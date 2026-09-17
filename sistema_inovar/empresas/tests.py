@@ -106,42 +106,62 @@ class NormalizacaoWhatsAppTest(SimpleTestCase):
         self.assertEqual(_normalize_whatsapp_number('(33) 99983-1371'), '5533999831371')
 
 
-class BuscaDasSalvoTest(SimpleTestCase):
+class BuscaDocumentosSimplesSalvosTest(SimpleTestCase):
     @patch('empresas.views.DocumentoEmpresa.objects.filter')
     @patch('empresas.views.Empresa.objects.only')
-    def test_localiza_o_arquivo_exato_da_competencia_sem_gerar(self, empresa_only, documento_filter):
+    def test_localiza_os_tres_documentos_da_competencia_sem_gerar(self, empresa_only, documento_filter):
         empresa = SimpleNamespace(id=7, cnpj='51.541.297/0001-33')
         empresa_only.return_value.get.return_value = empresa
-        storage = Mock()
-        storage.exists.return_value = True
-        arquivo = SimpleNamespace(
-            id=19,
-            nome_arquivo='DAS_51541297000133_202608.pdf',
-            caminho_arquivo=SimpleNamespace(
-                storage=storage,
-                name='EMPRESA/FISCAL/GUIAS/2026/08/DAS_51541297000133_202608.pdf',
-            ),
+        nomes = (
+            'DAS_51541297000133_202608.pdf',
+            'EXTRATO_SIMPLES_51541297000133_202608.pdf',
+            'RECIBO_SIMPLES_51541297000133_202608.zip',
         )
-        documento_filter.return_value.first.return_value = arquivo
+        arquivos = []
+        querysets = []
+        for document_id, nome in enumerate(nomes, start=19):
+            storage = Mock()
+            storage.exists.return_value = True
+            arquivo = SimpleNamespace(
+                id=document_id,
+                nome_arquivo=nome,
+                caminho_arquivo=SimpleNamespace(storage=storage, name=f'EMPRESA/2026/08/{nome}'),
+            )
+            queryset = Mock()
+            queryset.first.return_value = arquivo
+            arquivos.append(arquivo)
+            querysets.append(queryset)
+        documento_filter.side_effect = querysets
         request = SimpleNamespace(query_params={'empresa_id': '7', 'periodo': '202608'})
         view = DocumentoEmpresaViewSet()
-        view.get_serializer = Mock(return_value=SimpleNamespace(data={'id': 19, 'nome_arquivo': arquivo.nome_arquivo}))
+        view.get_serializer = lambda document: SimpleNamespace(
+            data={'id': document.id, 'nome_arquivo': document.nome_arquivo}
+        )
 
-        response = view.das_salvo(request)
+        response = view.documentos_salvos_simples(request)
 
         self.assertEqual(response.status_code, 200)
-        documento_filter.assert_called_once_with(
-            empresa=empresa,
-            folder_key='fiscal_guias',
-            ano='2026',
-            mes='08',
-            nome_arquivo='DAS_51541297000133_202608.pdf',
+        self.assertEqual(len(response.data['documentos']), 3)
+        self.assertEqual([item['key'] for item in response.data['documentos']], ['das', 'extrato', 'declaracao'])
+        self.assertTrue(all(item['documento'] for item in response.data['documentos']))
+        self.assertEqual(documento_filter.call_count, 3)
+        filter_kwargs = [mock_call.kwargs for mock_call in documento_filter.call_args_list]
+        self.assertEqual(
+            [kwargs['folder_key'] for kwargs in filter_kwargs],
+            ['fiscal_guias', 'fiscal_extratos', 'fiscal_extratos'],
         )
-        storage.exists.assert_called_once_with(arquivo.caminho_arquivo.name)
+        self.assertEqual(filter_kwargs[0]['nome_arquivo__in'], (nomes[0],))
+        self.assertEqual(filter_kwargs[1]['nome_arquivo__in'], (nomes[1],))
+        self.assertEqual(filter_kwargs[2]['nome_arquivo__in'], (
+            'RECIBO_SIMPLES_51541297000133_202608.pdf',
+            'RECIBO_SIMPLES_51541297000133_202608.zip',
+        ))
+        for arquivo in arquivos:
+            arquivo.caminho_arquivo.storage.exists.assert_called_once_with(arquivo.caminho_arquivo.name)
 
     def test_rejeita_competencia_invalida(self):
         request = SimpleNamespace(query_params={'empresa_id': '7', 'periodo': '202613'})
-        response = DocumentoEmpresaViewSet().das_salvo(request)
+        response = DocumentoEmpresaViewSet().documentos_salvos_simples(request)
 
         self.assertEqual(response.status_code, 400)
 

@@ -64,11 +64,11 @@ const extraFilters = [
     },
 ];
 
-const compartilhamentoDas = {
-    label: 'DAS',
-    folderKey: 'fiscal_guias',
-    findDocument: ({ empresa, periodo }) => axiosInstance.get(
-        '/api/documentos-empresa/das-salvo/',
+const compartilhamentoSimples = {
+    label: 'documentos do Simples',
+    folderKey: 'central_simples',
+    findDocuments: ({ empresa, periodo }) => axiosInstance.get(
+        '/api/documentos-empresa/documentos-salvos-simples/',
         { params: { empresa_id: empresa.id, periodo } },
     ),
 };
@@ -83,7 +83,7 @@ const CentralDoSimples = () => (
         observacao="Os documentos são gerados para a competência selecionada acima, valendo para as ações individuais e em lote."
         services={services}
         extraFilters={extraFilters}
-        compartilhamento={compartilhamentoDas}
+        compartilhamento={compartilhamentoSimples}
     />
 );
 
