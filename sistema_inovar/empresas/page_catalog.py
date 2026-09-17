@@ -19,7 +19,7 @@ PAGE_CATALOG = [
     {'chave': 'boletos_empresa', 'nome': 'Boletos por empresa', 'rota': '/boletos-por-empresa', 'secao': 'Financeiro', 'descricao': 'Consulta dos boletos de cada empresa.'},
     {'chave': 'monitor_boletos', 'nome': 'Monitor de boletos', 'rota': '/monitor-boletos', 'secao': 'Financeiro', 'descricao': 'Acompanhamento de cobranças e pagamentos.'},
     {'chave': 'inadimplencia', 'nome': 'Inadimplência', 'rota': '/inadimplencia-boletos', 'secao': 'Financeiro', 'descricao': 'Cobranças e boletos vencidos.'},
-    {'chave': 'calculadora_honorarios', 'nome': 'Calculadora de honorários', 'rota': '/calculadora-honorarios', 'secao': 'Financeiro', 'descricao': 'Cálculo de mensalidades e honorários.'},
+    {'chave': 'calculadora_honorarios', 'nome': 'Proposta Comercial', 'rota': '/calculadora-honorarios', 'secao': 'Financeiro', 'descricao': 'Cálculo de valores para propostas comerciais.'},
 
     # Documentos
     {'chave': 'relatorios', 'nome': 'Relatórios Excel', 'rota': '/relatorios', 'secao': 'Documentos', 'descricao': 'Exportação de relatórios e planilhas.'},

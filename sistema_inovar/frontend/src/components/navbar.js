@@ -49,7 +49,7 @@ const navigationItems = [
     { pageKey: 'boletos_empresa', to: '/boletos-por-empresa', icon: FolderOpenIcon, text: 'Boletos por empresa', keywords: 'cliente empresa boletos' },
     { pageKey: 'monitor_boletos', to: '/monitor-boletos', icon: ClipboardDocumentCheckIcon, text: 'Monitor de boletos', keywords: 'monitor acompanhar cobrancas pagamentos' },
     { pageKey: 'inadimplencia', to: '/inadimplencia-boletos', icon: ExclamationTriangleIcon, text: 'Inadimplência', keywords: 'inadimplencia boletos vencidos cobrancas' },
-    { pageKey: 'calculadora_honorarios', to: '/calculadora-honorarios', icon: CalculatorIcon, text: 'Calculadora de honorários', keywords: 'calculadora calculo honorarios mensalidade' },
+    { pageKey: 'calculadora_honorarios', to: '/calculadora-honorarios', icon: CalculatorIcon, text: 'Proposta Comercial', keywords: 'proposta comercial calculadora calculo honorarios mensalidade' },
     { pageKey: 'relatorios', to: '/relatorios', icon: TableCellsIcon, text: 'Relatórios Excel', keywords: 'relatorios excel planilhas exportar banco dados' },
     { pageKey: 'pro_labore', to: '/gerar-pro-labore', icon: DocumentTextIcon, text: 'Pró-labore', keywords: 'pro labore documento pdf socios' },
     { pageKey: 'faturamento', to: '/relacao-faturamento', icon: CurrencyDollarIcon, text: 'Relação de faturamento', keywords: 'relacao faturamento receita' },

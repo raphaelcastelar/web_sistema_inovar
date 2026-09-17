@@ -8,9 +8,12 @@ import {
     CurrencyDollarIcon,
     InformationCircleIcon,
     ArrowPathIcon,
-    UserGroupIcon,
+    CheckCircleIcon,
+    CloudArrowUpIcon,
     UsersIcon,
 } from '@heroicons/react/24/outline';
+
+const CONFIG_STORAGE_KEY = 'proposta_comercial_configuracao_v1';
 
 const atividadesBase = [
     {
@@ -70,16 +73,51 @@ const configuracaoPadrao = {
     })),
     percentuaisAtividade: {
         1: 0,
-        2: 20,
-        3: 45,
+        multiplas: 20,
     },
     folha: {
-        ate2: 0,
-        tresMais: 42.4,
+        ate3: 50,
+        quatroA14: 175,
     },
-    socios: {
-        tresMais: 50,
-    },
+};
+
+const cloneConfiguracaoPadrao = () => ({
+    atividades: configuracaoPadrao.atividades.map((atividade) => ({
+        id: atividade.id,
+        honorarios: { ...atividade.honorarios },
+    })),
+    percentuaisAtividade: { ...configuracaoPadrao.percentuaisAtividade },
+    folha: { ...configuracaoPadrao.folha },
+});
+
+const carregarConfiguracao = () => {
+    try {
+        const configuracaoSalva = JSON.parse(window.localStorage.getItem(CONFIG_STORAGE_KEY));
+        if (!configuracaoSalva) return cloneConfiguracaoPadrao();
+
+        return {
+            atividades: configuracaoPadrao.atividades.map((atividadePadrao) => {
+                const atividadeSalva = configuracaoSalva.atividades?.find((item) => item.id === atividadePadrao.id);
+                return {
+                    id: atividadePadrao.id,
+                    honorarios: {
+                        ...atividadePadrao.honorarios,
+                        ...(atividadeSalva?.honorarios || {}),
+                    },
+                };
+            }),
+            percentuaisAtividade: {
+                ...configuracaoPadrao.percentuaisAtividade,
+                ...(configuracaoSalva.percentuaisAtividade || {}),
+            },
+            folha: {
+                ...configuracaoPadrao.folha,
+                ...(configuracaoSalva.folha || {}),
+            },
+        };
+    } catch (error) {
+        return cloneConfiguracaoPadrao();
+    }
 };
 
 const formatCurrency = (value) => Number(value || 0).toLocaleString('pt-BR', {
@@ -100,31 +138,36 @@ const parseConfigNumber = (value, fallback = 0) => {
     return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const getAdicionalFolha = (funcionarios, folhaConfig) => {
-    const quantidadeCobrada = Math.max(0, funcionarios - 2);
-
-    if (funcionarios <= 2) {
-        const valorUnitario = parseConfigNumber(folhaConfig.ate2);
-        return { faixa: 'Ate 2', valorUnitario, quantidadeCobrada: 0, total: 0 };
+const getAdicionalFolha = (funcionarios, folhaConfig, valorPorFuncionario) => {
+    if (funcionarios === 0) {
+        return { faixa: 'Sem funcionarios', tipo: 'fixo', quantidadeCobrada: 0, total: 0 };
     }
 
-    const valorUnitario = parseConfigNumber(folhaConfig.tresMais);
-    return {
-        faixa: '3 ou mais',
-        valorUnitario,
-        quantidadeCobrada,
-        total: quantidadeCobrada * valorUnitario,
-    };
-};
+    if (funcionarios <= 3) {
+        return {
+            faixa: 'Ate 3 funcionarios',
+            tipo: 'fixo',
+            quantidadeCobrada: funcionarios,
+            total: parseConfigNumber(folhaConfig.ate3),
+        };
+    }
 
-const getAdicionalSocios = (socios, sociosConfig) => {
-    const quantidadeCobrada = Math.max(0, socios - 2);
-    const valorUnitario = parseConfigNumber(sociosConfig.tresMais);
+    if (funcionarios <= 14) {
+        return {
+            faixa: 'De 4 a 14 funcionarios',
+            tipo: 'fixo',
+            quantidadeCobrada: funcionarios,
+            total: parseConfigNumber(folhaConfig.quatroA14),
+        };
+    }
 
+    const valorUnitario = parseConfigNumber(valorPorFuncionario);
     return {
-        quantidadeCobrada,
+        faixa: '15 ou mais funcionarios',
+        tipo: 'unitario',
         valorUnitario,
-        total: quantidadeCobrada * valorUnitario,
+        quantidadeCobrada: funcionarios,
+        total: funcionarios * valorUnitario,
     };
 };
 
@@ -132,9 +175,10 @@ const CalculadoraHonorariosPage = () => {
     const [atividadesSelecionadas, setAtividadesSelecionadas] = useState(['servico']);
     const [faturamento, setFaturamento] = useState('ate50');
     const [funcionarios, setFuncionarios] = useState(0);
-    const [socios, setSocios] = useState(1);
+    const [valorPorFuncionario, setValorPorFuncionario] = useState('');
     const [configOpen, setConfigOpen] = useState(false);
-    const [configuracao, setConfiguracao] = useState(configuracaoPadrao);
+    const [configuracao, setConfiguracao] = useState(carregarConfiguracao);
+    const [configuracaoSalva, setConfiguracaoSalva] = useState(false);
 
     const atividades = useMemo(() => (
         atividadesBase.map((atividade) => {
@@ -195,26 +239,15 @@ const CalculadoraHonorariosPage = () => {
         }));
     };
 
-    const updateSociosConfig = (campo, value) => {
-        setConfiguracao((configAtual) => ({
-            ...configAtual,
-            socios: {
-                ...configAtual.socios,
-                [campo]: parseConfigNumber(value),
-            },
-        }));
+    const salvarConfiguracao = () => {
+        window.localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(configuracao));
+        setConfiguracaoSalva(true);
+        window.setTimeout(() => setConfiguracaoSalva(false), 2500);
     };
 
     const resetConfiguracao = () => {
-        setConfiguracao({
-            atividades: configuracaoPadrao.atividades.map((atividade) => ({
-                id: atividade.id,
-                honorarios: { ...atividade.honorarios },
-            })),
-            percentuaisAtividade: { ...configuracaoPadrao.percentuaisAtividade },
-            folha: { ...configuracaoPadrao.folha },
-            socios: { ...configuracaoPadrao.socios },
-        });
+        setConfiguracao(cloneConfiguracaoPadrao());
+        setConfiguracaoSalva(false);
     };
 
     const calculo = useMemo(() => {
@@ -231,10 +264,11 @@ const CalculadoraHonorariosPage = () => {
         const honorarioBase = atividadeBase?.valorFaixa ?? 0;
         const qtdFuncionarios = clampNumber(funcionarios);
         const qtdTiposAtividade = clampNumber(selecionadas.length, 1, 3);
-        const qtdSocios = clampNumber(socios, 1);
-        const folha = getAdicionalFolha(qtdFuncionarios, configuracao.folha);
-        const percentualTipoAtividade = parseConfigNumber(configuracao.percentuaisAtividade[qtdTiposAtividade]) / 100;
-        const sociosAdicional = getAdicionalSocios(qtdSocios, configuracao.socios);
+        const folha = getAdicionalFolha(qtdFuncionarios, configuracao.folha, valorPorFuncionario);
+        const percentualConfig = qtdTiposAtividade === 1
+            ? configuracao.percentuaisAtividade[1]
+            : configuracao.percentuaisAtividade.multiplas;
+        const percentualTipoAtividade = parseConfigNumber(percentualConfig) / 100;
 
         if (exigePlanejamento) {
             return {
@@ -246,8 +280,6 @@ const CalculadoraHonorariosPage = () => {
                 folha,
                 percentualTipoAtividade,
                 adicionalTipoAtividade: 0,
-                sociosAdicional,
-                adicionalSocios: sociosAdicional.total,
                 honorarioComAtividades: 0,
                 total: 0,
             };
@@ -256,7 +288,7 @@ const CalculadoraHonorariosPage = () => {
         const baseAumentoAtividades = honorarioBase;
         const adicionalTipoAtividade = roundCurrency(baseAumentoAtividades * percentualTipoAtividade);
         const honorarioComAtividades = roundCurrency(honorarioBase + adicionalTipoAtividade);
-        const total = roundCurrency(honorarioComAtividades + folha.total + sociosAdicional.total);
+        const total = roundCurrency(honorarioComAtividades + folha.total);
 
         return {
             atividadesSelecionadas: selecionadas,
@@ -267,12 +299,10 @@ const CalculadoraHonorariosPage = () => {
             folha,
             percentualTipoAtividade,
             adicionalTipoAtividade,
-            sociosAdicional,
-            adicionalSocios: sociosAdicional.total,
             honorarioComAtividades,
             total,
         };
-    }, [atividades, atividadesSelecionadas, faturamento, funcionarios, socios, configuracao.folha, configuracao.percentuaisAtividade, configuracao.socios]);
+    }, [atividades, atividadesSelecionadas, faturamento, funcionarios, valorPorFuncionario, configuracao.folha, configuracao.percentuaisAtividade]);
 
     const inputClass =
         'w-full rounded-md border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition ' +
@@ -285,9 +315,9 @@ const CalculadoraHonorariosPage = () => {
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
                 <div>
                     <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Financeiro</p>
-                    <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Calculadora de Honorarios</h1>
+                    <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Proposta Comercial</h1>
                     <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-                        Valores base conforme a aba Calculadora de Honorarios da planilha.
+                        Calcule o valor sugerido para a proposta conforme o perfil da empresa.
                     </p>
                 </div>
 
@@ -314,19 +344,29 @@ const CalculadoraHonorariosPage = () => {
                 <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <h2 className="text-xl font-bold text-gray-950 dark:text-white">Configuracoes da calculadora</h2>
+                            <h2 className="text-xl font-bold text-gray-950 dark:text-white">Configuracoes da proposta</h2>
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                Altere os valores usados no calculo. As mudancas valem enquanto esta pagina estiver aberta.
+                                Altere os valores usados no calculo e salve para reutiliza-los futuramente.
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={resetConfiguracao}
-                            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
-                        >
-                            <ArrowPathIcon className="h-5 w-5" />
-                            Restaurar planilha
-                        </button>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                            <button
+                                type="button"
+                                onClick={resetConfiguracao}
+                                className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+                            >
+                                <ArrowPathIcon className="h-5 w-5" />
+                                Restaurar padrao
+                            </button>
+                            <button
+                                type="button"
+                                onClick={salvarConfiguracao}
+                                className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                            >
+                                {configuracaoSalva ? <CheckCircleIcon className="h-5 w-5" /> : <CloudArrowUpIcon className="h-5 w-5" />}
+                                {configuracaoSalva ? 'Configuracoes salvas' : 'Salvar configuracoes'}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="space-y-6">
@@ -365,21 +405,24 @@ const CalculadoraHonorariosPage = () => {
                             </div>
                         </div>
 
-                        <div className="grid gap-4 lg:grid-cols-3">
+                        <div className="grid gap-4 lg:grid-cols-2">
                             <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                                 <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Percentual por atividade</h3>
                                 <div className="grid gap-3">
-                                    {[1, 2, 3].map((quantidade) => (
-                                        <label key={quantidade} className="block">
+                                    {[
+                                        { chave: 1, label: '1 atividade (%)' },
+                                        { chave: 'multiplas', label: '2 ou 3 atividades (%)' },
+                                    ].map((item) => (
+                                        <label key={item.chave} className="block">
                                             <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">
-                                                {quantidade} atividade{quantidade > 1 ? 's' : ''} (%)
+                                                {item.label}
                                             </span>
                                             <input
                                                 type="number"
                                                 min="0"
                                                 step="0.01"
-                                                value={configuracao.percentuaisAtividade[quantidade]}
-                                                onChange={(event) => updatePercentualConfig(quantidade, event.target.value)}
+                                                value={configuracao.percentuaisAtividade[item.chave]}
+                                                onChange={(event) => updatePercentualConfig(item.chave, event.target.value)}
                                                 className={inputClass}
                                             />
                                         </label>
@@ -389,48 +432,33 @@ const CalculadoraHonorariosPage = () => {
 
                             <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
                                 <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Folha de pagamento</h3>
-                                <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros funcionarios sao isentos.</p>
+                                <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Valores fixos aplicados conforme a quantidade de funcionarios.</p>
                                 <div className="grid gap-3">
                                     <label className="block">
-                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">Ate 2</span>
+                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">Ate 3 (valor fixo)</span>
                                         <input
                                             type="number"
                                             min="0"
                                             step="0.01"
-                                            value={configuracao.folha.ate2}
-                                            onChange={(event) => updateFolhaConfig('ate2', event.target.value)}
+                                            value={configuracao.folha.ate3}
+                                            onChange={(event) => updateFolhaConfig('ate3', event.target.value)}
                                             className={inputClass}
                                         />
                                     </label>
                                     <label className="block">
-                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">3 ou mais</span>
+                                        <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">De 4 a 14 (valor fixo)</span>
                                         <input
                                             type="number"
                                             min="0"
                                             step="0.01"
-                                            value={configuracao.folha.tresMais}
-                                            onChange={(event) => updateFolhaConfig('tresMais', event.target.value)}
+                                            value={configuracao.folha.quatroA14}
+                                            onChange={(event) => updateFolhaConfig('quatroA14', event.target.value)}
                                             className={inputClass}
                                         />
                                     </label>
                                 </div>
                             </div>
 
-                            <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-                                <h3 className="mb-3 text-base font-bold text-gray-900 dark:text-gray-100">Socios</h3>
-                                <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros socios sao isentos.</p>
-                                <label className="block">
-                                    <span className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-200">3 ou mais</span>
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        value={configuracao.socios.tresMais}
-                                        onChange={(event) => updateSociosConfig('tresMais', event.target.value)}
-                                        className={inputClass}
-                                    />
-                                </label>
-                            </div>
                         </div>
                     </div>
                 </section>
@@ -492,7 +520,7 @@ const CalculadoraHonorariosPage = () => {
                         </select>
                     </div>
 
-                    <div className="grid gap-6 lg:grid-cols-2">
+                    <div>
                         <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                             <div className="mb-3 flex items-center gap-2">
                                 <UsersIcon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
@@ -508,30 +536,30 @@ const CalculadoraHonorariosPage = () => {
                                 onChange={(event) => setFuncionarios(event.target.value)}
                                 className={inputClass}
                             />
-                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros funcionarios sao isentos.</p>
-                        </div>
-
-                        <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                            <div className="mb-3 flex items-center gap-2">
-                                <UserGroupIcon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
-                                <label htmlFor="socios" className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                                    Socios
+                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                Ate 3: valor fixo de {formatCurrency(configuracao.folha.ate3)}. De 4 a 14: valor fixo de {formatCurrency(configuracao.folha.quatroA14)}.
+                            </p>
+                            {clampNumber(funcionarios) >= 15 && (
+                                <label className="mt-4 block">
+                                    <span className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                        Valor por funcionario para 15 ou mais
+                                    </span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={valorPorFuncionario}
+                                        onChange={(event) => setValorPorFuncionario(event.target.value)}
+                                        placeholder="Informe o valor unitario"
+                                        className={inputClass}
+                                    />
                                 </label>
-                            </div>
-                            <input
-                                id="socios"
-                                type="number"
-                                min="1"
-                                value={socios}
-                                onChange={(event) => setSocios(event.target.value)}
-                                className={inputClass}
-                            />
-                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Os 2 primeiros socios sao isentos.</p>
+                            )}
                         </div>
                     </div>
 
                     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                        <h2 className="mb-4 text-lg font-bold text-gray-950 dark:text-white">Tabela da planilha</h2>
+                        <h2 className="mb-4 text-lg font-bold text-gray-950 dark:text-white">Tabela de valores</h2>
                         <div className="overflow-x-auto">
                             <table className="min-w-full border-collapse text-sm">
                                 <thead>
@@ -575,7 +603,7 @@ const CalculadoraHonorariosPage = () => {
 
                     {calculo.exigePlanejamento ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-                            Para faturamento de 301 mil ou mais, a planilha indica calculo somente apos planejamento tributario.
+                            Para faturamento de 301 mil ou mais, o calculo depende de planejamento tributario.
                         </div>
                     ) : (
                         <>
@@ -606,15 +634,11 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                                 <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
                                     <span className="text-gray-500 dark:text-gray-400">
-                                        Folha ({calculo.folha.faixa}: {calculo.folha.quantidadeCobrada} x {formatCurrency(calculo.folha.valorUnitario)})
+                                        {calculo.folha.tipo === 'unitario'
+                                            ? `Folha (${calculo.folha.quantidadeCobrada} x ${formatCurrency(calculo.folha.valorUnitario)})`
+                                            : `Folha (${calculo.folha.faixa} - valor fixo)`}
                                     </span>
                                     <strong>{formatCurrency(calculo.folha.total)}</strong>
-                                </div>
-                                <div className="flex justify-between gap-4 border-b border-gray-200 pb-3 dark:border-gray-700">
-                                    <span className="text-gray-500 dark:text-gray-400">
-                                        Aumento por socios ({calculo.sociosAdicional.quantidadeCobrada} x {formatCurrency(calculo.sociosAdicional.valorUnitario)})
-                                    </span>
-                                    <strong>{formatCurrency(calculo.adicionalSocios)}</strong>
                                 </div>
                             </div>
 
