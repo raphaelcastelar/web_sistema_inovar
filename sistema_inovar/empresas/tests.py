@@ -11,6 +11,7 @@ from django.test import SimpleTestCase
 from django.test import override_settings
 from django.core.files.storage import FileSystemStorage
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.test import APIRequestFactory, force_authenticate
 from PyPDF2 import PdfReader
 
 from .models import Empresa
@@ -27,6 +28,7 @@ from .views import (
     _repair_surrogate_escapes,
     boleto_honorario_arquivo_disponivel,
     calcular_vencimento_honorario,
+    gerar_proposta_comercial_pdf,
     normalizar_competencia_honorario,
     normalize_bb_emission_date,
     responder_com_boleto_honorario_existente,
@@ -85,6 +87,43 @@ class PropostaComercialPdfTest(SimpleTestCase):
 
         self.assertIn('Desconto de 10%', texto)
         self.assertIn('R$ 53,50', texto)
+
+    @patch('empresas.views._visible_empresas_for_report')
+    def test_rota_gera_pdf_com_cnpj_formatado(self, visible_empresas_mock):
+        socios = Mock()
+        socios.first.return_value = SimpleNamespace(nome='Responsavel Teste')
+        empresa = SimpleNamespace(
+            id=1,
+            nome='EMPRESA TESTE LTDA',
+            cnpj='12345678000190',
+            regime_tributario='SIMPLES NACIONAL',
+            get_regime_tributario_display=lambda: 'Simples Nacional',
+            socios=socios,
+            telefone='5528999999999',
+            email='cliente@example.com',
+            dia_vencimento_honorario=10,
+        )
+        visible_empresas_mock.return_value.get.return_value = empresa
+        request = APIRequestFactory().post('/api/gerar-proposta-comercial-pdf/', {
+            'empresa_id': 1,
+            'faixa_faturamento': 'Ate 50 mil',
+            'grupo_atividade': 'Servico',
+            'honorario_contabil_fiscal': '300.00',
+            'funcionarios': 2,
+            'faixa_folha': 'Ate 3 funcionarios',
+            'honorario_pessoal': '50.00',
+            'total_bruto': '350.00',
+            'desconto_tipo': 'nenhum',
+            'desconto_valor': 0,
+        }, format='json')
+        force_authenticate(request, user=SimpleNamespace(is_authenticated=True))
+
+        response = gerar_proposta_comercial_pdf(request)
+        texto = PdfReader(BytesIO(response.content)).pages[0].extract_text()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn('12.345.678/0001-90', texto)
 
 
 class PermissaoPaginaSistemaTest(SimpleTestCase):

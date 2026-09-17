@@ -472,6 +472,13 @@ def _format_cpf(value):
     return f'{digits[:3]}.{digits[3:6]}.{digits[6:9]}-{digits[9:]}'
 
 
+def _format_cnpj(value):
+    digits = re.sub(r'\D', '', str(value or ''))
+    if len(digits) != 14:
+        return value or ''
+    return f'{digits[:2]}.{digits[2:5]}.{digits[5:8]}/{digits[8:12]}-{digits[12:]}'
+
+
 def _parse_report_date(value):
     if not value:
         return None
