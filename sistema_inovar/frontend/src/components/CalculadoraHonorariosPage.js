@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import axiosInstance from '../api/axiosInstance';
 import {
     BanknotesIcon,
     BriefcaseIcon,
@@ -10,6 +11,9 @@ import {
     ArrowPathIcon,
     CheckCircleIcon,
     CloudArrowUpIcon,
+    DocumentArrowDownIcon,
+    BuildingOffice2Icon,
+    XMarkIcon,
     UsersIcon,
 } from '@heroicons/react/24/outline';
 
@@ -179,6 +183,21 @@ const CalculadoraHonorariosPage = () => {
     const [configOpen, setConfigOpen] = useState(false);
     const [configuracao, setConfiguracao] = useState(carregarConfiguracao);
     const [configuracaoSalva, setConfiguracaoSalva] = useState(false);
+    const [empresas, setEmpresas] = useState([]);
+    const [empresaId, setEmpresaId] = useState('');
+    const [carregandoEmpresas, setCarregandoEmpresas] = useState(true);
+    const [modalProposta, setModalProposta] = useState(null);
+    const [descontoTipo, setDescontoTipo] = useState('percentual');
+    const [descontoValor, setDescontoValor] = useState('');
+    const [gerandoProposta, setGerandoProposta] = useState(false);
+    const [mensagemProposta, setMensagemProposta] = useState(null);
+
+    useEffect(() => {
+        axiosInstance.get('/api/empresas/?compact=true')
+            .then((response) => setEmpresas(Array.isArray(response.data) ? response.data : []))
+            .catch(() => setMensagemProposta({ tipo: 'erro', texto: 'Nao foi possivel carregar as empresas.' }))
+            .finally(() => setCarregandoEmpresas(false));
+    }, []);
 
     const atividades = useMemo(() => (
         atividadesBase.map((atividade) => {
@@ -250,6 +269,21 @@ const CalculadoraHonorariosPage = () => {
         setConfiguracaoSalva(false);
     };
 
+    const abrirGeracaoProposta = () => {
+        setMensagemProposta(null);
+        if (!empresaId) {
+            setMensagemProposta({ tipo: 'erro', texto: 'Selecione a empresa antes de gerar a proposta.' });
+            return;
+        }
+        if (clampNumber(funcionarios) >= 15 && parseConfigNumber(valorPorFuncionario) <= 0) {
+            setMensagemProposta({ tipo: 'erro', texto: 'Informe o valor por funcionario para concluir a proposta.' });
+            return;
+        }
+        setDescontoValor('');
+        setDescontoTipo('percentual');
+        setModalProposta('pergunta');
+    };
+
     const calculo = useMemo(() => {
         const selecionadas = atividades.filter((item) => atividadesSelecionadas.includes(item.id));
         const atividadesComValor = selecionadas.map((item) => ({
@@ -303,6 +337,68 @@ const CalculadoraHonorariosPage = () => {
             total,
         };
     }, [atividades, atividadesSelecionadas, faturamento, funcionarios, valorPorFuncionario, configuracao.folha, configuracao.percentuaisAtividade]);
+
+    const gerarProposta = async (tipo = 'nenhum') => {
+        const valorDesconto = parseConfigNumber(descontoValor);
+        if (tipo !== 'nenhum' && valorDesconto <= 0) {
+            setMensagemProposta({ tipo: 'erro', texto: 'Informe um desconto maior que zero.' });
+            return;
+        }
+        if (tipo === 'percentual' && valorDesconto > 100) {
+            setMensagemProposta({ tipo: 'erro', texto: 'O percentual de desconto nao pode superar 100%.' });
+            return;
+        }
+        if (tipo === 'valor' && valorDesconto > calculo.total) {
+            setMensagemProposta({ tipo: 'erro', texto: 'O desconto nao pode superar o valor calculado.' });
+            return;
+        }
+
+        setGerandoProposta(true);
+        setMensagemProposta(null);
+        try {
+            const faixaSelecionada = faixasFaturamento.find((item) => item.id === faturamento);
+            const response = await axiosInstance.post('/api/gerar-proposta-comercial-pdf/', {
+                empresa_id: empresaId,
+                faixa_faturamento: faixaSelecionada?.label || '',
+                grupo_atividade: calculo.atividadesSelecionadas.map((item) => item.label).join(', '),
+                honorario_contabil_fiscal: calculo.honorarioComAtividades,
+                funcionarios: clampNumber(funcionarios),
+                faixa_folha: calculo.folha.faixa,
+                honorario_pessoal: calculo.folha.total,
+                total_bruto: calculo.total,
+                desconto_tipo: tipo,
+                desconto_valor: tipo === 'nenhum' ? 0 : valorDesconto,
+            }, { responseType: 'blob' });
+
+            const blob = new Blob([response.data], { type: 'application/pdf' });
+            const disposition = response.headers['content-disposition'] || '';
+            const fileName = disposition.match(/filename="?([^";]+)"?/i)?.[1] || 'proposta_comercial.pdf';
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+
+            setModalProposta(null);
+            setMensagemProposta({ tipo: 'sucesso', texto: 'Proposta gerada com sucesso.' });
+        } catch (error) {
+            let texto = 'Nao foi possivel gerar a proposta.';
+            if (error.response?.data instanceof Blob) {
+                try {
+                    const body = JSON.parse(await error.response.data.text());
+                    texto = body.error || texto;
+                } catch {
+                    // Mantem a mensagem padrao quando a resposta nao for JSON.
+                }
+            }
+            setMensagemProposta({ tipo: 'erro', texto });
+        } finally {
+            setGerandoProposta(false);
+        }
+    };
 
     const inputClass =
         'w-full rounded-md border border-gray-200 bg-white px-4 py-3 text-gray-900 outline-none transition ' +
@@ -466,6 +562,33 @@ const CalculadoraHonorariosPage = () => {
 
             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
                 <section className="space-y-6">
+                    <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <div className="mb-3 flex items-center gap-2">
+                            <BuildingOffice2Icon className="h-5 w-5 text-slate-600 dark:text-slate-300" />
+                            <label htmlFor="empresa-proposta" className={labelClass}>Empresa da proposta</label>
+                        </div>
+                        <select
+                            id="empresa-proposta"
+                            value={empresaId}
+                            onChange={(event) => {
+                                setEmpresaId(event.target.value);
+                                setMensagemProposta(null);
+                            }}
+                            disabled={carregandoEmpresas}
+                            className={inputClass}
+                        >
+                            <option value="">{carregandoEmpresas ? 'Carregando empresas...' : 'Selecione uma empresa'}</option>
+                            {empresas.map((empresa) => (
+                                <option key={empresa.id} value={empresa.id}>
+                                    {empresa.nome} - {empresa.cnpj}
+                                </option>
+                            ))}
+                        </select>
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            Os dados cadastrais desta empresa serao inseridos automaticamente no PDF.
+                        </p>
+                    </div>
+
                     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                             <div>
@@ -649,10 +772,151 @@ const CalculadoraHonorariosPage = () => {
                                 </div>
                                 <div className="mt-2 text-4xl font-extrabold">{formatCurrency(calculo.total)}</div>
                             </div>
+
+                            {mensagemProposta && (
+                                <div className={`mt-4 rounded-md border px-4 py-3 text-sm ${mensagemProposta.tipo === 'sucesso'
+                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200'
+                                    : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200'
+                                    }`}
+                                >
+                                    {mensagemProposta.texto}
+                                </div>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={abrirGeracaoProposta}
+                                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                            >
+                                <DocumentArrowDownIcon className="h-5 w-5" />
+                                Gerar proposta
+                            </button>
                         </>
                     )}
                 </aside>
             </div>
+
+            {modalProposta && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="titulo-modal-proposta">
+                    <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <h2 id="titulo-modal-proposta" className="text-xl font-bold text-gray-950 dark:text-white">
+                                    {modalProposta === 'pergunta' ? 'A proposta tem desconto?' : 'Configurar desconto'}
+                                </h2>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                    {modalProposta === 'pergunta'
+                                        ? 'Escolha a versao do PDF que deseja gerar.'
+                                        : 'Informe como o desconto sera aplicado ao valor total.'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setModalProposta(null)}
+                                disabled={gerandoProposta}
+                                className="rounded-md p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                aria-label="Fechar"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                        </div>
+
+                        {mensagemProposta?.tipo === 'erro' && modalProposta === 'pergunta' && (
+                            <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-200">
+                                {mensagemProposta.texto}
+                            </p>
+                        )}
+
+                        {modalProposta === 'pergunta' ? (
+                            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                                <button
+                                    type="button"
+                                    onClick={() => gerarProposta('nenhum')}
+                                    disabled={gerandoProposta}
+                                    className="rounded-md border border-gray-300 px-4 py-3 text-sm font-bold text-gray-800 transition hover:bg-gray-100 disabled:opacity-60 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+                                >
+                                    {gerandoProposta ? 'Gerando...' : 'Nao, gerar agora'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setModalProposta('desconto')}
+                                    disabled={gerandoProposta}
+                                    className="rounded-md bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950"
+                                >
+                                    Sim, informar desconto
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="mt-6 space-y-4">
+                                <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDescontoTipo('percentual')}
+                                        className={`rounded-md px-3 py-2 text-sm font-semibold transition ${descontoTipo === 'percentual'
+                                            ? 'bg-white text-gray-950 shadow-sm dark:bg-gray-700 dark:text-white'
+                                            : 'text-gray-600 dark:text-gray-300'
+                                            }`}
+                                    >
+                                        Porcentagem
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDescontoTipo('valor')}
+                                        className={`rounded-md px-3 py-2 text-sm font-semibold transition ${descontoTipo === 'valor'
+                                            ? 'bg-white text-gray-950 shadow-sm dark:bg-gray-700 dark:text-white'
+                                            : 'text-gray-600 dark:text-gray-300'
+                                            }`}
+                                    >
+                                        Valor fixo
+                                    </button>
+                                </div>
+
+                                <label className="block">
+                                    <span className={labelClass}>
+                                        {descontoTipo === 'percentual' ? 'Percentual de desconto (%)' : 'Valor do desconto (R$)'}
+                                    </span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max={descontoTipo === 'percentual' ? '100' : undefined}
+                                        step="0.01"
+                                        autoFocus
+                                        value={descontoValor}
+                                        onChange={(event) => setDescontoValor(event.target.value)}
+                                        className={inputClass}
+                                    />
+                                </label>
+
+                                {mensagemProposta?.tipo === 'erro' && (
+                                    <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-200">
+                                        {mensagemProposta.texto}
+                                    </p>
+                                )}
+
+                                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setModalProposta('pergunta')}
+                                        disabled={gerandoProposta}
+                                        className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-100"
+                                    >
+                                        Voltar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => gerarProposta(descontoTipo)}
+                                        disabled={gerandoProposta}
+                                        className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                                    >
+                                        <DocumentArrowDownIcon className="h-5 w-5" />
+                                        {gerandoProposta ? 'Gerando...' : 'Gerar PDF com desconto'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

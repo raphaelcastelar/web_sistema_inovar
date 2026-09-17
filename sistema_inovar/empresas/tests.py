@@ -2,6 +2,7 @@ import importlib
 import datetime
 import os
 import tempfile
+from io import BytesIO
 from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -10,6 +11,7 @@ from django.test import SimpleTestCase
 from django.test import override_settings
 from django.core.files.storage import FileSystemStorage
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from PyPDF2 import PdfReader
 
 from .models import Empresa
 from .serializers import PaginaSistemaSerializer
@@ -37,7 +39,52 @@ from .document_storage import (
     save_generated_dctfweb,
     save_generated_fiscal_document,
 )
+from .proposta_comercial_pdf import build_proposta_comercial_pdf
 from .management.commands.migrar_arquivos_para_nuvem import _safe_directory, _source_directories
+
+
+class PropostaComercialPdfTest(SimpleTestCase):
+    def setUp(self):
+        self.campos = {
+            'proposta_num': 'PC-20260917-0001',
+            'proposta_data': '17/09/2026',
+            'validade': '30 dias',
+            'vencimento': 'Todo dia 10',
+            'cliente_razao': 'EMPRESA TESTE LTDA',
+            'cliente_cnpj': '12.345.678/0001-90',
+            'cliente_regime': 'Simples Nacional',
+            'cliente_resp': 'Responsavel Teste',
+            'cliente_contato': '(28) 99999-9999',
+            'cf_faixa': 'Ate 50 mil',
+            'cf_grupo': 'Servico, Comercio',
+            'hon_contabil_fiscal': 'R$ 360,00',
+            'dp_funcionarios': '5',
+            'dp_faixa': 'De 4 a 14 funcionarios',
+            'hon_pessoal': 'R$ 175,00',
+            'hon_total': 'R$ 481,50',
+        }
+
+    def test_gera_modelo_sem_desconto_sem_campos_editaveis(self):
+        pdf = build_proposta_comercial_pdf(self.campos, com_desconto=False)
+        reader = PdfReader(BytesIO(pdf))
+        texto = reader.pages[0].extract_text()
+
+        self.assertEqual(len(reader.pages), 1)
+        self.assertNotIn('/Annots', reader.pages[0])
+        self.assertIn('EMPRESA TESTE LTDA', texto)
+        self.assertNotIn('Desconto comercial', texto)
+
+    def test_gera_modelo_com_desconto(self):
+        campos = {
+            **self.campos,
+            'desconto_descricao': 'Desconto de 10%',
+            'hon_desconto': 'R$ 53,50',
+        }
+        pdf = build_proposta_comercial_pdf(campos, com_desconto=True)
+        texto = PdfReader(BytesIO(pdf)).pages[0].extract_text()
+
+        self.assertIn('Desconto de 10%', texto)
+        self.assertIn('R$ 53,50', texto)
 
 
 class PermissaoPaginaSistemaTest(SimpleTestCase):

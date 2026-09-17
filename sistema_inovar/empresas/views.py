@@ -48,7 +48,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework import viewsets, permissions
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from PyPDF2 import PdfMerger
 
 from empresas.serpro_service import gerar_e_enviar_das
@@ -111,6 +111,7 @@ from .serpro_service import (
 from .filters import HistoricoEnviosFilter
 from .whatsapp_utils import upload_media_to_whatsapp, send_whatsapp_document_template_message
 from .pro_labore_docx import build_pro_labore_pdf
+from .proposta_comercial_pdf import build_proposta_comercial_pdf
 
 WKHTMLTOPDF_PATH = settings.WKHTMLTOPDF_PATH
 
@@ -891,6 +892,135 @@ def gerar_relatorio_excel(request):
         return Response({'error': 'Tipo de relatorio invalido.'}, status=status.HTTP_400_BAD_REQUEST)
 
     return builder(request, filters)
+
+
+def _proposal_decimal(value, field_name):
+    try:
+        parsed = Decimal(str(value).replace(',', '.'))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValidationError(f'Valor invalido para {field_name}.') from exc
+    if parsed < 0:
+        raise ValidationError(f'{field_name} nao pode ser negativo.')
+    return parsed.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
+def _format_proposal_currency(value):
+    formatted = f'{value:,.2f}'.replace(',', '_').replace('.', ',').replace('_', '.')
+    return f'R$ {formatted}'
+
+
+def _format_proposal_phone(value):
+    digits = re.sub(r'\D', '', str(value or ''))
+    if len(digits) in (12, 13) and digits.startswith('55'):
+        digits = digits[2:]
+    if len(digits) == 11:
+        return f'({digits[:2]}) {digits[2:7]}-{digits[7:]}'
+    if len(digits) == 10:
+        return f'({digits[:2]}) {digits[2:6]}-{digits[6:]}'
+    return str(value or '').strip()
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def gerar_proposta_comercial_pdf(request):
+    empresa_id = request.data.get('empresa_id')
+    if not empresa_id:
+        return Response({'error': 'Selecione uma empresa.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        empresa = _visible_empresas_for_report(request).get(pk=empresa_id)
+    except (Empresa.DoesNotExist, ValueError, TypeError):
+        return Response({'error': 'Empresa nao encontrada ou sem acesso.'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        honorario_contabil = _proposal_decimal(
+            request.data.get('honorario_contabil_fiscal'),
+            'honorario contabil e fiscal',
+        )
+        honorario_pessoal = _proposal_decimal(
+            request.data.get('honorario_pessoal'),
+            'honorario de departamento pessoal',
+        )
+        total_bruto = _proposal_decimal(request.data.get('total_bruto'), 'total bruto')
+    except ValidationError as exc:
+        return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
+
+    if total_bruto != honorario_contabil + honorario_pessoal:
+        return Response(
+            {'error': 'O total informado nao corresponde aos itens da proposta.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    desconto_tipo = str(request.data.get('desconto_tipo') or 'nenhum').strip().lower()
+    if desconto_tipo not in {'nenhum', 'percentual', 'valor'}:
+        return Response({'error': 'Tipo de desconto invalido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    desconto = Decimal('0.00')
+    desconto_descricao = ''
+    if desconto_tipo != 'nenhum':
+        try:
+            desconto_informado = _proposal_decimal(request.data.get('desconto_valor'), 'desconto')
+        except ValidationError as exc:
+            return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
+
+        if desconto_informado <= 0:
+            return Response({'error': 'Informe um desconto maior que zero.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if desconto_tipo == 'percentual':
+            if desconto_informado > 100:
+                return Response({'error': 'O desconto percentual nao pode superar 100%.'}, status=status.HTTP_400_BAD_REQUEST)
+            desconto = (total_bruto * desconto_informado / Decimal('100')).quantize(
+                Decimal('0.01'),
+                rounding=ROUND_HALF_UP,
+            )
+            desconto_descricao = f'Desconto de {desconto_informado.normalize()}%'
+        else:
+            desconto = desconto_informado
+            desconto_descricao = 'Desconto comercial'
+
+        if desconto > total_bruto:
+            return Response({'error': 'O desconto nao pode superar o total da proposta.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    total_liquido = total_bruto - desconto
+    agora = timezone.localtime(timezone.now(), BRAZIL_TIME_ZONE)
+    primeiro_socio = empresa.socios.first()
+    contato = _format_proposal_phone(empresa.telefone) or empresa.email or ''
+    vencimento = empresa.dia_vencimento_honorario or 10
+    numero_proposta = f'PC-{agora:%Y%m%d}-{empresa.id:04d}'
+
+    field_values = {
+        'proposta_num': numero_proposta,
+        'proposta_data': agora.strftime('%d/%m/%Y'),
+        'validade': '30 dias',
+        'vencimento': f'Todo dia {vencimento}',
+        'escritorio_cnpj': '',
+        'cliente_razao': empresa.nome,
+        'cliente_cnpj': _format_cnpj(empresa.cnpj),
+        'cliente_regime': empresa.get_regime_tributario_display() if empresa.regime_tributario else '',
+        'cliente_resp': primeiro_socio.nome if primeiro_socio else '',
+        'cliente_contato': contato,
+        'cf_faixa': str(request.data.get('faixa_faturamento') or '').strip(),
+        'cf_grupo': str(request.data.get('grupo_atividade') or '').strip(),
+        'hon_contabil_fiscal': _format_proposal_currency(honorario_contabil),
+        'dp_funcionarios': str(request.data.get('funcionarios') or '0'),
+        'dp_faixa': str(request.data.get('faixa_folha') or '').strip(),
+        'hon_pessoal': _format_proposal_currency(honorario_pessoal),
+        'hon_total': _format_proposal_currency(total_liquido),
+    }
+    if desconto_tipo != 'nenhum':
+        field_values.update({
+            'desconto_descricao': desconto_descricao,
+            'hon_desconto': _format_proposal_currency(desconto),
+        })
+
+    pdf = build_proposta_comercial_pdf(
+        field_values,
+        com_desconto=desconto_tipo != 'nenhum',
+    )
+    nome_empresa = sanitize_filename_for_upload(empresa.nome).rsplit('.', 1)[0]
+    response = HttpResponse(pdf, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="proposta_comercial_{nome_empresa}.pdf"'
+    return response
 
 MODEL_CONFIG_MAP = {
     'documentos_constitutivos': {
