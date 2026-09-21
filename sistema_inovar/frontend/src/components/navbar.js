@@ -156,7 +156,7 @@ const Navbar = () => {
                 />
             </div>
 
-            <nav className="flex-1 space-y-2 overflow-y-auto px-2 py-2">
+            <nav className="navbar-scroll flex-1 space-y-2 overflow-y-auto px-2 py-2">
                 {canAccess('inicio') && (
                     <div className="px-1 pb-2">
                         <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Principal</p>

@@ -19,6 +19,29 @@ code {
     monospace;
 }
 
+/* Barra de rolagem discreta do menu lateral. */
+.navbar-scroll {
+  scrollbar-color: rgba(148, 163, 184, 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.navbar-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.navbar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.navbar-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background-color: rgba(148, 163, 184, 0.28);
+}
+
+.navbar-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.48);
+}
+
 /* Cadastro de empresas: acompanha a linguagem visual das demais telas do sistema. */
 @layer components {
   .company-form-shell section,
