@@ -1,6 +1,7 @@
 PAGE_CATALOG = [
     # Principal
     {'chave': 'inicio', 'nome': 'Início', 'rota': '/inicio', 'secao': 'Controle', 'descricao': 'Tarefas, compromissos e planejamento diário.'},
+    {'chave': 'calendario', 'nome': 'Calendário', 'rota': '/calendario', 'secao': 'Controle', 'descricao': 'Agenda mensal, semanal, diária e lista de atividades.'},
 
     # Cadastros
     {'chave': 'empresas', 'nome': 'Empresas', 'rota': '/empresas', 'secao': 'Cadastros', 'descricao': 'Cadastro, edição, pastas e documentos de empresas.'},

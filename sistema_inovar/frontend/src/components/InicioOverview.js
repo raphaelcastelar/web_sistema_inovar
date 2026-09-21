@@ -13,7 +13,7 @@ const EMPTY_FORM = { titulo: '', descricao: '', tipo: 'tarefa', empresaId: '', r
 const dateKey = (date = new Date()) => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
 const formatDate = (value) => value ? value.slice(0, 10).split('-').reverse().join('/') : 'Sem data';
 const formatTime = (value) => value?.slice(11, 16) || '--:--';
-const isAdmin = (user) => user?.papel === 'admin' || user?.acesso === 'administrador';
+export const isAdmin = (user) => user?.papel === 'admin' || user?.acesso === 'administrador';
 const activityName = (activity) => activity?.mascarada ? 'Atividade privada' : activity?.titulo || 'Atividade sem título';
 const errorMessage = (error, fallback) => {
   const data = error?.response?.data;
@@ -36,7 +36,7 @@ function SummaryCard({ icon: Icon, title, value, detail, badge, warning, onClick
   </button>;
 }
 
-function ActivityForm({ activity, initial, context, saving, blocks, onClose, onSave, onCreateBlock, onUpdateBlock, onDeleteBlock }) {
+export function ActivityForm({ activity, initial, context, saving, blocks, onClose, onSave, onCreateBlock, onUpdateBlock, onDeleteBlock }) {
   const [form, setForm] = useState(() => ({ ...EMPTY_FORM, ...(activity || initial || {}), empresaId: activity?.empresaId || initial?.empresaId || '', responsavelId: activity?.responsavelId || initial?.responsavelId || context.usuario.id, inicio: activity?.inicio?.slice(0, 16) || initial?.inicio || '', termino: activity?.termino?.slice(0, 16) || initial?.termino || '', privada: Boolean(activity?.privada) }));
   const [error, setError] = useState('');
   const [blockForm, setBlockForm] = useState({ inicio: '', termino: '' });
@@ -68,7 +68,7 @@ function ActivityForm({ activity, initial, context, saving, blocks, onClose, onS
     </section></div>;
 }
 
-function Details({ activity, context, canEdit, onClose, onEdit }) {
+export function Details({ activity, context, canEdit, onClose, onEdit }) {
   const company = context.empresas.find((item) => item.id === activity.empresaId);
   return <div className="io-overlay io-overlay--side" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><aside className="io-details"><header><div><span>{activity.tipo === 'compromisso' ? 'Compromisso' : 'Tarefa'}</span><h2>Detalhes da atividade</h2></div><button onClick={onClose} aria-label="Fechar"><XMarkIcon /></button></header><div className="io-details__body"><div className="io-details__title"><h3>{activityName(activity)}</h3>{activity.privada && <LockClosedIcon />}</div>{activity.mascarada ? <p>Os detalhes desta atividade são privados. O período permanece visível para indicar que o funcionário está ocupado.</p> : activity.descricao && <p>{activity.descricao}</p>}<dl><div><dt>Responsável</dt><dd>{activity.responsavelNome || 'Sem responsável'}</dd></div><div><dt>Data</dt><dd>{activity.tipo === 'compromisso' ? `${formatDate(activity.inicio)} · ${formatTime(activity.inicio)}–${formatTime(activity.termino)}` : formatDate(activity.dataPlanejada)}</dd></div>{!activity.mascarada && <><div><dt>Empresa</dt><dd>{company?.nome || 'Sem empresa'}</dd></div><div><dt>Prazo</dt><dd>{formatDate(activity.prazo)}</dd></div><div><dt>Prioridade</dt><dd>{PRIORITIES[activity.prioridade]}</dd></div><div><dt>Estado</dt><dd>{STATES[activity.estado]}</dd></div></>}</dl></div><footer><button className="secondary" onClick={onClose}>Fechar</button>{canEdit && !activity.mascarada && <button className="primary" onClick={onEdit}><PencilSquareIcon /> Editar</button>}</footer></aside></div>;
 }

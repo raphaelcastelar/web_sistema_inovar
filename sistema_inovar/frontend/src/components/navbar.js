@@ -21,6 +21,7 @@ import {
     BanknotesIcon,
     ChevronDownIcon,
     TableCellsIcon,
+    CalendarDaysIcon,
 } from '@heroicons/react/24/outline';
 import LogoContabilidade from '../assets/logo_contabilidade2.png';
 import ThemeToggle from './ThemeToggle';
@@ -39,6 +40,7 @@ const navigationCategories = [
 
 const navigationItems = [
     { pageKey: 'inicio', to: '/inicio', icon: HomeIcon, text: 'Início', keywords: 'inicio tarefas atividades agenda compromissos' },
+    { pageKey: 'calendario', to: '/calendario', icon: CalendarDaysIcon, text: 'Calendário', keywords: 'calendario agenda tarefas atividades compromissos' },
     { pageKey: 'empresas', to: '/empresas', icon: BuildingOfficeIcon, text: 'Empresas', match: ['/empresas'], keywords: 'clientes cadastro pastas documentos' },
     { pageKey: 'usuarios', to: '/gerenciar-usuarios', icon: UserGroupIcon, text: 'Usuários', match: ['/gerenciar-usuarios'], keywords: 'funcionarios equipe colaboradores' },
     { pageKey: 'carteira', to: '/carteira-empresas', icon: FolderOpenIcon, text: 'Pastas', keywords: 'pastas arquivos empresas documentos' },
