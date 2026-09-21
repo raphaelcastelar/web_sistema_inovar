@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB, PaginaSistema
+from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao
 from .folder_structure import FOLDER_DEFINITIONS
 from .utils import format_cnpj, is_valid_cnpj, normalizar_nome_empresa
 from .page_catalog import NAVBAR_SECTIONS
@@ -9,6 +9,75 @@ import re
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class AtividadeSerializer(serializers.ModelSerializer):
+    empresaId = serializers.PrimaryKeyRelatedField(source='empresa', queryset=Empresa.objects.all(), allow_null=True, required=False)
+    responsavelId = serializers.PrimaryKeyRelatedField(source='responsavel', queryset=Funcionario.objects.filter(is_active=True), allow_null=True, required=False)
+    compartilhadoCom = serializers.PrimaryKeyRelatedField(source='compartilhados', queryset=Funcionario.objects.filter(is_active=True), many=True, required=False)
+    dataPlanejada = serializers.DateField(source='data_planejada', allow_null=True, required=False)
+    duracaoEstimada = serializers.IntegerField(source='duracao_estimada', allow_null=True, required=False, min_value=1)
+    recorrenciaOrigemId = serializers.PrimaryKeyRelatedField(source='recorrencia_origem', read_only=True)
+    criadaEm = serializers.DateTimeField(source='criada_em', read_only=True)
+    atualizadaEm = serializers.DateTimeField(source='atualizada_em', read_only=True)
+    concluidaEm = serializers.DateTimeField(source='concluida_em', read_only=True)
+    concluidaPorId = serializers.PrimaryKeyRelatedField(source='concluida_por', read_only=True)
+    autorId = serializers.PrimaryKeyRelatedField(source='autor', read_only=True)
+    empresaNome = serializers.CharField(source='empresa.nome', read_only=True)
+    responsavelNome = serializers.SerializerMethodField()
+    autorNome = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Atividade
+        fields = [
+            'id', 'titulo', 'descricao', 'tipo', 'origem', 'empresaId', 'empresaNome',
+            'responsavelId', 'responsavelNome', 'compartilhadoCom', 'dataPlanejada',
+            'prazo', 'inicio', 'termino', 'duracaoEstimada', 'prioridade', 'estado',
+            'privada', 'frequencia', 'recorrenciaOrigemId', 'autorId', 'autorNome',
+            'concluidaEm', 'concluidaPorId', 'criadaEm', 'atualizadaEm',
+        ]
+        read_only_fields = ['origem']
+
+    def get_responsavelNome(self, obj):
+        return (obj.responsavel.get_full_name() or obj.responsavel.username) if obj.responsavel else ''
+
+    def get_autorNome(self, obj):
+        return (obj.autor.get_full_name() or obj.autor.username) if obj.autor else ''
+
+    def validate(self, attrs):
+        atual = getattr(self, 'instance', None)
+        tipo = attrs.get('tipo', getattr(atual, 'tipo', 'tarefa'))
+        data = attrs.get('data_planejada', getattr(atual, 'data_planejada', None))
+        prazo = attrs.get('prazo', getattr(atual, 'prazo', None))
+        inicio = attrs.get('inicio', getattr(atual, 'inicio', None))
+        termino = attrs.get('termino', getattr(atual, 'termino', None))
+        frequencia = attrs.get('frequencia', getattr(atual, 'frequencia', 'nenhuma'))
+        if tipo == 'tarefa' and not data:
+            raise serializers.ValidationError({'dataPlanejada': 'Informe a data planejada.'})
+        if tipo == 'compromisso' and (not inicio or not termino or termino <= inicio):
+            raise serializers.ValidationError({'termino': 'O término deve ser posterior ao início.'})
+        if prazo and data and prazo < data:
+            raise serializers.ValidationError({'prazo': 'O prazo deve ser igual ou posterior à data planejada.'})
+        if tipo != 'tarefa' and frequencia != 'nenhuma':
+            raise serializers.ValidationError({'frequencia': 'Somente tarefas podem ser recorrentes.'})
+        return attrs
+
+
+class BlocoExecucaoSerializer(serializers.ModelSerializer):
+    atividadeId = serializers.PrimaryKeyRelatedField(source='atividade', queryset=Atividade.objects.all())
+    responsavelId = serializers.PrimaryKeyRelatedField(source='responsavel', queryset=Funcionario.objects.filter(is_active=True))
+
+    class Meta:
+        model = BlocoExecucao
+        fields = ['id', 'atividadeId', 'responsavelId', 'inicio', 'termino', 'criado_em', 'atualizado_em']
+        read_only_fields = ['criado_em', 'atualizado_em']
+
+    def validate(self, attrs):
+        inicio = attrs.get('inicio', getattr(self.instance, 'inicio', None))
+        termino = attrs.get('termino', getattr(self.instance, 'termino', None))
+        if not inicio or not termino or termino <= inicio:
+            raise serializers.ValidationError({'termino': 'O término deve ser posterior ao início.'})
+        return attrs
 
 
 def visible_tags_for_request(request):

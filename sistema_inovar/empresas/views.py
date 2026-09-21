@@ -33,7 +33,7 @@ from django.utils.dateparse import parse_date
 from django.core.files.base import ContentFile
 from datetime import timedelta
 from zoneinfo import ZoneInfo
-from django.db.models import OuterRef, Prefetch, Subquery, CharField
+from django.db.models import OuterRef, Prefetch, Subquery, CharField, Q
 from django.db import DatabaseError, models, transaction
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
@@ -46,6 +46,7 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend 
 from rest_framework.views import APIView
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from rest_framework import viewsets, permissions
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -80,14 +81,15 @@ from .models import (
     Empresa, EmpresaAvulsaFaturamento, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
     SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
     Tag,
-    UltimoResultadoSessao, BoletoBB, PaginaSistema
+    UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao
 )
 from .serializers import (
     TagSerializer,
     EmpresaSerializer, EmpresaCompactSerializer, EmpresaListSerializer, EmpresaOperationalListSerializer, EmpresaAvulsaFaturamentoSerializer, DocumentosConstitutivosSerializer, XMLSerializer, 
     DepartamentoPessoalSerializer, SimplesNacionalSerializer, OutrosSerializer, DocumentoEmpresaSerializer,
     HistoricoEnviosSerializer, FuncionarioSerializer, PendenciaSerializer, NotificacaoSerializer,
-    UltimoResultadoSessaoSerializer, BoletoBBSerializer, PaginaSistemaSerializer, visible_tags_for_request, unique_tags_by_name
+    UltimoResultadoSessaoSerializer, BoletoBBSerializer, PaginaSistemaSerializer, AtividadeSerializer,
+    BlocoExecucaoSerializer, visible_tags_for_request, unique_tags_by_name
 )
 from .page_catalog import sync_page_catalog
 from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_upload
@@ -1569,23 +1571,6 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentoEmpresaSerializer
     permission_classes = [IsAuthenticated]
 
-    @action(detail=False, methods=['get'], url_path='recentes')
-    def recentes(self, request):
-        documentos = self.get_queryset()
-        if not request.user.is_staff and not request.user.is_superuser:
-            documentos = documentos.filter(empresa__gerenciada_por=request.user)
-        documentos = documentos.order_by('-criado_em', '-id')[:5]
-        return Response([
-            {
-                'id': documento.id,
-                'empresa': documento.empresa_id,
-                'empresa_nome': documento.empresa.nome,
-                'nome_arquivo': documento.nome_arquivo,
-                'criado_em': documento.criado_em,
-            }
-            for documento in documentos
-        ])
-
     def get_queryset(self):
         queryset = super().get_queryset()
         empresa_id = self.request.query_params.get('empresa_id')
@@ -1885,6 +1870,220 @@ class FuncionarioViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"Erro ao excluir funcionário: {str(e)}")
             return Response({'error': f'Erro ao excluir usuário: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _atividade_admin(user):
+    return bool(user.is_staff or user.is_superuser or getattr(user, 'cargo', '') == 'admin')
+
+
+def _proxima_data_recorrencia(data, frequencia, indice):
+    if frequencia == 'diaria':
+        return data + datetime.timedelta(days=indice)
+    if frequencia == 'dias_uteis':
+        return data + datetime.timedelta(days=indice)
+    if frequencia == 'semanal':
+        return data + datetime.timedelta(days=7 * indice)
+    if frequencia == 'mensal':
+        return data + relativedelta(months=indice)
+    return None
+
+
+def _materializar_recorrencias():
+    limite = timezone.localdate()
+    origens = Atividade.objects.filter(
+        recorrencia_origem__isnull=True,
+        tipo='tarefa',
+        data_planejada__isnull=False,
+    ).exclude(frequencia='nenhuma').exclude(estado='cancelada').select_related('responsavel', 'empresa', 'autor')
+    for origem in origens:
+        indice = 1
+        data = _proxima_data_recorrencia(origem.data_planejada, origem.frequencia, indice)
+        deslocamento_prazo = (origem.prazo - origem.data_planejada) if origem.prazo else None
+        contador = 0
+        while data and data <= limite and contador < 366 and indice < 5000:
+            if origem.frequencia == 'dias_uteis' and data.weekday() >= 5:
+                indice += 1
+                data = _proxima_data_recorrencia(origem.data_planejada, origem.frequencia, indice)
+                continue
+            ocorrencia, criada = Atividade.objects.get_or_create(
+                recorrencia_origem=origem,
+                data_planejada=data,
+                defaults={
+                    'titulo': origem.titulo,
+                    'descricao': origem.descricao,
+                    'tipo': 'tarefa',
+                    'empresa': origem.empresa,
+                    'responsavel': origem.responsavel,
+                    'autor': origem.autor,
+                    'prazo': data + deslocamento_prazo if deslocamento_prazo is not None else None,
+                    'duracao_estimada': origem.duracao_estimada,
+                    'prioridade': origem.prioridade,
+                    'estado': 'a_fazer',
+                    'privada': origem.privada,
+                    'frequencia': origem.frequencia,
+                },
+            )
+            if criada:
+                ocorrencia.compartilhados.set(origem.compartilhados.all())
+                contador += 1
+            indice += 1
+            data = _proxima_data_recorrencia(origem.data_planejada, origem.frequencia, indice)
+
+
+class AtividadeViewSet(viewsets.ModelViewSet):
+    serializer_class = AtividadeSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'post', 'patch', 'head', 'options']
+
+    def get_queryset(self):
+        queryset = Atividade.objects.select_related(
+            'empresa', 'responsavel', 'autor', 'concluida_por', 'recorrencia_origem'
+        ).prefetch_related('compartilhados')
+        if _atividade_admin(self.request.user):
+            return queryset
+        return queryset.filter(
+            Q(responsavel=self.request.user)
+            | (Q(compartilhados=self.request.user) & Q(privada=False))
+        ).distinct()
+
+    def _mascarar_se_necessario(self, item, user):
+        if _atividade_admin(user) and item['privada'] and item['responsavelId'] != user.id:
+            item.update({
+                'titulo': 'Atividade privada', 'descricao': '', 'empresaId': None,
+                'empresaNome': '', 'prioridade': 'normal', 'mascarada': True,
+            })
+        return item
+
+    def list(self, request, *args, **kwargs):
+        _materializar_recorrencias()
+        queryset = self.filter_queryset(self.get_queryset())
+        dados = self.get_serializer(queryset, many=True).data
+        for item in dados:
+            self._mascarar_se_necessario(item, request.user)
+        return Response(dados)
+
+    def retrieve(self, request, *args, **kwargs):
+        item = self.get_serializer(self.get_object()).data
+        return Response(self._mascarar_se_necessario(item, request.user))
+
+    @action(detail=False, methods=['get'])
+    def contexto(self, request):
+        usuarios_qs = Funcionario.objects.filter(is_active=True).order_by('first_name', 'username')
+        empresas_qs = Empresa.objects.filter(ativo=True).order_by('nome')
+        if not _atividade_admin(request.user):
+            usuarios_qs = usuarios_qs.filter(id=request.user.id)
+            empresas_qs = empresas_qs.filter(gerenciada_por=request.user)
+        nome = request.user.get_full_name() or request.user.username
+        return Response({
+            'usuario': {
+                'id': request.user.id, 'nome': nome,
+                'papel': 'admin' if _atividade_admin(request.user) else 'usuario',
+                'acesso': 'administrador' if _atividade_admin(request.user) else 'usuario',
+                'cargo': getattr(request.user, 'cargo', 'pessoal'),
+            },
+            'usuarios': [
+                {'id': user.id, 'nome': user.get_full_name() or user.username, 'ativo': user.is_active}
+                for user in usuarios_qs
+            ],
+            'empresas': [
+                {'id': empresa.id, 'nome': empresa.nome, 'nomeFantasia': empresa.nome, 'razaoSocial': empresa.nome}
+                for empresa in empresas_qs
+            ],
+        })
+
+    def perform_create(self, serializer):
+        responsavel = serializer.validated_data.get('responsavel')
+        empresa = serializer.validated_data.get('empresa')
+        if not _atividade_admin(self.request.user):
+            if responsavel and responsavel != self.request.user:
+                raise PermissionDenied('Você só pode criar atividades para si.')
+            if empresa and not self.request.user.empresas_gerenciadas.filter(id=empresa.id).exists():
+                raise PermissionDenied('Você não possui acesso a esta empresa.')
+            responsavel = self.request.user
+        atividade = serializer.save(autor=self.request.user, responsavel=responsavel or self.request.user)
+        if atividade.estado == 'concluida':
+            atividade.concluida_em = timezone.now()
+            atividade.concluida_por = self.request.user
+            atividade.save(update_fields=['concluida_em', 'concluida_por'])
+
+    def partial_update(self, request, *args, **kwargs):
+        atividade = self.get_object()
+        pode_editar = atividade.responsavel_id == request.user.id or (
+            _atividade_admin(request.user) and not atividade.privada
+        )
+        if not pode_editar:
+            return Response({'detail': 'Você não pode editar esta atividade.'}, status=status.HTTP_403_FORBIDDEN)
+        if 'privada' in request.data and atividade.responsavel_id != request.user.id:
+            return Response({'detail': 'Somente o responsável pode alterar a privacidade.'}, status=status.HTTP_403_FORBIDDEN)
+        if not _atividade_admin(request.user):
+            responsavel_id = request.data.get('responsavelId')
+            if responsavel_id not in (None, '', request.user.id, str(request.user.id)):
+                return Response({'detail': 'Você só pode atribuir atividades a si.'}, status=status.HTTP_403_FORBIDDEN)
+            empresa_id = request.data.get('empresaId')
+            if empresa_id not in (None, '') and not request.user.empresas_gerenciadas.filter(id=empresa_id).exists():
+                return Response({'detail': 'Você não possui acesso a esta empresa.'}, status=status.HTTP_403_FORBIDDEN)
+        resposta = super().partial_update(request, *args, **kwargs)
+        atividade.refresh_from_db()
+        if atividade.estado == 'concluida' and not atividade.concluida_em:
+            atividade.concluida_em = timezone.now()
+            atividade.concluida_por = request.user
+            atividade.save(update_fields=['concluida_em', 'concluida_por'])
+        elif atividade.estado != 'concluida' and atividade.concluida_em:
+            atividade.concluida_em = None
+            atividade.concluida_por = None
+            atividade.save(update_fields=['concluida_em', 'concluida_por'])
+        if atividade.recorrencia_origem_id is None and ('frequencia' in request.data or 'dataPlanejada' in request.data):
+            atividade.ocorrencias.exclude(estado='concluida').filter(data_planejada__gte=timezone.localdate()).delete()
+            _materializar_recorrencias()
+        return Response(self.get_serializer(atividade).data, status=resposta.status_code)
+
+    @action(detail=True, methods=['get', 'post'])
+    def blocos(self, request, pk=None):
+        atividade = self.get_object()
+        if atividade.privada and atividade.responsavel_id != request.user.id:
+            raise PermissionDenied('Os detalhes desta atividade são privados.')
+        if request.method == 'GET':
+            return Response(BlocoExecucaoSerializer(atividade.blocos.select_related('responsavel'), many=True).data)
+        dados = request.data.copy()
+        dados['atividadeId'] = atividade.id
+        dados.setdefault('responsavelId', atividade.responsavel_id or request.user.id)
+        serializer = BlocoExecucaoSerializer(data=dados)
+        serializer.is_valid(raise_exception=True)
+        responsavel = serializer.validated_data['responsavel']
+        if not _atividade_admin(request.user) and responsavel != request.user:
+            return Response({'detail': 'Você só pode reservar blocos para si.'}, status=status.HTTP_403_FORBIDDEN)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class BlocoExecucaoViewSet(viewsets.ModelViewSet):
+    serializer_class = BlocoExecucaoSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'patch', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        queryset = BlocoExecucao.objects.select_related('atividade', 'responsavel')
+        if _atividade_admin(self.request.user):
+            return queryset.filter(
+                Q(atividade__privada=False) | Q(atividade__responsavel=self.request.user)
+            )
+        return queryset.filter(responsavel=self.request.user)
+
+    def perform_update(self, serializer):
+        bloco = self.get_object()
+        if not _atividade_admin(self.request.user):
+            atividade = serializer.validated_data.get('atividade', bloco.atividade)
+            responsavel = serializer.validated_data.get('responsavel', bloco.responsavel)
+            possui_acesso = Atividade.objects.filter(id=atividade.id).filter(
+                Q(responsavel=self.request.user)
+                | Q(autor=self.request.user)
+                | Q(compartilhados=self.request.user)
+            ).exists()
+            if not possui_acesso:
+                raise PermissionDenied('Você não possui acesso a esta atividade.')
+            if responsavel != self.request.user:
+                raise PermissionDenied('Você só pode alterar blocos reservados para si.')
+        serializer.save()
         
 class PendenciaAPIView(APIView):
     def get(self, request):

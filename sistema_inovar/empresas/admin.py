@@ -16,6 +16,8 @@ from .models import (
     HistoricoEnvios,
     HistoricoStatusEmpresa,
     PaginaSistema,
+    Atividade,
+    BlocoExecucao,
 )
 
 
@@ -25,6 +27,21 @@ class PaginaSistemaAdmin(admin.ModelAdmin):
     list_filter = ('ativa', 'secao', 'permite_admin', 'permite_fiscal', 'permite_pessoal')
     search_fields = ('nome', 'rota', 'descricao')
     readonly_fields = ('chave', 'rota', 'secao', 'gerenciavel', 'ordem', 'atualizado_em', 'atualizado_por')
+
+
+class BlocoExecucaoInline(admin.TabularInline):
+    model = BlocoExecucao
+    extra = 0
+
+
+@admin.register(Atividade)
+class AtividadeAdmin(admin.ModelAdmin):
+    list_display = ('titulo', 'tipo', 'responsavel', 'empresa', 'data_planejada', 'prazo', 'estado', 'privada')
+    list_filter = ('tipo', 'estado', 'prioridade', 'privada', 'frequencia')
+    search_fields = ('titulo', 'descricao', 'empresa__nome', 'responsavel__username')
+    autocomplete_fields = ('empresa', 'responsavel', 'autor', 'concluida_por')
+    filter_horizontal = ('compartilhados',)
+    inlines = (BlocoExecucaoInline,)
 
 @admin.register(Funcionario)
 class FuncionarioAdmin(UserAdmin):

@@ -38,6 +38,7 @@ const navigationCategories = [
 ];
 
 const navigationItems = [
+    { pageKey: 'inicio', to: '/inicio', icon: HomeIcon, text: 'Início', keywords: 'inicio tarefas atividades agenda compromissos' },
     { pageKey: 'empresas', to: '/empresas', icon: BuildingOfficeIcon, text: 'Empresas', match: ['/empresas'], keywords: 'clientes cadastro pastas documentos' },
     { pageKey: 'usuarios', to: '/gerenciar-usuarios', icon: UserGroupIcon, text: 'Usuários', match: ['/gerenciar-usuarios'], keywords: 'funcionarios equipe colaboradores' },
     { pageKey: 'carteira', to: '/carteira-empresas', icon: FolderOpenIcon, text: 'Pastas', keywords: 'pastas arquivos empresas documentos' },
@@ -55,7 +56,7 @@ const navigationItems = [
     { pageKey: 'faturamento', to: '/relacao-faturamento', icon: CurrencyDollarIcon, text: 'Relação de faturamento', keywords: 'relacao faturamento receita' },
     { pageKey: 'atribuicoes', to: '/gerenciar-atribuicoes', icon: Cog6ToothIcon, text: 'Atribuições', keywords: 'responsaveis tarefas distribuicao' },
     { pageKey: 'gerenciar_paginas', to: '/gerenciar-paginas', icon: ShieldCheckIcon, text: 'Gerenciar páginas', keywords: 'paginas acessos permissoes disponibilidade' },
-    { pageKey: 'dashboard', to: '/dashboard', icon: HomeIcon, text: 'Início', keywords: 'inicio dashboard painel resumo' },
+    { pageKey: 'dashboard', to: '/dashboard', icon: Squares2X2Icon, text: 'Dashboard', keywords: 'dashboard painel resumo indicadores' },
     { pageKey: 'pendencias', to: '/pendencias', icon: ExclamationTriangleIcon, text: 'Pendências', keywords: 'alertas vencimentos tarefas' },
     { pageKey: 'gerenciamento_simples', to: '/gerenciamento/simples-nacional', icon: Cog6ToothIcon, text: 'Gerenciamento do Simples', keywords: 'gerenciamento monitoramento simples nacional' },
 ];
@@ -88,7 +89,7 @@ const Navbar = () => {
         .map((category) => ({
             ...category,
             items: navigationItems
-                .filter((item) => item.pageKey !== 'dashboard' && canAccess(item.pageKey) && pagesByKey[item.pageKey]?.secao === category.title)
+                .filter((item) => item.pageKey !== 'inicio' && canAccess(item.pageKey) && pagesByKey[item.pageKey]?.secao === category.title)
                 .sort((left, right) => (pagesByKey[left.pageKey]?.ordem || 0) - (pagesByKey[right.pageKey]?.ordem || 0)),
         }))
         .filter((section) => section.items.length > 0), [canAccess, pagesByKey]);
@@ -156,10 +157,10 @@ const Navbar = () => {
             </div>
 
             <nav className="flex-1 space-y-2 overflow-y-auto px-2 py-2">
-                {canAccess('dashboard') && (
+                {canAccess('inicio') && (
                     <div className="px-1 pb-2">
                         <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Principal</p>
-                        <NavLink item={navigationItems.find((item) => item.pageKey === 'dashboard')} />
+                        <NavLink item={navigationItems.find((item) => item.pageKey === 'inicio')} />
                     </div>
                 )}
                 {visibleNavigationSections.map((section) => {

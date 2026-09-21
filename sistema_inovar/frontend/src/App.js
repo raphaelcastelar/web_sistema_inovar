@@ -8,6 +8,7 @@ import PrivateRoute from './utils/PrivateRoute';
 
 // Componentes e Páginas (caminhos a partir de src/)
 import InicioPage from './components/InicioPage';
+import InicioOverview from './components/InicioOverview';
 import CarteiraEmpresasPage from './components/CarteiraEmpresasPage';
 import EmpresaList from './components/EmpresaList';
 import EmpresaForm from './components/EmpresaForm';
@@ -45,7 +46,8 @@ function App() {
         {/* ROTAS PROTEGIDAS: Todas as rotas aqui dentro usam o MainLayout (com a Navbar) e exigem login */}
         <Route element={<PrivateRoute />}>
           <Route element={<MainLayout />}>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<Navigate to="/inicio" replace />} />
+            <Route path="/inicio" element={<PageGate pageKey="inicio"><InicioOverview /></PageGate>} />
             <Route path="/dashboard" element={<PageGate pageKey="dashboard"><InicioPage /></PageGate>} />
             <Route path="/carteira-empresas" element={<PageGate pageKey="carteira"><CarteiraEmpresasPage /></PageGate>} />
             <Route path="/empresas" element={<PageGate pageKey="empresas"><EmpresaList /></PageGate>} />

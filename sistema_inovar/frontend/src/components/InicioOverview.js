@@ -1,76 +1,123 @@
-import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ArrowRightIcon, BuildingOffice2Icon, CalendarDaysIcon, CheckCircleIcon,
-  ClipboardDocumentListIcon, ClockIcon, DocumentTextIcon, ExclamationTriangleIcon,
+  ArrowPathIcon, ArrowRightIcon, BuildingOffice2Icon, CalendarDaysIcon,
+  CheckCircleIcon, ClockIcon, ExclamationTriangleIcon, LockClosedIcon,
+  PencilSquareIcon, PlusIcon, XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { getTaskDefinitions } from '../utils/carteiraEmpresas';
+import axiosInstance from '../api/axiosInstance';
 import './InicioOverview.css';
 
-const formatDate = (date) => date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+const STATES = { a_fazer: 'A fazer', em_andamento: 'Em andamento', aguardando_terceiros: 'Aguardando terceiros', concluida: 'Concluída', cancelada: 'Cancelada' };
+const PRIORITIES = { urgente: 'Urgente', alta: 'Alta', normal: 'Normal', baixa: 'Baixa' };
+const EMPTY_FORM = { titulo: '', descricao: '', tipo: 'tarefa', empresaId: '', responsavelId: '', dataPlanejada: '', prazo: '', inicio: '', termino: '', duracaoEstimada: '', prioridade: 'normal', estado: 'a_fazer', privada: false, frequencia: 'nenhuma' };
+const dateKey = (date = new Date()) => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+const formatDate = (value) => value ? value.slice(0, 10).split('-').reverse().join('/') : 'Sem data';
+const formatTime = (value) => value?.slice(11, 16) || '--:--';
+const isAdmin = (user) => user?.papel === 'admin' || user?.acesso === 'administrador';
+const activityName = (activity) => activity?.mascarada ? 'Atividade privada' : activity?.titulo || 'Atividade sem título';
+const errorMessage = (error, fallback) => {
+  const data = error?.response?.data;
+  if (typeof data === 'string') return data;
+  if (data?.detail) return data.detail;
+  if (data && typeof data === 'object') {
+    const first = Object.values(data).flat().find(Boolean);
+    if (first) return String(first);
+  }
+  return fallback;
+};
 
-function OverviewCard({ icon: Icon, title, value, detail, to, tone = 'blue', badge }) {
-  const Card = to ? Link : 'div';
-  return (
-    <Card {...(to ? { to } : {})} className={`inicio-card inicio-card--${tone}`}>
-      <span className="inicio-card__top"><span className="inicio-card__icon"><Icon /></span><span className="inicio-card__title">{title}</span>{badge && <span className="inicio-card__badge">{badge}</span>}</span>
-      <strong>{value}</strong><span className="inicio-card__detail">{detail}</span>
-      {to && <span className="inicio-card__link">Ver detalhes <ArrowRightIcon /></span>}
-    </Card>
-  );
+function Status({ state }) { return <span className={`io-status io-status--${state}`}>{STATES[state] || state}</span>; }
+function Priority({ priority }) { return <span className={`io-priority io-priority--${priority}`}><i />{PRIORITIES[priority] || 'Normal'}</span>; }
+
+function SummaryCard({ icon: Icon, title, value, detail, badge, warning, onClick }) {
+  return <button type="button" className={`io-summary ${warning ? 'io-summary--warning' : ''}`} onClick={onClick}>
+    <span className="io-summary__head"><span className="io-summary__icon"><Icon /></span><span>{title}</span>{badge && <b>{badge}</b>}</span>
+    <strong>{value}</strong><small>{detail}</small><span className="io-summary__line"><i /></span>
+  </button>;
 }
 
-export default function InicioOverview({ empresas, cargo, isSuperuser, userName, loading, canAccess, documents = [], documentsLoading = false, volumeChart, onCompleteTask, updatingTask }) {
-  const [taskFilter, setTaskFilter] = useState('pending');
-  const now = new Date();
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
-  const tasks = useMemo(() => getTaskDefinitions(cargo, isSuperuser), [cargo, isSuperuser]);
-  const allTasks = empresas.flatMap((empresa) => tasks.map((task) => {
-    const due = new Date(today.getFullYear(), today.getMonth(), task.area === 'Fiscal' ? 25 : 15);
-    return { id: `${empresa.id}-${task.key}`, empresa, task, due, done: Boolean(empresa[task.key]) };
-  }));
-  const pending = allTasks.filter((item) => !item.done);
-  const done = allTasks.length - pending.length;
-  const overdue = pending.filter((item) => item.due < today);
-  const upcoming = pending.filter((item) => item.due >= today).sort((a, b) => a.due - b.due);
-  const visibleTasks = (taskFilter === 'done' ? allTasks.filter((item) => item.done) : pending)
-    .sort((a, b) => a.due - b.due || a.empresa.nome.localeCompare(b.empresa.nome)).slice(0, 6);
-  const nearDue = upcoming.filter((item) => item.due - today <= 7 * 86400000);
-  const deadlines = [...new Map(upcoming.map((item) => [item.task.key, item])).values()].sort((a, b) => a.due - b.due);
-  const firstName = userName?.trim().split(/\s+/)[0] || 'você';
-  const greeting = now.getHours() < 12 ? 'Bom dia' : now.getHours() < 18 ? 'Boa tarde' : 'Boa noite';
-  const dateLabel = today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+function ActivityForm({ activity, initial, context, saving, blocks, onClose, onSave, onCreateBlock, onUpdateBlock, onDeleteBlock }) {
+  const [form, setForm] = useState(() => ({ ...EMPTY_FORM, ...(activity || initial || {}), empresaId: activity?.empresaId || initial?.empresaId || '', responsavelId: activity?.responsavelId || initial?.responsavelId || context.usuario.id, inicio: activity?.inicio?.slice(0, 16) || initial?.inicio || '', termino: activity?.termino?.slice(0, 16) || initial?.termino || '', privada: Boolean(activity?.privada) }));
+  const [error, setError] = useState('');
+  const [blockForm, setBlockForm] = useState({ inicio: '', termino: '' });
+  const users = isAdmin(context.usuario) ? context.usuarios : context.usuarios.filter((user) => user.id === context.usuario.id);
+  const change = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  useEffect(() => { const close = (event) => event.key === 'Escape' && !saving && onClose(); window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close); }, [onClose, saving]);
+  const submit = async (event) => {
+    event.preventDefault(); setError('');
+    if (!form.titulo.trim()) return setError('Informe um título.');
+    if (form.tipo === 'tarefa' && !form.dataPlanejada) return setError('Informe a data planejada.');
+    if (form.tipo === 'compromisso' && (!form.inicio || !form.termino || form.termino <= form.inicio)) return setError('Informe um período válido para o compromisso.');
+    if (form.prazo && form.dataPlanejada && form.prazo < form.dataPlanejada) return setError('O prazo deve ser igual ou posterior à data planejada.');
+    try { await onSave({ ...form, titulo: form.titulo.trim(), descricao: form.descricao.trim(), empresaId: form.empresaId || null, responsavelId: form.responsavelId || null, dataPlanejada: form.tipo === 'tarefa' ? form.dataPlanejada : null, prazo: form.tipo === 'tarefa' ? form.prazo || null : null, inicio: form.tipo === 'compromisso' ? form.inicio : null, termino: form.tipo === 'compromisso' ? form.termino : null, duracaoEstimada: form.duracaoEstimada ? Number(form.duracaoEstimada) : null, frequencia: form.tipo === 'tarefa' ? form.frequencia : 'nenhuma' }); }
+    catch (err) { setError(errorMessage(err, 'Não foi possível salvar a atividade.')); }
+  };
+  return <div className="io-overlay" onMouseDown={(event) => event.target === event.currentTarget && !saving && onClose()}>
+    <section className="io-modal" role="dialog" aria-modal="true" aria-labelledby="io-form-title"><header><div><span>{activity ? 'Editar atividade' : 'Planejamento'}</span><h2 id="io-form-title">{activity ? 'Editar atividade' : 'Nova atividade'}</h2></div><button type="button" onClick={onClose} disabled={saving} aria-label="Fechar"><XMarkIcon /></button></header>
+      <form onSubmit={submit}><div className="io-form-scroll">{error && <p className="io-error">{String(error)}</p>}<div className="io-form-grid">
+        <label className="wide"><span>Título *</span><input autoFocus value={form.titulo} onChange={(e) => change('titulo', e.target.value)} /></label>
+        <label><span>Tipo</span><select value={form.tipo} onChange={(e) => change('tipo', e.target.value)}><option value="tarefa">Tarefa</option><option value="compromisso">Compromisso</option></select></label>
+        <label><span>Responsável</span><select value={form.responsavelId} onChange={(e) => change('responsavelId', Number(e.target.value) || '')}><option value="">Sem responsável</option>{users.map((user) => <option key={user.id} value={user.id}>{user.nome}</option>)}</select></label>
+        <label className="wide"><span>Descrição</span><textarea rows="3" value={form.descricao} onChange={(e) => change('descricao', e.target.value)} /></label>
+        <label><span>Empresa</span><select value={form.empresaId} onChange={(e) => change('empresaId', Number(e.target.value) || '')}><option value="">Sem empresa</option>{context.empresas.map((company) => <option key={company.id} value={company.id}>{company.nome}</option>)}</select></label>
+        <label><span>Prioridade</span><select value={form.prioridade} onChange={(e) => change('prioridade', e.target.value)}>{Object.entries(PRIORITIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+        <label><span>Estado</span><select value={form.estado} onChange={(e) => change('estado', e.target.value)}>{Object.entries(STATES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+        <label><span>Privacidade</span><select value={form.privada ? 'private' : 'team'} disabled={activity && activity.responsavelId !== context.usuario.id} onChange={(e) => change('privada', e.target.value === 'private')}><option value="team">Pública</option><option value="private">Privada</option></select></label>
+        {form.tipo === 'tarefa' ? <><label><span>Data planejada *</span><input type="date" value={form.dataPlanejada || ''} onChange={(e) => change('dataPlanejada', e.target.value)} /></label><label><span>Prazo</span><input type="date" value={form.prazo || ''} onChange={(e) => change('prazo', e.target.value)} /></label><label><span>Duração estimada (min)</span><input type="number" min="1" value={form.duracaoEstimada || ''} onChange={(e) => change('duracaoEstimada', e.target.value)} /></label><label><span>Frequência</span><select value={form.frequencia} disabled={Boolean(activity?.recorrenciaOrigemId)} onChange={(e) => change('frequencia', e.target.value)}><option value="nenhuma">Não repetir</option><option value="diaria">Diária</option><option value="dias_uteis">Dias úteis</option><option value="semanal">Semanal</option><option value="mensal">Mensal</option></select></label></> : <><label><span>Início *</span><input type="datetime-local" value={form.inicio} onChange={(e) => change('inicio', e.target.value)} /></label><label><span>Término *</span><input type="datetime-local" value={form.termino} onChange={(e) => change('termino', e.target.value)} /></label></>}
+      </div>{activity && <section className="io-blocks"><div><div><h3>Blocos de execução</h3><p>Reserve períodos de trabalho para esta atividade.</p></div><span>{blocks.length} bloco(s)</span></div><div className="io-block-form"><input aria-label="Início do bloco" type="datetime-local" value={blockForm.inicio} onChange={(e) => setBlockForm({ ...blockForm, inicio: e.target.value })} /><input aria-label="Término do bloco" type="datetime-local" value={blockForm.termino} onChange={(e) => setBlockForm({ ...blockForm, termino: e.target.value })} /><button type="button" onClick={async () => { if (!blockForm.inicio || blockForm.termino <= blockForm.inicio) return setError('Informe um período válido para o bloco.'); await onCreateBlock(blockForm); setBlockForm({ inicio: '', termino: '' }); }}>Reservar</button></div>{blocks.map((block) => <div className="io-block" key={block.id}><span>{formatDate(block.inicio)} · {formatTime(block.inicio)}–{formatTime(block.termino)}</span><span><button type="button" onClick={() => { const inicio = window.prompt('Novo início (AAAA-MM-DDTHH:MM)', block.inicio.slice(0, 16)); const termino = inicio && window.prompt('Novo término (AAAA-MM-DDTHH:MM)', block.termino.slice(0, 16)); if (inicio && termino) onUpdateBlock(block.id, { inicio, termino }); }}>Editar</button><button type="button" onClick={() => onDeleteBlock(block.id)}>Excluir</button></span></div>)}</section>}</div><footer><button type="button" className="secondary" onClick={onClose} disabled={saving}>Cancelar</button><button type="submit" className="primary" disabled={saving}>{saving ? 'Salvando...' : 'Salvar atividade'}</button></footer></form>
+    </section></div>;
+}
 
-  return (
-    <div className="inicio-overview">
-      <header className="inicio-hero">
-        <div className="inicio-hero__intro"><span className="inicio-hero__mark"><ClipboardDocumentListIcon /></span><div><p className="inicio-eyebrow">Visão geral da operação</p><h1>{greeting}, {firstName}!</h1><p>Acompanhe as obrigações e os resultados do escritório em um só lugar.</p></div></div>
-        <div className="inicio-hero__date"><CalendarDaysIcon /><span>{dateLabel}</span></div>
-      </header>
+function Details({ activity, context, canEdit, onClose, onEdit }) {
+  const company = context.empresas.find((item) => item.id === activity.empresaId);
+  return <div className="io-overlay io-overlay--side" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><aside className="io-details"><header><div><span>{activity.tipo === 'compromisso' ? 'Compromisso' : 'Tarefa'}</span><h2>Detalhes da atividade</h2></div><button onClick={onClose} aria-label="Fechar"><XMarkIcon /></button></header><div className="io-details__body"><div className="io-details__title"><h3>{activityName(activity)}</h3>{activity.privada && <LockClosedIcon />}</div>{activity.mascarada ? <p>Os detalhes desta atividade são privados. O período permanece visível para indicar que o funcionário está ocupado.</p> : activity.descricao && <p>{activity.descricao}</p>}<dl><div><dt>Responsável</dt><dd>{activity.responsavelNome || 'Sem responsável'}</dd></div><div><dt>Data</dt><dd>{activity.tipo === 'compromisso' ? `${formatDate(activity.inicio)} · ${formatTime(activity.inicio)}–${formatTime(activity.termino)}` : formatDate(activity.dataPlanejada)}</dd></div>{!activity.mascarada && <><div><dt>Empresa</dt><dd>{company?.nome || 'Sem empresa'}</dd></div><div><dt>Prazo</dt><dd>{formatDate(activity.prazo)}</dd></div><div><dt>Prioridade</dt><dd>{PRIORITIES[activity.prioridade]}</dd></div><div><dt>Estado</dt><dd>{STATES[activity.estado]}</dd></div></>}</dl></div><footer><button className="secondary" onClick={onClose}>Fechar</button>{canEdit && !activity.mascarada && <button className="primary" onClick={onEdit}><PencilSquareIcon /> Editar</button>}</footer></aside></div>;
+}
 
-      <div className="inicio-cards" aria-label="Resumo da operação">
-        <OverviewCard icon={ClipboardDocumentListIcon} title="Pendências do mês" value={loading ? '—' : pending.length} detail="Obrigações ainda não concluídas" to={canAccess('pendencias') ? '/pendencias' : null} />
-        <OverviewCard icon={CheckCircleIcon} title="Tarefas executadas" value={loading ? '—' : `${done} / ${allTasks.length}`} detail="Obrigações marcadas como concluídas" to={canAccess('carteira') ? '/carteira-empresas' : null} tone="green" badge={allTasks.length ? `${Math.round(done / allTasks.length * 100)}%` : '0%'} />
-        <OverviewCard icon={CalendarDaysIcon} title="Próximos prazos" value={loading ? '—' : upcoming.length} detail="Pendências com prazo neste mês" to={canAccess('pendencias') ? '/pendencias' : null} />
-        <OverviewCard icon={ExclamationTriangleIcon} title="Tarefas atrasadas" value={loading ? '—' : overdue.length} detail="Obrigações após o prazo mensal" to={canAccess('pendencias') ? '/pendencias' : null} tone="red" badge={overdue.length ? 'Atenção' : 'Em dia'} />
-        <OverviewCard icon={BuildingOffice2Icon} title="Carteira" value={loading ? '—' : empresas.length} detail="Empresas ativas" to={canAccess('carteira') ? '/carteira-empresas' : null} />
-      </div>
+function ActivityList({ title, items, empty, onOpen }) {
+  return <section className="io-panel io-list"><header><h2>{title}</h2><b>{items.length}</b></header>{items.length ? <div>{items.slice(0, 8).map((item) => <button key={item.id} onClick={() => onOpen(item)}><i className={`priority-${item.prioridade}`} /><span><strong>{activityName(item)}</strong><small>{item.prazo ? `Prazo ${formatDate(item.prazo)}` : item.responsavelNome || 'Sem responsável'}</small></span><Status state={item.estado} /></button>)}</div> : <p className="io-list__empty">{empty}</p>}</section>;
+}
 
-      <div className="inicio-main-grid">
-        <section className="inicio-panel inicio-chart"><div className="inicio-panel__heading"><div><p className="inicio-eyebrow">Financeiro</p><h2>Volume de boletos</h2></div>{canAccess('boletos_empresa') && <Link to="/boletos-por-empresa">Ver boletos <ArrowRightIcon /></Link>}</div>{volumeChart}</section>
-        <section className="inicio-panel inicio-attention"><div className="inicio-panel__heading"><h2>Pontos de atenção</h2><Link to="/pendencias">Ver todos <ArrowRightIcon /></Link></div><div className="inicio-attention__list">
-          <Link to="/pendencias"><span className="inicio-attention__icon red"><ExclamationTriangleIcon /></span><span><strong>Obrigações vencidas</strong><small>Prazo mensal ultrapassado</small></span><b>{loading ? '—' : overdue.length}</b></Link>
-          <Link to="/pendencias"><span className="inicio-attention__icon amber"><ClockIcon /></span><span><strong>Vencem nos próximos 7 dias</strong><small>Pendências próximas do prazo</small></span><b>{loading ? '—' : nearDue.length}</b></Link>
-          <Link to="/carteira-empresas"><span className="inicio-attention__icon blue"><BuildingOffice2Icon /></span><span><strong>Empresas com pendências</strong><small>Obrigações a acompanhar</small></span><b>{loading ? '—' : new Set(pending.map((item) => item.empresa.id)).size}</b></Link>
-        </div></section>
-        <section className="inicio-panel inicio-deadlines"><div className="inicio-panel__heading"><h2>Próximos vencimentos</h2><Link to="/pendencias">Ver pendências <ArrowRightIcon /></Link></div>{deadlines.length ? <div className="inicio-deadlines__list">{deadlines.map((item) => <Link to="/pendencias" key={item.task.key}><span className="inicio-deadlines__date"><strong>{String(item.due.getDate()).padStart(2, '0')}</strong><small>{item.due.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '').toUpperCase()}</small></span><span><strong>{item.task.label}</strong><small>{upcoming.filter((entry) => entry.task.key === item.task.key).length} empresa(s) pendente(s)</small></span><span className="inicio-deadlines__area">{item.task.area}</span></Link>)}</div> : <p className="inicio-empty">Nenhum vencimento pendente neste mês.</p>}</section>
-      </div>
+export default function InicioOverview() {
+  const [context, setContext] = useState(null), [activities, setActivities] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState('');
+  const [selectedDate, setSelectedDate] = useState(dateKey()), [employeeId, setEmployeeId] = useState('mine'), [taskFilter, setTaskFilter] = useState('all'), [attention, setAttention] = useState('');
+  const [modal, setModal] = useState(null), [details, setDetails] = useState(null), [saving, setSaving] = useState(false), [blocks, setBlocks] = useState([]);
+  const load = useCallback(async () => { setLoading(true); setError(''); try { const [contextResponse, activitiesResponse] = await Promise.all([axiosInstance.get('/api/atividades/contexto/'), axiosInstance.get('/api/atividades/')]); setContext(contextResponse.data); setActivities(activitiesResponse.data); } catch (err) { setError(err.response?.data?.detail || 'Não foi possível carregar a página inicial.'); } finally { setLoading(false); } }, []);
+  useEffect(() => { load(); }, [load]);
+  const selectedEmployee = employeeId === 'team' ? null : Number(employeeId === 'mine' ? context?.usuario.id : employeeId);
+  const visible = useMemo(() => selectedEmployee ? activities.filter((item) => item.responsavelId === selectedEmployee) : activities, [activities, selectedEmployee]);
+  const dayTasks = visible.filter((item) => item.tipo === 'tarefa' && item.estado !== 'cancelada' && (item.dataPlanejada?.slice(0, 10) === selectedDate || (item.dataPlanejada?.slice(0, 10) < selectedDate && !['concluida', 'cancelada'].includes(item.estado) && (!item.prazo || item.prazo >= selectedDate))));
+  const commitments = visible.filter((item) => item.tipo === 'compromisso' && item.estado !== 'cancelada' && item.inicio?.slice(0, 10) <= selectedDate && item.termino?.slice(0, 10) >= selectedDate).sort((a, b) => a.inicio.localeCompare(b.inicio));
+  const late = visible.filter((item) => item.tipo === 'tarefa' && !['concluida', 'cancelada'].includes(item.estado) && item.prazo && item.prazo < selectedDate).sort((a, b) => a.prazo.localeCompare(b.prazo));
+  const upcoming = visible.filter((item) => item.tipo === 'tarefa' && !['concluida', 'cancelada'].includes(item.estado) && item.prazo > selectedDate).sort((a, b) => a.prazo.localeCompare(b.prazo));
+  const completed = dayTasks.filter((item) => item.estado === 'concluida').length;
+  const nextSeven = upcoming.filter((item) => item.prazo <= dateKey(new Date(new Date(`${selectedDate}T12:00:00`).getTime() + 7 * 86400000)));
+  const unassigned = visible.filter((item) => !item.responsavelId && !['concluida', 'cancelada'].includes(item.estado));
+  const waiting = visible.filter((item) => item.estado === 'aguardando_terceiros');
+  const focus = commitments.find((item) => item.estado !== 'concluida') || commitments[0];
+  const allocated = commitments.reduce((sum, item) => sum + Math.max(0, (new Date(item.termino) - new Date(item.inicio)) / 60000), 0);
+  const concludedMinutes = commitments.filter((item) => item.estado === 'concluida').reduce((sum, item) => sum + Math.max(0, (new Date(item.termino) - new Date(item.inicio)) / 60000), 0);
+  const rows = dayTasks.filter((item) => taskFilter === 'all' || item.estado === taskFilter);
+  const patchActivity = async (id, payload) => { const previous = activities; setActivities((current) => current.map((item) => item.id === id ? { ...item, ...payload } : item)); try { const { data } = await axiosInstance.patch(`/api/atividades/${id}/`, payload); setActivities((current) => current.map((item) => item.id === id ? data : item)); } catch (err) { setActivities(previous); setError(err.response?.data?.detail || 'Não foi possível atualizar a atividade.'); } };
+  const openEdit = async (activity) => { setDetails(null); setBlocks([]); if (activity?.id) { try { setBlocks((await axiosInstance.get(`/api/atividades/${activity.id}/blocos/`)).data); } catch {} } setModal({ activity }); };
+  const saveActivity = async (payload) => { setSaving(true); try { if (modal.activity) await axiosInstance.patch(`/api/atividades/${modal.activity.id}/`, payload); else await axiosInstance.post('/api/atividades/', payload); setActivities((await axiosInstance.get('/api/atividades/')).data); setModal(null); } finally { setSaving(false); } };
+  const createBlock = async (payload) => { const { data } = await axiosInstance.post(`/api/atividades/${modal.activity.id}/blocos/`, payload); setBlocks((current) => [...current, data]); };
+  const updateBlock = async (id, payload) => { const { data } = await axiosInstance.patch(`/api/blocos-execucao/${id}/`, payload); setBlocks((current) => current.map((item) => item.id === id ? data : item)); };
+  const deleteBlock = async (id) => { await axiosInstance.delete(`/api/blocos-execucao/${id}/`); setBlocks((current) => current.filter((item) => item.id !== id)); };
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (loading) return <div className="io-state"><ArrowPathIcon className="animate-spin" /><strong>Organizando suas atividades...</strong></div>;
+  if (!context) return <div className="io-state io-state--error"><ExclamationTriangleIcon /><strong>{error}</strong><button onClick={load}>Tentar novamente</button></div>;
+  const teamView = isAdmin(context.usuario) && employeeId === 'team';
 
-      <div className="inicio-bottom-grid">
-        <section className="inicio-panel inicio-tasks"><div className="inicio-panel__heading"><div><h2>Obrigações da carteira <span className="inicio-count">{taskFilter === 'done' ? done : pending.length}</span></h2><p>Prazo mensal por empresa</p></div><select aria-label="Filtrar obrigações" value={taskFilter} onChange={(event) => setTaskFilter(event.target.value)}><option value="pending">Pendentes</option><option value="done">Concluídas</option></select></div><div className="inicio-table-wrap"><table><thead><tr><th>Tarefa</th><th>Empresa</th><th>Prazo</th><th>Status</th><th>Ação</th></tr></thead><tbody>{visibleTasks.map((item) => <tr key={item.id}><td>{item.task.label}</td><td>{item.empresa.nome}</td><td>{formatDate(item.due)}</td><td><span className={`inicio-status ${item.done ? 'done' : item.due < today ? 'late' : 'pending'}`}>{item.done ? 'Concluída' : item.due < today ? 'Atrasada' : 'Pendente'}</span></td><td>{!item.done && <button type="button" className="inicio-complete" disabled={updatingTask === item.id} onClick={() => onCompleteTask(item)}>{updatingTask === item.id ? 'Salvando...' : 'Concluir'}</button>}</td></tr>)}</tbody></table>{!visibleTasks.length && <p className="inicio-empty">{loading ? 'Carregando obrigações...' : 'Nenhuma obrigação nesta situação.'}</p>}</div><Link className="inicio-panel__footer" to="/pendencias">Ver todas as obrigações <ArrowRightIcon /></Link></section>
-        {canAccess('carteira') && <section className="inicio-panel inicio-documents"><div className="inicio-panel__heading"><h2>Últimos documentos</h2><Link to="/carteira-empresas">Ver pastas <ArrowRightIcon /></Link></div><div className="inicio-documents__list">{documents.map((doc) => <Link to={`/empresas/${doc.empresa}/pastas`} key={doc.id}><span className="inicio-documents__icon"><DocumentTextIcon /></span><span><strong title={doc.nome_arquivo}>{doc.nome_arquivo}</strong><small>{doc.empresa_nome || 'Empresa'} · {doc.criado_em ? new Date(doc.criado_em).toLocaleDateString('pt-BR') : 'Sem data'}</small></span><ArrowRightIcon /></Link>)}{!documents.length && <p className="inicio-empty">{documentsLoading ? 'Carregando documentos...' : 'Nenhum documento recente.'}</p>}</div></section>}
-      </div>
-    </div>
-  );
+  return <div className="io-page"><header className="io-hero"><div><span className="io-hero__icon"><CalendarDaysIcon /></span><div><p>{teamView ? 'Visão da equipe' : `Olá, ${context.usuario.nome.split(' ')[0]}!`}</p><h1>{teamView ? 'Acompanhe o trabalho do escritório' : 'Organize o seu dia'}</h1></div></div><div className="io-hero__actions"><time>{new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(`${selectedDate}T12:00:00`))}</time><button onClick={() => setModal({ initial: { tipo: 'tarefa', dataPlanejada: selectedDate } })}><PlusIcon /> Nova atividade</button></div></header>
+    <div className="io-filters">{isAdmin(context.usuario) && <label><span>Funcionário</span><select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)}><option value="mine">Minhas atividades</option><option value="team">Toda a equipe</option>{context.usuarios.filter((user) => user.id !== context.usuario.id).map((user) => <option key={user.id} value={user.id}>{user.nome}</option>)}</select></label>}<label><span>Data de análise</span><input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} /></label><button onClick={() => setSelectedDate(dateKey())}>Hoje</button><button className="icon" onClick={load} aria-label="Atualizar"><ArrowPathIcon /></button></div>
+    {error && <div className="io-alert">{error}<button onClick={() => setError('')}><XMarkIcon /></button></div>}
+    <section className="io-summaries"><SummaryCard icon={CheckCircleIcon} title="Tarefas do dia" value={dayTasks.length} detail="Previstas e pendentes" onClick={() => scrollTo('io-tasks')} /><SummaryCard icon={CheckCircleIcon} title="Tarefas executadas" value={`${completed}/${dayTasks.length}`} detail="Concluídas no dia" badge={`${dayTasks.length ? Math.round(completed / dayTasks.length * 100) : 0}%`} onClick={() => scrollTo('io-tasks')} /><SummaryCard icon={ClockIcon} title="Compromissos" value={commitments.length} detail="Na agenda do dia" onClick={() => scrollTo('io-agenda')} /><SummaryCard icon={ExclamationTriangleIcon} title="Tarefas atrasadas" value={late.length} detail="Com prazo vencido" badge={late.length ? 'Pendente' : 'Em dia'} warning={late.length > 0} onClick={() => scrollTo('io-pending')} /><SummaryCard icon={BuildingOffice2Icon} title="Carteira" value={context.empresas.length} detail="Empresas disponíveis" onClick={() => window.location.assign('/carteira-empresas')} /></section>
+    {isAdmin(context.usuario) && <section className="io-attention"><div><h2>Pontos de atenção</h2><p>Conforme o funcionário e a data selecionados.</p></div><div className="io-attention__cards">{[['due', 'Vencem em até 7 dias', nextSeven], ['owner', 'Sem responsável', unassigned], ['waiting', 'Aguardando terceiros', waiting]].map(([key, label, items]) => <button key={key} className={attention === key ? 'active' : ''} onClick={() => setAttention(attention === key ? '' : key)}><span>{label}</span><strong>{items.length}</strong></button>)}</div>{attention && <div className="io-attention__list">{({ due: nextSeven, owner: unassigned, waiting })[attention].slice(0, 8).map((item) => <button key={item.id} onClick={() => setDetails(item)}><span><strong>{activityName(item)}</strong><small>{item.empresaNome || item.responsavelNome || 'Atividade interna'}</small></span><ArrowRightIcon /></button>)}</div>}</section>}
+    <section className="io-panel io-tasks" id="io-tasks"><header><div><span className="io-dot" /><div><h2>{teamView ? 'Lista de tarefas do dia' : 'Minhas tarefas do dia'} <b>{rows.length} tarefas</b></h2><p>Tarefas planejadas e pendências trazidas de dias anteriores.</p></div></div><select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}><option value="all">Todas</option>{Object.entries(STATES).filter(([key]) => key !== 'cancelada').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></header><div className="io-table"><table><thead><tr><th>Tarefa</th><th>Início</th><th>Prazo</th><th>Prioridade</th><th>Status</th><th>Privacidade</th><th>Finalizado</th><th /></tr></thead><tbody>{rows.map((item) => <tr key={item.id} className={item.estado === 'concluida' ? 'completed' : ''}><td><button className="io-task-link" onClick={() => setDetails(item)}>{activityName(item)}</button><small>{item.mascarada ? 'Detalhes privados' : item.descricao || item.empresaNome || 'Atividade interna'}</small></td><td>{formatDate(item.dataPlanejada)}</td><td>{item.mascarada ? '—' : formatDate(item.prazo)}</td><td>{item.mascarada ? '—' : <Priority priority={item.prioridade} />}</td><td><Status state={item.estado} /></td><td><button className={`io-switch-label ${item.privada ? 'active' : ''}`} disabled={item.responsavelId !== context.usuario.id || item.mascarada} onClick={() => patchActivity(item.id, { privada: !item.privada })}><span><i /></span>{item.privada ? 'Privada' : 'Pública'}</button></td><td><button className={`io-switch ${item.estado === 'concluida' ? 'active' : ''}`} disabled={item.mascarada} onClick={() => patchActivity(item.id, { estado: item.estado === 'concluida' ? 'a_fazer' : 'concluida' })}><i /></button></td><td><button className="io-row-action" onClick={() => setDetails(item)}><ArrowRightIcon /></button></td></tr>)}</tbody></table>{!rows.length && <div className="io-empty"><CheckCircleIcon /><strong>Nenhuma tarefa para este dia</strong><p>Crie uma atividade ou selecione outra data.</p></div>}</div></section>
+    <div className="io-pending" id="io-pending"><ActivityList title="Atrasadas" items={late} empty="Nenhuma tarefa atrasada." onOpen={setDetails} /><ActivityList title="Próximas entregas" items={upcoming.slice(0, 10)} empty="Nenhuma entrega futura." onOpen={setDetails} /></div>
+    <div className="io-agenda-grid" id="io-agenda"><section className="io-panel io-agenda"><header><div><span className="io-dot" /><div><h2>Atividades do dia <b>{commitments.length} compromissos</b></h2><p>Visão de horários e compromissos.</p></div></div><button className="io-new" onClick={() => setModal({ initial: { tipo: 'compromisso', inicio: `${selectedDate}T09:00`, termino: `${selectedDate}T10:00` } })}><PlusIcon /> Nova atividade</button></header><div className="io-timeline">{Array.from({ length: 14 }, (_, i) => i + 7).map((hour) => <div className="io-hour" key={hour}><span>{String(hour).padStart(2, '0')}:00</span><i /></div>)}{commitments.map((item) => { const hour = Number(formatTime(item.inicio).slice(0, 2)) + Number(formatTime(item.inicio).slice(3)) / 60; const minutes = Math.max(30, (new Date(item.termino) - new Date(item.inicio)) / 60000); return <button key={item.id} className={`io-event io-event--${item.estado}`} style={{ top: Math.max(0, (hour - 7) * 58), height: Math.max(34, minutes / 60 * 58) }} onClick={() => setDetails(item)}><small>{formatTime(item.inicio)}–{formatTime(item.termino)}</small><strong>{activityName(item)}</strong></button>; })}{!commitments.length && <p className="io-timeline-empty">Nenhum compromisso agendado.</p>}</div></section><aside className="io-focus"><p><span className="io-dot" /> Painel de foco</p><section>{focus ? <><span>{focus.estado === 'em_andamento' ? 'Em andamento' : 'Próximo compromisso'}</span><h2>{activityName(focus)}</h2><p>{focus.descricao || 'Confira os detalhes e prepare-se para o próximo compromisso.'}</p><footer><strong>{formatTime(focus.inicio)}–{formatTime(focus.termino)}</strong><button onClick={() => focus.estado === 'em_andamento' ? setDetails(focus) : patchActivity(focus.id, { estado: 'em_andamento' })}>{focus.estado === 'em_andamento' ? 'Abrir atividade' : 'Iniciar atividade'}</button></footer></> : <><h2>Seu próximo compromisso aparece aqui</h2><p>Nenhum compromisso nesta data.</p></>}</section><section className="io-load"><div><h3>Resumo de carga horária</h3><strong>{Math.round(allocated / 60)}h alocadas</strong></div><span><i style={{ width: `${allocated ? concludedMinutes / allocated * 100 : 0}%` }} /></span><p>{Math.round(concludedMinutes / 60)}h concluídas de {Math.round(allocated / 60)}h em compromissos.</p></section></aside></div>
+    {teamView && <section className="io-panel io-team"><header><div><span className="io-dot" /><div><p>Equipe</p><h2>Distribuição do dia</h2></div></div><b>{context.usuarios.length} pessoas</b></header><div>{context.usuarios.map((user) => { const count = activities.filter((item) => item.responsavelId === user.id && (item.dataPlanejada?.slice(0, 10) === selectedDate || item.inicio?.slice(0, 10) === selectedDate)).length; return <button key={user.id} onClick={() => setEmployeeId(String(user.id))}><span>{user.nome.charAt(0).toUpperCase()}</span><div><strong>{user.nome}</strong><small>{count} atividades no dia</small></div></button>; })}</div></section>}
+    {modal && <ActivityForm activity={modal.activity} initial={modal.initial} context={context} saving={saving} blocks={blocks} onClose={() => setModal(null)} onSave={saveActivity} onCreateBlock={createBlock} onUpdateBlock={updateBlock} onDeleteBlock={deleteBlock} />}
+    {details && <Details activity={details} context={context} canEdit={details.responsavelId === context.usuario.id || (isAdmin(context.usuario) && !details.privada)} onClose={() => setDetails(null)} onEdit={() => openEdit(details)} />}
+  </div>;
 }

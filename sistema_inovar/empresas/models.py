@@ -369,6 +369,71 @@ class Funcionario(AbstractUser):
             logger.info(f"Funcionário {self.username} criado e atribuído a todas as empresas.")
 
 
+class Atividade(models.Model):
+    TIPO_CHOICES = [('tarefa', 'Tarefa'), ('compromisso', 'Compromisso')]
+    ESTADO_CHOICES = [
+        ('a_fazer', 'A fazer'), ('em_andamento', 'Em andamento'),
+        ('aguardando_terceiros', 'Aguardando terceiros'),
+        ('concluida', 'Concluída'), ('cancelada', 'Cancelada'),
+    ]
+    PRIORIDADE_CHOICES = [('baixa', 'Baixa'), ('normal', 'Normal'), ('alta', 'Alta'), ('urgente', 'Urgente')]
+    FREQUENCIA_CHOICES = [
+        ('nenhuma', 'Não repetir'), ('diaria', 'Diária'), ('dias_uteis', 'Dias úteis'),
+        ('semanal', 'Semanal'), ('mensal', 'Mensal'),
+    ]
+
+    titulo = models.CharField(max_length=220)
+    descricao = models.TextField(blank=True, default='')
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='tarefa')
+    origem = models.CharField(max_length=20, default='manual', editable=False)
+    empresa = models.ForeignKey(Empresa, on_delete=models.SET_NULL, null=True, blank=True, related_name='atividades')
+    responsavel = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='atividades_responsavel')
+    compartilhados = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='atividades_compartilhadas')
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='atividades_criadas')
+    data_planejada = models.DateField(null=True, blank=True)
+    prazo = models.DateField(null=True, blank=True)
+    inicio = models.DateTimeField(null=True, blank=True)
+    termino = models.DateTimeField(null=True, blank=True)
+    duracao_estimada = models.PositiveIntegerField(null=True, blank=True)
+    prioridade = models.CharField(max_length=20, choices=PRIORIDADE_CHOICES, default='normal')
+    estado = models.CharField(max_length=30, choices=ESTADO_CHOICES, default='a_fazer')
+    privada = models.BooleanField(default=False)
+    frequencia = models.CharField(max_length=20, choices=FREQUENCIA_CHOICES, default='nenhuma')
+    recorrencia_origem = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='ocorrencias')
+    concluida_em = models.DateTimeField(null=True, blank=True)
+    concluida_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='atividades_concluidas')
+    criada_em = models.DateTimeField(auto_now_add=True)
+    atualizada_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['data_planejada', 'inicio', '-prioridade', 'id']
+        constraints = [
+            models.UniqueConstraint(fields=['recorrencia_origem', 'data_planejada'], name='atividade_recorrencia_data_uniq'),
+        ]
+        indexes = [
+            models.Index(fields=['responsavel', 'data_planejada'], name='ativ_resp_data_idx'),
+            models.Index(fields=['estado', 'prazo'], name='ativ_estado_prazo_idx'),
+        ]
+
+    def __str__(self):
+        return self.titulo
+
+
+class BlocoExecucao(models.Model):
+    atividade = models.ForeignKey(Atividade, on_delete=models.CASCADE, related_name='blocos')
+    responsavel = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='blocos_execucao')
+    inicio = models.DateTimeField()
+    termino = models.DateTimeField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['inicio', 'id']
+
+    def __str__(self):
+        return f'{self.atividade} - {self.inicio:%d/%m/%Y %H:%M}'
+
+
 class PaginaSistema(models.Model):
     chave = models.SlugField(max_length=60, unique=True)
     nome = models.CharField(max_length=100)

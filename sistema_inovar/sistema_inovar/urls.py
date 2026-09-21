@@ -5,7 +5,8 @@ from empresas.views import (
     EmpresaViewSet, EmpresaAvulsaFaturamentoViewSet, DocumentosConstitutivosViewSet, XMLViewSet,
     DepartamentoPessoalViewSet, SimplesNacionalViewSet, OutrosViewSet, DocumentoEmpresaViewSet,
     enviar_email, HistoricoEnviosViewSet, FuncionarioViewSet,
-    current_user,  gerar_e_enviar_das_view, NotificacaoViewSet, BoletoBBViewSet, TagViewSet
+    current_user,  gerar_e_enviar_das_view, NotificacaoViewSet, BoletoBBViewSet, TagViewSet,
+    AtividadeViewSet, BlocoExecucaoViewSet
 )
 from django.conf import settings
 from django.conf.urls.static import static
@@ -28,6 +29,8 @@ router.register(r'funcionarios', FuncionarioViewSet, basename='funcionarios')
 router.register(r'notificacoes', NotificacaoViewSet, basename='notificacao')
 router.register(r'boletos-bb', BoletoBBViewSet, basename='boletos-bb')
 router.register(r'tags', TagViewSet, basename='tags')
+router.register(r'atividades', AtividadeViewSet, basename='atividades')
+router.register(r'blocos-execucao', BlocoExecucaoViewSet, basename='blocos-execucao')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
