@@ -1569,6 +1569,23 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
     serializer_class = DocumentoEmpresaSerializer
     permission_classes = [IsAuthenticated]
 
+    @action(detail=False, methods=['get'], url_path='recentes')
+    def recentes(self, request):
+        documentos = self.get_queryset()
+        if not request.user.is_staff and not request.user.is_superuser:
+            documentos = documentos.filter(empresa__gerenciada_por=request.user)
+        documentos = documentos.order_by('-criado_em', '-id')[:5]
+        return Response([
+            {
+                'id': documento.id,
+                'empresa': documento.empresa_id,
+                'empresa_nome': documento.empresa.nome,
+                'nome_arquivo': documento.nome_arquivo,
+                'criado_em': documento.criado_em,
+            }
+            for documento in documentos
+        ])
+
     def get_queryset(self):
         queryset = super().get_queryset()
         empresa_id = self.request.query_params.get('empresa_id')

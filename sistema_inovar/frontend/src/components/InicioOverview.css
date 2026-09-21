@@ -1,0 +1,84 @@
+.inicio-overview { color: #17243b; }
+.inicio-overview a { text-decoration: none; }
+.inicio-hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 4px 24px; }
+.inicio-hero__intro { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.inicio-hero__mark { display: grid; place-items: center; flex: 0 0 48px; height: 48px; border-radius: 15px; color: white; background: linear-gradient(145deg, #182d49, #101c2d); box-shadow: 0 10px 24px #142c4b24; }
+.inicio-hero__mark svg { width: 25px; height: 25px; }
+.inicio-eyebrow { color: #3773bd; font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.inicio-hero h1 { margin: 2px 0; font-size: clamp(23px, 2.2vw, 32px); font-weight: 750; letter-spacing: -.035em; }
+.inicio-hero__intro p:last-child { color: #65748c; font-size: 14px; }
+.inicio-hero__date { display: flex; align-items: center; gap: 10px; color: #3e516e; font-size: 13px; font-weight: 650; text-transform: capitalize; white-space: nowrap; }
+.inicio-hero__date svg { width: 38px; height: 38px; padding: 9px; border-radius: 12px; color: #2565a8; background: #eaf2fc; }
+.inicio-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 13px; }
+.inicio-card, .inicio-panel { border: 1px solid #e1e8f2; border-radius: 16px; background: #fff; box-shadow: 0 7px 24px rgba(27, 57, 103, .055); }
+.inicio-card { display: flex; flex-direction: column; min-width: 0; min-height: 168px; padding: 17px; transition: transform .2s, box-shadow .2s, border-color .2s; }
+.inicio-card:hover { transform: translateY(-3px); border-color: #bed4ef; box-shadow: 0 12px 30px rgba(27, 57, 103, .11); }
+.inicio-card:focus-visible, .inicio-overview a:focus-visible, .inicio-overview select:focus-visible { outline: 3px solid #78b9ff; outline-offset: 2px; }
+.inicio-card__top { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.inicio-card__icon { display: grid; place-items: center; flex: 0 0 39px; height: 39px; border-radius: 12px; color: #1264ae; background: #eaf3ff; }
+.inicio-card__icon svg { width: 21px; height: 21px; }
+.inicio-card--green .inicio-card__icon { color: #139253; background: #e9f8ef; }
+.inicio-card--red .inicio-card__icon { color: #e43f4a; background: #fff0f1; }
+.inicio-card__title { overflow: hidden; color: #253751; font-size: 12px; font-weight: 700; line-height: 1.25; }
+.inicio-card__badge { margin-left: auto; padding: 3px 7px; border-radius: 20px; color: #2363a5; background: #edf5ff; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.inicio-card--red .inicio-card__badge { color: #bb3c48; background: #fff0f1; }
+.inicio-card strong { margin: 10px 0 0 48px; color: #111d31; font-size: 28px; font-weight: 780; line-height: 1; }
+.inicio-card__detail { margin: 6px 0 0 48px; color: #70809a; font-size: 11px; line-height: 1.25; }
+.inicio-card__link { display: flex; align-items: center; gap: 5px; margin: auto 0 0 48px; padding-top: 10px; color: #1264b1; font-size: 11px; font-weight: 750; }
+.inicio-card__link svg, .inicio-panel__heading a svg, .inicio-panel__footer svg { width: 14px; height: 14px; }
+.inicio-main-grid { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(240px, .9fr) minmax(260px, 1fr); gap: 14px; margin-top: 16px; }
+.inicio-panel { min-width: 0; padding: 17px; }
+.inicio-panel__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-height: 31px; }
+.inicio-panel__heading h2 { margin: 0; color: #19273d; font-size: 16px; font-weight: 760; letter-spacing: -.02em; }
+.inicio-panel__heading p:not(.inicio-eyebrow) { margin-top: 3px; color: #79869a; font-size: 11px; }
+.inicio-panel__heading a, .inicio-panel__footer { display: inline-flex; align-items: center; gap: 4px; color: #1765b1; font-size: 11px; font-weight: 750; white-space: nowrap; }
+.inicio-chart__body { height: 255px; margin-top: 12px; }
+.inicio-attention__list { margin-top: 7px; }
+.inicio-attention__list a { display: flex; align-items: center; gap: 10px; min-height: 70px; border-bottom: 1px solid #edf1f7; }
+.inicio-attention__list a:last-child { border-bottom: none; }
+.inicio-attention__list a:hover strong, .inicio-deadlines__list a:hover strong, .inicio-documents__list a:hover strong { color: #1264b1; }
+.inicio-attention__icon { display: grid; place-items: center; flex: 0 0 34px; height: 34px; border-radius: 11px; }
+.inicio-attention__icon svg { width: 17px; height: 17px; }
+.inicio-attention__icon.red { color: #df404c; background: #fff0f1; }
+.inicio-attention__icon.amber { color: #de8a16; background: #fff5e8; }
+.inicio-attention__icon.blue { color: #286db7; background: #edf4ff; }
+.inicio-attention__list a > span:nth-child(2), .inicio-deadlines__list a > span:nth-child(2) { min-width: 0; flex: 1; }
+.inicio-attention__list strong, .inicio-deadlines__list strong { display: block; overflow: hidden; color: #23344e; font-size: 11px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.inicio-attention__list small, .inicio-deadlines__list small { display: block; margin-top: 3px; overflow: hidden; color: #79869b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.inicio-attention__list b { padding: 4px 8px; border-radius: 20px; color: #c53b46; background: #fff0f1; font-size: 11px; }
+.inicio-deadlines__list { margin-top: 7px; }
+.inicio-deadlines__list a { display: flex; align-items: center; gap: 10px; min-height: 56px; border-bottom: 1px solid #edf1f7; }
+.inicio-deadlines__list a:last-child { border: 0; }
+.inicio-deadlines__date { display: grid; place-content: center; flex: 0 0 42px; height: 42px; border: 1px solid #e6ecf4; border-radius: 9px; background: #f5f8fc; text-align: center; }
+.inicio-deadlines__date strong { color: #172842; font-size: 16px; line-height: 1; }
+.inicio-deadlines__date small { margin: 3px 0 0; color: #5d708b; font-size: 9px; font-weight: 700; }
+.inicio-deadlines__area { padding: 4px 7px; border-radius: 20px; color: #1a68b1; background: #edf5ff; font-size: 10px; font-weight: 700; }
+.inicio-bottom-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; margin-top: 16px; }
+.inicio-count { padding: 4px 8px; border-radius: 20px; color: #56677f; background: #eef2f7; font-size: 10px; vertical-align: middle; }
+.inicio-panel select { padding: 6px 28px 6px 10px; border: 1px solid #dfe7f1; border-radius: 7px; background: #fff; color: #344762; font-size: 11px; }
+.inicio-table-wrap { overflow-x: auto; margin-top: 12px; }
+.inicio-table-wrap table { width: 100%; border-collapse: collapse; text-align: left; }
+.inicio-table-wrap th { padding: 10px; color: #61718a; background: #f2f6fb; font-size: 10px; font-weight: 750; text-transform: uppercase; white-space: nowrap; }
+.inicio-table-wrap th:first-child { border-radius: 7px 0 0 7px; }
+.inicio-table-wrap th:last-child { border-radius: 0 7px 7px 0; }
+.inicio-table-wrap td { padding: 11px 10px; border-bottom: 1px solid #edf1f7; color: #30415d; font-size: 11px; }
+.inicio-table-wrap td:nth-child(2) { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inicio-status { padding: 4px 7px; border-radius: 5px; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.inicio-status.pending { color: #a36712; background: #fff4e4; }.inicio-status.late { color: #b93d48; background: #fff0f1; }.inicio-status.done { color: #188254; background: #eaf8f0; }
+.inicio-complete { padding: 5px 8px; border: 1px solid #bcd4ef; border-radius: 6px; color: #1264b1; background: #f0f7ff; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.inicio-complete:hover { background: #e2f0ff; }.inicio-complete:disabled { cursor: wait; opacity: .6; }
+.inicio-empty { padding: 28px 10px; color: #76869c; font-size: 12px; text-align: center; }
+.inicio-panel__footer { margin-top: 12px; }
+.inicio-documents__list { margin-top: 8px; }
+.inicio-documents__list a { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid #edf1f7; }
+.inicio-documents__list a:last-child { border: 0; }
+.inicio-documents__icon { display: grid; place-items: center; flex: 0 0 32px; height: 32px; border-radius: 9px; color: #2168af; background: #edf5ff; }
+.inicio-documents__icon svg { width: 16px; height: 16px; }
+.inicio-documents__list a > span:nth-child(2) { min-width: 0; flex: 1; }
+.inicio-documents__list strong { display: block; overflow: hidden; color: #263853; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.inicio-documents__list small { display: block; margin-top: 3px; overflow: hidden; color: #79869b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.inicio-documents__list a > svg { width: 14px; height: 14px; color: #98a7b9; }
+@media (max-width: 1450px) { .inicio-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }.inicio-main-grid { grid-template-columns: minmax(0, 1.5fr) minmax(250px, 1fr); }.inicio-chart { grid-column: 1 / -1; } }
+@media (max-width: 850px) { .inicio-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }.inicio-main-grid, .inicio-bottom-grid { grid-template-columns: 1fr; }.inicio-chart { grid-column: auto; } }
+@media (max-width: 560px) { .inicio-hero { align-items: flex-start; flex-direction: column; }.inicio-hero__date { margin-left: 64px; }.inicio-cards { grid-template-columns: 1fr; }.inicio-card { min-height: 150px; }.inicio-chart__body { height: 220px; }.inicio-panel { padding: 14px; } }
+.dark .inicio-overview { color: #e5edf7; }.dark .inicio-card, .dark .inicio-panel { border-color: #29374b; background: #151f2e; box-shadow: none; }.dark .inicio-hero h1, .dark .inicio-card strong, .dark .inicio-panel__heading h2, .dark .inicio-attention__list strong, .dark .inicio-deadlines__list strong, .dark .inicio-documents__list strong { color: #eef4fb; }.dark .inicio-card__title, .dark .inicio-table-wrap td { color: #cbd8e9; }.dark .inicio-hero__intro p:last-child, .dark .inicio-card__detail { color: #9aacc2; }.dark .inicio-attention__list a, .dark .inicio-deadlines__list a, .dark .inicio-table-wrap td, .dark .inicio-documents__list a { border-color: #2b394e; }.dark .inicio-table-wrap th, .dark .inicio-deadlines__date, .dark .inicio-panel select { border-color: #33445c; color: #cbd8e9; background: #202d3f; }.dark .inicio-hero__date { color: #becce0; }

@@ -55,7 +55,7 @@ const navigationItems = [
     { pageKey: 'faturamento', to: '/relacao-faturamento', icon: CurrencyDollarIcon, text: 'Relação de faturamento', keywords: 'relacao faturamento receita' },
     { pageKey: 'atribuicoes', to: '/gerenciar-atribuicoes', icon: Cog6ToothIcon, text: 'Atribuições', keywords: 'responsaveis tarefas distribuicao' },
     { pageKey: 'gerenciar_paginas', to: '/gerenciar-paginas', icon: ShieldCheckIcon, text: 'Gerenciar páginas', keywords: 'paginas acessos permissoes disponibilidade' },
-    { pageKey: 'dashboard', to: '/dashboard', icon: HomeIcon, text: 'Dashboard', keywords: 'dashboard painel resumo' },
+    { pageKey: 'dashboard', to: '/dashboard', icon: HomeIcon, text: 'Início', keywords: 'inicio dashboard painel resumo' },
     { pageKey: 'pendencias', to: '/pendencias', icon: ExclamationTriangleIcon, text: 'Pendências', keywords: 'alertas vencimentos tarefas' },
     { pageKey: 'gerenciamento_simples', to: '/gerenciamento/simples-nacional', icon: Cog6ToothIcon, text: 'Gerenciamento do Simples', keywords: 'gerenciamento monitoramento simples nacional' },
 ];
@@ -88,7 +88,7 @@ const Navbar = () => {
         .map((category) => ({
             ...category,
             items: navigationItems
-                .filter((item) => canAccess(item.pageKey) && pagesByKey[item.pageKey]?.secao === category.title)
+                .filter((item) => item.pageKey !== 'dashboard' && canAccess(item.pageKey) && pagesByKey[item.pageKey]?.secao === category.title)
                 .sort((left, right) => (pagesByKey[left.pageKey]?.ordem || 0) - (pagesByKey[right.pageKey]?.ordem || 0)),
         }))
         .filter((section) => section.items.length > 0), [canAccess, pagesByKey]);
@@ -135,7 +135,7 @@ const Navbar = () => {
                 onClick={closeMobileMenu}
                 className={`group relative flex h-8 items-center gap-2 overflow-hidden rounded-md p-2 text-sm font-medium transition-all ${
                     isActive
-                        ? 'border border-slate-500/30 bg-slate-700/70 text-white shadow-inner shadow-white/5'
+                        ? 'border border-blue-400/20 bg-gradient-to-r from-blue-600/60 to-blue-400/15 text-white shadow-sm shadow-blue-950/20'
                         : 'text-slate-300 hover:bg-slate-700/45 hover:text-white'
                 }`}
             >
@@ -156,13 +156,19 @@ const Navbar = () => {
             </div>
 
             <nav className="flex-1 space-y-2 overflow-y-auto px-2 py-2">
+                {canAccess('dashboard') && (
+                    <div className="px-1 pb-2">
+                        <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Principal</p>
+                        <NavLink item={navigationItems.find((item) => item.pageKey === 'dashboard')} />
+                    </div>
+                )}
                 {visibleNavigationSections.map((section) => {
                     const SectionIcon = section.icon;
                     const isOpen = openSections[section.title];
                     const hasActiveItem = section.items.some((item) => isItemActive(location.pathname, item));
 
                     return (
-                        <section key={section.title} className="rounded-lg border border-slate-700/70 bg-slate-800/35 p-2">
+                        <section key={section.title} className="rounded-lg p-2">
                             <button
                                 type="button"
                                 onClick={() => toggleSection(section.title)}

@@ -33,6 +33,7 @@ import {
   getTaskDefinitions,
 } from '../utils/carteiraEmpresas';
 import { usePageAccess } from '../context/PageAccessContext';
+import InicioOverview from './InicioOverview';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Filler);
 
@@ -143,6 +144,10 @@ const InicioPage = () => {
   const [empresasSelecionadas, setEmpresasSelecionadas] = useState([]);
   const [boletoMetrics, setBoletoMetrics] = useState(null);
   const [userCargo, setUserCargo] = useState(null);
+  const [userName, setUserName] = useState('');
+  const [recentDocuments, setRecentDocuments] = useState([]);
+  const [documentsLoading, setDocumentsLoading] = useState(true);
+  const [updatingTask, setUpdatingTask] = useState('');
   const [isSuperuser, setIsSuperuser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -178,13 +183,17 @@ const InicioPage = () => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [userResponse, empresasResponse, boletoMetricsData] = await Promise.all([
+      const [userResponse, empresasResponse] = await Promise.all([
         axiosInstance.get('/api/current-user/'),
         axiosInstance.get('/api/empresas/'),
-        fetchDashboardBoletoMetrics(),
       ]);
+      const boletoMetricsData = await fetchDashboardBoletoMetrics().catch((metricError) => {
+        console.error('Erro ao carregar indicadores de boletos:', metricError);
+        return emptyBoletoMetrics;
+      });
       console.log('Resposta /api/current-user/:', userResponse.data);
       setUserCargo(userResponse.data.cargo || 'admin');
+      setUserName(`${userResponse.data.first_name || ''} ${userResponse.data.last_name || ''}`.trim() || userResponse.data.username || '');
       setIsSuperuser(userResponse.data.is_superuser || false);
       const empresasAtivas = empresasResponse.data.filter((empresa) => empresa.ativo === true);
       setEmpresasSelecionadas(empresasAtivas);
@@ -212,6 +221,21 @@ const InicioPage = () => {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!canAccess('carteira')) {
+      setRecentDocuments([]);
+      setDocumentsLoading(false);
+      return undefined;
+    }
+    let active = true;
+    setDocumentsLoading(true);
+    axiosInstance.get('/api/documentos-empresa/recentes/')
+      .then(({ data }) => { if (active) setRecentDocuments(Array.isArray(data) ? data : []); })
+      .catch((err) => console.error('Erro ao carregar documentos recentes:', err))
+      .finally(() => { if (active) setDocumentsLoading(false); });
+    return () => { active = false; };
+  }, [canAccess]);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -387,6 +411,21 @@ const InicioPage = () => {
       setError('Erro ao recarregar dados do dashboard.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCompleteTask = async (item) => {
+    if (updatingTask) return;
+    setUpdatingTask(item.id);
+    setError('');
+    try {
+      await axiosInstance.patch(`/api/empresas/${item.empresa.id}/`, { [item.task.key]: true });
+      setEmpresasSelecionadas((current) => current.map((empresa) => empresa.id === item.empresa.id ? { ...empresa, [item.task.key]: true } : empresa));
+      setCheckboxState((current) => ({ ...current, [item.empresa.id]: { ...current[item.empresa.id], [item.task.key]: true } }));
+    } catch (requestError) {
+      setError(requestError.response?.data?.detail || `Não foi possível concluir ${item.task.label}.`);
+    } finally {
+      setUpdatingTask('');
     }
   };
 
@@ -769,16 +808,8 @@ const InicioPage = () => {
       variants={containerVariants}
       className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4"
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <motion.div variants={itemVariants} className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Operação</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">
-            Dashboard
-          </h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Acompanhe empresas, tarefas e o volume de boletos do escritório.
-          </p>
-        </motion.div>
+      <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-2 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Início <span className="mx-2 text-gray-300">/</span> Visão geral</p>
 
         <div className="flex shrink-0 items-center justify-end gap-3">
           <button onClick={handleRefresh} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700" title="Atualizar Dados">
@@ -809,6 +840,30 @@ const InicioPage = () => {
           {error}
         </div>
       )}
+
+      <InicioOverview
+        empresas={empresasSelecionadas}
+        cargo={cargoForLayout}
+        isSuperuser={isSuperuser}
+        userName={userName}
+        loading={isInitialDataLoading}
+        canAccess={canAccess}
+        documents={recentDocuments}
+        documentsLoading={documentsLoading}
+        onCompleteTask={handleCompleteTask}
+        updatingTask={updatingTask}
+        volumeChart={<div className="inicio-chart__body"><Line data={boletoVolumeData} options={boletoVolumeOptions} /></div>}
+      />
+
+      {boletosRegistradosCount > 0 && (
+        <button type="button" onClick={handleOpenCobrancaModal} className="flex w-full items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
+          <span>{boletosRegistradosCount} boleto(s) vencido(s) em aberto · Enviar cobranças</span><ArrowRightIcon className="h-4 w-4" />
+        </button>
+      )}
+
+      <details className="rounded-2xl border border-gray-200 bg-white p-4 text-gray-900 shadow-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100">
+        <summary className="cursor-pointer text-sm font-semibold">Mais indicadores e acessos rápidos</summary>
+        <div className="mt-5 space-y-5">
 
       <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:gap-4">
         <StatCard
@@ -998,6 +1053,8 @@ const InicioPage = () => {
           </div>
         </motion.div>
       </div>
+        </div>
+      </details>
 
       <AnimatePresence>
         {showCobrancaModal && (
