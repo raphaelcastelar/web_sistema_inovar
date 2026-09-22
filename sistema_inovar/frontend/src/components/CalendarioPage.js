@@ -16,6 +16,7 @@ import axiosInstance from '../api/axiosInstance';
 import { ActivityForm, Details, isAdmin } from './InicioOverview';
 import './InicioOverview.css';
 import './CalendarioPage.css';
+import './OperationalScale.css';
 
 const STATES = {
   a_fazer: 'A fazer',

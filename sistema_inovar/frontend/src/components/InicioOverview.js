@@ -6,6 +6,7 @@ import {
 } from '@heroicons/react/24/outline';
 import axiosInstance from '../api/axiosInstance';
 import './InicioOverview.css';
+import './OperationalScale.css';
 
 const STATES = { a_fazer: 'A fazer', em_andamento: 'Em andamento', aguardando_terceiros: 'Aguardando terceiros', concluida: 'Concluída', cancelada: 'Cancelada' };
 const PRIORITIES = { urgente: 'Urgente', alta: 'Alta', normal: 'Normal', baixa: 'Baixa' };

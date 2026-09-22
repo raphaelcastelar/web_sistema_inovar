@@ -8,6 +8,7 @@ import axiosInstance from '../api/axiosInstance';
 import { ActivityForm, Details, isAdmin } from './InicioOverview';
 import './InicioOverview.css';
 import './TarefasPage.css';
+import './OperationalScale.css';
 
 const STATES = [
   ['a_fazer', 'A fazer'], ['em_andamento', 'Em andamento'],
