@@ -10,6 +10,7 @@ import PrivateRoute from './utils/PrivateRoute';
 import InicioPage from './components/InicioPage';
 import InicioOverview from './components/InicioOverview';
 import CalendarioPage from './components/CalendarioPage';
+import TarefasPage from './components/TarefasPage';
 import CarteiraEmpresasPage from './components/CarteiraEmpresasPage';
 import EmpresaList from './components/EmpresaList';
 import EmpresaForm from './components/EmpresaForm';
@@ -50,6 +51,7 @@ function App() {
             <Route path="/" element={<Navigate to="/inicio" replace />} />
             <Route path="/inicio" element={<PageGate pageKey="inicio"><InicioOverview /></PageGate>} />
             <Route path="/calendario" element={<PageGate pageKey="calendario"><CalendarioPage /></PageGate>} />
+            <Route path="/tarefas" element={<PageGate pageKey="tarefas"><TarefasPage /></PageGate>} />
             <Route path="/dashboard" element={<PageGate pageKey="dashboard"><InicioPage /></PageGate>} />
             <Route path="/carteira-empresas" element={<PageGate pageKey="carteira"><CarteiraEmpresasPage /></PageGate>} />
             <Route path="/empresas" element={<PageGate pageKey="empresas"><EmpresaList /></PageGate>} />
