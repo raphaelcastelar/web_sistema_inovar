@@ -91,120 +91,126 @@
   .io-details dt { font-size: 11px; }
   .io-details dd { font-size: 13px; }
 
-  .cal-toolbar { padding: 19px 21px; }
-  .cal-period > div > span { font-size: 12px; }
-  .cal-period h2 { font-size: 25px; }
-  .cal-period nav button, .cal-views button { height: 48px; font-size: 14px; }
-  .cal-period nav button { min-width: 48px; padding: 0 16px; }
-  .cal-period nav svg, .cal-views svg { width: 19px; }
-  .cal-views button { padding: 0 18px; }
-  .cal-filters { gap: 14px; padding: 18px 20px; }
-  .cal-filters > label svg { top: 14px; width: 19px; }
-  .cal-filters input, .cal-filters summary, .cal-clear, .cal-refresh { height: 48px; font-size: 14px; }
-  .cal-filters input { padding-left: 42px; }
-  .cal-filters summary { padding: 0 17px; }
-  .cal-filters summary svg { width: 18px; }
-  .cal-filters details > div { top: 53px; width: 300px; padding: 21px; }
-  .cal-filters details label { font-size: 13px; }
-  .cal-filters select { height: 46px; font-size: 14px; }
-  .cal-refresh { width: 48px; }
-  .cal-legend, .cal-legend b { font-size: 13px; }
-  .cal-legend { gap: 19px; }
-  .cal-alert, .cal-saving { padding: 14px 18px; font-size: 14px; }
-  .cal-month-layout { grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; }
-  .cal-weekdays span { padding: 17px; font-size: 14px; }
-  .cal-day { min-height: 176px; padding: 13px; }
-  .cal-day > button { width: 38px; height: 38px; font-size: 14px; }
-  .cal-event { gap: 7px; padding: 13px 14px; border-radius: 9px; }
-  .cal-event > span i { width: 8px; height: 8px; }
-  .cal-event strong { font-size: 14px; }
-  .cal-event small { font-size: 12px; }
-  .cal-event--compact { padding: 9px 10px; }
-  .cal-event--compact strong { font-size: 12px; }
-  .cal-more { font-size: 12px; }
-  .cal-day-panel { padding: 27px; }
-  .cal-day-panel header span { font-size: 12px; }
-  .cal-day-panel h3 { font-size: 23px; }
-  .cal-day-panel header p { font-size: 14px; }
-  .cal-day-panel > div { gap: 12px; margin-top: 18px; }
-  .cal-day-panel > div > button { padding: 15px; }
-  .cal-day-panel > div > button > i { height: 44px; }
-  .cal-day-panel strong { font-size: 15px; }
-  .cal-day-panel small { font-size: 13px; }
-  .cal-empty { font-size: 14px; }
-  .cal-time { --slot: 72px; }
-  .cal-time__column { height: 1728px; }
-  .cal-time__header > * { padding: 15px 7px; font-size: 12px; }
-  .cal-time__header strong { font-size: 14px; }
-  .cal-all-day > * { min-height: 62px; padding: 11px 6px; font-size: 12px; }
-  .cal-hours span { font-size: 12px; }
-  .cal-list { padding: 9px 26px; }
-  .cal-list article { padding: 23px 0; }
-  .cal-list article > header span { font-size: 12px; }
-  .cal-list article h3 { font-size: 20px; }
-  .cal-list article > header b { min-width: 34px; height: 34px; font-size: 12px; }
-  .cal-list article > div { gap: 13px; }
-  .cal-list .cal-event { min-height: 72px; }
-  .cal-tip { font-size: 13px; }
-  .cal-state { font-size: 15px; }
+  .cal-toolbar { padding: 15px 17px; }
+  .cal-period > div > span { font-size: 10px; }
+  .cal-period h2 { font-size: 22px; }
+  .cal-period nav button, .cal-views button { height: 40px; font-size: 12px; }
+  .cal-period nav button { min-width: 40px; padding: 0 12px; }
+  .cal-period nav svg, .cal-views svg { width: 16px; }
+  .cal-views button { padding: 0 14px; }
+  .cal-filters { gap: 11px; padding: 14px 16px; }
+  .cal-filters > label svg { top: 11px; width: 17px; }
+  .cal-filters input, .cal-filters summary, .cal-clear, .cal-refresh { height: 40px; font-size: 12px; }
+  .cal-filters input { padding-left: 38px; }
+  .cal-filters summary { padding: 0 14px; }
+  .cal-filters summary svg { width: 16px; }
+  .cal-filters details > div { top: 47px; width: 270px; padding: 18px; }
+  .cal-filters details label { font-size: 11px; }
+  .cal-filters select { height: 39px; font-size: 12px; }
+  .cal-refresh { width: 40px; }
+  .cal-legend, .cal-legend b { font-size: 11px; }
+  .cal-legend { gap: 16px; }
+  .cal-alert, .cal-saving { padding: 12px 15px; font-size: 12px; }
+  .cal-month-layout { grid-template-columns: minmax(0, 1fr) 300px; gap: 17px; }
+  .cal-weekdays span { padding: 13px; font-size: 11px; }
+  .cal-day { min-height: 132px; padding: 9px; }
+  .cal-day > button { width: 31px; height: 31px; font-size: 12px; }
+  .cal-event { gap: 5px; padding: 9px 10px; }
+  .cal-event > span i { width: 7px; height: 7px; }
+  .cal-event strong { font-size: 12px; }
+  .cal-event small { font-size: 10px; }
+  .cal-event--compact { padding: 6px 7px; }
+  .cal-event--compact strong { font-size: 10px; }
+  .cal-more { font-size: 10px; }
+  .cal-day-panel { padding: 20px; }
+  .cal-day-panel header span { font-size: 10px; }
+  .cal-day-panel h3 { font-size: 19px; }
+  .cal-day-panel header p { font-size: 11px; }
+  .cal-day-panel > div { gap: 9px; margin-top: 15px; }
+  .cal-day-panel > div > button { padding: 12px; }
+  .cal-day-panel > div > button > i { height: 38px; }
+  .cal-day-panel strong { font-size: 12px; }
+  .cal-day-panel small { font-size: 10px; }
+  .cal-empty { font-size: 12px; }
+  .cal-time__header > * { padding: 12px 5px; font-size: 10px; }
+  .cal-time__header strong { font-size: 11px; }
+  .cal-all-day > * { min-height: 52px; padding: 8px 4px; font-size: 10px; }
+  .cal-hours span { font-size: 10px; }
+  .cal-list { padding: 7px 22px; }
+  .cal-list article { padding: 19px 0; }
+  .cal-list article > header span { font-size: 10px; }
+  .cal-list article h3 { font-size: 16px; }
+  .cal-list article > header b { min-width: 30px; height: 30px; font-size: 11px; }
+  .cal-list article > div { gap: 10px; }
+  .cal-list .cal-event { min-height: 62px; }
+  .cal-tip { font-size: 11px; }
+  .cal-state { font-size: 13px; }
 
   .tasks-scope { padding: 4px; }
-  .tasks-scope button { padding: 12px 19px; font-size: 14px; }
-  .tasks-scope svg { width: 18px; }
-  .tasks-shortcuts { gap: 17px; }
-  .tasks-shortcuts button { min-height: 156px; padding: 28px; }
-  .tasks-shortcuts span { font-size: 14px; }
-  .tasks-shortcuts strong { font-size: 40px; }
-  .tasks-shortcuts small { font-size: 13px; }
-  .tasks-toolbar { gap: 14px; padding: 17px 19px; }
-  .tasks-toolbar label svg { top: 14px; width: 19px; }
-  .tasks-toolbar input, .tasks-toolbar > button { height: 48px; font-size: 14px; }
-  .tasks-toolbar input { padding-left: 42px; }
-  .tasks-toolbar > button { padding: 0 17px; }
-  .tasks-toolbar > button svg { width: 18px; }
-  .tasks-toolbar .refresh { width: 48px; }
-  .tasks-filters { gap: 14px; padding: 20px; }
-  .tasks-filters label { font-size: 13px; }
-  .tasks-filters input, .tasks-filters select, .tasks-filters > button { height: 48px; font-size: 14px; }
-  .tasks-filters > button { padding: 0 16px; }
-  .tasks-alert { padding: 15px 18px; font-size: 14px; }
-  .tasks-context { font-size: 13px; }
-  .tasks-context svg { width: 18px; }
-  .tasks-groups { gap: 17px; }
-  .tasks-group__header { padding: 22px 24px; }
-  .tasks-group__header strong { font-size: 18px; }
-  .tasks-group__header b { font-size: 12px; }
-  .tasks-group__header svg { width: 20px; }
-  .state-dot { width: 11px; height: 11px; }
-  .tasks-group__body > p { padding: 34px; font-size: 14px; }
-  .tasks-row { grid-template-columns: 5px minmax(240px, 1.35fr) minmax(430px, 2fr) 180px 138px; gap: 20px; min-height: 108px; padding: 23px 24px; }
-  .tasks-identity strong { font-size: 16px; }
-  .tasks-identity svg { width: 16px; }
-  .tasks-identity small { font-size: 14px; }
-  .tasks-tags { gap: 7px; margin-top: 9px; }
-  .tasks-tags em { padding: 5px 9px; font-size: 12px; }
-  .tasks-data dt { font-size: 11px; }
-  .tasks-data dd { font-size: 14px; }
-  .tasks-priority-label i { width: 8px; height: 8px; }
-  .tasks-state { height: 44px; padding: 0 13px; font-size: 13px; }
-  .tasks-actions__buttons { gap: 6px; }
-  .tasks-actions__buttons button, .tasks-actions__locked { width: 42px; height: 42px; }
-  .tasks-actions__buttons svg, .tasks-actions__locked svg { width: 21px; }
-  .tasks-actions__editor { top: 49px; width: 380px; padding: 17px; }
-  .tasks-actions__editor label { font-size: 12px; }
-  .tasks-actions__editor input, .tasks-actions__editor select, .tasks-actions__editor > button { height: 42px; font-size: 13px; }
-  .tasks-actions__editor > button.cancel { width: 42px; }
-  .tasks-actions__editor > small { font-size: 12px; }
-  .tasks-loading { font-size: 15px; }
+  .tasks-scope button { padding: 10px 16px; font-size: 12px; }
+  .tasks-scope svg { width: 16px; }
+  .tasks-shortcuts { gap: 14px; }
+  .tasks-shortcuts button { min-height: 94px; padding: 19px 20px; }
+  .tasks-shortcuts span { font-size: 11px; }
+  .tasks-shortcuts strong { font-size: 29px; }
+  .tasks-shortcuts small { font-size: 10px; }
+  .tasks-toolbar { gap: 11px; padding: 13px 15px; }
+  .tasks-toolbar label svg { top: 11px; width: 17px; }
+  .tasks-toolbar input, .tasks-toolbar > button { height: 40px; font-size: 12px; }
+  .tasks-toolbar input { padding-left: 38px; }
+  .tasks-toolbar > button { padding: 0 14px; }
+  .tasks-toolbar > button svg { width: 16px; }
+  .tasks-toolbar .refresh { width: 40px; }
+  .tasks-filters { gap: 11px; padding: 16px; }
+  .tasks-filters label { font-size: 11px; }
+  .tasks-filters input, .tasks-filters select, .tasks-filters > button { height: 40px; font-size: 12px; }
+  .tasks-filters > button { padding: 0 13px; }
+  .tasks-alert { padding: 12px 15px; font-size: 12px; }
+  .tasks-context { font-size: 11px; }
+  .tasks-context svg { width: 16px; }
+  .tasks-groups { gap: 14px; }
+  .tasks-group__header { padding: 15px 18px; }
+  .tasks-group__header strong { font-size: 14px; }
+  .tasks-group__header b { font-size: 10px; }
+  .tasks-group__header svg { width: 18px; }
+  .state-dot { width: 10px; height: 10px; }
+  .tasks-group__body > p { padding: 27px; font-size: 12px; }
+  .tasks-row { grid-template-columns: 4px minmax(220px, 1.35fr) minmax(390px, 2fr) 160px 116px; gap: 16px; padding: 16px 18px; }
+  .tasks-identity strong { font-size: 13px; }
+  .tasks-identity svg { width: 14px; }
+  .tasks-identity small { font-size: 11px; }
+  .tasks-tags { gap: 5px; margin-top: 7px; }
+  .tasks-tags em { padding: 3px 7px; font-size: 9px; }
+  .tasks-data dt { font-size: 9px; }
+  .tasks-data dd { font-size: 11px; }
+  .tasks-priority-label i { width: 7px; height: 7px; }
+  .tasks-state { height: 36px; padding: 0 10px; font-size: 11px; }
+  .tasks-actions__buttons { gap: 5px; }
+  .tasks-actions__buttons button, .tasks-actions__locked { width: 34px; height: 34px; }
+  .tasks-actions__buttons svg, .tasks-actions__locked svg { width: 17px; }
+  .tasks-actions__editor { top: 43px; width: 340px; padding: 14px; }
+  .tasks-actions__editor label { font-size: 10px; }
+  .tasks-actions__editor input, .tasks-actions__editor select, .tasks-actions__editor > button { height: 37px; font-size: 11px; }
+  .tasks-actions__editor > button.cancel { width: 37px; }
+  .tasks-actions__editor > small { font-size: 10px; }
+  .tasks-loading { font-size: 13px; }
 }
 
-@media (min-width: 721px) and (max-width: 1500px) {
-  .tasks-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .tasks-row { grid-template-columns: 5px minmax(240px, 1fr) 180px 138px; }
-  .tasks-data { display: none; }
+@media (min-width: 721px) and (max-width: 1200px) {
+  .tasks-row { grid-template-columns: 4px minmax(210px, 1fr) 160px 116px; }
 }
 
-@media (min-width: 721px) and (max-width: 1450px) {
+@media (min-width: 721px) and (max-width: 1100px) {
   .cal-month-layout { grid-template-columns: 1fr; }
-  .cal-day-panel { max-height: 340px; overflow: auto; }
+}
+
+/* Ampliação proporcional: todos os componentes crescem juntos. */
+@media (min-width: 721px) {
+  .cal-page,
+  .tasks-page {
+    width: 84.7458%;
+    max-width: none;
+    margin: 0;
+    zoom: 1.18;
+  }
 }

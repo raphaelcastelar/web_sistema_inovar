@@ -17,6 +17,7 @@ import { ActivityForm, Details, isAdmin } from './InicioOverview';
 import './InicioOverview.css';
 import './CalendarioPage.css';
 import './OperationalScale.css';
+import './OperationalLoading.css';
 
 const STATES = {
   a_fazer: 'A fazer',
@@ -28,7 +29,6 @@ const STATES = {
 const PRIORITIES = { urgente: 'Urgente', alta: 'Alta', normal: 'Normal', baixa: 'Baixa' };
 const PRIORITY_ORDER = { urgente: 0, alta: 1, normal: 2, baixa: 3 };
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const TIME_SLOT_HEIGHT = 72;
 const VIEWS = [
   ['month', 'Mês', CalendarDaysIcon],
   ['week', 'Semana', Squares2X2Icon],
@@ -36,6 +36,7 @@ const VIEWS = [
   ['list', 'Lista', Bars3BottomLeftIcon],
 ];
 const EMPTY_FILTERS = { tipo: '', prioridade: '', estado: '' };
+const EMPTY_CONTEXT = { usuario: { id: null, nome: '', papel: '', acesso: '' }, usuarios: [], empresas: [] };
 
 const dateKey = (date = new Date()) => [
   date.getFullYear(),
@@ -164,13 +165,13 @@ function TimeGrid({ days, today, activities, user, onOpen, onCreate, onDragStart
     <div className="cal-time" style={{ '--day-count': days.length, minWidth: days.length > 1 ? 780 : undefined }}>
       <div className="cal-time__header"><span>Horário</span>{days.map((day) => <div className={day === today ? 'is-today' : ''} key={day}><small>{new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(dateObject(day))}</small><strong>{new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short' }).format(dateObject(day))}</strong></div>)}</div>
       <div className="cal-all-day"><span>Dia inteiro</span>{days.map((day) => <div key={day} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onDrop(day); }}>{activities.filter((activity) => activity.tipo !== 'compromisso' && activityOnDay(activity, day)).map((activity) => <EventCard key={activity.id} activity={activity} compact draggable={canMove(activity, user)} onOpen={onOpen} onDragStart={onDragStart} onDragEnd={onDragEnd} />)}</div>)}</div>
-      <div className="cal-time__body"><div className="cal-hours">{Array.from({ length: 24 }, (_, hour) => <span key={hour}>{String(hour).padStart(2, '0')}:00</span>)}</div>{days.map((day) => <div className="cal-time__column" key={day}>{Array.from({ length: 24 }, (_, hour) => <button key={hour} aria-label={`Criar compromisso às ${hour}:00`} onClick={() => onCreate(day, hour)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onDrop(day, hour); }} />)}{organizeTimedActivities(activities, day).map(({ activity, start, minutes, column, columns }) => <EventCard key={activity.id} activity={activity} compact={minutes < 60} draggable={canMove(activity, user)} onOpen={onOpen} onDragStart={onDragStart} onDragEnd={onDragEnd} style={{ position: 'absolute', top: start / 60 * TIME_SLOT_HEIGHT + 2, height: Math.min(Math.max(38, minutes / 60 * TIME_SLOT_HEIGHT - 4), 24 * TIME_SLOT_HEIGHT - start / 60 * TIME_SLOT_HEIGHT - 2), left: `calc(${column / columns * 100}% + 3px)`, width: `calc(${100 / columns}% - 6px)` }} />)}</div>)}</div>
+      <div className="cal-time__body"><div className="cal-hours">{Array.from({ length: 24 }, (_, hour) => <span key={hour}>{String(hour).padStart(2, '0')}:00</span>)}</div>{days.map((day) => <div className="cal-time__column" key={day}>{Array.from({ length: 24 }, (_, hour) => <button key={hour} aria-label={`Criar compromisso às ${hour}:00`} onClick={() => onCreate(day, hour)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onDrop(day, hour); }} />)}{organizeTimedActivities(activities, day).map(({ activity, start, minutes, column, columns }) => <EventCard key={activity.id} activity={activity} compact={minutes < 60} draggable={canMove(activity, user)} onOpen={onOpen} onDragStart={onDragStart} onDragEnd={onDragEnd} style={{ position: 'absolute', top: start / 60 * 56 + 2, height: Math.min(Math.max(28, minutes / 60 * 56 - 4), 1344 - start / 60 * 56 - 2), left: `calc(${column / columns * 100}% + 3px)`, width: `calc(${100 / columns}% - 6px)` }} />)}</div>)}</div>
     </div>
   </div>;
 }
 
-function DayPanel({ day, activities, onOpen }) {
-  return <aside className="cal-day-panel"><header><span>Agenda do dia</span><h3>{new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(dateObject(day))}</h3><p>{activities.length} {activities.length === 1 ? 'atividade' : 'atividades'}</p></header>{activities.length ? <div>{activities.sort(sortActivities).map((activity) => <button key={activity.id} onClick={() => onOpen(activity)}><i className={`color-${activityColor(activity)}`} /><span><strong>{activityTitle(activity)}</strong><small>{activityTime(activity)} · {activity.mascarada ? 'Detalhes privados' : STATES[activity.estado]}</small></span></button>)}</div> : <p className="cal-empty">Nenhuma tarefa ou compromisso neste dia.</p>}</aside>;
+function DayPanel({ day, activities, loading, onOpen }) {
+  return <aside className="cal-day-panel"><header><span>Agenda do dia</span><h3>{new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(dateObject(day))}</h3><p>{loading ? 'Atualizando atividades' : `${activities.length} ${activities.length === 1 ? 'atividade' : 'atividades'}`}</p></header>{loading ? <div className="cal-skeleton-list" aria-hidden="true">{[1, 2, 3].map((item) => <span key={item}><i /><b /><small /></span>)}</div> : activities.length ? <div>{activities.sort(sortActivities).map((activity) => <button key={activity.id} onClick={() => onOpen(activity)}><i className={`color-${activityColor(activity)}`} /><span><strong>{activityTitle(activity)}</strong><small>{activityTime(activity)} · {activity.mascarada ? 'Detalhes privados' : STATES[activity.estado]}</small></span></button>)}</div> : <p className="cal-empty">Nenhuma tarefa ou compromisso neste dia.</p>}</aside>;
 }
 
 export default function CalendarioPage() {
@@ -224,6 +225,7 @@ export default function CalendarioPage() {
     return result;
   }, [filtered]);
   const activeFilters = Object.values(filters).filter(Boolean).length;
+  const pageContext = context || EMPTY_CONTEXT;
 
   const title = view === 'list' ? 'Todas as atividades' : view === 'week'
     ? `${new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(dateObject(daysOfWeek[0]))} – ${new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(dateObject(daysOfWeek[6]))}`
@@ -252,7 +254,7 @@ export default function CalendarioPage() {
   const startDrag = (event, activity) => { draggedId.current = activity.id; event.dataTransfer.setData('text/plain', String(activity.id)); event.dataTransfer.effectAllowed = 'move'; };
   const drop = async (day, hour) => {
     const activity = activities.find((item) => item.id === draggedId.current); draggedId.current = null;
-    if (!activity || !canMove(activity, context.usuario)) return;
+    if (!activity || !canMove(activity, pageContext.usuario)) return;
     setMoving(true); setError('');
     try {
       const { data } = await axiosInstance.patch(`/api/atividades/${activity.id}/`, moveActivity(activity, day, hour));
@@ -261,20 +263,17 @@ export default function CalendarioPage() {
     finally { setMoving(false); }
   };
 
-  if (loading) return <div className="cal-state"><ArrowPathIcon className="animate-spin" /><strong>Carregando calendário...</strong></div>;
-  if (!context) return <div className="cal-state error"><strong>{error}</strong><button onClick={load}>Tentar novamente</button></div>;
-
-  return <div className="cal-page">
-    <header className="cal-hero"><div><span><CalendarDaysIcon /></span><div><p>Planejamento operacional</p><h1>Calendário</h1><small>Organize tarefas, compromissos e o tempo entre eles.</small></div></div><button onClick={() => setModal({ initial: { tipo: 'tarefa', dataPlanejada: currentDate } })}><PlusIcon /> Nova atividade</button></header>
+  return <div className={`cal-page ${loading ? 'is-loading' : ''}`} aria-busy={loading}>
+    <header className="cal-hero"><div><span><CalendarDaysIcon /></span><div><p>Planejamento operacional</p><h1>Calendário</h1><small>Organize tarefas, compromissos e o tempo entre eles.</small></div></div><button disabled={!context || loading} onClick={() => setModal({ initial: { tipo: 'tarefa', dataPlanejada: currentDate } })}><PlusIcon /> Nova atividade</button></header>
     <section className="cal-toolbar"><div className="cal-period"><div><span>Período</span><h2>{title}</h2></div>{view !== 'list' && <nav><button aria-label="Anterior" onClick={() => navigate(-1)}><ChevronLeftIcon /></button><button onClick={() => setCurrentDate(today)}>Hoje</button><button aria-label="Próximo" onClick={() => navigate(1)}><ChevronRightIcon /></button></nav>}</div><div className="cal-views">{VIEWS.map(([key, label, Icon]) => <button key={key} className={view === key ? 'active' : ''} onClick={() => setView(key)}><Icon /> {label}</button>)}</div></section>
     <section className="cal-filters"><label><MagnifyingGlassIcon /><input type="search" aria-label="Buscar atividades" placeholder="Buscar por atividade ou empresa..." value={search} onChange={(event) => setSearch(event.target.value)} /></label><details><summary><FunnelIcon /> Filtros {activeFilters > 0 && <b>{activeFilters}</b>}</summary><div><label>Tipo<select value={filters.tipo} onChange={(event) => setFilters({ ...filters, tipo: event.target.value })}><option value="">Todos</option><option value="tarefa">Tarefa</option><option value="compromisso">Compromisso</option></select></label><label>Prioridade<select value={filters.prioridade} onChange={(event) => setFilters({ ...filters, prioridade: event.target.value })}><option value="">Todas</option>{Object.entries(PRIORITIES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label><label>Status<select value={filters.estado} onChange={(event) => setFilters({ ...filters, estado: event.target.value })}><option value="">Todos</option>{Object.entries(STATES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></label></div></details>{(search || activeFilters > 0) && <button className="cal-clear" onClick={() => { setSearch(''); setFilters(EMPTY_FILTERS); }}><XMarkIcon /> Limpar</button>}<button className="cal-refresh" onClick={load} aria-label="Atualizar"><ArrowPathIcon /></button></section>
     <div className="cal-legend"><span><i className="slate" />A fazer / canceladas</span><span><i className="blue" />Em andamento</span><span><i className="amber" />Aguardando terceiros</span><span><i className="green" />Concluídas</span><b>{view === 'list' ? filtered.length : periodCount} atividades{view !== 'list' ? ' no período' : ''}</b></div>
-    {error && <div className="cal-alert">{error}<button onClick={() => setError('')}><XMarkIcon /></button></div>}{moving && <div className="cal-saving"><ArrowPathIcon className="animate-spin" /> Salvando nova data...</div>}
-    {view === 'month' && <div className="cal-month-layout"><section className="cal-board"><MonthView weeks={weeks} month={month} today={today} selected={currentDate} user={context.usuario} onSelect={setCurrentDate} onOpen={setDetails} onDragStart={startDrag} onDragEnd={() => { draggedId.current = null; }} onDrop={drop} /></section><DayPanel day={currentDate} activities={selectedActivities} onOpen={setDetails} /></div>}
-    {(view === 'week' || view === 'day') && <section className="cal-board"><TimeGrid days={view === 'week' ? daysOfWeek : [currentDate]} today={today} activities={filtered} user={context.usuario} onOpen={setDetails} onCreate={(day, hour) => { const start = `${day}T${String(hour).padStart(2, '0')}:00`; const end = new Date(Date.parse(`${start}Z`) + 3600000).toISOString().slice(0, 16); setModal({ initial: { tipo: 'compromisso', inicio: start, termino: end } }); }} onDragStart={startDrag} onDragEnd={() => { draggedId.current = null; }} onDrop={drop} /></section>}
-    {view === 'list' && <section className="cal-board cal-list">{groups.length ? groups.map((group) => <article key={group.day || 'undated'}><header><div><span>{group.day ? new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(dateObject(group.day)) : 'Planejamento'}</span><h3>{group.day ? new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }).format(dateObject(group.day)) : 'Sem data planejada'}</h3></div><b>{group.activities.length}</b></header><div>{group.activities.map((activity) => <EventCard key={activity.id} activity={activity} onOpen={setDetails} />)}</div></article>) : <p className="cal-empty">Nenhuma atividade encontrada. Ajuste a busca ou os filtros.</p>}</section>}
+    {error && <div className="cal-alert">{error}<button onClick={context ? () => setError('') : load} aria-label={context ? 'Fechar aviso' : 'Tentar novamente'}>{context ? <XMarkIcon /> : 'Tentar novamente'}</button></div>}{moving && <div className="cal-saving"><ArrowPathIcon className="animate-spin" /> Salvando nova data...</div>}
+    {view === 'month' && <div className="cal-month-layout"><section className="cal-board"><MonthView weeks={weeks} month={month} today={today} selected={currentDate} user={pageContext.usuario} onSelect={setCurrentDate} onOpen={setDetails} onDragStart={startDrag} onDragEnd={() => { draggedId.current = null; }} onDrop={drop} /></section><DayPanel day={currentDate} activities={selectedActivities} loading={loading} onOpen={setDetails} /></div>}
+    {(view === 'week' || view === 'day') && <section className="cal-board"><TimeGrid days={view === 'week' ? daysOfWeek : [currentDate]} today={today} activities={filtered} user={pageContext.usuario} onOpen={setDetails} onCreate={(day, hour) => { if (!context) return; const start = `${day}T${String(hour).padStart(2, '0')}:00`; const end = new Date(Date.parse(`${start}Z`) + 3600000).toISOString().slice(0, 16); setModal({ initial: { tipo: 'compromisso', inicio: start, termino: end } }); }} onDragStart={startDrag} onDragEnd={() => { draggedId.current = null; }} onDrop={drop} /></section>}
+    {view === 'list' && <section className="cal-board cal-list">{loading ? <div className="cal-list-skeleton" aria-hidden="true">{[1, 2, 3].map((item) => <span key={item}><b /><i /></span>)}</div> : groups.length ? groups.map((group) => <article key={group.day || 'undated'}><header><div><span>{group.day ? new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(dateObject(group.day)) : 'Planejamento'}</span><h3>{group.day ? new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }).format(dateObject(group.day)) : 'Sem data planejada'}</h3></div><b>{group.activities.length}</b></header><div>{group.activities.map((activity) => <EventCard key={activity.id} activity={activity} onOpen={setDetails} />)}</div></article>) : <p className="cal-empty">Nenhuma atividade encontrada. Ajuste a busca ou os filtros.</p>}</section>}
     <p className="cal-tip">Clique em uma atividade para ver os detalhes. Arraste os cartões que você pode editar para reorganizar a agenda.</p>
-    {modal && <ActivityForm activity={modal.activity} initial={modal.initial} context={context} saving={saving} blocks={blocks} onClose={() => setModal(null)} onSave={saveActivity} onCreateBlock={createBlock} onUpdateBlock={updateBlock} onDeleteBlock={deleteBlock} />}
-    {details && <Details activity={details} context={context} canEdit={details.responsavelId === context.usuario.id || (isAdmin(context.usuario) && !details.privada)} onClose={() => setDetails(null)} onEdit={() => openEdit(details)} />}
+    {modal && context && <ActivityForm activity={modal.activity} initial={modal.initial} context={context} saving={saving} blocks={blocks} onClose={() => setModal(null)} onSave={saveActivity} onCreateBlock={createBlock} onUpdateBlock={updateBlock} onDeleteBlock={deleteBlock} />}
+    {details && context && <Details activity={details} context={context} canEdit={details.responsavelId === context.usuario.id || (isAdmin(context.usuario) && !details.privada)} onClose={() => setDetails(null)} onEdit={() => openEdit(details)} />}
   </div>;
 }

@@ -1,0 +1,97 @@
+@keyframes operational-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.cal-page[aria-busy="true"] button:disabled,
+.tasks-page[aria-busy="true"] button:disabled { cursor: wait; }
+
+.cal-page.is-loading .cal-day {
+  background-image: linear-gradient(100deg, transparent 20%, #edf3f8 42%, transparent 64%);
+  background-size: 240% 100%;
+  animation: operational-shimmer 1.6s linear infinite;
+}
+
+.cal-skeleton-list,
+.cal-list-skeleton { display: grid; gap: 10px; margin-top: 14px; }
+.cal-skeleton-list > span {
+  display: grid;
+  grid-template-columns: 5px 1fr;
+  grid-template-rows: 14px 10px;
+  gap: 7px 10px;
+  min-height: 48px;
+  border: 1px solid #e5ebf2;
+  border-radius: 9px;
+  padding: 11px;
+  background: #f9fbfd;
+}
+.cal-skeleton-list > span > i { grid-row: 1 / 3; border-radius: 5px; background: #dce6ef; }
+.cal-skeleton-list b,
+.cal-skeleton-list small,
+.cal-list-skeleton b,
+.cal-list-skeleton i,
+.tasks-skeleton-number,
+.tasks-skeleton-count,
+.tasks-skeleton-list b,
+.tasks-skeleton-list small,
+.tasks-skeleton-list em {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(100deg, #e8eef4 20%, #f7f9fb 42%, #e8eef4 64%);
+  background-size: 240% 100%;
+  animation: operational-shimmer 1.5s linear infinite;
+}
+.cal-skeleton-list b { width: 72%; }
+.cal-skeleton-list small { width: 48%; }
+.cal-list-skeleton > span { display: grid; gap: 10px; padding: 18px 0; border-bottom: 1px solid #e7edf3; }
+.cal-list-skeleton b { width: 32%; height: 16px; }
+.cal-list-skeleton i { width: 78%; height: 54px; }
+
+.tasks-scope.is-skeleton { opacity: .62; }
+.tasks-skeleton-number { grid-row: 1 / 3; grid-column: 2; align-self: center; width: 34px; height: 29px; }
+.tasks-skeleton-count { width: 24px; height: 18px; padding: 0 !important; }
+.tasks-skeleton-list { display: grid; }
+.tasks-skeleton-list > span {
+  display: grid;
+  grid-template-columns: 4px minmax(180px, 1.35fr) minmax(280px, 2fr) 120px;
+  align-items: center;
+  gap: 15px;
+  min-height: 68px;
+  border-bottom: 1px solid #e7edf3;
+  padding: 14px 18px;
+}
+.tasks-skeleton-list > span:last-child { border-bottom: 0; }
+.tasks-skeleton-list > span > i { align-self: stretch; border-radius: 5px; background: #dce6ef; }
+.tasks-skeleton-list > span > span { display: grid; gap: 8px; }
+.tasks-skeleton-list b { width: 62%; height: 13px; }
+.tasks-skeleton-list small { width: 42%; height: 9px; }
+.tasks-skeleton-list em { width: 85%; height: 12px; }
+.tasks-skeleton-list em:last-child { width: 70%; height: 32px; border-radius: 18px; }
+
+.dark .cal-page.is-loading .cal-day {
+  background-image: linear-gradient(100deg, transparent 20%, #223145 42%, transparent 64%);
+}
+.dark .cal-skeleton-list > span { border-color: #34445a; background: #1c2939; }
+.dark .cal-skeleton-list > span > i,
+.dark .tasks-skeleton-list > span > i { background: #33445a; }
+.dark .cal-skeleton-list b,
+.dark .cal-skeleton-list small,
+.dark .cal-list-skeleton b,
+.dark .cal-list-skeleton i,
+.dark .tasks-skeleton-number,
+.dark .tasks-skeleton-count,
+.dark .tasks-skeleton-list b,
+.dark .tasks-skeleton-list small,
+.dark .tasks-skeleton-list em {
+  background-image: linear-gradient(100deg, #2a394d 20%, #3a4b60 42%, #2a394d 64%);
+}
+.dark .tasks-skeleton-list > span { border-color: #2d3b4e; }
+
+@media (max-width: 1200px) {
+  .tasks-skeleton-list > span { grid-template-columns: 4px minmax(180px, 1fr) 120px; }
+  .tasks-skeleton-list > span > em:first-of-type { display: none; }
+}
+
+@media (max-width: 720px) {
+  .tasks-skeleton-list > span { grid-template-columns: 3px minmax(0, 1fr) 70px; padding: 12px; }
+}

@@ -45,7 +45,7 @@ test('carrega a equipe e filtra pelo tipo de atividade', async () => {
   render(<TarefasPage />);
 
   expect(await screen.findByRole('heading', { name: 'Tarefas' })).toBeInTheDocument();
-  expect(screen.getByText('Conferir documentos')).toBeInTheDocument();
+  expect(await screen.findByText('Conferir documentos')).toBeInTheDocument();
   expect(screen.getByText('Reunião de fechamento')).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: /Filtros/ }));
@@ -53,6 +53,18 @@ test('carrega a equipe e filtra pelo tipo de atividade', async () => {
 
   expect(screen.queryByText('Conferir documentos')).not.toBeInTheDocument();
   expect(screen.getByText('Reunião de fechamento')).toBeInTheDocument();
+});
+
+test('mostra cards e grupos enquanto os dados carregam', () => {
+  axiosInstance.get.mockImplementation(() => new Promise(() => {}));
+
+  render(<TarefasPage />);
+
+  expect(screen.getByRole('heading', { name: 'Tarefas' })).toBeInTheDocument();
+  expect(screen.getByText('Todas')).toBeInTheDocument();
+  expect(screen.getByText('A fazer')).toBeInTheDocument();
+  expect(screen.queryByText(/Carregando tarefas/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Nova atividade/ })).toBeDisabled();
 });
 
 test('reagenda uma tarefa pela ação rápida', async () => {

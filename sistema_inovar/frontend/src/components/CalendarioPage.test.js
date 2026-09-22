@@ -45,7 +45,7 @@ test('carrega atividades e alterna entre mês, semana, dia e lista', async () =>
   render(<CalendarioPage />);
 
   expect(await screen.findByRole('heading', { name: 'Calendário' })).toBeInTheDocument();
-  expect(screen.getAllByText('Conferir documentos').length).toBeGreaterThan(0);
+  expect((await screen.findAllByText('Conferir documentos')).length).toBeGreaterThan(0);
 
   fireEvent.click(screen.getByRole('button', { name: /Semana/ }));
   expect(screen.getByRole('region', { name: 'Agenda por horários' })).toBeInTheDocument();
@@ -58,10 +58,23 @@ test('carrega atividades e alterna entre mês, semana, dia e lista', async () =>
   expect(screen.getByText('Conferir documentos')).toBeInTheDocument();
 });
 
+test('mostra a estrutura do calendário enquanto os dados carregam', () => {
+  axiosInstance.get.mockImplementation(() => new Promise(() => {}));
+
+  render(<CalendarioPage />);
+
+  expect(screen.getByRole('heading', { name: 'Calendário' })).toBeInTheDocument();
+  expect(screen.getByRole('grid')).toBeInTheDocument();
+  expect(screen.queryByText(/Carregando calendário/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Nova atividade/ })).toBeDisabled();
+});
+
 test('abre o formulário de nova atividade na data selecionada', async () => {
   render(<CalendarioPage />);
 
-  fireEvent.click(await screen.findByRole('button', { name: /Nova atividade/ }));
+  const createButton = await screen.findByRole('button', { name: /Nova atividade/ });
+  await waitFor(() => expect(createButton).toBeEnabled());
+  fireEvent.click(createButton);
 
   expect(screen.getByRole('dialog', { name: 'Nova atividade' })).toBeInTheDocument();
   expect(screen.getByLabelText(/Data planejada/)).toHaveValue(today());
@@ -84,7 +97,7 @@ test('reagenda uma tarefa ao arrastar para outro dia', async () => {
   render(<CalendarioPage />);
 
   const calendar = await screen.findByRole('grid');
-  const card = within(calendar).getByRole('button', { name: /Conferir documentos/ });
+  const card = await within(calendar).findByRole('button', { name: /Conferir documentos/ });
   const dayLabel = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' }).format(destination);
   const target = within(calendar).getByRole('button', { name: dayLabel }).closest('[role="gridcell"]');
   const dataTransfer = { setData: jest.fn(), effectAllowed: '' };
