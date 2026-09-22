@@ -37,6 +37,7 @@ import GerenciarPaginasPage from './components/GerenciarPaginasPage';
 import { PageGate } from './context/PageAccessContext';
 
 import './App.css';
+import './components/OperationalTheme.css';
 
 function App() {
   return (

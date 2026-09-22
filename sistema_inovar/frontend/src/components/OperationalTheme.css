@@ -1,0 +1,456 @@
+/* Identidade visual compartilhada com as demais telas do sistema. */
+.io-page,
+.cal-page,
+.tasks-page {
+  --op-ink: #111827;
+  --op-strong: #030712;
+  --op-muted: #6b7280;
+  --op-soft: #f9fafb;
+  --op-soft-strong: #f3f4f6;
+  --op-line: #e5e7eb;
+  --op-primary: #0f172a;
+  --op-primary-hover: #1e293b;
+  --op-accent: #c49a61;
+  --op-accent-soft: #faf7f2;
+  --io-navy: var(--op-primary);
+  --io-blue: var(--op-primary);
+  --io-line: var(--op-line);
+  --io-muted: var(--op-muted);
+  --cal-ink: var(--op-ink);
+  --cal-muted: var(--op-muted);
+  --cal-line: var(--op-line);
+  --cal-blue: var(--op-primary);
+  --task-ink: var(--op-ink);
+  --task-muted: var(--op-muted);
+  --task-line: var(--op-line);
+  --task-blue: var(--op-primary);
+  color: var(--op-ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.io-hero h1,
+.cal-hero h1,
+.tasks-hero h1 {
+  color: var(--op-strong);
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-weight: 600;
+  letter-spacing: -.025em;
+}
+
+.io-hero p,
+.cal-hero p,
+.tasks-hero p,
+.cal-period > div > span,
+.cal-day-panel header span,
+.cal-list article > header span {
+  color: var(--op-accent);
+}
+
+.io-hero,
+.io-panel,
+.io-summary,
+.io-attention,
+.cal-hero,
+.cal-toolbar,
+.cal-filters,
+.cal-board,
+.cal-day-panel,
+.tasks-hero,
+.tasks-toolbar,
+.tasks-filters,
+.tasks-group,
+.tasks-shortcuts button {
+  border-color: var(--op-line);
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+}
+
+.io-hero__icon,
+.cal-hero > div > span,
+.tasks-hero > div > span {
+  background: var(--op-primary);
+}
+
+.io-hero__actions button,
+.io-new,
+.io-modal .primary,
+.io-details .primary,
+.cal-hero > button,
+.tasks-hero > button,
+.tasks-actions__editor > button:not(.cancel),
+.io-block-form button {
+  color: #fff;
+  background: var(--op-primary);
+}
+
+.io-hero__actions button:hover,
+.io-new:hover,
+.cal-hero > button:hover,
+.tasks-hero > button:hover,
+.tasks-actions__editor > button:not(.cancel):hover {
+  background: var(--op-primary-hover);
+}
+
+.io-filters select,
+.io-filters input,
+.io-filters > button,
+.io-tasks header select,
+.cal-period nav button,
+.cal-filters input,
+.cal-filters summary,
+.cal-filters details > div,
+.cal-filters select,
+.tasks-toolbar input,
+.tasks-toolbar > button,
+.tasks-filters input,
+.tasks-filters select,
+.tasks-actions__editor input,
+.tasks-actions__editor select {
+  border-color: #d1d5db;
+  color: #374151;
+  background: #fff;
+}
+
+.io-filters select:focus,
+.io-filters input:focus,
+.io-tasks header select:focus,
+.cal-filters input:focus,
+.cal-filters select:focus,
+.tasks-toolbar input:focus,
+.tasks-filters input:focus,
+.tasks-filters select:focus {
+  border-color: var(--op-accent);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgb(196 154 97 / 16%);
+}
+
+.io-summary__icon,
+.io-row-action,
+.tasks-toolbar > button.active,
+.cal-clear,
+.cal-refresh {
+  color: #475569;
+  background: var(--op-soft-strong);
+}
+
+.io-summary__head > b,
+.io-tasks h2 b,
+.io-agenda h2 b,
+.io-list header b,
+.cal-filters summary b,
+.cal-list article > header b,
+.tasks-toolbar > button b,
+.tasks-group__header b {
+  color: #475569;
+  background: var(--op-soft-strong);
+}
+
+.io-summary__line,
+.io-load > span {
+  background: var(--op-soft-strong);
+}
+
+.io-summary__line i,
+.io-load > span i,
+.io-dot {
+  background: var(--op-accent);
+}
+
+.io-dot {
+  box-shadow: 0 0 0 4px rgb(196 154 97 / 15%);
+}
+
+.io-attention__cards button,
+.io-attention__list button,
+.io-team > div > button,
+.cal-day-panel > div > button {
+  border-color: var(--op-line);
+  color: #374151;
+  background: var(--op-soft);
+}
+
+.io-attention__cards button.active,
+.tasks-shortcuts button.active {
+  border-color: var(--op-accent);
+  background: var(--op-accent-soft);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+}
+
+.io-attention__cards strong {
+  color: #334155;
+}
+
+.io-table th,
+.cal-weekdays,
+.cal-time__header {
+  color: #6b7280;
+  background: var(--op-soft);
+}
+
+.io-table td,
+.io-list > div > button,
+.cal-weekdays span,
+.cal-day,
+.cal-time__column > button,
+.tasks-row {
+  border-color: var(--op-line);
+}
+
+.io-task-link,
+.io-list strong,
+.cal-period h2,
+.cal-day-panel h3,
+.cal-list article h3,
+.tasks-shortcuts strong,
+.tasks-identity strong,
+.tasks-group__header strong {
+  color: var(--op-strong);
+}
+
+.io-focus > section {
+  background: var(--op-primary);
+  box-shadow: 0 10px 25px rgb(15 23 42 / 18%);
+}
+
+.io-focus section.io-load {
+  border-color: var(--op-line);
+  color: #374151;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 5%);
+}
+
+.io-event,
+.cal-event--blue {
+  --event: #64748b;
+  --event-bg: #f1f5f9;
+  --event-text: #334155;
+  border-color: #cbd5e1;
+  border-left-color: #64748b;
+  color: #334155;
+  background: #f1f5f9;
+}
+
+.cal-views,
+.tasks-scope {
+  background: var(--op-soft-strong);
+}
+
+.cal-views button,
+.tasks-scope button {
+  color: #64748b;
+}
+
+.cal-views button.active,
+.tasks-scope button.active {
+  color: #fff;
+  background: var(--op-primary);
+  box-shadow: 0 2px 5px rgb(15 23 42 / 16%);
+}
+
+.cal-day:hover,
+.cal-time__column > button:hover,
+.tasks-row:hover {
+  background: var(--op-soft);
+}
+
+.cal-day.selected {
+  background: var(--op-accent-soft);
+  box-shadow: inset 0 0 0 2px rgb(196 154 97 / 45%);
+}
+
+.cal-day > button.today {
+  color: #fff;
+  background: var(--op-primary);
+}
+
+.tasks-shortcuts button::before {
+  background: #94a3b8;
+}
+
+.tasks-shortcuts button.active::before {
+  background: var(--op-accent);
+}
+
+.tasks-toolbar > button.active {
+  border-color: var(--op-accent);
+  color: #475569;
+}
+
+.tasks-toolbar > button b,
+.tasks-filters > button,
+.tasks-tags em,
+.cal-saving,
+.io-block button {
+  color: #475569;
+  background: var(--op-soft-strong);
+}
+
+.tasks-tags em {
+  border: 1px solid #e5e7eb;
+}
+
+.cal-saving {
+  border: 1px solid var(--op-line);
+}
+
+.tasks-state.is-em_andamento {
+  color: #475569;
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.tasks-actions__buttons button:hover,
+.tasks-actions__buttons button.active {
+  border-color: var(--op-accent);
+  color: #475569;
+  background: var(--op-accent-soft);
+}
+
+.io-modal,
+.io-details,
+.tasks-actions__editor {
+  border-color: var(--op-line);
+  background: #fff;
+}
+
+.io-modal header span,
+.io-details header span {
+  color: var(--op-accent);
+}
+
+.dark .io-page,
+.dark .cal-page,
+.dark .tasks-page {
+  --op-ink: #f3f4f6;
+  --op-strong: #fff;
+  --op-muted: #9ca3af;
+  --op-soft: #111827;
+  --op-soft-strong: #1f2937;
+  --op-line: #1f2937;
+  --op-primary: #f1f5f9;
+  --op-primary-hover: #e2e8f0;
+  --op-accent-soft: rgb(196 154 97 / 10%);
+  color: var(--op-ink);
+}
+
+.dark .io-hero,
+.dark .io-panel,
+.dark .io-summary,
+.dark .io-attention,
+.dark .cal-hero,
+.dark .cal-toolbar,
+.dark .cal-filters,
+.dark .cal-board,
+.dark .cal-day-panel,
+.dark .tasks-hero,
+.dark .tasks-toolbar,
+.dark .tasks-filters,
+.dark .tasks-group,
+.dark .tasks-shortcuts button,
+.dark .io-focus section.io-load,
+.dark .io-modal,
+.dark .io-details,
+.dark .tasks-actions__editor {
+  border-color: var(--op-line);
+  background: #111827;
+  box-shadow: none;
+}
+
+.dark .io-hero__icon,
+.dark .cal-hero > div > span,
+.dark .tasks-hero > div > span,
+.dark .io-hero__actions button,
+.dark .io-new,
+.dark .cal-hero > button,
+.dark .tasks-hero > button,
+.dark .tasks-scope button.active,
+.dark .cal-views button.active {
+  color: #020617;
+  background: #f1f5f9;
+}
+
+.dark .io-filters select,
+.dark .io-filters input,
+.dark .io-filters > button,
+.dark .io-tasks header select,
+.dark .cal-period nav button,
+.dark .cal-filters input,
+.dark .cal-filters summary,
+.dark .cal-filters details > div,
+.dark .cal-filters select,
+.dark .tasks-toolbar input,
+.dark .tasks-toolbar > button,
+.dark .tasks-filters input,
+.dark .tasks-filters select,
+.dark .tasks-state,
+.dark .tasks-actions__buttons button,
+.dark .tasks-actions__editor input,
+.dark .tasks-actions__editor select {
+  border-color: #374151;
+  color: #e5e7eb;
+  background: #1f2937;
+}
+
+.dark .tasks-toolbar > button b,
+.dark .tasks-filters > button,
+.dark .tasks-tags em,
+.dark .cal-saving,
+.dark .io-block button {
+  border-color: #374151;
+  color: #d1d5db;
+  background: #1f2937;
+}
+
+.dark .io-attention__cards button,
+.dark .io-attention__list button,
+.dark .io-team > div > button,
+.dark .cal-day-panel > div > button,
+.dark .cal-day,
+.dark .cal-time__column > button {
+  border-color: #1f2937;
+  color: #e5e7eb;
+  background: #111827;
+}
+
+.dark .io-attention__cards button.active,
+.dark .tasks-shortcuts button.active,
+.dark .cal-day.selected {
+  border-color: var(--op-accent);
+  background: var(--op-accent-soft);
+}
+
+.dark .io-table th,
+.dark .cal-weekdays,
+.dark .cal-time__header,
+.dark .cal-views,
+.dark .tasks-scope {
+  background: #1f2937;
+}
+
+.dark .io-focus > section {
+  color: #111827;
+  background: #f1f5f9;
+}
+
+.dark .io-focus section p {
+  color: #475569;
+}
+
+.dark .io-focus footer button {
+  border-color: rgb(15 23 42 / 20%);
+  color: #0f172a;
+  background: rgb(15 23 42 / 7%);
+}
+
+.dark .io-focus section.io-load {
+  color: #e5e7eb;
+  background: #111827;
+}
+
+.dark .io-event,
+.dark .cal-event--blue {
+  border-color: #475569;
+  border-left-color: #94a3b8;
+  color: #e2e8f0;
+  background: #1e293b;
+}
