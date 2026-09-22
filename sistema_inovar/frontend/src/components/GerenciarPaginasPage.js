@@ -18,7 +18,7 @@ const roles = [
     { field: 'permite_fiscal', label: 'Departamento Fiscal', short: 'Fiscal' },
     { field: 'permite_pessoal', label: 'Departamento Pessoal', short: 'Pessoal' },
 ];
-const navbarCategories = ['Cadastros', 'Arquivo', 'Fiscal', 'Pessoal', 'Financeiro', 'Documentos', 'Controle'];
+const navbarCategories = ['Principal', 'Cadastros', 'Arquivo', 'Fiscal', 'Pessoal', 'Financeiro', 'Documentos', 'Controle'];
 
 const GerenciarPaginasPage = () => {
     const { pages, loading, refreshPages } = usePageAccess();

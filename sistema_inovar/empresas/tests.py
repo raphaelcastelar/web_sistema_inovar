@@ -142,6 +142,7 @@ class PermissaoPaginaSistemaTest(SimpleTestCase):
     def test_categoria_da_pagina_deve_existir_no_navbar(self):
         serializer = PaginaSistemaSerializer()
 
+        self.assertEqual(serializer.validate_secao('Principal'), 'Principal')
         self.assertEqual(serializer.validate_secao('Financeiro'), 'Financeiro')
         with self.assertRaisesMessage(DRFValidationError, 'Categoria inválida para o navbar.'):
             serializer.validate_secao('Outros')

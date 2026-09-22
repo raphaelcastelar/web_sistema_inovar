@@ -29,6 +29,7 @@ import axiosInstance from '../api/axiosInstance';
 import { usePageAccess } from '../context/PageAccessContext';
 
 const navigationCategories = [
+    { title: 'Principal', icon: HomeIcon },
     { title: 'Cadastros', icon: BuildingOfficeIcon },
     { title: 'Arquivo', icon: FolderOpenIcon },
     { title: 'Fiscal', icon: ShieldCheckIcon },
@@ -91,7 +92,7 @@ const Navbar = () => {
         .map((category) => ({
             ...category,
             items: navigationItems
-                .filter((item) => item.pageKey !== 'inicio' && canAccess(item.pageKey) && pagesByKey[item.pageKey]?.secao === category.title)
+                .filter((item) => canAccess(item.pageKey) && pagesByKey[item.pageKey]?.secao === category.title)
                 .sort((left, right) => (pagesByKey[left.pageKey]?.ordem || 0) - (pagesByKey[right.pageKey]?.ordem || 0)),
         }))
         .filter((section) => section.items.length > 0), [canAccess, pagesByKey]);
@@ -159,12 +160,6 @@ const Navbar = () => {
             </div>
 
             <nav className="navbar-scroll flex-1 space-y-2 overflow-y-auto px-2 py-2">
-                {canAccess('inicio') && (
-                    <div className="px-1 pb-2">
-                        <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">Principal</p>
-                        <NavLink item={navigationItems.find((item) => item.pageKey === 'inicio')} />
-                    </div>
-                )}
                 {visibleNavigationSections.map((section) => {
                     const SectionIcon = section.icon;
                     const isOpen = openSections[section.title];

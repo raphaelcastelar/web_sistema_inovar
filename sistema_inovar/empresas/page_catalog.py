@@ -1,7 +1,7 @@
 PAGE_CATALOG = [
     # Principal
-    {'chave': 'inicio', 'nome': 'Início', 'rota': '/inicio', 'secao': 'Controle', 'descricao': 'Tarefas, compromissos e planejamento diário.'},
-    {'chave': 'calendario', 'nome': 'Calendário', 'rota': '/calendario', 'secao': 'Controle', 'descricao': 'Agenda mensal, semanal, diária e lista de atividades.'},
+    {'chave': 'inicio', 'nome': 'Início', 'rota': '/inicio', 'secao': 'Principal', 'descricao': 'Tarefas, compromissos e planejamento diário.'},
+    {'chave': 'calendario', 'nome': 'Calendário', 'rota': '/calendario', 'secao': 'Principal', 'descricao': 'Agenda mensal, semanal, diária e lista de atividades.'},
 
     # Cadastros
     {'chave': 'empresas', 'nome': 'Empresas', 'rota': '/empresas', 'secao': 'Cadastros', 'descricao': 'Cadastro, edição, pastas e documentos de empresas.'},
@@ -40,7 +40,7 @@ PAGE_CATALOG = [
     {'chave': 'gerenciamento_simples', 'nome': 'Gerenciamento do Simples', 'rota': '/gerenciamento/simples-nacional', 'secao': 'Fiscal', 'descricao': 'Configuração do monitoramento do Simples Nacional.'},
 ]
 
-NAVBAR_SECTIONS = ('Cadastros', 'Arquivo', 'Fiscal', 'Pessoal', 'Financeiro', 'Documentos', 'Controle')
+NAVBAR_SECTIONS = ('Principal', 'Cadastros', 'Arquivo', 'Fiscal', 'Pessoal', 'Financeiro', 'Documentos', 'Controle')
 
 
 def sync_page_catalog():
