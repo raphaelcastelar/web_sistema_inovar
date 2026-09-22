@@ -313,6 +313,42 @@
   background: #fff;
 }
 
+.io-overlay:not(.io-overlay--side) {
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.io-overlay:not(.io-overlay--side) .io-modal {
+  width: min(700px, calc(100vw - 48px));
+  max-height: min(86vh, 760px);
+  border-radius: 14px;
+}
+
+.io-overlay:not(.io-overlay--side) .io-modal > header {
+  padding: 16px 20px;
+}
+
+.io-overlay:not(.io-overlay--side) .io-form-scroll {
+  padding: 18px 20px;
+}
+
+.io-overlay:not(.io-overlay--side) .io-form-grid {
+  gap: 12px 14px;
+}
+
+.io-overlay:not(.io-overlay--side) .io-form-grid input,
+.io-overlay:not(.io-overlay--side) .io-form-grid select,
+.io-overlay:not(.io-overlay--side) .io-form-grid textarea {
+  padding: 9px 10px;
+  font-size: 12px;
+}
+
+.io-overlay:not(.io-overlay--side) .io-modal footer {
+  padding: 13px 20px;
+}
+
 .io-modal header span,
 .io-details header span {
   color: var(--op-accent);
@@ -453,4 +489,17 @@
   border-left-color: #94a3b8;
   color: #e2e8f0;
   background: #1e293b;
+}
+
+@media (max-width: 600px) {
+  .io-overlay:not(.io-overlay--side) {
+    align-items: center;
+    padding: 12px;
+  }
+
+  .io-overlay:not(.io-overlay--side) .io-modal {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    border-radius: 14px;
+  }
 }
