@@ -71,15 +71,15 @@ function SummaryCard({ label, value, tone, active, onClick, hint }) {
     }[tone || 'neutral'];
 
     const content = (
-        <>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-70">{label}</p>
-            <p className="mt-2 break-words text-2xl font-bold tabular-nums">{value}</p>
-            {hint && <p className="mt-1 text-[11px] opacity-70">{hint}</p>}
-        </>
+        <div className="flex min-h-8 items-center justify-between gap-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</p>
+            <p className="text-xl font-bold tabular-nums">{value}</p>
+            {hint && <span className="sr-only">{hint}</span>}
+        </div>
     );
 
     if (!onClick) {
-        return <div className={`min-w-0 rounded-lg px-4 py-3 ring-1 ${toneClass}`}>{content}</div>;
+        return <div className={`min-w-0 rounded-lg px-3 py-2 ring-1 ${toneClass}`}>{content}</div>;
     }
 
     return (
@@ -87,7 +87,7 @@ function SummaryCard({ label, value, tone, active, onClick, hint }) {
             type="button"
             onClick={onClick}
             aria-pressed={active}
-            className={`min-w-0 rounded-lg px-4 py-3 text-left ring-1 transition-all hover:brightness-[0.98] ${toneClass} ${active ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-slate-100 dark:ring-offset-gray-950' : ''}`}
+            className={`min-w-0 rounded-lg px-3 py-2 text-left ring-1 transition-all hover:brightness-[0.98] ${toneClass} ${active ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-slate-100 dark:ring-offset-gray-950' : ''}`}
         >
             {content}
         </button>
@@ -387,14 +387,11 @@ const EmpresaList = () => {
     }, [loading, empresas.length]);
 
     return (
-        <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="w-full max-w-none space-y-3 px-0 py-1 text-gray-900 dark:text-gray-100 sm:space-y-4 sm:py-2">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
                 <div>
                     <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Cadastro</p>
-                    <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Empresas</h1>
-                    <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-                        Consulte empresas, filtre por tags e mantenha os cadastros atualizados.
-                    </p>
+                    <h1 className="mt-1 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Empresas</h1>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -442,7 +439,7 @@ const EmpresaList = () => {
             </AnimatePresence>
 
             {/* Resumo — os dois últimos cartões também filtram por situação */}
-            <div className="grid w-full gap-3 sm:grid-cols-3">
+            <div className="grid w-full gap-2 sm:grid-cols-3">
                 <SummaryCard label="Total" value={summary.total} hint="Dentro dos filtros atuais" />
                 <SummaryCard
                     label="Ativadas"
@@ -463,7 +460,7 @@ const EmpresaList = () => {
             </div>
 
             {/* Filtros */}
-            <div className={`${cardClass} p-4`}>
+            <div className={`${cardClass} p-3`}>
                 <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1.6fr)_minmax(11rem,1fr)_auto]">
                     <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
                         <MagnifyingGlassIcon className="h-4 w-4 flex-shrink-0" />
@@ -530,7 +527,7 @@ const EmpresaList = () => {
                             exit={{ opacity: 0, height: 0 }}
                             className="overflow-hidden"
                         >
-                            <div className="mt-3 rounded-md border border-gray-200 p-3 dark:border-gray-700">
+                            <div className="mt-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
                                 {tags.length === 0 ? (
                                     <p className="text-xs text-gray-500 dark:text-gray-400">Nenhuma tag disponível para o seu perfil.</p>
                                 ) : (
@@ -569,7 +566,7 @@ const EmpresaList = () => {
                     )}
                 </AnimatePresence>
 
-                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-gray-200 pt-3 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
                     <span className="inline-flex items-center gap-2">
                         <FunnelIcon className="h-4 w-4" />
                         {activeFilterCount > 0 ? `${activeFilterCount} filtro(s) ativo(s) · ` : 'Sem filtros · '}
