@@ -6,23 +6,18 @@ import {
     ArrowPathIcon,
     BuildingOffice2Icon,
     CheckCircleIcon,
-    EnvelopeIcon,
     ExclamationTriangleIcon,
-    FolderIcon,
     FunnelIcon,
     MagnifyingGlassIcon,
-    PencilIcon,
-    PhoneIcon,
     PlusIcon,
     TagIcon,
-    TrashIcon,
     XMarkIcon,
 } from '@heroicons/react/24/outline';
-import { formatCnpj } from '../utils/cnpj';
+import EmpresaTable from './EmpresaTable';
 
 const EMPRESA_LIST_STATE_KEY = 'empresaListState';
 const EMPRESA_FILTERS_KEY = 'empresaListFilters';
-const EMPRESA_PAGE_CACHE_KEY = 'empresaListPageCache';
+const EMPRESA_PAGE_CACHE_KEY = 'empresaListPageCacheV2';
 const DEFAULT_CARTEIRA_OPTIONS = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
 const PAGE_SIZE_OPTIONS = [24, 48, 96];
 const DEFAULT_PAGE_SIZE = 24;
@@ -33,6 +28,7 @@ const controlClass = 'h-10 w-full rounded-md border border-gray-200 bg-white px-
 const chipClass = 'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors';
 const chipOff = 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700';
 const chipOn = 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950';
+
 
 const readJson = (storage, key, fallback = null) => {
     try {
@@ -614,16 +610,7 @@ const EmpresaList = () => {
             )}
 
             {loading ? (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {Array.from({ length: 8 }).map((_, index) => (
-                        <div key={index} className={`${cardClass} animate-pulse p-5`}>
-                            <div className="h-4 w-3/4 rounded bg-gray-200 dark:bg-gray-800" />
-                            <div className="mt-3 h-3 w-1/2 rounded bg-gray-200 dark:bg-gray-800" />
-                            <div className="mt-6 h-3 w-2/3 rounded bg-gray-200 dark:bg-gray-800" />
-                            <div className="mt-6 h-8 w-full rounded bg-gray-200 dark:bg-gray-800" />
-                        </div>
-                    ))}
-                </div>
+                <EmpresaTable loading />
             ) : empresas.length === 0 ? (
                 <div className={`${cardClass} p-10 text-center`}>
                     <BuildingOffice2Icon className="mx-auto h-12 w-12 text-gray-400" />
@@ -660,143 +647,18 @@ const EmpresaList = () => {
                 </div>
             ) : (
                 <>
-                    <div className={`grid gap-4 transition-opacity md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 ${refreshing ? 'opacity-60' : ''}`}>
-                        {empresas.map(empresa => {
-                            const isInactive = !empresa.ativo;
-                            const isReactivating = reactivatingId === empresa.id;
-                            const isDeleting = deletingId === empresa.id;
-                            return (
-                                <div
-                                    key={empresa.id}
-                                    className={`flex min-w-0 flex-col rounded-lg border bg-white shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900 ${isInactive
-                                        ? 'border-amber-200 ring-1 ring-amber-100 dark:border-amber-900/70 dark:ring-amber-900/40'
-                                        : 'border-gray-200 dark:border-gray-800'}`}
-                                >
-                                    <div className="flex-grow p-4 sm:p-5">
-                                        <div className="flex items-start gap-3">
-                                            <span className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                                <BuildingOffice2Icon className="h-5 w-5" />
-                                            </span>
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <h3 className="break-words text-base font-semibold leading-tight text-gray-950 dark:text-gray-100">{empresa.nome}</h3>
-                                                    {isInactive && (
-                                                        <span className="shrink-0 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900">
-                                                            Inativa
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <p className="mt-1 text-sm tabular-nums text-gray-500 dark:text-gray-400">{formatCnpj(empresa.cnpj)}</p>
-                                                {empresa.carteira_clientes && (
-                                                    <span className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                                        {empresa.carteira_clientes}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-4 space-y-1.5 text-sm text-gray-600 dark:text-gray-400">
-                                            {empresa.email && (
-                                                <a href={`mailto:${empresa.email}`} className="flex items-start gap-2 break-all transition-colors hover:text-gray-900 dark:hover:text-gray-100">
-                                                    <EnvelopeIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-gray-400" />
-                                                    {empresa.email}
-                                                </a>
-                                            )}
-                                            {empresa.telefone && (
-                                                <p className="flex items-center gap-2">
-                                                    <PhoneIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
-                                                    {empresa.telefone}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        {isInactive && (
-                                            <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-                                                Reative para que a empresa volte aos fluxos operacionais e relatórios ativos.
-                                            </p>
-                                        )}
-
-                                        {(empresa.tags || []).length > 0 && (
-                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                {(empresa.tags || []).map((tag) => {
-                                                    const tagId = String(tag.id);
-                                                    const selected = selectedTagIds.includes(tagId);
-                                                    return (
-                                                        <button
-                                                            key={tag.id}
-                                                            type="button"
-                                                            onClick={() => { toggleTagFilter(tagId); setShowTagPanel(true); }}
-                                                            title={selected ? `Remover filtro da tag ${tag.nome}` : `Filtrar por ${tag.nome}`}
-                                                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${selected
-                                                                ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950'
-                                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}
-                                                        >
-                                                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: tag.cor }} />
-                                                            {tag.nome}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="flex gap-2 border-t border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/70">
-                                        {isInactive && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleReactivate(empresa)}
-                                                disabled={isReactivating}
-                                                className="flex-[1.4] rounded-md bg-emerald-600 px-3 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-emerald-500 dark:hover:bg-emerald-400"
-                                                title="Reativar empresa"
-                                            >
-                                                {isReactivating ? (
-                                                    <ArrowPathIcon className="mx-auto h-5 w-5 animate-spin" />
-                                                ) : (
-                                                    <span className="inline-flex items-center justify-center gap-2">
-                                                        <CheckCircleIcon className="h-5 w-5" />
-                                                        Reativar
-                                                    </span>
-                                                )}
-                                            </button>
-                                        )}
-                                        <Link
-                                            to={`/empresas/editar/${empresa.id}`}
-                                            onClick={saveListPosition}
-                                            className="flex-1 rounded-md px-3 py-2 text-center text-sm text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800"
-                                            title="Editar"
-                                            aria-label={`Editar ${empresa.nome}`}
-                                        >
-                                            <PencilIcon className="mx-auto h-5 w-5" />
-                                        </Link>
-                                        <Link
-                                            to={`/empresas/${empresa.id}/pastas`}
-                                            onClick={saveListPosition}
-                                            className="flex-1 rounded-md px-3 py-2 text-center text-sm text-gray-600 transition-colors hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800"
-                                            title="Acessar pastas"
-                                            aria-label={`Acessar pastas de ${empresa.nome}`}
-                                        >
-                                            <FolderIcon className="mx-auto h-5 w-5" />
-                                        </Link>
-                                        {isAdmin && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDelete(empresa)}
-                                                disabled={isDeleting}
-                                                className="flex-1 rounded-md px-3 py-2 text-center text-sm text-gray-600 transition-colors hover:bg-red-100 hover:text-red-600 disabled:opacity-60 dark:text-gray-300 dark:hover:bg-red-900/50 dark:hover:text-red-400"
-                                                title="Excluir"
-                                                aria-label={`Excluir ${empresa.nome}`}
-                                            >
-                                                {isDeleting
-                                                    ? <ArrowPathIcon className="mx-auto h-5 w-5 animate-spin" />
-                                                    : <TrashIcon className="mx-auto h-5 w-5" />}
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
+                    <EmpresaTable
+                        empresas={empresas}
+                        refreshing={refreshing}
+                        isAdmin={isAdmin}
+                        reactivatingId={reactivatingId}
+                        deletingId={deletingId}
+                        selectedTagIds={selectedTagIds}
+                        onTag={(tagId) => { toggleTagFilter(tagId); setShowTagPanel(true); }}
+                        onReactivate={handleReactivate}
+                        onDelete={handleDelete}
+                        onNavigate={saveListPosition}
+                    />
                     <div className="flex flex-col items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 sm:flex-row">
                         <div>
                             Mostrando <span className="font-semibold tabular-nums">{firstItem}–{lastItem}</span> de{' '}

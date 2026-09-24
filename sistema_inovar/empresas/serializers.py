@@ -368,7 +368,11 @@ class EmpresaListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'carteira_clientes', 'ativo', 'criado_em', 'desativado_em', 'tags']
+        fields = [
+            'id', 'nome', 'cnpj', 'email', 'telefone',
+            'regime_tributario', 'porte_empresa', 'carteira_clientes',
+            'ativo', 'criado_em', 'desativado_em', 'tags',
+        ]
 
     def get_tags(self, obj):
         request = self.context.get('request')
