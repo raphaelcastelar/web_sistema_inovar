@@ -76,8 +76,17 @@ test('abre o formulário de nova atividade na data selecionada', async () => {
   await waitFor(() => expect(createButton).toBeEnabled());
   fireEvent.click(createButton);
 
-  expect(screen.getByRole('dialog', { name: 'Nova atividade' })).toBeInTheDocument();
+  const dialog = screen.getByRole('dialog', { name: 'Nova atividade' });
+  expect(dialog).toBeInTheDocument();
   expect(screen.getByLabelText(/Data planejada/)).toHaveValue(today());
+
+  const todoStatus = within(dialog).getByRole('radio', { name: 'A fazer' });
+  const progressStatus = within(dialog).getByRole('radio', { name: 'Em andamento' });
+  expect(todoStatus).toHaveAttribute('aria-checked', 'true');
+  fireEvent.click(progressStatus);
+  expect(progressStatus).toHaveAttribute('aria-checked', 'true');
+  expect(todoStatus).toHaveAttribute('aria-checked', 'false');
+  expect(within(dialog).getByRole('button', { name: 'Salvar atividade' })).toHaveClass('primary');
 });
 
 test('reagenda uma tarefa ao arrastar para outro dia', async () => {

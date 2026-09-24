@@ -65,7 +65,26 @@ export function ActivityForm({ activity, initial, context, saving, blocks, onClo
         <label className="wide"><span>Descrição</span><textarea rows="3" value={form.descricao} onChange={(e) => change('descricao', e.target.value)} /></label>
         <label><span>Empresa</span><select value={form.empresaId} onChange={(e) => change('empresaId', Number(e.target.value) || '')}><option value="">Sem empresa</option>{context.empresas.map((company) => <option key={company.id} value={company.id}>{company.nome}</option>)}</select></label>
         <label><span>Prioridade</span><select value={form.prioridade} onChange={(e) => change('prioridade', e.target.value)}>{Object.entries(PRIORITIES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-        <label><span>Estado</span><select value={form.estado} onChange={(e) => change('estado', e.target.value)}>{Object.entries(STATES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+        <fieldset className="wide io-status-field">
+          <legend>Estado</legend>
+          <div className="io-status-picker" role="radiogroup" aria-label="Estado da atividade">
+            {Object.entries(STATES).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={form.estado === key}
+                className={form.estado === key ? 'active' : ''}
+                data-state={key}
+                onClick={() => change('estado', key)}
+              >
+                <i aria-hidden="true" />
+                <span>{label}</span>
+                {form.estado === key && <CheckCircleIcon aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+        </fieldset>
         <label><span>Privacidade</span><select value={form.privada ? 'private' : 'team'} disabled={activity && activity.responsavelId !== context.usuario.id} onChange={(e) => change('privada', e.target.value === 'private')}><option value="team">Pública</option><option value="private">Privada</option></select></label>
         {form.tipo === 'tarefa' ? <><label><span>Data planejada *</span><input type="date" value={form.dataPlanejada || ''} onChange={(e) => change('dataPlanejada', e.target.value)} /></label><label><span>Prazo</span><input type="date" value={form.prazo || ''} onChange={(e) => change('prazo', e.target.value)} /></label><label><span>Duração estimada (min)</span><input type="number" min="1" value={form.duracaoEstimada || ''} onChange={(e) => change('duracaoEstimada', e.target.value)} /></label><label><span>Frequência</span><select value={form.frequencia} disabled={Boolean(activity?.recorrenciaOrigemId)} onChange={(e) => change('frequencia', e.target.value)}><option value="nenhuma">Não repetir</option><option value="diaria">Diária</option><option value="dias_uteis">Dias úteis</option><option value="semanal">Semanal</option><option value="mensal">Mensal</option></select></label></> : <><label><span>Início *</span><input type="datetime-local" value={form.inicio} onChange={(e) => change('inicio', e.target.value)} /></label><label><span>Término *</span><input type="datetime-local" value={form.termino} onChange={(e) => change('termino', e.target.value)} /></label></>}
       </div>{activity && <section className="io-blocks"><div><div><h3>Blocos de execução</h3><p>Reserve períodos de trabalho para esta atividade.</p></div><span>{blocks.length} bloco(s)</span></div><div className="io-block-form"><input aria-label="Início do bloco" type="datetime-local" value={blockForm.inicio} onChange={(e) => setBlockForm({ ...blockForm, inicio: e.target.value })} /><input aria-label="Término do bloco" type="datetime-local" value={blockForm.termino} onChange={(e) => setBlockForm({ ...blockForm, termino: e.target.value })} /><button type="button" onClick={async () => { if (!blockForm.inicio || blockForm.termino <= blockForm.inicio) return setError('Informe um período válido para o bloco.'); await onCreateBlock(blockForm); setBlockForm({ inicio: '', termino: '' }); }}>Reservar</button></div>{blocks.map((block) => <div className="io-block" key={block.id}><span>{formatDate(block.inicio)} · {formatTime(block.inicio)}–{formatTime(block.termino)}</span><span><button type="button" onClick={() => { const inicio = window.prompt('Novo início (AAAA-MM-DDTHH:MM)', block.inicio.slice(0, 16)); const termino = inicio && window.prompt('Novo término (AAAA-MM-DDTHH:MM)', block.termino.slice(0, 16)); if (inicio && termino) onUpdateBlock(block.id, { inicio, termino }); }}>Editar</button><button type="button" onClick={() => onDeleteBlock(block.id)}>Excluir</button></span></div>)}</section>}</div><footer><button type="button" className="secondary" onClick={onClose} disabled={saving}>Cancelar</button><button type="submit" className="primary" disabled={saving}>{saving ? 'Salvando...' : 'Salvar atividade'}</button></footer></form>
