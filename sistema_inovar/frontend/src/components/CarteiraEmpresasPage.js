@@ -74,16 +74,17 @@ function SummaryFilter({ label, value, tone = 'neutral', active, onClick }) {
     muted: 'bg-gray-50 text-gray-700 ring-gray-200 dark:bg-gray-900/70 dark:text-gray-200 dark:ring-gray-800',
   }[tone];
 
+  const hint = onClick ? 'Clique para listar' : 'Dentro dos filtros atuais';
   const content = (
-    <>
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-70">{label}</span>
-      <strong className="mt-2 block text-2xl font-bold tabular-nums">{value}</strong>
-      <span className="mt-1 block text-[11px] opacity-70">{onClick ? 'Clique para listar' : 'Dentro dos filtros atuais'}</span>
-    </>
+    <div className="flex min-h-8 items-center justify-between gap-3">
+      <span className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">{label}</span>
+      <strong className="text-xl font-bold tabular-nums">{value}</strong>
+      <span className="sr-only">{hint}</span>
+    </div>
   );
 
   if (!onClick) {
-    return <div className={`min-w-0 rounded-lg px-4 py-3 ring-1 ${toneClass}`}>{content}</div>;
+    return <div className={`min-w-0 rounded-lg px-3 py-2 ring-1 ${toneClass}`}>{content}</div>;
   }
 
   return (
@@ -91,7 +92,7 @@ function SummaryFilter({ label, value, tone = 'neutral', active, onClick }) {
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`min-w-0 rounded-lg px-4 py-3 text-left ring-1 transition hover:brightness-[0.98] ${toneClass} ${active ? 'ring-2 ring-slate-900 ring-offset-1 dark:ring-slate-100 dark:ring-offset-gray-950' : ''}`}
+      className={`min-w-0 rounded-lg px-3 py-2 text-left ring-1 transition hover:brightness-[0.98] ${toneClass} ${active ? 'ring-2 ring-slate-900 ring-offset-1 dark:ring-slate-100 dark:ring-offset-gray-950' : ''}`}
     >
       {content}
     </button>
@@ -277,12 +278,11 @@ const CarteiraEmpresasPage = () => {
   };
 
   return (
-    <main className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <main className="w-full max-w-none space-y-3 px-0 py-1 text-gray-900 dark:text-gray-100 sm:space-y-4 sm:py-2">
+      <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Arquivos das empresas</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Pastas</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Filtre e selecione uma empresa para acessar seus documentos.</p>
+          <h1 className="mt-1 font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">Pastas</h1>
         </div>
         <button
           type="button"
@@ -295,13 +295,13 @@ const CarteiraEmpresasPage = () => {
         </button>
       </header>
 
-      <div className="grid w-full gap-3 sm:grid-cols-3">
+      <div className="grid w-full gap-2 sm:grid-cols-3">
         <SummaryFilter label="Total" value={summary.total} />
         <SummaryFilter label="Ativadas" value={summary.ativadas} tone="success" active={activeTab === 'ativadas'} onClick={() => setActiveTab('ativadas')} />
         <SummaryFilter label="Não ativadas" value={summary.naoAtivadas} tone="muted" active={activeTab === 'nao-ativadas'} onClick={() => setActiveTab('nao-ativadas')} />
       </div>
 
-      <section className="sticky top-0 z-10 rounded-xl border border-gray-200 bg-white/95 p-4 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
+      <section className="sticky top-0 z-10 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
         <div className="grid gap-3 xl:grid-cols-[minmax(16rem,1.6fr)_minmax(11rem,1fr)_auto]">
           <label className="flex h-10 items-center gap-2 rounded-md border border-gray-200 px-3 text-sm text-gray-500 transition focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-200 dark:border-gray-700 dark:text-gray-400 dark:focus-within:ring-slate-500/20">
             <MagnifyingGlassIcon className="h-4 w-4 shrink-0" />
@@ -346,7 +346,7 @@ const CarteiraEmpresasPage = () => {
         </div>
 
         {showTagPanel && (
-          <div className="mt-3 rounded-md border border-gray-200 p-3 dark:border-gray-700">
+          <div className="mt-2 rounded-md border border-gray-200 p-3 dark:border-gray-700">
             {tags.length === 0 ? (
               <p className="text-xs text-gray-500 dark:text-gray-400">Nenhuma tag disponível para o seu perfil.</p>
             ) : (
@@ -368,7 +368,7 @@ const CarteiraEmpresasPage = () => {
           </div>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-gray-200 pt-3 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
           <span className="inline-flex items-center gap-2">
             <FunnelIcon className="h-4 w-4" />
             {activeFilterCount > 0 ? `${activeFilterCount} filtro(s) ativo(s) · ` : 'Sem filtros · '}
@@ -393,8 +393,8 @@ const CarteiraEmpresasPage = () => {
       )}
 
       {loading ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" aria-label="Carregando empresas">
-          {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-20 animate-pulse rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900" />)}
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" aria-label="Carregando empresas">
+          {Array.from({ length: 8 }).map((_, index) => <div key={index} className="h-[68px] animate-pulse rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900" />)}
         </div>
       ) : groupedEmpresas.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-14 text-center dark:border-gray-700 dark:bg-gray-900">
@@ -405,27 +405,27 @@ const CarteiraEmpresasPage = () => {
         </div>
       ) : (
         <>
-          <div className={`space-y-7 transition-opacity ${refreshing ? 'opacity-60' : ''}`}>
+          <div className={`space-y-5 transition-opacity ${refreshing ? 'opacity-60' : ''}`}>
             {groupedEmpresas.map((group) => (
               <section key={group.letter} aria-labelledby={`grupo-${group.letter}`}>
-                <div className="mb-3 flex items-center gap-3">
-                  <h2 id={`grupo-${group.letter}`} className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-900 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-950">{group.letter}</h2>
+                <div className="mb-2 flex items-center gap-3">
+                  <h2 id={`grupo-${group.letter}`} className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-950">{group.letter}</h2>
                   <div className="h-px flex-1 bg-gray-200 dark:bg-gray-800" />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {group.empresas.map((empresa) => (
                     <Link
                       key={empresa.id}
                       to={`/empresas/${empresa.id}/pastas`}
                       aria-label={`Abrir pasta de ${empresa.nome}`}
-                      className="group flex min-h-20 min-w-0 items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-sky-700 dark:focus:ring-offset-gray-950"
+                      className="group flex min-h-[68px] min-w-0 items-center gap-2.5 rounded-lg border border-gray-200 bg-white p-2.5 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-sky-700 dark:focus:ring-offset-gray-950"
                     >
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sm font-bold text-sky-700 transition group-hover:bg-sky-100 dark:bg-sky-950/50 dark:text-sky-300 dark:group-hover:bg-sky-950">{getInitials(empresa.nome)}</span>
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sm font-bold text-sky-700 transition group-hover:bg-sky-100 dark:bg-sky-950/50 dark:text-sky-300 dark:group-hover:bg-sky-950">{getInitials(empresa.nome)}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold text-gray-950 dark:text-gray-100" title={empresa.nome}>{empresa.nome}</span>
-                        <span className="mt-1 block truncate text-xs text-gray-500 dark:text-gray-400">{formatCnpj(empresa.cnpj)}</span>
+                        <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">{formatCnpj(empresa.cnpj)}</span>
                       </span>
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition group-hover:bg-sky-50 group-hover:text-sky-700 dark:group-hover:bg-sky-950/50 dark:group-hover:text-sky-300">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition group-hover:bg-sky-50 group-hover:text-sky-700 dark:group-hover:bg-sky-950/50 dark:group-hover:text-sky-300">
                         <FolderOpenIcon className="h-5 w-5 group-hover:hidden" />
                         <ChevronRightIcon className="hidden h-5 w-5 group-hover:block" />
                       </span>
