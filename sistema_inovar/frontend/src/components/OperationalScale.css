@@ -1,11 +1,17 @@
 /* Densidade visual compartilhada por Início, Calendário e Tarefas.
    Segue a escala compacta usada na tela de Empresas. */
 @media (min-width: 721px) {
-  .io-page, .cal-page, .tasks-page { width: 100%; max-width: none; margin: 0; gap: 12px; }
+  .io-page, .cal-page, .tasks-page {
+    width: 84.7458%;
+    max-width: none;
+    margin: 0;
+    gap: 12px;
+    zoom: 1.18;
+  }
 
   .io-hero, .cal-hero, .tasks-hero { padding: 14px 16px; border-radius: 12px; }
-  .io-hero__icon, .cal-hero > div > span, .tasks-hero > div > span { width: 42px; height: 42px; border-radius: 11px; }
-  .io-hero__icon svg, .cal-hero svg, .tasks-hero svg { width: 21px; }
+  .io-hero__icon, .cal-hero > div > span, .tasks-hero > div > span { width: 48px; height: 48px; border-radius: 13px; }
+  .io-hero__icon svg, .cal-hero svg, .tasks-hero svg { width: 24px; }
   .io-hero h1, .cal-hero h1, .tasks-hero h1 { font-size: 24px; }
   .io-hero__actions button, .io-new, .cal-hero > button, .tasks-hero > button { min-height: 36px; padding: 8px 12px; font-size: 11px; }
 
