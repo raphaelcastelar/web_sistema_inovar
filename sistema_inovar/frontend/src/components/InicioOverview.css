@@ -36,3 +36,6 @@
 .dark .io-status-picker button[data-state="concluida"].active{border-color:#377c5d;color:#bce7d1;background:#173d2d}
 .dark .io-status-picker button[data-state="cancelada"].active{border-color:#85545c;color:#efcbd0;background:#44272c}
 @media(max-width:700px){.io-status-picker{grid-template-columns:repeat(2,minmax(0,1fr))}.io-status-picker button:last-child{grid-column:1/-1}}
+
+/* Mantem a pagina inicial no mesmo canvas fluido de Tarefas e Calendario. */
+.io-page{width:100%;max-width:none;box-sizing:border-box;margin:0}

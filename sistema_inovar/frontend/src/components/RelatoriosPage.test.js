@@ -55,19 +55,44 @@ test('monta a matriz de obrigações e permite personalizar as colunas', async (
   expect(screen.getByRole('heading', { name: 'Relatórios' })).toBeInTheDocument();
   expect(await screen.findByText('Empresa Alpha')).toBeInTheDocument();
   expect(screen.queryByText('Empresa Inativa')).not.toBeInTheDocument();
-  expect(screen.getAllByText('Pendente').length).toBeGreaterThan(0);
+  expect(screen.getByRole('columnheader', { name: 'Pendências de obrigações' })).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('checkbox', { name: 'FGTS' }));
   await waitFor(() => expect(screen.queryByRole('columnheader', { name: 'FGTS' })).not.toBeInTheDocument());
 });
 
-test('troca o tipo de relatório e aplica a busca à prévia', async () => {
+test('aplica um modelo, permite adicionar colunas e filtra por situação', async () => {
   render(<RelatoriosPage />);
   await screen.findByText('Empresa Alpha');
 
-  fireEvent.click(screen.getByRole('button', { name: /Cadastro de empresas/ }));
-  expect(screen.getByRole('columnheader', { name: 'CNPJ' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: /Cadastro completo/ }));
+  expect(screen.getByRole('columnheader', { name: 'E-mail' })).toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText('Buscar empresa'), { target: { value: 'empresa inexistente' } });
-  expect(await screen.findByText('Nenhum registro encontrado com os filtros atuais.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Valor do honorário' }));
+  expect(screen.getByRole('columnheader', { name: 'Valor do honorário' })).toBeInTheDocument();
+
+  fireEvent.change(screen.getByRole('combobox', { name: 'Situação' }), { target: { value: 'inativas' } });
+  expect(await screen.findByText('Empresa Inativa')).toBeInTheDocument();
+  expect(screen.queryByText('Empresa Alpha')).not.toBeInTheDocument();
+});
+
+test('exporta somente as colunas escolhidas e os dois filtros permitidos', async () => {
+  axiosInstance.post.mockResolvedValue({ data: new Blob(['xlsx']), headers: {} });
+  window.URL.createObjectURL = jest.fn(() => 'blob:report');
+  window.URL.revokeObjectURL = jest.fn();
+  HTMLAnchorElement.prototype.click = jest.fn();
+
+  render(<RelatoriosPage />);
+  await screen.findByText('Empresa Alpha');
+  fireEvent.click(screen.getByRole('button', { name: /Cadastro completo/ }));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Carteira' }), { target: { value: 'Carteira A' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Exportar relatório' }));
+
+  await waitFor(() => expect(axiosInstance.post).toHaveBeenCalled());
+  const payload = axiosInstance.post.mock.calls[0][1];
+  expect(payload.report_type).toBe('personalizado');
+  expect(payload.filters.carteira).toBe('Carteira A');
+  expect(payload.filters.status_empresa).toBe('ativas');
+  expect(payload.filters.columns).toContain('email');
+  expect(Object.keys(payload.filters).sort()).toEqual(['carteira', 'columns', 'status_empresa']);
 });

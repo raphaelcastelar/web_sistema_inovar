@@ -481,7 +481,15 @@ def _parse_report_date(value):
 
 
 def _visible_empresas_for_report(request):
-    queryset = Empresa.objects.prefetch_related('usuarios', 'tags', 'socios').all()
+    queryset = Empresa.objects.prefetch_related(
+        'usuarios',
+        'gerenciada_por',
+        'tags',
+        'socios',
+        'boletos_bb',
+        'documentos_nova_estrutura',
+        'historico_envios',
+    ).all()
     if not request.user.is_staff and not request.user.is_superuser:
         queryset = queryset.filter(gerenciada_por=request.user)
     return queryset.distinct()
@@ -866,7 +874,134 @@ def _build_usuarios_report(request, filters):
     )
 
 
+def _joined_names(items, attribute='nome'):
+    return ', '.join(str(getattr(item, attribute, '') or '').strip() for item in items if getattr(item, attribute, None))
+
+
+def _joined_users(items):
+    return ', '.join((item.get_full_name() or item.username) for item in items)
+
+
+def _company_report_context(empresa):
+    boletos = list(empresa.boletos_bb.all())
+    documentos = list(empresa.documentos_nova_estrutura.all())
+    envios = list(empresa.historico_envios.all())
+    hoje = timezone.localdate()
+    boletos_abertos = [item for item in boletos if item.status == 'registrado']
+    boletos_vencidos = [item for item in boletos_abertos if item.data_vencimento and item.data_vencimento < hoje]
+    boletos_pagos = [item for item in boletos if item.status == 'pago']
+    vencimentos_abertos = [item.data_vencimento for item in boletos_abertos if item.data_vencimento]
+    pagamentos = [item.data_pagamento for item in boletos if item.data_pagamento]
+    datas_envio = [item.data_hora for item in envios if item.data_hora]
+    obrigacoes = [empresa.inss, empresa.fgts, empresa.folha, empresa.honorario, empresa.simples_nacional]
+    return {
+        'boletos': boletos,
+        'boletos_abertos': boletos_abertos,
+        'boletos_vencidos': boletos_vencidos,
+        'boletos_pagos': boletos_pagos,
+        'documentos': documentos,
+        'envios': envios,
+        'vencimento_aberto_mais_antigo': min(vencimentos_abertos) if vencimentos_abertos else None,
+        'ultimo_pagamento': max(pagamentos) if pagamentos else None,
+        'ultimo_envio': max(datas_envio) if datas_envio else None,
+        'pendencias_obrigacoes': sum(1 for item in obrigacoes if not item),
+    }
+
+
+# Esta lista e a fonte de verdade do Excel personalizavel. As chaves sao estaveis e
+# enviadas pelo frontend; os rotulos podem evoluir sem quebrar relatorios salvos.
+CUSTOM_REPORT_COLUMNS = {
+    'nome': ('Empresa', lambda e, c: e.nome),
+    'cnpj': ('CNPJ', lambda e, c: e.cnpj),
+    'ativo': ('Situacao', lambda e, c: 'Ativa' if e.ativo else 'Inativa'),
+    'email': ('Email', lambda e, c: e.email or ''),
+    'telefone': ('Telefone', lambda e, c: e.telefone or ''),
+    'endereco': ('Endereco', lambda e, c: e.endereco or ''),
+    'numero': ('Numero', lambda e, c: e.numero or ''),
+    'bairro': ('Bairro', lambda e, c: e.bairro or ''),
+    'cidade': ('Cidade', lambda e, c: e.cidade or ''),
+    'uf': ('UF', lambda e, c: e.uf or ''),
+    'cep': ('CEP', lambda e, c: e.cep or ''),
+    'regime_tributario': ('Regime tributario', lambda e, c: e.regime_tributario or ''),
+    'porte_empresa': ('Porte', lambda e, c: e.porte_empresa or ''),
+    'carteira_clientes': ('Carteira', lambda e, c: e.carteira_clientes or ''),
+    'grupo_atividade': ('Grupo de atividade', lambda e, c: ', '.join(e.grupo_atividade or [])),
+    'simples_nacional': ('Simples Nacional', lambda e, c: _yes_no(e.simples_nacional)),
+    'anexo_simples': ('Anexo do Simples', lambda e, c: e.anexo_simples or ''),
+    'inss': ('INSS', lambda e, c: _yes_no(e.inss)),
+    'fgts': ('FGTS', lambda e, c: _yes_no(e.fgts)),
+    'folha': ('Folha', lambda e, c: _yes_no(e.folha)),
+    'honorario': ('Honorario', lambda e, c: _yes_no(e.honorario)),
+    'monitorar_simples': ('Monitorar Simples', lambda e, c: _yes_no(e.monitorar_simples)),
+    'pendencias_obrigacoes': ('Pendencias de obrigacoes', lambda e, c: c['pendencias_obrigacoes']),
+    'valor_honorario': ('Valor do honorario', lambda e, c: e.valor_honorario or Decimal('0.00')),
+    'dia_vencimento_honorario': ('Dia de vencimento', lambda e, c: e.dia_vencimento_honorario or ''),
+    'juros_mora_taxa': ('Juros de mora (%)', lambda e, c: e.juros_mora_taxa or Decimal('0.00')),
+    'multa_taxa': ('Multa (%)', lambda e, c: e.multa_taxa or Decimal('0.00')),
+    'desconto_taxa': ('Desconto (%)', lambda e, c: e.desconto_taxa or Decimal('0.00')),
+    'dias_para_desconto': ('Dias para desconto', lambda e, c: e.dias_para_desconto or 0),
+    'total_socios': ('Quantidade de socios', lambda e, c: len(e.socios.all())),
+    'socios_nomes': ('Socios', lambda e, c: _joined_names(e.socios.all())),
+    'socios_cpfs': ('CPFs dos socios', lambda e, c: ', '.join(_format_cpf(item.cpf) for item in e.socios.all())),
+    'tags': ('Tags', lambda e, c: _joined_names(e.tags.all())),
+    'usuarios': ('Usuarios vinculados', lambda e, c: _joined_users(e.usuarios.all())),
+    'gerentes': ('Gerenciada por', lambda e, c: _joined_users(e.gerenciada_por.all())),
+    'criado_em': ('Data de cadastro', lambda e, c: _format_report_datetime(e.criado_em)),
+    'desativado_em': ('Data de desativacao', lambda e, c: _format_report_datetime(e.desativado_em)),
+    'total_boletos': ('Quantidade de boletos', lambda e, c: len(c['boletos'])),
+    'boletos_abertos': ('Boletos em aberto', lambda e, c: len(c['boletos_abertos'])),
+    'boletos_vencidos': ('Boletos vencidos', lambda e, c: len(c['boletos_vencidos'])),
+    'boletos_pagos': ('Boletos pagos', lambda e, c: len(c['boletos_pagos'])),
+    'valor_total_boletos': ('Valor total dos boletos', lambda e, c: sum((item.valor_original or Decimal('0.00')) for item in c['boletos'])),
+    'valor_boletos_abertos': ('Valor em aberto', lambda e, c: sum((item.valor_original or Decimal('0.00')) for item in c['boletos_abertos'])),
+    'valor_boletos_pagos': ('Valor pago', lambda e, c: sum((item.valor_pago or Decimal('0.00')) for item in c['boletos_pagos'])),
+    'vencimento_aberto_mais_antigo': ('Vencimento em aberto mais antigo', lambda e, c: _format_report_date(c['vencimento_aberto_mais_antigo'])),
+    'ultimo_pagamento': ('Ultimo pagamento', lambda e, c: _format_report_date(c['ultimo_pagamento'])),
+    'total_documentos': ('Quantidade de documentos', lambda e, c: len(c['documentos'])),
+    'documentos_entregues': ('Documentos entregues', lambda e, c: sum(1 for item in c['documentos'] if item.entregue)),
+    'documentos_pendentes': ('Documentos pendentes', lambda e, c: sum(1 for item in c['documentos'] if not item.entregue)),
+    'total_envios': ('Quantidade de envios', lambda e, c: len(c['envios'])),
+    'envios_sucesso': ('Envios com sucesso', lambda e, c: sum(1 for item in c['envios'] if item.status == 'sucesso')),
+    'envios_falha': ('Envios com falha', lambda e, c: sum(1 for item in c['envios'] if item.status == 'falha')),
+    'ultimo_envio': ('Ultimo envio', lambda e, c: _format_report_datetime(c['ultimo_envio'])),
+}
+
+
+def _build_personalizado_report(request, filters):
+    selected_columns = filters.get('columns')
+    if not isinstance(selected_columns, list):
+        return Response({'error': 'Selecione ao menos uma coluna para o relatorio.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Remove repeticoes sem alterar a ordem escolhida pelo usuario.
+    selected_columns = list(dict.fromkeys(str(key) for key in selected_columns))
+    invalid_columns = [key for key in selected_columns if key not in CUSTOM_REPORT_COLUMNS]
+    if invalid_columns:
+        return Response({'error': 'Uma ou mais colunas selecionadas sao invalidas.'}, status=status.HTTP_400_BAD_REQUEST)
+    if not selected_columns:
+        return Response({'error': 'Selecione ao menos uma coluna para o relatorio.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    status_empresa = str(filters.get('status_empresa') or 'ativas').strip()
+    if status_empresa not in {'ativas', 'inativas', 'todas'}:
+        return Response({'error': 'Situacao das empresas invalida.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # O construtor personalizado aceita deliberadamente apenas estes dois filtros.
+    custom_filters = {
+        'status_empresa': status_empresa,
+        'carteira': str(filters.get('carteira') or '').strip(),
+    }
+    empresas = _apply_empresa_report_filters(_visible_empresas_for_report(request), custom_filters).order_by('nome')
+    headers = [CUSTOM_REPORT_COLUMNS[key][0] for key in selected_columns]
+    rows = []
+    for empresa in empresas:
+        context = _company_report_context(empresa)
+        rows.append([CUSTOM_REPORT_COLUMNS[key][1](empresa, context) for key in selected_columns])
+
+    widths = {index: 34 if key in {'nome', 'socios_nomes', 'tags', 'usuarios', 'gerentes'} else 20 for index, key in enumerate(selected_columns, 1)}
+    return _workbook_response('Relatorio personalizado', 'relatorio_personalizado.xlsx', headers, rows, widths)
+
+
 REPORT_BUILDERS = {
+    'personalizado': _build_personalizado_report,
     'empresas_cadastro': _build_empresas_cadastro_report,
     'carteira_responsaveis': _build_carteira_responsaveis_report,
     'obrigacoes_mensais': _build_obrigacoes_report,
