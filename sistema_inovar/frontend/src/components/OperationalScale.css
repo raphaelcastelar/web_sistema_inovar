@@ -2,11 +2,19 @@
    Segue a escala compacta usada na tela de Empresas. */
 @media (min-width: 721px) {
   .io-page, .cal-page, .tasks-page {
-    width: 84.7458%;
     max-width: none;
     margin: 0;
     gap: 12px;
     zoom: 1.18;
+  }
+
+  .io-page {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .cal-page, .tasks-page {
+    width: 84.7458%;
   }
 
   .io-hero, .cal-hero, .tasks-hero { padding: 14px 16px; border-radius: 12px; }
