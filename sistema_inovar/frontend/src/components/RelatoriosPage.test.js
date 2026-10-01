@@ -65,7 +65,7 @@ test('aplica um modelo, permite adicionar colunas e filtra por situação', asyn
   render(<RelatoriosPage />);
   await screen.findByText('Empresa Alpha');
 
-  fireEvent.click(screen.getByRole('button', { name: /Cadastro completo/ }));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Modelo pronto' }), { target: { value: 'cadastro' } });
   expect(screen.getByRole('columnheader', { name: 'E-mail' })).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('checkbox', { name: 'Valor do honorário' }));
@@ -84,7 +84,7 @@ test('exporta somente as colunas escolhidas e os dois filtros permitidos', async
 
   render(<RelatoriosPage />);
   await screen.findByText('Empresa Alpha');
-  fireEvent.click(screen.getByRole('button', { name: /Cadastro completo/ }));
+  fireEvent.change(screen.getByRole('combobox', { name: 'Modelo pronto' }), { target: { value: 'cadastro' } });
   fireEvent.change(screen.getByRole('combobox', { name: 'Carteira' }), { target: { value: 'Carteira A' } });
   fireEvent.click(screen.getByRole('button', { name: 'Exportar relatório' }));
 
@@ -95,4 +95,13 @@ test('exporta somente as colunas escolhidas e os dois filtros permitidos', async
   expect(payload.filters.status_empresa).toBe('ativas');
   expect(payload.filters.columns).toContain('email');
   expect(Object.keys(payload.filters).sort()).toEqual(['carteira', 'columns', 'status_empresa']);
+});
+
+test('mantém os filtros visíveis e limita a altura da prévia com rolagem', async () => {
+  render(<RelatoriosPage />);
+  await screen.findByText('Empresa Alpha');
+
+  expect(screen.getByRole('combobox', { name: 'Carteira' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Colunas do relatório' })).toBeVisible();
+  expect(screen.getByTestId('report-preview-scroll')).toHaveClass('max-h-[70vh]', 'overflow-auto');
 });
