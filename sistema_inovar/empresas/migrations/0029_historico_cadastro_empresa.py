@@ -62,12 +62,4 @@ class Migration(migrations.Migration):
             iniciar_historico_das_empresas_existentes,
             migrations.RunPython.noop,
         ),
-        migrations.AddConstraint(
-            model_name='historicostatusempresa',
-            constraint=models.UniqueConstraint(
-                condition=models.Q(tipo='CADASTRO'),
-                fields=('empresa',),
-                name='uma_data_cadastro_por_empresa',
-            ),
-        ),
     ]
