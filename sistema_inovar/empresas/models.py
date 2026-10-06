@@ -70,10 +70,6 @@ class Empresa(models.Model):
     criado_em = models.DateTimeField(auto_now_add=True)
     desativado_em = models.DateTimeField(null=True, blank=True)
 
-    def save(self, *args, **kwargs):
-        self.nome = normalizar_nome_empresa(self.nome)
-        super().save(*args, **kwargs)
-
     # Configurações de Boleto
     valor_honorario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Valor do honorário para geração de boleto", null = True)
     dia_vencimento_honorario = models.IntegerField(default=15, help_text="Dia do vencimento do boleto (1-31)", null = True)
@@ -97,17 +93,20 @@ class Empresa(models.Model):
         ]
 
     def save(self, *args, **kwargs):
+        self.nome = normalizar_nome_empresa(self.nome)
         is_new = self._state.adding
-        status_anterior = True
+        status_anterior = None
         if not is_new:
             status_anterior = type(self).objects.filter(pk=self.pk).values_list('ativo', flat=True).first()
+            status_anterior = status_anterior is not False
 
         status_atual = self.ativo is not False
-        status_anterior = status_anterior is not False
-        status_alterado = status_anterior != status_atual
+        status_alterado = not is_new and status_anterior != status_atual
         alterado_em = timezone.now() if status_alterado else None
 
-        if status_alterado:
+        if is_new and not status_atual:
+            self.desativado_em = timezone.now()
+        elif status_alterado:
             self.desativado_em = None if status_atual else alterado_em
             update_fields = kwargs.get('update_fields')
             if update_fields is not None:
@@ -115,9 +114,23 @@ class Empresa(models.Model):
 
         with transaction.atomic():
             super().save(*args, **kwargs)
-            if status_alterado:
+            if is_new:
                 HistoricoStatusEmpresa.objects.create(
                     empresa=self,
+                    tipo=HistoricoStatusEmpresa.TIPO_CADASTRO,
+                    status_anterior=None,
+                    novo_status=status_atual,
+                    alterado_em=self.criado_em,
+                    alterado_por=getattr(self, '_status_alterado_por', None),
+                )
+            elif status_alterado:
+                HistoricoStatusEmpresa.objects.create(
+                    empresa=self,
+                    tipo=(
+                        HistoricoStatusEmpresa.TIPO_ATIVACAO
+                        if status_atual
+                        else HistoricoStatusEmpresa.TIPO_DESATIVACAO
+                    ),
                     status_anterior=status_anterior,
                     novo_status=status_atual,
                     alterado_em=alterado_em,
@@ -137,12 +150,22 @@ class Empresa(models.Model):
 
 
 class HistoricoStatusEmpresa(models.Model):
+    TIPO_CADASTRO = 'CADASTRO'
+    TIPO_ATIVACAO = 'ATIVACAO'
+    TIPO_DESATIVACAO = 'DESATIVACAO'
+    TIPO_CHOICES = [
+        (TIPO_CADASTRO, 'Cadastro'),
+        (TIPO_ATIVACAO, 'Ativação'),
+        (TIPO_DESATIVACAO, 'Desativação'),
+    ]
+
     empresa = models.ForeignKey(
         Empresa,
         on_delete=models.CASCADE,
         related_name='historico_status',
     )
-    status_anterior = models.BooleanField()
+    tipo = models.CharField(max_length=12, choices=TIPO_CHOICES)
+    status_anterior = models.BooleanField(null=True, blank=True)
     novo_status = models.BooleanField()
     alterado_em = models.DateTimeField(default=timezone.now)
     alterado_por = models.ForeignKey(
@@ -157,6 +180,13 @@ class HistoricoStatusEmpresa(models.Model):
         ordering = ['-alterado_em', '-id']
         indexes = [
             models.Index(fields=['empresa', '-alterado_em'], name='hist_status_empresa_data_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa'],
+                condition=models.Q(tipo='CADASTRO'),
+                name='uma_data_cadastro_por_empresa',
+            ),
         ]
 
 

@@ -170,7 +170,7 @@ class HistoricoStatusEmpresaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = HistoricoStatusEmpresa
-        fields = ['id', 'status_anterior', 'novo_status', 'alterado_em', 'alterado_por']
+        fields = ['id', 'tipo', 'status_anterior', 'novo_status', 'alterado_em', 'alterado_por']
 
 
 class EmpresaSerializer(serializers.ModelSerializer):
@@ -319,8 +319,11 @@ class EmpresaSerializer(serializers.ModelSerializer):
         empresa = super().create(validated_data)
         request = self.context.get('request')
         user = getattr(request, 'user', None)
-        if empresa.ativo is False and user and getattr(user, 'is_authenticated', False):
-            empresa.historico_status.filter(alterado_por__isnull=True).update(alterado_por=user)
+        if user and getattr(user, 'is_authenticated', False):
+            empresa.historico_status.filter(
+                tipo=HistoricoStatusEmpresa.TIPO_CADASTRO,
+                alterado_por__isnull=True,
+            ).update(alterado_por=user)
         self._sync_socios(empresa, socios_data)
         return empresa
 

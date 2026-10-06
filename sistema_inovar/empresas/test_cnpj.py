@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 from rest_framework import serializers
 
-from .models import Empresa
+from .models import Empresa, HistoricoStatusEmpresa
 from .serializers import EmpresaAvulsaFaturamentoSerializer, EmpresaSerializer
 from .utils import format_cnpj, is_valid_cnpj, normalize_cnpj
 
@@ -69,6 +69,15 @@ class EmpresaStatusHistoryTests(TestCase):
             telefone='5522999998888',
         )
 
+    def test_records_company_creation(self):
+        cadastro = self.empresa.historico_status.get(
+            tipo=HistoricoStatusEmpresa.TIPO_CADASTRO,
+        )
+
+        self.assertIsNone(cadastro.status_anterior)
+        self.assertTrue(cadastro.novo_status)
+        self.assertEqual(cadastro.alterado_em, self.empresa.criado_em)
+
     def test_records_deactivation_and_reactivation(self):
         request = SimpleNamespace(user=self.user)
 
@@ -84,7 +93,9 @@ class EmpresaStatusHistoryTests(TestCase):
 
         self.assertIsNotNone(self.empresa.criado_em)
         self.assertIsNotNone(self.empresa.desativado_em)
-        desativacao = self.empresa.historico_status.get()
+        desativacao = self.empresa.historico_status.get(
+            tipo=HistoricoStatusEmpresa.TIPO_DESATIVACAO,
+        )
         self.assertTrue(desativacao.status_anterior)
         self.assertFalse(desativacao.novo_status)
         self.assertEqual(desativacao.alterado_por, self.user)
@@ -100,7 +111,9 @@ class EmpresaStatusHistoryTests(TestCase):
         self.empresa.refresh_from_db()
 
         self.assertIsNone(self.empresa.desativado_em)
-        self.assertEqual(self.empresa.historico_status.count(), 2)
-        reativacao = self.empresa.historico_status.first()
+        self.assertEqual(self.empresa.historico_status.count(), 3)
+        reativacao = self.empresa.historico_status.get(
+            tipo=HistoricoStatusEmpresa.TIPO_ATIVACAO,
+        )
         self.assertFalse(reativacao.status_anterior)
         self.assertTrue(reativacao.novo_status)

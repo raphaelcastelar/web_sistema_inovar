@@ -63,7 +63,7 @@ class HistoricoStatusEmpresaInline(admin.TabularInline):
     model = HistoricoStatusEmpresa
     extra = 0
     can_delete = False
-    readonly_fields = ('status_anterior', 'novo_status', 'alterado_em', 'alterado_por')
+    readonly_fields = ('tipo', 'status_anterior', 'novo_status', 'alterado_em', 'alterado_por')
 
     def has_add_permission(self, request, obj=None):
         return False
