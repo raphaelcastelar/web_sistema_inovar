@@ -199,6 +199,7 @@ const FuncionarioForm = () => {
                             <option value="" disabled>Selecione uma função</option>
                             <option value="pessoal">Departamento Pessoal</option>
                             <option value="fiscal">Departamento Fiscal</option>
+                            <option value="contabil">Departamento Contábil</option>
                             <option value="admin">Administrador</option>
                         </select>
                         {errors.cargo && <p className={errorClass}>{errors.cargo}</p>}

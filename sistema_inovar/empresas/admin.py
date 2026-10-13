@@ -23,8 +23,8 @@ from .models import (
 
 @admin.register(PaginaSistema)
 class PaginaSistemaAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'secao', 'rota', 'ativa', 'permite_admin', 'permite_fiscal', 'permite_pessoal')
-    list_filter = ('ativa', 'secao', 'permite_admin', 'permite_fiscal', 'permite_pessoal')
+    list_display = ('nome', 'secao', 'rota', 'ativa', 'permite_admin', 'permite_fiscal', 'permite_pessoal', 'permite_contabil')
+    list_filter = ('ativa', 'secao', 'permite_admin', 'permite_fiscal', 'permite_pessoal', 'permite_contabil')
     search_fields = ('nome', 'rota', 'descricao')
     readonly_fields = ('chave', 'rota', 'secao', 'gerenciavel', 'ordem', 'atualizado_em', 'atualizado_por')
 

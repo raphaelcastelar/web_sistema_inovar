@@ -92,7 +92,7 @@ function TaskRow({ activity, context, today, onOpen, onPatch }) {
     <button className="tasks-identity" onClick={() => onOpen(activity)}>
       <span><strong>{title}</strong>{activity.privada && <LockClosedIcon />}</span>
       <small>{activity.mascarada ? 'Detalhes privados' : company?.nome || activity.empresaNome || 'Atividade interna'}</small>
-      <span className="tasks-tags"><em>{activity.tipo === 'compromisso' ? `Compromisso${time ? ` · ${time}` : ''}` : 'Tarefa'}</em>{!activity.mascarada && activity.frequencia && activity.frequencia !== 'nenhuma' && <em>↻ Recorrente</em>}{overdue && <em className="danger">Prazo vencido</em>}{dueToday && <em className="warning">Vence hoje</em>}</span>
+      <span className="tasks-tags"><em>{activity.tipo === 'compromisso' ? `Compromisso${time ? ` · ${time}` : ''}` : activity.origem === 'automatica' ? 'Automática' : 'Tarefa'}</em>{activity.competencia && <em>Competência {activity.competencia}</em>}{!activity.mascarada && activity.frequencia && activity.frequencia !== 'nenhuma' && <em>↻ Recorrente</em>}{overdue && <em className="danger">Prazo vencido</em>}{dueToday && <em className="warning">Vence hoje</em>}</span>
     </button>
     <dl className="tasks-data">
       <div><dt>Responsável</dt><dd>{activity.responsavelNome || 'Sem responsável'}</dd></div>

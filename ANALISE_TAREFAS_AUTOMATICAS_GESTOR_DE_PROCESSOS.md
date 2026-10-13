@@ -336,7 +336,7 @@ Por isso:
 - NFS-e não gera atividade na tela de Tarefas;
 - todas as outras obrigações atualmente catalogadas possuem vencimento e podem virar tarefas.
 
-## 12. Situação atual no Sistema Inovar
+## 12. Situação encontrada no Sistema Inovar antes da implementação
 
 O Sistema Inovar já possui:
 
@@ -371,7 +371,7 @@ Existe ainda `ObrigacaoMensal`, separado de `Atividade`. Atualmente ele aceita s
 
 Portanto, a presença da tela de Tarefas e de `ObrigacaoMensal` não significa que o motor automático já exista neste repositório.
 
-## 13. Pontos que precisam de decisão antes de portar
+## 13. Pontos levantados antes da implementação
 
 1. Definir se as tarefas automáticas serão gravadas em `Atividade`, em `ObrigacaoMensal` ou se haverá integração entre os dois modelos. A tela atual lê `Atividade`.
 2. Definir como obter quantidade de empregados e sócios com pró-labore no cadastro do Sistema Inovar.
@@ -387,6 +387,23 @@ Portanto, a presença da tela de Tarefas e de `ObrigacaoMensal` não significa q
 ## 14. Conclusão
 
 O `gestor-de-processos` usa um motor simples e determinístico: regime tributário define uma base, empregados/pró-labore/serviço acrescentam itens, a empresa inativa deixa de receber novas ocorrências e cada obrigação com vencimento vira uma tarefa única por competência.
+
+## 15. Implementação realizada no Sistema Inovar
+
+Em 13/10/2026, o motor descrito neste documento foi incorporado ao `web_sistema_inovar` com as seguintes decisões:
+
+- as ocorrências automáticas são gravadas em `Atividade`, que já alimenta as telas Início, Calendário e Tarefas;
+- o cadastro de empresa passou a armazenar quantidade de empregados, quantidade de pró-labores, INSS pelo SAL, responsáveis principais por departamento e os dados cadastrais complementares;
+- foram adicionados o departamento contábil e suas permissões;
+- empresa criada ou alterada é sincronizada automaticamente;
+- abrir a relação de atividades também sincroniza todas as empresas ativas, materializando a nova competência quando o mês muda;
+- a chave `empresa::obrigação::competência` e uma restrição no banco impedem duplicidade;
+- tarefas antigas não são apagadas quando o cadastro deixa de satisfazer uma regra, preservando o histórico do projeto de origem;
+- tarefas automáticas permitem somente alterações operacionais: responsável, data planejada, duração, prioridade e estado;
+- o cálculo de datas usa explicitamente o fuso civil `America/Sao_Paulo`;
+- NFS-e continua sendo reconhecida como obrigação aplicável, mas não vira tarefa enquanto não houver vencimento no catálogo.
+
+A implementação está coberta por testes das combinações de regras, prazos, idempotência, responsáveis, preservação histórica e criação completa pela API.
 
 Para o exemplo principal: uma empresa apenas do **Simples Nacional** recebe automaticamente **PG-DAS, Guia DAS, DEFIS, Escrituração Contábil e Balanço Anual**. Empregados ou pró-labore acrescentam as tarefas de Departamento Pessoal conforme as combinações documentadas acima.
 

@@ -17,6 +17,7 @@ const roles = [
     { field: 'permite_admin', label: 'Administrador', short: 'Admin' },
     { field: 'permite_fiscal', label: 'Departamento Fiscal', short: 'Fiscal' },
     { field: 'permite_pessoal', label: 'Departamento Pessoal', short: 'Pessoal' },
+    { field: 'permite_contabil', label: 'Departamento Contábil', short: 'Contábil' },
 ];
 const navbarCategories = ['Principal', 'Cadastros', 'Arquivo', 'Fiscal', 'Pessoal', 'Financeiro', 'Documentos', 'Controle'];
 

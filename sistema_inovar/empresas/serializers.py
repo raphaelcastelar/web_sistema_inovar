@@ -26,6 +26,8 @@ class AtividadeSerializer(serializers.ModelSerializer):
     empresaNome = serializers.CharField(source='empresa.nome', read_only=True)
     responsavelNome = serializers.SerializerMethodField()
     autorNome = serializers.SerializerMethodField()
+    responsavelAutomaticoId = serializers.PrimaryKeyRelatedField(source='responsavel_automatico', read_only=True)
+    chaveOcorrencia = serializers.CharField(source='chave_ocorrencia', read_only=True)
 
     class Meta:
         model = Atividade
@@ -34,9 +36,14 @@ class AtividadeSerializer(serializers.ModelSerializer):
             'responsavelId', 'responsavelNome', 'compartilhadoCom', 'dataPlanejada',
             'prazo', 'inicio', 'termino', 'duracaoEstimada', 'prioridade', 'estado',
             'privada', 'frequencia', 'recorrenciaOrigemId', 'autorId', 'autorNome',
+            'obrigacao', 'competencia', 'departamento', 'chaveOcorrencia',
+            'responsavelAutomaticoId',
             'concluidaEm', 'concluidaPorId', 'criadaEm', 'atualizadaEm',
         ]
-        read_only_fields = ['origem']
+        read_only_fields = [
+            'origem', 'obrigacao', 'competencia', 'departamento',
+            'chaveOcorrencia', 'responsavelAutomaticoId',
+        ]
 
     def get_responsavelNome(self, obj):
         return (obj.responsavel.get_full_name() or obj.responsavel.username) if obj.responsavel else ''
@@ -46,6 +53,16 @@ class AtividadeSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         atual = getattr(self, 'instance', None)
+        if atual and atual.origem == 'automatica':
+            campos_permitidos = {
+                'responsavel', 'data_planejada', 'duracao_estimada', 'prioridade', 'estado'
+            }
+            campos_bloqueados = set(attrs) - campos_permitidos
+            if campos_bloqueados:
+                raise serializers.ValidationError(
+                    'Tarefas automáticas permitem alterar somente responsável, data planejada, '
+                    'duração, prioridade e estado.'
+                )
         tipo = attrs.get('tipo', getattr(atual, 'tipo', 'tarefa'))
         data = attrs.get('data_planejada', getattr(atual, 'data_planejada', None))
         prazo = attrs.get('prazo', getattr(atual, 'prazo', None))
@@ -56,7 +73,7 @@ class AtividadeSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'dataPlanejada': 'Informe a data planejada.'})
         if tipo == 'compromisso' and (not inicio or not termino or termino <= inicio):
             raise serializers.ValidationError({'termino': 'O término deve ser posterior ao início.'})
-        if prazo and data and prazo < data:
+        if (not atual or atual.origem != 'automatica') and prazo and data and prazo < data:
             raise serializers.ValidationError({'prazo': 'O prazo deve ser igual ou posterior à data planejada.'})
         if tipo != 'tarefa' and frequencia != 'nenhuma':
             raise serializers.ValidationError({'frequencia': 'Somente tarefas podem ser recorrentes.'})
@@ -190,7 +207,19 @@ class EmpresaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Empresa
-        fields = ['id', 'nome', 'cnpj', 'email', 'telefone', 'endereco', 'numero', 'cep', 'cidade', 'bairro', 'uf', 'simples_nacional', 'regime_tributario', 'porte_empresa', 'carteira_clientes', 'grupo_atividade', 'anexo_simples', 'inss', 'fgts', 'folha', 'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'criado_em', 'desativado_em', 'valor_honorario', 'dia_vencimento_honorario', 'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto', 'socios', 'tags', 'tag_ids', 'historico_status']
+        fields = [
+            'id', 'nome', 'razao_social', 'cnpj', 'email', 'telefone', 'endereco',
+            'numero', 'cep', 'cidade', 'bairro', 'uf', 'canal_envio', 'inicio_atividade',
+            'cliente_desde', 'simples_nacional', 'regime_tributario', 'porte_empresa',
+            'carteira_clientes', 'grupo_atividade', 'atividade', 'natureza_juridica',
+            'anexo_simples', 'faturamento_12_meses', 'faturamento_mes', 'sem_movimento',
+            'qtd_empregados', 'qtd_pro_labore', 'inss_20_sal', 'responsavel_pessoal',
+            'responsavel_fiscal', 'responsavel_contabil', 'inss', 'fgts', 'folha',
+            'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'criado_em',
+            'desativado_em', 'valor_honorario', 'dia_vencimento_honorario',
+            'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto',
+            'socios', 'tags', 'tag_ids', 'historico_status',
+        ]
         read_only_fields = ['criado_em', 'desativado_em', 'historico_status']
 
     def __init__(self, *args, **kwargs):
@@ -246,6 +275,23 @@ class EmpresaSerializer(serializers.ModelSerializer):
                 "CNPJ inválido. Informe 12 letras/números e 2 dígitos verificadores válidos."
             )
         return format_cnpj(value)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        instancia = getattr(self, 'instance', None)
+        for departamento in ('pessoal', 'fiscal', 'contabil'):
+            campo = f'responsavel_{departamento}'
+            usuario = attrs.get(campo, getattr(instancia, campo, None) if instancia else None)
+            if not usuario:
+                continue
+            administrador = usuario.is_staff or usuario.is_superuser or usuario.cargo == 'admin'
+            if not administrador and usuario.cargo != departamento:
+                raise serializers.ValidationError({
+                    campo: f'O responsável deve ser administrador ou pertencer ao departamento {departamento}.'
+                })
+            if not usuario.is_active:
+                raise serializers.ValidationError({campo: 'O responsável precisa estar ativo.'})
+        return attrs
 
     def _sync_socios(self, empresa, socios_data):
         socios_data = socios_data or []
@@ -325,6 +371,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
                 alterado_por__isnull=True,
             ).update(alterado_por=user)
         self._sync_socios(empresa, socios_data)
+        from .tarefas_automaticas import sincronizar_tarefas_automaticas
+        sincronizar_tarefas_automaticas(empresa)
         return empresa
 
     def update(self, instance, validated_data):
@@ -357,6 +405,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'nome': [str(exc)]}) from exc
         if hasattr(instance, '_status_alterado_por'):
             delattr(instance, '_status_alterado_por')
+        from .tarefas_automaticas import sincronizar_tarefas_automaticas
+        sincronizar_tarefas_automaticas(instance)
         return instance
 
 
@@ -413,7 +463,12 @@ class EmpresaOperationalListSerializer(EmpresaListSerializer):
             'porte_empresa',
             'carteira_clientes',
             'grupo_atividade',
+            'atividade',
+            'natureza_juridica',
             'anexo_simples',
+            'qtd_empregados',
+            'qtd_pro_labore',
+            'inss_20_sal',
             'inss',
             'fgts',
             'folha',
@@ -578,6 +633,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
     CARGO_CHOICES = [
         ('pessoal', 'Departamento Pessoal'),
         ('fiscal', 'Departamento Fiscal'),
+        ('contabil', 'Departamento Contábil'),
         ('admin', 'Administrador'),
     ]
 
@@ -590,7 +646,9 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         if not value:
             return 'pessoal'
         if value not in dict(self.CARGO_CHOICES).keys():
-            raise serializers.ValidationError("Cargo inválido. Escolha entre: 'pessoal', 'fiscal' ou 'admin'.")
+            raise serializers.ValidationError(
+                "Cargo inválido. Escolha entre: 'pessoal', 'fiscal', 'contabil' ou 'admin'."
+            )
         return value
 
     def create(self, validated_data):
@@ -639,7 +697,7 @@ class PaginaSistemaSerializer(serializers.ModelSerializer):
         model = PaginaSistema
         fields = [
             'chave', 'nome', 'rota', 'secao', 'descricao', 'ativa',
-            'permite_admin', 'permite_fiscal', 'permite_pessoal',
+            'permite_admin', 'permite_fiscal', 'permite_pessoal', 'permite_contabil',
             'gerenciavel', 'ordem', 'atualizado_em', 'atualizado_por_nome',
             'acessivel',
         ]

@@ -17,9 +17,11 @@ logger = logging.getLogger(__name__)
 
 class Empresa(models.Model):
     REGIME_TRIBUTARIO_CHOICES = [
+        ('MEI', 'MEI'),
         ('SIMPLES NACIONAL', 'Simples Nacional'),
         ('LUCRO REAL', 'Lucro Real'),
         ('LUCRO PRESUMIDO', 'Lucro Presumido'),
+        ('ISENTO', 'Isento'),
         ('OUTROS', 'Outros'),
     ]
     PORTE_EMPRESA_CHOICES = [
@@ -34,6 +36,11 @@ class Empresa(models.Model):
         ('INOVAR MG', 'Inovar MG'),
         ('NOVVA', 'Novva'),
     ]
+    CANAL_ENVIO_CHOICES = [
+        ('WHATSAPP', 'WhatsApp'),
+        ('EMAIL', 'E-mail'),
+        ('IMPRESSO', 'Impresso'),
+    ]
     ANEXO_SIMPLES_CHOICES = [
         ('I', 'I'),
         ('II', 'II'),
@@ -44,6 +51,7 @@ class Empresa(models.Model):
 
     id = models.AutoField(primary_key=True)
     nome = models.CharField(max_length=100, null=False)
+    razao_social = models.CharField(max_length=180, blank=True, default='')
     cnpj = models.CharField(max_length=18, unique=True, null=False)
     email = models.EmailField(max_length=255, blank=True, default='')
     telefone = models.CharField(max_length=20, null=True, blank=False)
@@ -53,12 +61,23 @@ class Empresa(models.Model):
     cidade = models.CharField(max_length=100, null=True, blank=True, help_text="Cidade da empresa")
     bairro = models.CharField(max_length=100, null=True, blank=True, help_text="Bairro da empresa")
     uf = models.CharField(max_length=2, null=True, blank=True, help_text="UF da empresa (ex.: SP)")
+    canal_envio = models.CharField(max_length=20, choices=CANAL_ENVIO_CHOICES, blank=True, default='')
+    inicio_atividade = models.DateField(null=True, blank=True)
+    cliente_desde = models.DateField(null=True, blank=True)
     simples_nacional = models.BooleanField(default=False, null = True)
     regime_tributario = models.CharField(max_length=30, choices=REGIME_TRIBUTARIO_CHOICES, null=True, blank=True)
     porte_empresa = models.CharField(max_length=20, choices=PORTE_EMPRESA_CHOICES, null=True, blank=True)
     carteira_clientes = models.CharField(max_length=20, choices=CARTEIRA_CLIENTES_CHOICES, null=True, blank=True)
     grupo_atividade = models.JSONField(default=list, blank=True)
+    atividade = models.CharField(max_length=180, blank=True, default='')
+    natureza_juridica = models.CharField(max_length=180, blank=True, default='')
     anexo_simples = models.CharField(max_length=3, choices=ANEXO_SIMPLES_CHOICES, null=True, blank=True)
+    faturamento_12_meses = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    faturamento_mes = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    sem_movimento = models.BooleanField(default=False)
+    qtd_empregados = models.PositiveIntegerField(default=0)
+    qtd_pro_labore = models.PositiveIntegerField(default=0)
+    inss_20_sal = models.BooleanField(default=False)
     inss = models.BooleanField(default=False, null=True)
     fgts = models.BooleanField(default=False, null=True)
     folha = models.BooleanField(default=False, null=True)
@@ -69,6 +88,27 @@ class Empresa(models.Model):
     ativo = models.BooleanField(default=True, null = True)
     criado_em = models.DateTimeField(auto_now_add=True)
     desativado_em = models.DateTimeField(null=True, blank=True)
+    responsavel_pessoal = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='empresas_responsavel_pessoal',
+    )
+    responsavel_fiscal = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='empresas_responsavel_fiscal',
+    )
+    responsavel_contabil = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='empresas_responsavel_contabil',
+    )
 
     # Configurações de Boleto
     valor_honorario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Valor do honorário para geração de boleto", null = True)
@@ -194,6 +234,7 @@ class Tag(models.Model):
     CARGO_CHOICES = [
         ('pessoal', 'Departamento Pessoal'),
         ('fiscal', 'Departamento Fiscal'),
+        ('contabil', 'Departamento Contábil'),
         ('admin', 'Administrador'),
     ]
 
@@ -364,6 +405,7 @@ class Funcionario(AbstractUser):
     CARGO_CHOICES = [
         ('pessoal', 'Departamento Pessoal'),
         ('fiscal', 'Departamento Fiscal'),
+        ('contabil', 'Departamento Contábil'),
         ('admin', 'Administrador'),
     ]
     theme = models.CharField(max_length=10, choices=THEME_CHOICES, default='light')
@@ -411,13 +453,30 @@ class Atividade(models.Model):
         ('nenhuma', 'Não repetir'), ('diaria', 'Diária'), ('dias_uteis', 'Dias úteis'),
         ('semanal', 'Semanal'), ('mensal', 'Mensal'),
     ]
+    ORIGEM_CHOICES = [('manual', 'Manual'), ('automatica', 'Automática')]
+    DEPARTAMENTO_CHOICES = [
+        ('pessoal', 'Departamento Pessoal'),
+        ('fiscal', 'Departamento Fiscal'),
+        ('contabil', 'Departamento Contábil'),
+    ]
 
     titulo = models.CharField(max_length=220)
     descricao = models.TextField(blank=True, default='')
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='tarefa')
-    origem = models.CharField(max_length=20, default='manual', editable=False)
+    origem = models.CharField(max_length=20, choices=ORIGEM_CHOICES, default='manual', editable=False)
     empresa = models.ForeignKey(Empresa, on_delete=models.SET_NULL, null=True, blank=True, related_name='atividades')
+    obrigacao = models.CharField(max_length=100, blank=True, null=True)
+    competencia = models.CharField(max_length=30, blank=True, null=True)
+    departamento = models.CharField(max_length=20, choices=DEPARTAMENTO_CHOICES, blank=True, null=True)
+    chave_ocorrencia = models.CharField(max_length=255, blank=True, null=True, unique=True)
     responsavel = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='atividades_responsavel')
+    responsavel_automatico = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='atividades_responsavel_automatico',
+    )
     compartilhados = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name='atividades_compartilhadas')
     autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='atividades_criadas')
     data_planejada = models.DateField(null=True, blank=True)
@@ -439,6 +498,11 @@ class Atividade(models.Model):
         ordering = ['data_planejada', 'inicio', '-prioridade', 'id']
         constraints = [
             models.UniqueConstraint(fields=['recorrencia_origem', 'data_planejada'], name='atividade_recorrencia_data_uniq'),
+            models.UniqueConstraint(
+                fields=['empresa', 'obrigacao', 'competencia'],
+                condition=models.Q(origem='automatica'),
+                name='atividade_auto_empresa_obrig_comp_uniq',
+            ),
         ]
         indexes = [
             models.Index(fields=['responsavel', 'data_planejada'], name='ativ_resp_data_idx'),
@@ -474,6 +538,7 @@ class PaginaSistema(models.Model):
     permite_admin = models.BooleanField(default=True)
     permite_fiscal = models.BooleanField(default=True)
     permite_pessoal = models.BooleanField(default=True)
+    permite_contabil = models.BooleanField(default=True)
     gerenciavel = models.BooleanField(default=True)
     ordem = models.PositiveSmallIntegerField(default=0)
     atualizado_em = models.DateTimeField(auto_now=True)

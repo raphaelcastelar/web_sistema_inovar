@@ -32,7 +32,7 @@ class IsPessoalOrFiscalOrAdmin(BasePermission):
                 
                 print(f"Permissão negada: Campos solicitados {requested_fields} não estão permitidos para o cargo {request.user.cargo}")
             elif request.method == 'GET':
-                if request.user.cargo in ['pessoal', 'fiscal']:
+                if request.user.cargo in ['pessoal', 'fiscal', 'contabil']:
                     print(f"Permissão concedida: Usuário '{request.user.cargo}' acessando GET")
                     return True
         

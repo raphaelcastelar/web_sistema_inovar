@@ -1993,6 +1993,11 @@ class FuncionarioViewSet(viewsets.ModelViewSet):
     serializer_class = FuncionarioSerializer
     permission_classes = [IsAdminUser]
 
+    def perform_update(self, serializer):
+        serializer.save()
+        from .tarefas_automaticas import sincronizar_todas_tarefas_automaticas
+        sincronizar_todas_tarefas_automaticas()
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         try:
@@ -2001,6 +2006,8 @@ class FuncionarioViewSet(viewsets.ModelViewSet):
             instance.empresas_gerenciadas.clear()
             instance.usercompanyaccess.all().delete()
             self.perform_destroy(instance)
+            from .tarefas_automaticas import sincronizar_todas_tarefas_automaticas
+            sincronizar_todas_tarefas_automaticas()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
             logger.error(f"Erro ao excluir funcionário: {str(e)}")
@@ -2090,6 +2097,8 @@ class AtividadeViewSet(viewsets.ModelViewSet):
         return item
 
     def list(self, request, *args, **kwargs):
+        from .tarefas_automaticas import sincronizar_todas_tarefas_automaticas
+        sincronizar_todas_tarefas_automaticas()
         _materializar_recorrencias()
         queryset = self.filter_queryset(self.get_queryset())
         dados = self.get_serializer(queryset, many=True).data

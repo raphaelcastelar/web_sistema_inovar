@@ -19,6 +19,7 @@ import {
 
 const emptyEmpresa = {
     nome: '',
+    razao_social: '',
     cnpj: '',
     email: '',
     telefone: '',
@@ -28,18 +29,32 @@ const emptyEmpresa = {
     cidade: '',
     bairro: '',
     uf: '',
+    canal_envio: '',
+    inicio_atividade: '',
+    cliente_desde: '',
     regime_tributario: '',
     porte_empresa: '',
     carteira_clientes: '',
     grupo_atividade: [],
+    atividade: '',
+    natureza_juridica: '',
     anexo_simples: '',
+    faturamento_12_meses: '',
+    faturamento_mes: '',
+    sem_movimento: false,
+    qtd_empregados: 0,
+    qtd_pro_labore: 0,
+    inss_20_sal: false,
+    responsavel_pessoal: '',
+    responsavel_fiscal: '',
+    responsavel_contabil: '',
     usuarios: [],
     tag_ids: [],
     socios: [],
     ativo: true,
 };
 
-const regimeTributarioOptions = ['SIMPLES NACIONAL', 'LUCRO REAL', 'LUCRO PRESUMIDO', 'OUTROS'];
+const regimeTributarioOptions = ['MEI', 'SIMPLES NACIONAL', 'LUCRO REAL', 'LUCRO PRESUMIDO', 'ISENTO', 'OUTROS'];
 const porteEmpresaOptions = ['MEI', 'ME', 'EPP', 'MEDIO PORTE', 'GRANDE PORTE'];
 const carteiraClientesOptions = ['INOVAR ES', 'INOVAR MG', 'NOVVA'];
 const grupoAtividadeOptions = ['SERVICO', 'COMERCIO', 'INDUSTRIA'];
@@ -72,6 +87,7 @@ const EmpresaForm = () => {
     const [error, setError] = useState(null);
     const [telefoneFeedback, setTelefoneFeedback] = useState({ message: '', type: 'hint' });
     const [availableTags, setAvailableTags] = useState([]);
+    const [availableUsers, setAvailableUsers] = useState([]);
     const [newTagName, setNewTagName] = useState('');
     const [newTagColor, setNewTagColor] = useState('#3B82F6');
     const [creatingTag, setCreatingTag] = useState(false);
@@ -106,16 +122,22 @@ const EmpresaForm = () => {
     }, []);
 
     useEffect(() => {
-        const fetchTags = async () => {
+        const fetchReferenceData = async () => {
             try {
                 const response = await axiosInstance.get('/api/tags/');
                 setAvailableTags(Array.isArray(response.data) ? response.data : []);
             } catch (err) {
                 console.error('Erro ao carregar tags:', err.response?.data || err.message);
             }
+            try {
+                const response = await axiosInstance.get('/api/funcionarios/');
+                setAvailableUsers((Array.isArray(response.data) ? response.data : []).filter((user) => user.is_active));
+            } catch (err) {
+                console.error('Erro ao carregar responsáveis:', err.response?.data || err.message);
+            }
         };
 
-        fetchTags();
+        fetchReferenceData();
     }, []);
 
     useEffect(() => {
@@ -133,6 +155,7 @@ const EmpresaForm = () => {
 
                     setEmpresa({
                         nome: response.data.nome || '',
+                        razao_social: response.data.razao_social || '',
                         cnpj: response.data.cnpj || '',
                         email: response.data.email || '',
                         telefone: displayTelefone,
@@ -142,11 +165,25 @@ const EmpresaForm = () => {
                         cidade: response.data.cidade || '',
                         bairro: response.data.bairro || '',
                         uf: response.data.uf || '',
+                        canal_envio: response.data.canal_envio || '',
+                        inicio_atividade: response.data.inicio_atividade || '',
+                        cliente_desde: response.data.cliente_desde || '',
                         regime_tributario: response.data.regime_tributario || '',
                         porte_empresa: response.data.porte_empresa || '',
                         carteira_clientes: response.data.carteira_clientes || '',
                         grupo_atividade: Array.isArray(response.data.grupo_atividade) ? response.data.grupo_atividade : [],
+                        atividade: response.data.atividade || '',
+                        natureza_juridica: response.data.natureza_juridica || '',
                         anexo_simples: response.data.anexo_simples || '',
+                        faturamento_12_meses: response.data.faturamento_12_meses ?? '',
+                        faturamento_mes: response.data.faturamento_mes ?? '',
+                        sem_movimento: Boolean(response.data.sem_movimento),
+                        qtd_empregados: response.data.qtd_empregados || 0,
+                        qtd_pro_labore: response.data.qtd_pro_labore || 0,
+                        inss_20_sal: Boolean(response.data.inss_20_sal),
+                        responsavel_pessoal: response.data.responsavel_pessoal || '',
+                        responsavel_fiscal: response.data.responsavel_fiscal || '',
+                        responsavel_contabil: response.data.responsavel_contabil || '',
                         usuarios: response.data.usuarios || [],
                         tag_ids: Array.isArray(response.data.tags) ? response.data.tags.map((tag) => tag.id) : [],
                         socios: Array.isArray(response.data.socios)
@@ -170,8 +207,9 @@ const EmpresaForm = () => {
     }, [empresaId, isEditing, validateAndSetTelefoneFeedback]);
 
     const handleChange = async (e) => {
-        const { name } = e.target;
-        const value = name === 'nome' ? normalizeCompanyName(e.target.value) : e.target.value;
+        const { name, type, checked } = e.target;
+        const rawValue = type === 'checkbox' ? checked : e.target.value;
+        const value = name === 'nome' ? normalizeCompanyName(rawValue) : rawValue;
         setEmpresa((prev) => ({ ...prev, [name]: value }));
 
         if (name === 'telefone') {
@@ -387,6 +425,15 @@ const EmpresaForm = () => {
                 tag_ids: Array.isArray(empresa.tag_ids) ? empresa.tag_ids : [],
                 grupo_atividade: Array.isArray(empresa.grupo_atividade) ? empresa.grupo_atividade : [],
                 socios: sociosSanitizados,
+                inicio_atividade: empresa.inicio_atividade || null,
+                cliente_desde: empresa.cliente_desde || null,
+                faturamento_12_meses: empresa.faturamento_12_meses === '' ? null : empresa.faturamento_12_meses,
+                faturamento_mes: empresa.faturamento_mes === '' ? null : empresa.faturamento_mes,
+                qtd_empregados: Number(empresa.qtd_empregados) || 0,
+                qtd_pro_labore: Number(empresa.qtd_pro_labore) || 0,
+                responsavel_pessoal: empresa.responsavel_pessoal || null,
+                responsavel_fiscal: empresa.responsavel_fiscal || null,
+                responsavel_contabil: empresa.responsavel_contabil || null,
             };
 
             const url = isEditing ? `/api/empresas/${empresaId}/` : '/api/empresas/';
@@ -419,10 +466,17 @@ const EmpresaForm = () => {
 
     const selectedTagsCount = Array.isArray(empresa.tag_ids) ? empresa.tag_ids.length : 0;
     const sociosCount = Array.isArray(empresa.socios) ? empresa.socios.length : 0;
+    const usuariosPorDepartamento = (departamento) => availableUsers.filter((usuario) => (
+        usuario.cargo === departamento
+        || usuario.cargo === 'admin'
+        || usuario.is_staff
+        || usuario.is_superuser
+    ));
     const formSections = [
         { id: 'dados', label: 'Dados', description: 'Identificação e contato', icon: BuildingOfficeIcon },
         { id: 'endereco', label: 'Endereço', description: 'Localização da empresa', icon: MapPinIcon },
         { id: 'classificacao', label: 'Classificação', description: 'Regime, porte e atividades', icon: InformationCircleIcon },
+        { id: 'rotina', label: 'Rotina', description: 'Folha e tarefas automáticas', icon: CheckCircleIcon },
         { id: 'tags', label: 'Tags', description: 'Marcadores operacionais', icon: TagIcon },
         { id: 'socios', label: 'Sócios', description: 'Quadro societário', icon: UserIcon },
     ];
@@ -445,7 +499,7 @@ const EmpresaForm = () => {
                                 {isEditing ? 'Editar Empresa' : 'Cadastrar Nova Empresa'}
                             </h1>
                             <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-                                Dados cadastrais, endereço, classificação, tags e sócios em uma tela organizada para edição rápida.
+                                Cadastro completo e parâmetros que definem as tarefas fiscais, contábeis e pessoais da empresa.
                             </p>
                         </div>
                         <div className="grid grid-cols-3 gap-2 sm:min-w-[360px]">
@@ -544,6 +598,20 @@ const EmpresaForm = () => {
                                     <input type="text" name="cnpj" id="cnpj" value={empresa.cnpj} onChange={(event) => setEmpresa((prev) => ({ ...prev, cnpj: formatCnpj(event.target.value) }))} maxLength={18} autoCapitalize="characters" className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 font-mono uppercase text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" placeholder="XX.XXX.XXX/XXXX-00" required />
                                 </div>
                                 <div className="relative xl:col-span-3">
+                                    <label htmlFor="razao_social" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Razão social</label>
+                                    <BuildingOfficeIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
+                                    <input type="text" name="razao_social" id="razao_social" value={empresa.razao_social} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                </div>
+                                <div className="xl:col-span-3">
+                                    <label htmlFor="canal_envio" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Canal de envio</label>
+                                    <select name="canal_envio" id="canal_envio" value={empresa.canal_envio} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                        <option value="">Selecione</option>
+                                        <option value="WHATSAPP">WhatsApp</option>
+                                        <option value="EMAIL">E-mail</option>
+                                        <option value="IMPRESSO">Impresso</option>
+                                    </select>
+                                </div>
+                                <div className="relative xl:col-span-3">
                                     <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Email (opcional)</label>
                                     <EnvelopeIcon className="absolute left-3 top-9 h-5 w-5 text-gray-400" />
                                     <input type="email" name="email" id="email" value={empresa.email} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 pl-10 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
@@ -557,6 +625,14 @@ const EmpresaForm = () => {
                                             {telefoneFeedback.message}
                                         </p>
                                     )}
+                                </div>
+                                <div className="xl:col-span-3">
+                                    <label htmlFor="inicio_atividade" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Início da atividade</label>
+                                    <input type="date" name="inicio_atividade" id="inicio_atividade" value={empresa.inicio_atividade} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                </div>
+                                <div className="xl:col-span-3">
+                                    <label htmlFor="cliente_desde" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Cliente desde</label>
+                                    <input type="date" name="cliente_desde" id="cliente_desde" value={empresa.cliente_desde} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
                                 </div>
                             </div>
                         </section>
@@ -667,6 +743,16 @@ const EmpresaForm = () => {
                                     ))}
                                 </select>
                             </div>
+
+                            <div>
+                                <label htmlFor="atividade" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Atividade principal</label>
+                                <input type="text" name="atividade" id="atividade" value={empresa.atividade} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                            </div>
+
+                            <div>
+                                <label htmlFor="natureza_juridica" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Natureza jurídica</label>
+                                <input type="text" name="natureza_juridica" id="natureza_juridica" value={empresa.natureza_juridica} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                            </div>
                         </div>
 
                                 <div className="mt-5">
@@ -688,6 +774,75 @@ const EmpresaForm = () => {
                                 })}
                             </div>
                         </div>
+                            </section>
+
+                            <section id="rotina" className={`${activeSection === 'rotina' ? '' : 'hidden'} min-h-[430px] rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800`}>
+                                <div className="mb-5 flex items-center gap-3">
+                                    <div className="rounded-xl bg-blue-50 p-2 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">
+                                        <CheckCircleIcon className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Rotina e tarefas automáticas</h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Folha, faturamento e responsáveis de cada departamento.</p>
+                                    </div>
+                                </div>
+
+                                <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+                                    As tarefas são geradas automaticamente conforme o regime tributário, grupo de atividade, empregados e pró-labore. Alterações neste cadastro acrescentam as obrigações aplicáveis sem apagar o histórico existente.
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div>
+                                        <label htmlFor="qtd_empregados" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Quantidade de empregados</label>
+                                        <input type="number" min="0" step="1" name="qtd_empregados" id="qtd_empregados" value={empresa.qtd_empregados} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="qtd_pro_labore" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Quantidade de pró-labores</label>
+                                        <input type="number" min="0" step="1" name="qtd_pro_labore" id="qtd_pro_labore" value={empresa.qtd_pro_labore} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="faturamento_mes" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Faturamento do mês</label>
+                                        <input type="number" min="0" step="0.01" name="faturamento_mes" id="faturamento_mes" value={empresa.faturamento_mes} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="faturamento_12_meses" className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Faturamento dos últimos 12 meses</label>
+                                        <input type="number" min="0" step="0.01" name="faturamento_12_meses" id="faturamento_12_meses" value={empresa.faturamento_12_meses} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white" />
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <label className="flex items-center gap-3 rounded-xl border border-gray-300 p-3 text-sm text-gray-700 dark:border-gray-600 dark:text-gray-200">
+                                        <input type="checkbox" name="inss_20_sal" checked={empresa.inss_20_sal} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                        Pró-labore recolhido por INSS 20% (SAL)
+                                    </label>
+                                    <label className="flex items-center gap-3 rounded-xl border border-gray-300 p-3 text-sm text-gray-700 dark:border-gray-600 dark:text-gray-200">
+                                        <input type="checkbox" name="sem_movimento" checked={empresa.sem_movimento} onChange={handleChange} className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                                        Empresa sem movimento
+                                    </label>
+                                </div>
+
+                                <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                                    {[
+                                        ['pessoal', 'Responsável pessoal'],
+                                        ['fiscal', 'Responsável fiscal'],
+                                        ['contabil', 'Responsável contábil'],
+                                    ].map(([departamento, label]) => {
+                                        const campo = `responsavel_${departamento}`;
+                                        return (
+                                            <div key={campo}>
+                                                <label htmlFor={campo} className="block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</label>
+                                                <select name={campo} id={campo} value={empresa[campo]} onChange={handleChange} className="mt-1 w-full rounded-xl border border-gray-300 bg-gray-50 p-3 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                                                    <option value="">Sem responsável</option>
+                                                    {usuariosPorDepartamento(departamento).map((usuario) => (
+                                                        <option key={usuario.id} value={usuario.id}>
+                                                            {[usuario.first_name, usuario.last_name].filter(Boolean).join(' ') || usuario.username}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </section>
                         </div>
 

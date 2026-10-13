@@ -1,4 +1,5 @@
 # empresas/signals.py
+from django.db import transaction
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.conf import settings
@@ -106,6 +107,23 @@ def notificar_sobre_mudanca_empresa(sender, instance, created, **kwargs):
     todos_os_funcionarios = Funcionario.objects.filter(is_active=True)
     for funcionario in todos_os_funcionarios:
         Notificacao.objects.create(destinatario=funcionario, mensagem=mensagem)
+
+
+@receiver(post_save, sender=Empresa)
+def sincronizar_tarefas_empresa_handler(sender, instance, **kwargs):
+    """Mantém as ocorrências automáticas alinhadas também em alterações fora da API."""
+    empresa_id = instance.pk
+
+    def sincronizar_apos_commit():
+        try:
+            from .tarefas_automaticas import sincronizar_tarefas_automaticas
+            empresa = Empresa.objects.filter(pk=empresa_id).first()
+            if empresa:
+                sincronizar_tarefas_automaticas(empresa)
+        except Exception:
+            logger.exception('Erro ao sincronizar tarefas automáticas da empresa %s.', empresa_id)
+
+    transaction.on_commit(sincronizar_apos_commit)
 
 @receiver(post_delete, sender=Empresa)
 def notificar_sobre_delete_empresa(sender, instance, **kwargs):

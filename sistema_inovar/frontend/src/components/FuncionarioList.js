@@ -191,7 +191,7 @@ const FuncionarioList = () => {
                   </span>
                 )}
                 <span className="rounded-full bg-sky-100 px-2 py-1 text-xs font-semibold text-sky-800 dark:bg-sky-950/40 dark:text-sky-300">
-                  {func.cargo === 'pessoal' ? 'Depto. Pessoal' : func.cargo === 'fiscal' ? 'Depto. Fiscal' : func.cargo === 'admin' ? 'Administrador' : 'Sem Função'}
+                  {func.cargo === 'pessoal' ? 'Depto. Pessoal' : func.cargo === 'fiscal' ? 'Depto. Fiscal' : func.cargo === 'contabil' ? 'Depto. Contábil' : func.cargo === 'admin' ? 'Administrador' : 'Sem Função'}
                 </span>
               </div>
             </div>
