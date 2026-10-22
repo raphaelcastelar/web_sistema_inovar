@@ -1,5 +1,6 @@
 sistema_inovar/sistema_inovar/.env
 /.env
+/certificado/
 sistema_inovar/frontend/.env.local
 /.idea
 sistema_inovar/sistema_inovar/settings.py
