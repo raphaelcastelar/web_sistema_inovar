@@ -17,7 +17,7 @@ class IsPessoalOrFiscalOrAdmin(BasePermission):
                 requested_fields = set(request.data.keys())
                 
                 # Define allowed fields per role
-                allowed_fields_pessoal = {'inss', 'fgts', 'folha', 'honorario'}
+                allowed_fields_pessoal = {'inss', 'fgts', 'folha', 'honorario', 'competencia'}
                 allowed_fields_fiscal = {'simples_nacional'}
                 
                 # Allow 'pessoal' users to update their fields

@@ -81,7 +81,8 @@ from .models import (
     Empresa, EmpresaAvulsaFaturamento, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
     SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
     Tag,
-    UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao
+    UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao,
+    HonorarioCompetencia
 )
 from .serializers import (
     TagSerializer,
@@ -1544,9 +1545,31 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             Prefetch('usuarios', queryset=Funcionario.objects.only('id').order_by('id')),
         )
 
+    def _aplicar_status_honorario_competencia(self, empresas):
+        competencia_informada = self.request.query_params.get('competencia')
+        if not competencia_informada:
+            return empresas
+
+        try:
+            competencia = normalizar_competencia_honorario(competencia_informada)
+        except ValueError:
+            return empresas
+
+        empresas = list(empresas)
+        status_por_empresa = dict(
+            HonorarioCompetencia.objects.filter(
+                empresa_id__in=[empresa.id for empresa in empresas],
+                competencia=competencia,
+            ).values_list('empresa_id', 'concluido')
+        )
+        for empresa in empresas:
+            empresa.honorario = status_por_empresa.get(empresa.id, False)
+        return empresas
+
     def list(self, request, *args, **kwargs):
         if request.query_params.get('paginated') != 'true':
             queryset = self.filter_queryset(self.get_queryset())
+            queryset = self._aplicar_status_honorario_competencia(queryset)
             serializer = self.get_serializer(queryset, many=True)
             return Response(serializer.data)
 
@@ -1565,6 +1588,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(queryset)
         if page is not None:
+            page = self._aplicar_status_honorario_competencia(page)
             serializer = self.get_serializer(page, many=True)
             response = self.get_paginated_response(serializer.data)
             response.data['summary'] = summary
@@ -1572,6 +1596,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             response.data['page_size'] = self.paginator.get_page_size(request)
             return response
 
+        queryset = self._aplicar_status_honorario_competencia(queryset)
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             'count': len(serializer.data),
@@ -1604,12 +1629,51 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         try:
             instance = self.get_queryset().get(pk=empresa_id)
             self.check_object_permissions(request, instance)
-            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            payload = request.data.copy()
+            competencia_informada = payload.pop('competencia', None)
+            if isinstance(competencia_informada, (list, tuple)):
+                competencia_informada = competencia_informada[0] if competencia_informada else None
+
+            honorario_informado = 'honorario' in payload and competencia_informada
+            competencia = None
+            honorario_competencia = None
+            if honorario_informado:
+                try:
+                    competencia = normalizar_competencia_honorario(competencia_informada)
+                except ValueError as exc:
+                    return Response({'competencia': [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+
+                valor_honorario = str(payload.get('honorario')).strip().lower() in {
+                    'true', '1', 'sim', 'yes', 'on'
+                }
+                honorario_competencia, _ = HonorarioCompetencia.objects.update_or_create(
+                    empresa=instance,
+                    competencia=competencia,
+                    defaults={
+                        'concluido': valor_honorario,
+                        'atualizado_por': request.user,
+                    },
+                )
+
+                if competencia != normalizar_competencia_honorario():
+                    payload.pop('honorario', None)
+
+            if not payload:
+                response_data = self.get_serializer(instance).data
+                response_data['honorario'] = honorario_competencia.concluido
+                response_data['competencia'] = competencia
+                return Response(response_data)
+
+            serializer = self.get_serializer(instance, data=payload, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 # Notificações são criadas automaticamente pelo signal post_save em signals.py
                 logger.info(f"Empresa '{instance.nome}' atualizada parcialmente.")
-                return Response(serializer.data)
+                response_data = dict(serializer.data)
+                if honorario_competencia is not None:
+                    response_data['honorario'] = honorario_competencia.concluido
+                    response_data['competencia'] = competencia
+                return Response(response_data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Empresa.DoesNotExist:
             return Response({"error": f"Empresa com ID {empresa_id} não encontrada."}, status=status.HTTP_404_NOT_FOUND)

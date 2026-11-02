@@ -7,14 +7,14 @@ from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.test import override_settings
 from django.core.files.storage import FileSystemStorage
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.test import APIRequestFactory, force_authenticate
 from PyPDF2 import PdfReader
 
-from .models import Empresa
+from .models import Empresa, Funcionario, HonorarioCompetencia
 from .serializers import PaginaSistemaSerializer
 from .company_storage import _update_document_paths, rename_company_folder
 from .folder_structure import create_company_folder_structure
@@ -23,6 +23,7 @@ from .management.commands.inventariar_arquivos import _relative_path, scan_media
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
 from .views import (
     DocumentoEmpresaViewSet,
+    EmpresaViewSet,
     _ensure_sync_safe_filename,
     _normalize_whatsapp_number,
     _repair_surrogate_escapes,
@@ -43,6 +44,54 @@ from .document_storage import (
 )
 from .proposta_comercial_pdf import build_proposta_comercial_pdf
 from .management.commands.migrar_arquivos_para_nuvem import _safe_directory, _source_directories
+
+
+class HonorarioPorCompetenciaTest(TestCase):
+    def setUp(self):
+        self.usuario = Funcionario.objects.create_user(
+            username='admin-honorarios',
+            password='senha-teste',
+            is_staff=True,
+            cargo='admin',
+        )
+        self.empresa = Empresa.objects.create(
+            nome='EMPRESA HONORARIOS LTDA',
+            cnpj='12.345.678/0001-90',
+            honorario=False,
+        )
+        self.factory = APIRequestFactory()
+
+    def _listar(self, competencia):
+        request = self.factory.get(
+            '/api/empresas/',
+            {'all': 'true', 'competencia': competencia},
+        )
+        force_authenticate(request, user=self.usuario)
+        response = EmpresaViewSet.as_view({'get': 'list'})(request)
+        self.assertEqual(response.status_code, 200)
+        return next(item for item in response.data if item['id'] == self.empresa.id)
+
+    def test_check_honorario_e_independente_para_cada_competencia(self):
+        request = self.factory.patch(
+            f'/api/empresas/{self.empresa.id}/',
+            {'honorario': True, 'competencia': '200001'},
+            format='json',
+        )
+        force_authenticate(request, user=self.usuario)
+        response = EmpresaViewSet.as_view({'patch': 'partial_update'})(
+            request,
+            pk=self.empresa.id,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self._listar('200001')['honorario'])
+        self.assertFalse(self._listar('200002')['honorario'])
+        self.assertTrue(HonorarioCompetencia.objects.get(
+            empresa=self.empresa,
+            competencia='200001',
+        ).concluido)
+        self.empresa.refresh_from_db()
+        self.assertFalse(self.empresa.honorario)
 
 
 class PropostaComercialPdfTest(SimpleTestCase):

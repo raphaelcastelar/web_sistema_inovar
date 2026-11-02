@@ -216,7 +216,10 @@ const GerenciamentoIntegrado = () => {
         setUpdatingHonorarioIds((currentIds) => Array.from(new Set([...currentIds, empresaId])));
 
         try {
-            await axiosInstance.patch(`/api/empresas/${empresaId}/`, { honorario: nextValue });
+            await axiosInstance.patch(`/api/empresas/${empresaId}/`, {
+                honorario: nextValue,
+                competencia: boletoCompetencia,
+            });
             updateEmpresaInState(empresaId, { honorario: nextValue });
 
             if (shouldSetFeedback) {

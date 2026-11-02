@@ -230,6 +230,42 @@ class HistoricoStatusEmpresa(models.Model):
         ]
 
 
+class HonorarioCompetencia(models.Model):
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name='honorarios_competencia',
+    )
+    competencia = models.CharField(max_length=6)
+    concluido = models.BooleanField(default=False)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='honorarios_competencia_atualizados',
+    )
+
+    class Meta:
+        ordering = ['-competencia', 'empresa_id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa', 'competencia'],
+                name='honorario_unico_empresa_competencia',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['competencia', 'concluido'],
+                name='honor_comp_concl_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.empresa.nome} - {self.competencia} - {self.concluido}'
+
+
 class Tag(models.Model):
     CARGO_CHOICES = [
         ('pessoal', 'Departamento Pessoal'),
