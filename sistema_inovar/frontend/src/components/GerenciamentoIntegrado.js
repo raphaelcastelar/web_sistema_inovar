@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axiosInstance from '../api/axiosInstance';
 import { Link } from 'react-router-dom';
 import {
@@ -62,6 +62,7 @@ function MetricCard({ label, value, icon: Icon, tone = 'neutral' }) {
 
 const GerenciamentoIntegrado = () => {
     const initialCompetencia = useMemo(currentCompetencia, []);
+    const initialEmpresasLoad = useRef(true);
     // --- State ---
     const [empresas, setEmpresas] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -88,6 +89,7 @@ const GerenciamentoIntegrado = () => {
     const [lastSessionUpdatedAt, setLastSessionUpdatedAt] = useState(null);
     const [boletoMonth, setBoletoMonth] = useState(initialCompetencia.month);
     const [boletoYear, setBoletoYear] = useState(initialCompetencia.year);
+    const [refreshingCompetencia, setRefreshingCompetencia] = useState(false);
     const boletoCompetencia = `${boletoYear}${boletoMonth}`;
     const vencimentoCompetencia = useMemo(() => {
         const next = new Date(Number(boletoYear), Number(boletoMonth), 1);
@@ -117,6 +119,45 @@ const GerenciamentoIntegrado = () => {
         dias_para_desconto: ''
     });
 
+    const fetchEmpresas = useCallback(async ({ signal } = {}) => {
+        const showPageLoading = initialEmpresasLoad.current;
+        if (showPageLoading) {
+            setLoading(true);
+        } else {
+            setRefreshingCompetencia(true);
+        }
+
+        try {
+            const response = await axiosInstance.get('/api/empresas/', {
+                params: { all: true, competencia: boletoCompetencia },
+                signal,
+            });
+            setEmpresas(response.data);
+        } catch (err) {
+            if (signal?.aborted || err.code === 'ERR_CANCELED') {
+                return;
+            }
+            console.error('Erro ao carregar empresas:', err.response?.data || err.message);
+            setError('Erro ao atualizar os honorários da competência selecionada.');
+        } finally {
+            if (signal?.aborted) {
+                return;
+            }
+            initialEmpresasLoad.current = false;
+            if (showPageLoading) {
+                setLoading(false);
+            }
+            setRefreshingCompetencia(false);
+        }
+    }, [boletoCompetencia]);
+
+    // Atualiza a grade automaticamente sempre que o mês ou o ano mudar.
+    useEffect(() => {
+        const controller = new AbortController();
+        fetchEmpresas({ signal: controller.signal });
+        return () => controller.abort();
+    }, [fetchEmpresas]);
+
     // --- Fetch Data ---
     useEffect(() => {
         const fetchUser = async () => {
@@ -126,18 +167,6 @@ const GerenciamentoIntegrado = () => {
             } catch (err) {
                 console.error('Erro ao verificar permissões:', err.response?.data || err.message);
                 setIsAdmin(false);
-            }
-        };
-
-        const fetchEmpresas = async () => {
-            try {
-                const response = await axiosInstance.get('/api/empresas/?all=true');
-                setEmpresas(response.data);
-            } catch (err) {
-                console.error('Erro ao carregar empresas:', err.response?.data || err.message);
-                setError('Erro ao carregar empresas para gerenciamento.');
-            } finally {
-                setLoading(false);
             }
         };
 
@@ -161,7 +190,6 @@ const GerenciamentoIntegrado = () => {
         };
 
         fetchUser();
-        fetchEmpresas();
         fetchTags();
         fetchLastSessionResult();
     }, []);
@@ -917,7 +945,12 @@ const GerenciamentoIntegrado = () => {
                                 {boletoMonth}/{boletoYear}
                             </span>
                             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                {activeEmpresas.length} elegíveis
+                                {refreshingCompetencia ? (
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+                                        Atualizando mês…
+                                    </span>
+                                ) : `${activeEmpresas.length} elegíveis`}
                             </span>
                             <button
                                 onClick={handleOpenBoletoModal}
@@ -1240,10 +1273,10 @@ const GerenciamentoIntegrado = () => {
                                             Mês do honorário
                                         </label>
                                         <div className="grid grid-cols-[1fr_5.25rem] gap-2">
-                                            <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                            <select value={boletoMonth} onChange={(e) => setBoletoMonth(e.target.value)} disabled={refreshingCompetencia || isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
                                                 {MONTHS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                             </select>
-                                            <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} disabled={isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
+                                            <select value={boletoYear} onChange={(e) => setBoletoYear(e.target.value)} disabled={refreshingCompetencia || isGeneratingBoletos || isDownloadingBoletos || isSendingBoletos} className="h-9 rounded-md border border-gray-200 bg-white px-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
                                                 {boletoYears.map((year) => <option key={year} value={year}>{year}</option>)}
                                             </select>
                                         </div>
