@@ -357,7 +357,15 @@ class InstallmentsView(MobileAPIView):
             result = consultar_parcelas_parcsn_serpro(company.cnpj)
             if not result.get('sucesso'):
                 message = result.get('erro') or 'Não foi possível consultar o parcelamento.'
-                if 'nenhuma parcela' in message.casefold():
+                normalized_message = message.casefold()
+                no_active_installment = (
+                    'nenhuma parcela' in normalized_message
+                    or 'não há parcelamento ativo' in normalized_message
+                    or 'nao ha parcelamento ativo' in normalized_message
+                    or 'não possui parcelamento ativo' in normalized_message
+                    or 'nao possui parcelamento ativo' in normalized_message
+                )
+                if no_active_installment:
                     parcels = []
                 else:
                     raise ValidationError({'detail': message})

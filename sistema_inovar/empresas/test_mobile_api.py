@@ -181,7 +181,7 @@ class MobileApiTests(APITestCase):
     def test_no_simples_installment_is_a_successful_empty_result(self, consult):
         consult.return_value = {
             'sucesso': False,
-            'erro': 'Nenhuma parcela disponível para emissão.',
+            'erro': 'Não há parcelamento ativo para o contribuinte.',
         }
         self.authenticate_client()
 
