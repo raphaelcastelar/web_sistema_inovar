@@ -3,6 +3,7 @@ import tempfile
 from unittest.mock import patch
 
 from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from rest_framework.test import APITestCase
 
@@ -84,6 +85,20 @@ class MobileApiTests(APITestCase):
         response = self.client.get('/api/mobile/documentos-constitutivos/')
         self.assertNotIn(document.pk, [item['id'] for item in response.json()])
         self.assertEqual(self.client.get(f'/api/mobile/files/{document.pk}/').status_code, 404)
+
+    def test_web_multipart_upload_uses_document_type_visibility_default(self):
+        self.client.force_authenticate(self.internal_user)
+        document_type = TipoDocumento.objects.get(codigo='inscricao_estadual')
+        response = self.client.post('/api/documentos-empresa/', {
+            'empresa': self.company.pk,
+            'tipo_documento': document_type.pk,
+            'folder_key': 'constitutivos_inscricoes',
+            'nome_arquivo': 'inscricao.pdf',
+            'caminho_arquivo': SimpleUploadedFile('inscricao.pdf', b'%PDF-1.4\nteste', content_type='application/pdf'),
+        }, format='multipart')
+        self.assertEqual(response.status_code, 201, response.data)
+        document = DocumentoEmpresa.objects.get(pk=response.data['id'])
+        self.assertTrue(document.visivel_no_app)
 
     def test_client_request_is_bound_to_authenticated_company(self):
         self.authenticate_client()

@@ -595,6 +595,17 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
         attrs['competencia'] = f"{attrs['ano']}{attrs['mes']}" if attrs.get('ano') and attrs.get('mes') else ''
         return attrs
 
+    def create(self, validated_data):
+        # Em multipart, o DRF interpreta um checkbox ausente como False. A tela
+        # de upload não possui esse checkbox, portanto deve respeitar o padrão
+        # do tipo em vez de ocultar silenciosamente o documento no aplicativo.
+        if 'visivel_no_app' not in self.initial_data:
+            document_type = validated_data.get('tipo_documento')
+            validated_data['visivel_no_app'] = (
+                document_type.visivel_app_padrao if document_type else True
+            )
+        return super().create(validated_data)
+
 # serializers.py
 class HistoricoEnviosSerializer(serializers.ModelSerializer):
     nome_empresa = serializers.CharField(source='empresa.nome', read_only=True)
