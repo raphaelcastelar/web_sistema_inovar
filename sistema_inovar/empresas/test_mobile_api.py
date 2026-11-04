@@ -124,6 +124,36 @@ class MobileApiTests(APITestCase):
         })
         self.assertEqual([item['id'] for item in listing.data], [current.pk])
 
+    def test_other_uploads_are_independent_and_use_their_filenames_in_the_app(self):
+        self.client.force_authenticate(self.internal_user)
+        uploaded_ids = []
+        for filename in ('CERTIDAO_NEGATIVA.pdf', 'COMPROVANTE_BANCARIO.pdf'):
+            response = self.client.post('/api/documentos-empresa/', {
+                'empresa': self.company.pk,
+                'folder_key': 'outros',
+                'nome_arquivo': filename,
+                'caminho_arquivo': SimpleUploadedFile(
+                    filename, b'%PDF-1.4\nteste', content_type='application/pdf',
+                ),
+            }, format='multipart')
+            self.assertEqual(response.status_code, 201, response.data)
+            uploaded_ids.append(response.data['id'])
+
+        documents = DocumentoEmpresa.objects.filter(pk__in=uploaded_ids)
+        self.assertEqual(documents.count(), 2)
+        self.assertEqual(set(documents.values_list('status', flat=True)), {'disponivel'})
+        self.assertEqual(set(documents.values_list('tipo_documento__codigo', flat=True)), {'outro'})
+
+        self.authenticate_client()
+        response = self.client.get('/api/mobile/outros/')
+        self.assertEqual(response.status_code, 200)
+        items = [item for item in response.json() if item['id'] in uploaded_ids]
+        self.assertEqual(
+            {item['tipo_documento'] for item in items},
+            {'CERTIDAO_NEGATIVA.pdf', 'COMPROVANTE_BANCARIO.pdf'},
+        )
+        self.assertEqual({item['tipo_codigo'] for item in items}, {None})
+
     def test_client_request_is_bound_to_authenticated_company(self):
         self.authenticate_client()
         response = self.client.post('/api/mobile/solicitacoes-clientes/', {

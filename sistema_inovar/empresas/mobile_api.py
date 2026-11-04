@@ -64,10 +64,13 @@ def _document_url(request, document):
 
 
 def _serialize_document(request, document):
+    is_untyped_other = document.folder_key == 'outros'
     return {
         'id': document.pk,
-        'tipo_documento': document.tipo_documento.nome,
-        'tipo_codigo': document.tipo_documento.codigo,
+        # A pasta Outros é um arquivo livre: cada item é identificado pelo
+        # próprio nome, sem expor a classificação interna usada pelo banco.
+        'tipo_documento': document.nome_arquivo if is_untyped_other else document.tipo_documento.nome,
+        'tipo_codigo': None if is_untyped_other else document.tipo_documento.codigo,
         'categoria': document.tipo_documento.categoria,
         'nome_arquivo': document.nome_arquivo,
         'caminho_arquivo': _document_url(request, document),
