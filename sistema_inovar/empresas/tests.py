@@ -700,7 +700,7 @@ class OperacoesArquivoDocumentoTest(SimpleTestCase):
             self.assertFalse(os.path.exists(file_path))
 
 
-class ArmazenamentoDctfWebTest(SimpleTestCase):
+class ArmazenamentoDctfWebTest(TestCase):
     @patch('empresas.document_storage._atomic_storage_write')
     @patch('empresas.document_storage.DocumentoEmpresa.objects.select_for_update')
     @patch('empresas.document_storage.find_empresa_by_cnpj')
@@ -744,18 +744,24 @@ class ArmazenamentoDctfWebTest(SimpleTestCase):
                     written_name,
                     f'EMPRESA TESTE/{folder_path}/2026/08/{expected_filename}',
                 )
-                manager.update_or_create.assert_called_with(
-                    empresa=empresa,
-                    folder_key=folder_key,
-                    nome_arquivo=expected_filename,
-                    ano='2026',
-                    mes='08',
-                    defaults={'caminho_arquivo': stored_name},
-                )
+                call = manager.update_or_create.call_args.kwargs
+                self.assertEqual(call['empresa'], empresa)
+                self.assertEqual(call['folder_key'], folder_key)
+                self.assertEqual(call['nome_arquivo'], expected_filename)
+                self.assertEqual(call['ano'], '2026')
+                self.assertEqual(call['mes'], '08')
+                self.assertEqual(call['defaults']['caminho_arquivo'], stored_name)
+                self.assertEqual(call['defaults']['tipo_documento'].codigo, {
+                    'GERARGUIA31': 'guia_inss',
+                    'CONSRECIBO32': 'recibo_dctfweb',
+                    'CONSDECCOMPLETA33': 'declaracao_dctfweb',
+                }[service_id])
+                self.assertEqual(call['defaults']['competencia'], '202608')
+                self.assertEqual(call['defaults']['origem'], 'api')
                 self.assertIs(result, saved_document)
 
 
-class ArmazenamentoDocumentosFiscaisTest(SimpleTestCase):
+class ArmazenamentoDocumentosFiscaisTest(TestCase):
     @patch('empresas.document_storage._atomic_storage_write')
     @patch('empresas.document_storage.DocumentoEmpresa.objects.select_for_update')
     @patch('empresas.document_storage.find_empresa_by_cnpj')
@@ -814,12 +820,18 @@ class ArmazenamentoDocumentosFiscaisTest(SimpleTestCase):
                     stored_name.replace('\\', '/'),
                     f'EMPRESA TESTE/{folder_path}/2026/08/{expected_filename}',
                 )
-                manager.update_or_create.assert_called_with(
-                    empresa=empresa,
-                    folder_key=folder_key,
-                    nome_arquivo=expected_filename,
-                    ano='2026',
-                    mes='08',
-                    defaults={'caminho_arquivo': stored_name},
-                )
+                call = manager.update_or_create.call_args.kwargs
+                self.assertEqual(call['empresa'], empresa)
+                self.assertEqual(call['folder_key'], folder_key)
+                self.assertEqual(call['nome_arquivo'], expected_filename)
+                self.assertEqual(call['ano'], '2026')
+                self.assertEqual(call['mes'], '08')
+                self.assertEqual(call['defaults']['caminho_arquivo'], stored_name)
+                self.assertEqual(call['defaults']['tipo_documento'].codigo, {
+                    'extrato_simples': 'extrato_simples',
+                    'recibo_simples': 'recibo_simples',
+                    'parcelamento_sn': 'guia_parcelamento_simples',
+                }[document_type])
+                self.assertEqual(call['defaults']['competencia'], '202608')
+                self.assertEqual(call['defaults']['origem'], 'api')
                 self.assertIs(result, saved_document)

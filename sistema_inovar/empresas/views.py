@@ -97,6 +97,8 @@ from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_u
 from .folder_structure import FOLDER_DEFINITIONS
 from .document_storage import (
     delete_document_file,
+    find_empresa_by_cnpj,
+    find_reusable_document,
     rename_document_file,
     save_generated_das,
     save_generated_dctfweb,
@@ -3336,6 +3338,14 @@ def gerar_das_api(request):
 
     if not cnpj or not periodo:
         return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
+
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, 'das_simples', re.sub(r'\D', '', str(periodo))) if empresa else None
+    if existing:
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type='application/pdf',
+        )
     
     # A lógica foi movida para o service.py
     resultado = gerar_das_serpro(cnpj_empresa=cnpj, periodo_apuracao=periodo)
@@ -3400,6 +3410,15 @@ def consultar_extrato_api(request):
     if not cnpj or not periodo:
         return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
 
+    normalized_period = re.sub(r'\D', '', str(periodo))
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, 'extrato_simples', normalized_period) if empresa else None
+    if existing:
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type='application/pdf',
+        )
+
     resultado = orquestrar_consulta_extrato(cnpj_empresa=cnpj, periodo_apuracao=periodo)
 
     if resultado.get("sucesso"):
@@ -3440,6 +3459,15 @@ def consultar_declaracao_recibo_api(request):
         return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
     if len(periodo) != 6 or not 1 <= int(periodo[4:]) <= 12:
         return Response({"error": "Informe um período válido no formato YYYYMM."}, status=status.HTTP_400_BAD_REQUEST)
+
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, 'recibo_simples', periodo) if empresa else None
+    if existing:
+        content_type = mimetypes.guess_type(existing.nome_arquivo)[0] or 'application/octet-stream'
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type=content_type,
+        )
 
     resultado = consultar_declaracao_recibo_serpro(cnpj, periodo)
     if not resultado.get('sucesso'):
@@ -3483,6 +3511,19 @@ def documento_dctfweb_api(request, id_servico):
         return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
     if len(periodo) != 6 or not 1 <= int(periodo[4:]) <= 12:
         return Response({"error": "Informe uma competência válida no formato YYYYMM."}, status=status.HTTP_400_BAD_REQUEST)
+
+    type_code = {
+        'GERARGUIA31': 'guia_inss',
+        'CONSRECIBO32': 'recibo_dctfweb',
+        'CONSDECCOMPLETA33': 'declaracao_dctfweb',
+    }[id_servico]
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, type_code, periodo) if empresa else None
+    if existing:
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type='application/pdf',
+        )
 
     resultado = obter_documento_dctfweb_serpro(cnpj, periodo, id_servico)
     if not resultado.get('sucesso'):
@@ -3536,6 +3577,13 @@ def gerar_das_parcsn_api(request):
         return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
     if len(parcela) != 6 or not 1 <= int(parcela[4:]) <= 12:
         return Response({"error": "Informe uma parcela válida no formato AAAAMM."}, status=status.HTTP_400_BAD_REQUEST)
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, 'guia_parcelamento_simples', parcela) if empresa else None
+    if existing:
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type='application/pdf',
+        )
     resultado = gerar_das_parcsn_serpro(cnpj, parcela)
     if not resultado.get('sucesso'):
         return Response({"error": resultado.get('erro'), "detalhes": resultado.get('detalhes')}, status=status.HTTP_400_BAD_REQUEST)

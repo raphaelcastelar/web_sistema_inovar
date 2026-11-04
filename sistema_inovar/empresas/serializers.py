@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao
+from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, TipoDocumento, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao
 from .folder_structure import FOLDER_DEFINITIONS
 from .utils import format_cnpj, is_valid_cnpj, normalizar_nome_empresa
 from .page_catalog import NAVBAR_SECTIONS
@@ -556,13 +556,29 @@ class OutrosSerializer(serializers.ModelSerializer):
 
 
 class DocumentoEmpresaSerializer(serializers.ModelSerializer):
+    tipo_documento = serializers.PrimaryKeyRelatedField(
+        queryset=TipoDocumento.objects.filter(ativo=True), required=False,
+    )
+    tipo_codigo = serializers.CharField(source='tipo_documento.codigo', read_only=True)
+    tipo_nome = serializers.CharField(source='tipo_documento.nome', read_only=True)
+    categoria = serializers.CharField(source='tipo_documento.categoria', read_only=True)
+
     class Meta:
         model = DocumentoEmpresa
-        fields = ['id', 'empresa', 'folder_key', 'nome_arquivo', 'caminho_arquivo', 'ano', 'mes', 'entregue', 'criado_em']
+        fields = [
+            'id', 'empresa', 'tipo_documento', 'tipo_codigo', 'tipo_nome', 'categoria',
+            'folder_key', 'nome_arquivo', 'caminho_arquivo', 'ano', 'mes', 'competencia',
+            'entregue', 'origem', 'visivel_no_app', 'status', 'versao', 'checksum_sha256',
+            'gerado_em', 'metadados', 'criado_em',
+        ]
         read_only_fields = ['criado_em']
 
     def validate(self, attrs):
+        document_type = attrs.get('tipo_documento', getattr(self.instance, 'tipo_documento', None))
         folder_key = attrs.get('folder_key', getattr(self.instance, 'folder_key', None))
+        if document_type:
+            folder_key = document_type.folder_key
+            attrs['folder_key'] = folder_key
         definition = FOLDER_DEFINITIONS.get(folder_key)
         if not definition:
             raise serializers.ValidationError({'folder_key': 'Pasta inválida.'})
@@ -576,6 +592,7 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
         attrs['mes'] = mes if definition['period'] == 'monthly' else None
         if definition['period'] == 'none':
             attrs['ano'] = None
+        attrs['competencia'] = f"{attrs['ano']}{attrs['mes']}" if attrs.get('ano') and attrs.get('mes') else ''
         return attrs
 
 # serializers.py

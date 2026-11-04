@@ -406,14 +406,68 @@ def documento_empresa_upload_path(instance, filename):
     return os.path.join(*parts, sanitize_filename(filename))
 
 
+class TipoDocumento(models.Model):
+    PERIODICIDADE_CHOICES = [
+        ('sem_periodo', 'Sem período'),
+        ('mensal', 'Mensal'),
+        ('anual', 'Anual'),
+        ('eventual', 'Eventual'),
+    ]
+
+    codigo = models.SlugField(max_length=60, unique=True)
+    nome = models.CharField(max_length=120)
+    categoria = models.CharField(max_length=30)
+    folder_key = models.CharField(max_length=60)
+    periodicidade = models.CharField(max_length=20, choices=PERIODICIDADE_CHOICES)
+    visivel_app_padrao = models.BooleanField(default=True)
+    ativo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['categoria', 'nome']
+
+    def __str__(self):
+        return self.nome
+
+
 class DocumentoEmpresa(models.Model):
+    ORIGEM_CHOICES = [
+        ('upload_web', 'Upload pelo sistema web'),
+        ('api', 'Gerado por API'),
+        ('importacao', 'Importado do armazenamento'),
+        ('migracao', 'Migrado do acervo anterior'),
+    ]
+    STATUS_CHOICES = [
+        ('processando', 'Processando'),
+        ('disponivel', 'Disponível'),
+        ('falhou', 'Falhou'),
+        ('substituido', 'Substituído'),
+        ('arquivado', 'Arquivado'),
+    ]
+
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='documentos_nova_estrutura')
+    tipo_documento = models.ForeignKey(TipoDocumento, on_delete=models.PROTECT, related_name='documentos')
     folder_key = models.CharField(max_length=60)
     nome_arquivo = models.CharField(max_length=255)
     caminho_arquivo = models.FileField(upload_to=documento_empresa_upload_path, max_length=500)
     ano = models.CharField(max_length=4, null=True, blank=True)
     mes = models.CharField(max_length=2, null=True, blank=True)
     entregue = models.BooleanField(default=False)
+    competencia = models.CharField(max_length=6, blank=True, default='')
+    origem = models.CharField(max_length=20, choices=ORIGEM_CHOICES, default='upload_web')
+    visivel_no_app = models.BooleanField(default=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='disponivel')
+    versao = models.PositiveIntegerField(default=1)
+    documento_anterior = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='versoes_posteriores'
+    )
+    checksum_sha256 = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    gerado_em = models.DateTimeField(null=True, blank=True)
+    gerado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='documentos_gerados',
+    )
+    expira_em = models.DateTimeField(null=True, blank=True)
+    metadados = models.JSONField(default=dict, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -427,10 +481,24 @@ class DocumentoEmpresa(models.Model):
         ]
         indexes = [
             models.Index(fields=['empresa', 'folder_key', 'ano', 'mes'], name='doc_empresa_pasta_periodo_idx'),
+            models.Index(fields=['empresa', 'tipo_documento', 'competencia', 'status'], name='doc_emp_tipo_comp_st_idx'),
+            models.Index(fields=['empresa', 'visivel_no_app', '-criado_em'], name='doc_emp_vis_data_idx'),
         ]
 
     def __str__(self):
         return f'{self.empresa.nome} - {self.folder_key} - {self.nome_arquivo}'
+
+    def save(self, *args, **kwargs):
+        if not self.competencia and self.ano and self.mes:
+            self.competencia = f'{self.ano}{str(self.mes).zfill(2)}'
+        if not self.tipo_documento_id:
+            from .document_catalog import infer_document_type_code
+            code = infer_document_type_code(self.folder_key, self.nome_arquivo)
+            self.tipo_documento = TipoDocumento.objects.get(codigo=code, ativo=True)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'competencia', 'tipo_documento'}
+        super().save(*args, **kwargs)
 
 
 class Funcionario(AbstractUser):
