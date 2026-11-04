@@ -3,8 +3,9 @@ from rest_framework_simplejwt.views import TokenRefreshView
 
 from .mobile_api import (
     ClientRequestsView, CompaniesView, CurrentUserView, DctfWebView,
-    GuideActionView, GuideLimitsView, InstallmentsView, MobileDocumentsView,
-    MobileTokenView, NotificationsView, SecureDocumentDownloadView,
+    GuideActionView, GuideLimitsView, InstallmentGuideView, InstallmentsView,
+    MobileDocumentsView, MobileTokenView, NotificationsView,
+    SecureDocumentDownloadView,
 )
 
 
@@ -36,4 +37,8 @@ urlpatterns = [
     path('serpro/consultar-extrato/', guide_view('gerar_extrato')),
     path('dctfweb/', DctfWebView.as_view()),
     path('parcelamentos-simples/', InstallmentsView.as_view()),
+    path(
+        'parcelamentos-simples/<str:period>/guia/',
+        InstallmentGuideView.as_view(),
+    ),
 ]
