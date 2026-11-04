@@ -489,12 +489,15 @@ class DocumentoEmpresa(models.Model):
         return f'{self.empresa.nome} - {self.folder_key} - {self.nome_arquivo}'
 
     def save(self, *args, **kwargs):
-        if not self.competencia and self.ano and self.mes:
-            self.competencia = f'{self.ano}{str(self.mes).zfill(2)}'
         if not self.tipo_documento_id:
             from .document_catalog import infer_document_type_code
             code = infer_document_type_code(self.folder_key, self.nome_arquivo)
             self.tipo_documento = TipoDocumento.objects.get(codigo=code, ativo=True)
+        if not self.competencia:
+            if self.tipo_documento.periodicidade == 'mensal' and self.ano and self.mes:
+                self.competencia = f'{self.ano}{str(self.mes).zfill(2)}'
+            elif self.tipo_documento.periodicidade == 'anual' and self.ano:
+                self.competencia = str(self.ano)
         update_fields = kwargs.get('update_fields')
         if update_fields is not None:
             kwargs['update_fields'] = set(update_fields) | {'competencia', 'tipo_documento'}

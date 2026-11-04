@@ -22,6 +22,7 @@ DOCUMENT_TYPE_CATALOG = (
     ('guia_parcelamento_simples', 'Guia de parcelamento do Simples', 'fiscal', 'fiscal_guias', 'mensal'),
     ('xml_fiscal', 'Arquivo fiscal XML', 'fiscal', 'fiscal_xml', 'mensal'),
     ('documento_fiscal', 'Outro documento fiscal', 'fiscal', 'fiscal_declaracoes', 'anual'),
+    ('balanco_anual', 'Balanço anual', 'contabil', 'contabil_balanco_anual', 'anual'),
     ('documento_contabil', 'Documento contábil', 'contabil', 'contabil_documentos', 'mensal'),
     ('honorario', 'Honorário contábil', 'financeiro', 'financeiro_honorarios_mensais', 'mensal'),
     ('outro', 'Outro documento', 'outros', 'outros', 'eventual'),
@@ -82,6 +83,8 @@ def infer_document_type_code(folder_key, filename):
         return 'documento_fiscal'
     if folder_key in ('fiscal_guias', 'fiscal_declaracoes'):
         return 'documento_fiscal'
+    if folder_key == 'contabil_balanco_anual':
+        return 'balanco_anual'
     if str(folder_key).startswith('contabil_'):
         return 'documento_contabil'
     if folder_key == 'financeiro_honorarios_mensais':
