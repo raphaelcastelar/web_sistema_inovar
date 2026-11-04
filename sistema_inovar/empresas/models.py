@@ -443,6 +443,7 @@ class Funcionario(AbstractUser):
         ('fiscal', 'Departamento Fiscal'),
         ('contabil', 'Departamento Contábil'),
         ('admin', 'Administrador'),
+        ('cliente', 'Cliente do aplicativo'),
     ]
     theme = models.CharField(max_length=10, choices=THEME_CHOICES, default='light')
     cargo = models.CharField(max_length=100, choices=CARGO_CHOICES, default='pessoal', blank=True)
@@ -464,7 +465,7 @@ class Funcionario(AbstractUser):
         if not self.cargo:  # Garante que cargo não seja null
             self.cargo = 'pessoal'
         super().save(*args, **kwargs)
-        if is_new:
+        if is_new and self.cargo != 'cliente':
             from .models import Empresa, UserCompanyAccess
             empresas = Empresa.objects.all()
             for empresa in empresas:
@@ -856,6 +857,57 @@ class Notificacao(models.Model):
 
     def __str__(self):
         return f"Notificação para {self.destinatario.username}: {self.mensagem}"
+
+
+class SolicitacaoCliente(models.Model):
+    TIPO_CHOICES = [
+        ('documento', 'Documento'),
+        ('guia', 'Guia'),
+        ('correcao', 'Correção'),
+        ('atendimento', 'Atendimento'),
+    ]
+    STATUS_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('em_atendimento', 'Em atendimento'),
+        ('concluida', 'Concluída'),
+    ]
+
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='solicitacoes_clientes')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='solicitacoes_clientes')
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    assunto = models.CharField(max_length=180)
+    mensagem = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
+    criada_em = models.DateTimeField(auto_now_add=True)
+    atualizada_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-criada_em']
+        indexes = [models.Index(fields=['empresa', '-criada_em'], name='sol_cliente_empresa_data_idx')]
+
+
+class SimplesApiUsage(models.Model):
+    ACTION_CHOICES = [
+        ('gerar_das', 'Gerar DAS'),
+        ('recalcular_das', 'Recalcular DAS'),
+        ('gerar_extrato', 'Gerar extrato'),
+    ]
+
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='usos_api_simples')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='usos_api_simples')
+    action = models.CharField(max_length=24, choices=ACTION_CHOICES)
+    period_key = models.CharField(max_length=10)
+    competencia = models.CharField(max_length=6)
+    used_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa', 'action', 'period_key'],
+                name='simples_api_empresa_acao_periodo_uniq',
+            ),
+        ]
+        indexes = [models.Index(fields=['empresa', 'action', 'period_key'], name='simples_api_limite_idx')]
 
 
 class UltimoResultadoSessao(models.Model):

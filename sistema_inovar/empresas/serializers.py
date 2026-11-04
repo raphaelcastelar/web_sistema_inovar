@@ -635,6 +635,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         ('fiscal', 'Departamento Fiscal'),
         ('contabil', 'Departamento Contábil'),
         ('admin', 'Administrador'),
+        ('cliente', 'Cliente do aplicativo'),
     ]
 
     class Meta:
@@ -647,7 +648,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
             return 'pessoal'
         if value not in dict(self.CARGO_CHOICES).keys():
             raise serializers.ValidationError(
-                "Cargo inválido. Escolha entre: 'pessoal', 'fiscal', 'contabil' ou 'admin'."
+                "Cargo inválido. Escolha entre: 'pessoal', 'fiscal', 'contabil', 'admin' ou 'cliente'."
             )
         return value
 
@@ -658,13 +659,14 @@ class FuncionarioSerializer(serializers.ModelSerializer):
             email=validated_data.get('email', ''),
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
-            password=validated_data['password']
+            password=validated_data['password'],
+            cargo=validated_data.get('cargo', 'pessoal'),
+            theme=validated_data.get('theme', 'light'),
         )
         user.is_active = validated_data.get('is_active', True)
         user.is_staff = validated_data.get('is_staff', False)
-        user.cargo = validated_data.get('cargo', 'pessoal')
-        user.theme = validated_data.get('theme', 'light')
-        user.empresas_gerenciadas.set(empresas_gerenciadas)
+        if user.cargo != 'cliente':
+            user.empresas_gerenciadas.set(empresas_gerenciadas)
         user.save()
         return user
 
