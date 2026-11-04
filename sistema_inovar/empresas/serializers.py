@@ -578,6 +578,14 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         document_type = attrs.get('tipo_documento', getattr(self.instance, 'tipo_documento', None))
         folder_key = attrs.get('folder_key', getattr(self.instance, 'folder_key', None))
+        if folder_key == 'outros':
+            try:
+                document_type = TipoDocumento.objects.get(codigo='outro', ativo=True)
+            except TipoDocumento.DoesNotExist:
+                raise serializers.ValidationError({
+                    'folder_key': 'A configuração interna da pasta Outros não foi encontrada.',
+                })
+            attrs['tipo_documento'] = document_type
         if document_type:
             folder_key = document_type.folder_key
             attrs['folder_key'] = folder_key
@@ -615,6 +623,9 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
         document_type = validated_data.get('tipo_documento')
         company = validated_data.get('empresa')
         competence = validated_data.get('competencia', '')
+        if validated_data.get('folder_key') == 'outros':
+            return super().create(validated_data)
+
         current_documents = list(DocumentoEmpresa.objects.filter(
             empresa=company,
             tipo_documento=document_type,

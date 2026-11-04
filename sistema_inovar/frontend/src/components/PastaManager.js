@@ -348,9 +348,10 @@ const PastaManager = () => {
         fetchData();
     }, [fetchData]);
 
-    const uploadFiles = useCallback(async (acceptedFiles, pastaTipo) => {
+    const uploadFiles = useCallback(async (acceptedFiles, pastaTipo, explicitDocumentType = '') => {
         if (!empresaNome || !empresaCnpj) { alert('Aguarde os dados da empresa carregarem.'); return; }
-        if (!selectedDocumentType) { alert('Escolha o tipo do documento antes de enviar.'); return; }
+        const documentType = explicitDocumentType || selectedDocumentType;
+        if (!documentType) { alert('Escolha o tipo do documento antes de enviar.'); return; }
         setUploading(true);
         setError(null);
         const uploadPromises = acceptedFiles.map(file => {
@@ -359,7 +360,7 @@ const PastaManager = () => {
             formData.append('nome_arquivo', file.name);
             formData.append('empresa', empresaId);
             formData.append('folder_key', pastaTipo);
-            formData.append('tipo_documento', selectedDocumentType);
+            formData.append('tipo_documento', documentType);
             
             // Lógica para usar o mês/ano selecionado ou o mês anterior
             if (periodFolderTypes.includes(pastaTipo)) {
@@ -387,13 +388,24 @@ const PastaManager = () => {
         }
     }, [empresaNome, empresaCnpj, empresaId, selectedDocumentType, targetUploadYear, targetUploadMonth, fetchData]);
 
-    const requestDocumentType = useCallback((acceptedFiles, pastaTipo) => {
+    const requestDocumentType = useCallback(async (acceptedFiles, pastaTipo) => {
         if (!acceptedFiles.length) return;
+        if (pastaTipo === 'outros') {
+            const internalOtherType = documentTypes.find(
+                type => type.codigo === 'outro' && type.folder_key === 'outros',
+            );
+            if (!internalOtherType) {
+                setError('A configuração da pasta Outros não está disponível. Atualize a página e tente novamente.');
+                return;
+            }
+            await uploadFiles([acceptedFiles[0]], pastaTipo, String(internalOtherType.id));
+            return;
+        }
         setPendingUploadFiles([acceptedFiles[0]]);
         setPendingUploadFolder(pastaTipo);
         setSelectedDocumentType('');
         setShowDocumentTypeModal(true);
-    }, []);
+    }, [documentTypes, uploadFiles]);
 
     const handleDocumentTypeSubmit = async event => {
         event.preventDefault();
