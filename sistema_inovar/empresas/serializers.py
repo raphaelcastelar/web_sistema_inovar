@@ -4,8 +4,10 @@ from .folder_structure import FOLDER_DEFINITIONS
 from .utils import format_cnpj, is_valid_cnpj, normalizar_nome_empresa
 from .page_catalog import NAVBAR_SECTIONS
 from .company_storage import rename_company_folder
+from .document_storage import rename_document_file
 from django.db import transaction
 import re
+import os
 import logging
 
 logger = logging.getLogger(__name__)
@@ -592,7 +594,12 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
         attrs['mes'] = mes if definition['period'] == 'monthly' else None
         if definition['period'] == 'none':
             attrs['ano'] = None
-        attrs['competencia'] = f"{attrs['ano']}{attrs['mes']}" if attrs.get('ano') and attrs.get('mes') else ''
+        if document_type and document_type.periodicidade == 'mensal' and attrs.get('ano') and attrs.get('mes'):
+            attrs['competencia'] = f"{attrs['ano']}{attrs['mes']}"
+        elif document_type and document_type.periodicidade == 'anual' and attrs.get('ano'):
+            attrs['competencia'] = attrs['ano']
+        else:
+            attrs['competencia'] = ''
         return attrs
 
     def create(self, validated_data):
@@ -604,7 +611,45 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
             validated_data['visivel_no_app'] = (
                 document_type.visivel_app_padrao if document_type else True
             )
-        return super().create(validated_data)
+
+        document_type = validated_data.get('tipo_documento')
+        company = validated_data.get('empresa')
+        competence = validated_data.get('competencia', '')
+        current_documents = list(DocumentoEmpresa.objects.filter(
+            empresa=company,
+            tipo_documento=document_type,
+            competencia=competence,
+            status='disponivel',
+        ).order_by('-versao', '-criado_em')) if document_type and company else []
+
+        if not current_documents:
+            return super().create(validated_data)
+
+        previous = current_documents[0]
+        validated_data['versao'] = max(item.versao for item in current_documents) + 1
+        validated_data['documento_anterior'] = previous
+        archived = []
+        try:
+            for item in current_documents:
+                original_name = item.nome_arquivo
+                stem, extension = os.path.splitext(original_name)
+                archived_name = f'{stem}_V{item.versao}_{item.pk}{extension}'
+                rename_document_file(item, archived_name)
+                archived.append((item, original_name, item.visivel_no_app))
+                item.status = 'substituido'
+                item.visivel_no_app = False
+                item.save(update_fields=['status', 'visivel_no_app'])
+            return super().create(validated_data)
+        except Exception:
+            for item, original_name, was_visible in reversed(archived):
+                try:
+                    rename_document_file(item, original_name)
+                    item.status = 'disponivel'
+                    item.visivel_no_app = was_visible
+                    item.save(update_fields=['status', 'visivel_no_app'])
+                except Exception:
+                    logger.exception('Falha ao restaurar documento %s após erro na substituição.', item.pk)
+            raise
 
 # serializers.py
 class HistoricoEnviosSerializer(serializers.ModelSerializer):

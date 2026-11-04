@@ -100,6 +100,30 @@ class MobileApiTests(APITestCase):
         document = DocumentoEmpresa.objects.get(pk=response.data['id'])
         self.assertTrue(document.visivel_no_app)
 
+        replacement = self.client.post('/api/documentos-empresa/', {
+            'empresa': self.company.pk,
+            'tipo_documento': document_type.pk,
+            'folder_key': 'constitutivos_inscricoes',
+            'nome_arquivo': 'inscricao_atualizada.pdf',
+            'caminho_arquivo': SimpleUploadedFile(
+                'inscricao_atualizada.pdf', b'%PDF-1.4\natualizado', content_type='application/pdf',
+            ),
+        }, format='multipart')
+        self.assertEqual(replacement.status_code, 201, replacement.data)
+        document.refresh_from_db()
+        current = DocumentoEmpresa.objects.get(pk=replacement.data['id'])
+        self.assertEqual(document.status, 'substituido')
+        self.assertFalse(document.visivel_no_app)
+        self.assertIn(f'_V1_{document.pk}.pdf', document.nome_arquivo)
+        self.assertEqual(current.status, 'disponivel')
+        self.assertEqual(current.versao, 2)
+        self.assertEqual(current.documento_anterior, document)
+
+        listing = self.client.get('/api/documentos-empresa/', {
+            'empresa_id': self.company.pk, 'folder_key': 'constitutivos_inscricoes',
+        })
+        self.assertEqual([item['id'] for item in listing.data], [current.pk])
+
     def test_client_request_is_bound_to_authenticated_company(self):
         self.authenticate_client()
         response = self.client.post('/api/mobile/solicitacoes-clientes/', {
