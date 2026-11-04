@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .document_storage import save_generated_das, save_generated_fiscal_document
+from .document_storage import find_reusable_document, save_generated_das, save_generated_fiscal_document
 from .models import (
     DocumentoEmpresa,
     Empresa,
@@ -63,35 +63,20 @@ def _document_url(request, document):
     return request.build_absolute_uri(f'/api/mobile/files/{document.pk}/')
 
 
-def _document_type(document):
-    name = document.nome_arquivo.lower()
-    labels = {
-        'cnpj': 'Cartão CNPJ',
-        'contrato': 'Contrato social',
-        'inscricao_estadual': 'Inscrição estadual',
-        'inscricao_municipal': 'Inscrição municipal',
-        'alteracao': 'Última alteração contratual',
-        'folha': 'Folha de pagamento',
-        'fgts': 'FGTS',
-        'inss': 'INSS',
-        'das_': 'DAS - Simples Nacional',
-        'xml': 'Arquivo fiscal XML',
-    }
-    for marker, label in labels.items():
-        if marker in name:
-            return label
-    return re.sub(r'[_-]+', ' ', document.nome_arquivo.rsplit('.', 1)[0]).strip().title()
-
-
 def _serialize_document(request, document):
     return {
         'id': document.pk,
-        'tipo_documento': _document_type(document),
+        'tipo_documento': document.tipo_documento.nome,
+        'tipo_codigo': document.tipo_documento.codigo,
+        'categoria': document.tipo_documento.categoria,
         'nome_arquivo': document.nome_arquivo,
         'caminho_arquivo': _document_url(request, document),
         'ano': document.ano,
         'mes': document.mes,
         'entregue': document.entregue,
+        'competencia': document.competencia,
+        'versao': document.versao,
+        'status': document.status,
         'criado_em': document.criado_em,
     }
 
@@ -111,19 +96,25 @@ class MobileDocumentsView(MobileAPIView):
     def get(self, request):
         company = self.company(request)
         folders = DOCUMENT_FOLDERS[self.source]
-        query = DocumentoEmpresa.objects.filter(empresa=company)
+        query = DocumentoEmpresa.objects.select_related('tipo_documento').filter(
+            empresa=company, visivel_no_app=True, status='disponivel',
+        )
         if folders == ('constitutivos_',):
             query = query.filter(folder_key__startswith='constitutivos_')
         else:
             query = query.filter(folder_key__in=folders)
         if self.source == 'simples-nacional':
-            query = query.filter(nome_arquivo__iregex=r'(^DAS_|SIMPLES)')
+            query = query.filter(tipo_documento__codigo__in=(
+                'das_simples', 'extrato_simples', 'recibo_simples', 'guia_parcelamento_simples',
+            ))
         return Response([_serialize_document(request, item) for item in query[:500]])
 
 
 class SecureDocumentDownloadView(MobileAPIView):
     def get(self, request, document_id):
-        document = DocumentoEmpresa.objects.filter(pk=document_id, empresa=self.company(request)).first()
+        document = DocumentoEmpresa.objects.filter(
+            pk=document_id, empresa=self.company(request), visivel_no_app=True, status='disponivel',
+        ).first()
         if not document or not document.caminho_arquivo:
             return Response({'detail': 'Arquivo não encontrado.'}, status=status.HTTP_404_NOT_FOUND)
         storage = document.caminho_arquivo.storage
@@ -218,10 +209,7 @@ def _period(value):
 
 
 def _das_document(company, period):
-    return DocumentoEmpresa.objects.filter(
-        empresa=company, folder_key='fiscal_guias', ano=period[:4], mes=period[4:],
-        nome_arquivo__istartswith='DAS_',
-    ).exclude(nome_arquivo__icontains='PARCELAMENTO').first()
+    return find_reusable_document(company, 'das_simples', period, visible_only=True)
 
 
 def _pdf_response(document):
@@ -262,10 +250,14 @@ class GuideActionView(MobileAPIView):
     def post(self, request):
         company = self.company(request)
         period = _period(request.data.get('periodo'))
-        existing = _das_document(company, period)
-        if self.action == 'gerar_das' and existing:
+        das = _das_document(company, period)
+        existing = (
+            find_reusable_document(company, 'extrato_simples', period, visible_only=True)
+            if self.action == 'gerar_extrato' else das
+        )
+        if self.action in ('gerar_das', 'gerar_extrato') and existing:
             return _pdf_response(existing)
-        if self.action == 'recalcular_das' and not existing:
+        if self.action == 'recalcular_das' and not das:
             raise ValidationError({'detail': 'Gere a guia desta competência antes de recalculá-la.'})
 
         now = timezone.localtime()
@@ -289,7 +281,10 @@ class GuideActionView(MobileAPIView):
             if self.action == 'gerar_extrato':
                 document = save_generated_fiscal_document(company.cnpj, period, 'extrato_simples', result['pdf_content'])
             else:
-                document = save_generated_das(company.cnpj, period, result['pdf_content'])
+                document = save_generated_das(
+                    company.cnpj, period, result['pdf_content'],
+                    force_new_version=self.action == 'recalcular_das', generated_by=request.user,
+                )
             return _pdf_response(document)
         except Exception:
             usage.delete()
@@ -300,7 +295,8 @@ class DctfWebView(MobileAPIView):
     def get(self, request):
         company = self.company(request)
         docs = DocumentoEmpresa.objects.filter(
-            empresa=company, nome_arquivo__istartswith='GUIA_DCTFWEB_', folder_key='pessoal_guias',
+            empresa=company, tipo_documento__codigo='guia_inss',
+            visivel_no_app=True, status='disponivel',
         )[:200]
         result = []
         for doc in docs:
@@ -321,8 +317,8 @@ class InstallmentsView(MobileAPIView):
     def get(self, request):
         company = self.company(request)
         docs = list(DocumentoEmpresa.objects.filter(
-            empresa=company, folder_key='fiscal_guias',
-            nome_arquivo__istartswith='GUIA_PARCELAMENTO_SN_',
+            empresa=company, tipo_documento__codigo='guia_parcelamento_simples',
+            visivel_no_app=True, status='disponivel',
         )[:200])
         if not docs:
             return Response([])
