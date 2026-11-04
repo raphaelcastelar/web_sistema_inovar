@@ -2,6 +2,7 @@ import mimetypes
 import re
 from datetime import timedelta
 
+from django.core.cache import cache
 from django.db import transaction
 from django.http import FileResponse
 from django.utils import timezone
@@ -21,7 +22,12 @@ from .models import (
     SimplesApiUsage,
     SolicitacaoCliente,
 )
-from .serpro_service import gerar_das_serpro, orquestrar_consulta_extrato
+from .serpro_service import (
+    consultar_parcelas_parcsn_serpro,
+    gerar_das_parcsn_serpro,
+    gerar_das_serpro,
+    orquestrar_consulta_extrato,
+)
 
 
 def client_company(user):
@@ -342,3 +348,71 @@ class InstallmentsView(MobileAPIView):
             'total_parcelas': len(installments), 'comprovante': None,
             'observacao': 'Guias disponíveis no sistema Inovar.', 'parcelas': installments,
         }])
+
+    def post(self, request):
+        company = self.company(request)
+        cache_key = f'mobile:parcelas-simples:{company.pk}'
+        parcels = cache.get(cache_key)
+        if parcels is None:
+            result = consultar_parcelas_parcsn_serpro(company.cnpj)
+            if not result.get('sucesso'):
+                message = result.get('erro') or 'Não foi possível consultar o parcelamento.'
+                if 'nenhuma parcela' in message.casefold():
+                    parcels = []
+                else:
+                    raise ValidationError({'detail': message})
+            else:
+                parcels = result.get('parcelas') or []
+            cache.set(cache_key, parcels, timeout=300)
+
+        saved_documents = DocumentoEmpresa.objects.filter(
+            empresa=company,
+            tipo_documento__codigo='guia_parcelamento_simples',
+            visivel_no_app=True,
+            status='disponivel',
+        )
+        saved_by_period = {
+            item.competencia or f'{item.ano or ""}{str(item.mes or "").zfill(2)}': item
+            for item in saved_documents
+        }
+        response_items = []
+        for raw in parcels:
+            period = re.sub(r'\D', '', str(raw.get('parcela') or ''))
+            if not re.fullmatch(r'\d{4}(0[1-9]|1[0-2])', period):
+                continue
+            saved = saved_by_period.get(period)
+            response_items.append({
+                'parcela': period,
+                'valor': raw.get('valor') or '0.00',
+                'arquivo': _document_url(request, saved) if saved else None,
+                'nome_arquivo': saved.nome_arquivo if saved else None,
+            })
+        response_items.sort(key=lambda item: item['parcela'])
+        return Response({'parcelas': response_items})
+
+
+class InstallmentGuideView(MobileAPIView):
+    def post(self, request, period):
+        company = self.company(request)
+        normalized_period = re.sub(r'\D', '', str(period or ''))
+        if not re.fullmatch(r'\d{4}(0[1-9]|1[0-2])', normalized_period):
+            raise ValidationError({'detail': 'Parcela inválida.'})
+
+        existing = find_reusable_document(
+            company, 'guia_parcelamento_simples', normalized_period,
+        )
+        if existing:
+            return _pdf_response(existing)
+
+        result = gerar_das_parcsn_serpro(company.cnpj, normalized_period)
+        if not result.get('sucesso'):
+            raise ValidationError({
+                'detail': result.get('erro') or 'Não foi possível gerar a guia da parcela.',
+            })
+        document = save_generated_fiscal_document(
+            company.cnpj,
+            normalized_period,
+            'parcelamento_sn',
+            result['file_content'],
+        )
+        return _pdf_response(document)

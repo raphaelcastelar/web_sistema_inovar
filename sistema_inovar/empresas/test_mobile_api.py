@@ -2,6 +2,7 @@ import shutil
 import tempfile
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
@@ -31,6 +32,7 @@ class MobileApiTests(APITestCase):
         self.internal_user = Funcionario.objects.create_user(
             username='interno', password='senha-segura', cargo='fiscal',
         )
+        cache.delete(f'mobile:parcelas-simples:{self.company.pk}')
 
     def authenticate_client(self):
         self.client.force_authenticate(self.client_user)
@@ -153,6 +155,95 @@ class MobileApiTests(APITestCase):
             {'CERTIDAO_NEGATIVA.pdf', 'COMPROVANTE_BANCARIO.pdf'},
         )
         self.assertEqual({item['tipo_codigo'] for item in items}, {None})
+
+    @patch('empresas.mobile_api.consultar_parcelas_parcsn_serpro')
+    def test_client_consults_available_simples_installments(self, consult):
+        consult.return_value = {
+            'sucesso': True,
+            'parcelas': [
+                {'parcela': '202612', 'valor': 321.45},
+                {'parcela': '202611', 'valor': 298.10},
+            ],
+        }
+        self.authenticate_client()
+
+        response = self.client.post('/api/mobile/parcelamentos-simples/')
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            [item['parcela'] for item in response.data['parcelas']],
+            ['202611', '202612'],
+        )
+        self.assertTrue(all(item['arquivo'] is None for item in response.data['parcelas']))
+        consult.assert_called_once_with(self.company.cnpj)
+
+    @patch('empresas.mobile_api.consultar_parcelas_parcsn_serpro')
+    def test_no_simples_installment_is_a_successful_empty_result(self, consult):
+        consult.return_value = {
+            'sucesso': False,
+            'erro': 'Nenhuma parcela disponível para emissão.',
+        }
+        self.authenticate_client()
+
+        response = self.client.post('/api/mobile/parcelamentos-simples/')
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data, {'parcelas': []})
+
+    @patch('empresas.mobile_api.consultar_parcelas_parcsn_serpro')
+    def test_installment_consultation_reuses_a_saved_guide(self, consult):
+        document_type = TipoDocumento.objects.get(codigo='guia_parcelamento_simples')
+        document = DocumentoEmpresa(
+            empresa=self.company,
+            tipo_documento=document_type,
+            folder_key='fiscal_guias',
+            nome_arquivo='GUIA_PARCELAMENTO_SN_11111111000111_202611.pdf',
+            ano='2026',
+            mes='11',
+            competencia='202611',
+        )
+        document.caminho_arquivo.save(
+            document.nome_arquivo,
+            ContentFile(b'%PDF-1.4\nguia salva'),
+            save=True,
+        )
+        consult.return_value = {
+            'sucesso': True,
+            'parcelas': [{'parcela': '202611', 'valor': 298.10}],
+        }
+        self.authenticate_client()
+
+        response = self.client.post('/api/mobile/parcelamentos-simples/')
+
+        item = response.data['parcelas'][0]
+        self.assertTrue(item['arquivo'].endswith(f'/api/mobile/files/{document.pk}/'))
+        self.assertEqual(item['nome_arquivo'], document.nome_arquivo)
+
+    @patch('empresas.mobile_api.gerar_das_parcsn_serpro')
+    def test_installment_download_returns_saved_guide_without_external_call(self, generate):
+        document_type = TipoDocumento.objects.get(codigo='guia_parcelamento_simples')
+        document = DocumentoEmpresa(
+            empresa=self.company,
+            tipo_documento=document_type,
+            folder_key='fiscal_guias',
+            nome_arquivo='GUIA_PARCELAMENTO_SN_11111111000111_202611.pdf',
+            ano='2026',
+            mes='11',
+            competencia='202611',
+        )
+        document.caminho_arquivo.save(
+            document.nome_arquivo,
+            ContentFile(b'%PDF-1.4\nguia salva'),
+            save=True,
+        )
+        self.authenticate_client()
+
+        response = self.client.post(
+            '/api/mobile/parcelamentos-simples/202611/guia/',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        generate.assert_not_called()
 
     def test_client_request_is_bound_to_authenticated_company(self):
         self.authenticate_client()
