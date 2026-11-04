@@ -79,7 +79,7 @@ from .utils import get_bb_access_token
 
 from .models import (
     Empresa, EmpresaAvulsaFaturamento, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
+    SimplesNacional, Outros, DocumentoEmpresa, TipoDocumento, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
     Tag,
     UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao,
     HonorarioCompetencia
@@ -1787,6 +1787,19 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
         if mes:
             queryset = queryset.filter(mes=str(mes).zfill(2))
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='tipos')
+    def tipos(self, request):
+        items = TipoDocumento.objects.filter(ativo=True).order_by('categoria', 'nome')
+        return Response([{
+            'id': item.pk,
+            'codigo': item.codigo,
+            'nome': item.nome,
+            'categoria': item.categoria,
+            'folder_key': item.folder_key,
+            'periodicidade': item.periodicidade,
+            'visivel_app_padrao': item.visivel_app_padrao,
+        } for item in items])
 
     @action(detail=False, methods=['get'], url_path='documentos-salvos-simples')
     def documentos_salvos_simples(self, request):

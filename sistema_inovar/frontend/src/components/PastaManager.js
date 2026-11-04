@@ -211,6 +211,8 @@ const PastaManager = () => {
     const [isRefreshingPasta, setIsRefreshingPasta] = useState(false);
     const [targetUploadYear, setTargetUploadYear] = useState('');
     const [targetUploadMonth, setTargetUploadMonth] = useState('');
+    const [documentTypes, setDocumentTypes] = useState([]);
+    const [selectedDocumentType, setSelectedDocumentType] = useState('');
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [emailDestinatario, setEmailDestinatario] = useState('');
     const [sendingEmail, setSendingEmail] = useState(false);
@@ -326,11 +328,15 @@ const PastaManager = () => {
 
     useEffect(() => {
         setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
+        axiosInstance.get('/api/documentos-empresa/tipos/')
+            .then(response => setDocumentTypes(Array.isArray(response.data) ? response.data : []))
+            .catch(() => setDocumentTypes([]));
         fetchData();
     }, [fetchData]);
 
     const onDrop = useCallback((acceptedFiles, pastaTipo) => {
         if (!empresaNome || !empresaCnpj) { alert('Aguarde os dados da empresa carregarem.'); return; }
+        if (!selectedDocumentType) { alert('Escolha o tipo do documento antes de enviar.'); return; }
         setUploading(true);
         setError(null);
         const uploadPromises = acceptedFiles.map(file => {
@@ -339,6 +345,7 @@ const PastaManager = () => {
             formData.append('nome_arquivo', file.name);
             formData.append('empresa', empresaId);
             formData.append('folder_key', pastaTipo);
+            formData.append('tipo_documento', selectedDocumentType);
             
             // Lógica para usar o mês/ano selecionado ou o mês anterior
             if (periodFolderTypes.includes(pastaTipo)) {
@@ -357,7 +364,7 @@ const PastaManager = () => {
             .then(() => { fetchData(); })
             .catch(err => { setError(err.response?.data?.detail || err.message || 'Erro no upload.'); })
             .finally(() => setUploading(false));
-    }, [empresaNome, empresaCnpj, empresaId, targetUploadYear, targetUploadMonth, fetchData]);
+    }, [empresaNome, empresaCnpj, empresaId, selectedDocumentType, targetUploadYear, targetUploadMonth, fetchData]);
     
     // Hook do Dropzone funcional
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -373,6 +380,7 @@ const PastaManager = () => {
         setError(null);
         setTargetUploadYear('');
         setTargetUploadMonth('');
+        setSelectedDocumentType('');
     };
 
     const handleFolderGroupClick = (group) => {
@@ -380,6 +388,7 @@ const PastaManager = () => {
         setSelectedPasta(null);
         setSelectedFiles([]);
         setError(null);
+        setSelectedDocumentType('');
     };
 
     const handleRefreshSelectedPasta = async () => {
@@ -650,6 +659,21 @@ const PastaManager = () => {
                                     {error}
                                 </div>
                             )}
+                            <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/50">
+                                <label htmlFor="document-type" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Tipo do documento</label>
+                                <select
+                                    id="document-type"
+                                    value={selectedDocumentType}
+                                    onChange={event => setSelectedDocumentType(event.target.value)}
+                                    className="w-full rounded-md border-gray-300 bg-white p-3 text-gray-900 focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                                >
+                                    <option value="">Selecione o tipo correto</option>
+                                    {documentTypes
+                                        .filter(type => type.folder_key === selectedPasta.tipo)
+                                        .map(type => <option key={type.id} value={type.id}>{type.nome}</option>)}
+                                </select>
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Essa classificação será usada pelo aplicativo; o nome do arquivo não será usado para adivinhar o tipo.</p>
+                            </div>
                             {([...periodFolderTypes, ...annualFolderTypes].includes(selectedPasta.tipo)) && (
                                 <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Período para Upload (Opcional)</label>
