@@ -9,7 +9,14 @@ from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from .document_storage import save_generated_das
-from .models import DocumentoEmpresa, Empresa, Funcionario, SimplesApiUsage, TipoDocumento
+from .models import (
+    DocumentoEmpresa,
+    Empresa,
+    Funcionario,
+    SimplesApiUsage,
+    SimplesInstallmentSnapshot,
+    TipoDocumento,
+)
 
 
 TEST_MEDIA_ROOT = tempfile.mkdtemp(prefix='inovar-mobile-tests-')
@@ -175,6 +182,19 @@ class MobileApiTests(APITestCase):
             ['202611', '202612'],
         )
         self.assertTrue(all(item['arquivo'] is None for item in response.data['parcelas']))
+        self.assertTrue(response.data['consultado'])
+        self.assertFalse(response.data['ja_gerado'])
+        self.assertEqual(SimplesInstallmentSnapshot.objects.filter(empresa=self.company).count(), 1)
+
+        repeated = self.client.post('/api/mobile/parcelamentos-simples/')
+        self.assertEqual(repeated.status_code, 200, repeated.data)
+        self.assertTrue(repeated.data['ja_gerado'])
+        self.assertEqual(repeated.data['mensagem'], 'A consulta já foi gerada para este mês.')
+
+        restored = self.client.get('/api/mobile/parcelamentos-simples/')
+        self.assertEqual(restored.status_code, 200, restored.data)
+        self.assertTrue(restored.data['consultado'])
+        self.assertEqual(len(restored.data['parcelas']), 2)
         consult.assert_called_once_with(self.company.cnpj)
 
     @patch('empresas.mobile_api.consultar_parcelas_parcsn_serpro')
@@ -188,7 +208,11 @@ class MobileApiTests(APITestCase):
         response = self.client.post('/api/mobile/parcelamentos-simples/')
 
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data, {'parcelas': []})
+        self.assertTrue(response.data['consultado'])
+        self.assertEqual(response.data['parcelas'], [])
+        self.assertTrue(
+            SimplesInstallmentSnapshot.objects.filter(empresa=self.company).exists(),
+        )
 
     @patch('empresas.mobile_api.consultar_parcelas_parcsn_serpro')
     def test_installment_consultation_reuses_a_saved_guide(self, consult):
