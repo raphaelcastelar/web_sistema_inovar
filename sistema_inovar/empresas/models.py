@@ -981,6 +981,38 @@ class SimplesApiUsage(models.Model):
         indexes = [models.Index(fields=['empresa', 'action', 'period_key'], name='simples_api_limite_idx')]
 
 
+class SimplesInstallmentSnapshot(models.Model):
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name='consultas_parcelamento_simples',
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='consultas_parcelamento_simples',
+    )
+    period_key = models.CharField(max_length=6)
+    parcelas = models.JSONField(default=list)
+    consultado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa', 'period_key'],
+                name='parc_simples_empresa_periodo_uniq',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['empresa', 'period_key'],
+                name='parc_simp_emp_period_idx',
+            ),
+        ]
+
+
 class UltimoResultadoSessao(models.Model):
     usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ultimo_resultado_sessao')
     batch_summary = models.JSONField(null=True, blank=True)

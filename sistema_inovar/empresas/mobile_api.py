@@ -20,6 +20,7 @@ from .models import (
     Empresa,
     Notificacao,
     SimplesApiUsage,
+    SimplesInstallmentSnapshot,
     SolicitacaoCliente,
 )
 from .serpro_service import (
@@ -325,35 +326,33 @@ class DctfWebView(MobileAPIView):
 class InstallmentsView(MobileAPIView):
     def get(self, request):
         company = self.company(request)
-        docs = list(DocumentoEmpresa.objects.filter(
-            empresa=company, tipo_documento__codigo='guia_parcelamento_simples',
-            visivel_no_app=True, status='disponivel',
-        )[:200])
-        if not docs:
-            return Response([])
-        installments = []
-        for index, doc in enumerate(reversed(docs), start=1):
-            year = int(doc.ano or timezone.localdate().year)
-            month = int(doc.mes or 1)
-            due = timezone.datetime(year, month, 20).date()
-            installments.append({
-                'id': doc.pk, 'numero': index, 'vencimento': due,
-                'valor': '0.00', 'status': 'em_aberto', 'status_display': 'Guia disponível',
-                'paga_em': None, 'guia': _document_url(request, doc),
-            })
-        return Response([{
-            'id': company.pk, 'numero': 'Parcelamento Simples Nacional',
-            'data_adesao': docs[-1].criado_em.date(), 'status': 'ativo',
-            'status_display': 'Ativo', 'valor_consolidado': '0.00',
-            'total_parcelas': len(installments), 'comprovante': None,
-            'observacao': 'Guias disponíveis no sistema Inovar.', 'parcelas': installments,
-        }])
+        period_key = timezone.localdate().strftime('%Y%m')
+        snapshot = SimplesInstallmentSnapshot.objects.filter(
+            empresa=company,
+            period_key=period_key,
+        ).first()
+        return Response(self._snapshot_response(request, company, snapshot))
 
     def post(self, request):
         company = self.company(request)
-        cache_key = f'mobile:parcelas-simples:{company.pk}'
-        parcels = cache.get(cache_key)
-        if parcels is None:
+        period_key = timezone.localdate().strftime('%Y%m')
+        snapshot = SimplesInstallmentSnapshot.objects.filter(
+            empresa=company,
+            period_key=period_key,
+        ).first()
+        if snapshot:
+            return Response(
+                self._snapshot_response(
+                    request, company, snapshot, already_generated=True,
+                ),
+            )
+
+        lock_key = f'mobile:parcelas-simples-lock:{company.pk}:{period_key}'
+        if not cache.add(lock_key, True, timeout=60):
+            raise ValidationError({
+                'detail': 'A consulta deste mês já está em andamento.',
+            })
+        try:
             result = consultar_parcelas_parcsn_serpro(company.cnpj)
             if not result.get('sucesso'):
                 message = result.get('erro') or 'Não foi possível consultar o parcelamento.'
@@ -371,8 +370,36 @@ class InstallmentsView(MobileAPIView):
                     raise ValidationError({'detail': message})
             else:
                 parcels = result.get('parcelas') or []
-            cache.set(cache_key, parcels, timeout=300)
+            snapshot, created = SimplesInstallmentSnapshot.objects.get_or_create(
+                empresa=company,
+                period_key=period_key,
+                defaults={'usuario': request.user, 'parcelas': parcels},
+            )
+            return Response(
+                self._snapshot_response(
+                    request,
+                    company,
+                    snapshot,
+                    already_generated=not created,
+                ),
+            )
+        finally:
+            cache.delete(lock_key)
 
+    @staticmethod
+    def _snapshot_response(
+        request, company, snapshot, already_generated=False,
+    ):
+        if snapshot is None:
+            return {
+                'consultado': False,
+                'ja_gerado': False,
+                'periodo_consulta': timezone.localdate().strftime('%Y%m'),
+                'consultado_em': None,
+                'mensagem': None,
+                'parcelas': [],
+            }
+        parcels = snapshot.parcelas or []
         saved_documents = DocumentoEmpresa.objects.filter(
             empresa=company,
             tipo_documento__codigo='guia_parcelamento_simples',
@@ -396,7 +423,14 @@ class InstallmentsView(MobileAPIView):
                 'nome_arquivo': saved.nome_arquivo if saved else None,
             })
         response_items.sort(key=lambda item: item['parcela'])
-        return Response({'parcelas': response_items})
+        return {
+            'consultado': True,
+            'ja_gerado': already_generated,
+            'periodo_consulta': snapshot.period_key,
+            'consultado_em': snapshot.consultado_em,
+            'mensagem': 'A consulta já foi gerada para este mês.',
+            'parcelas': response_items,
+        }
 
 
 class InstallmentGuideView(MobileAPIView):
