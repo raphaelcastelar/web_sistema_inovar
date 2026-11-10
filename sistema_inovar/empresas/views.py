@@ -4413,6 +4413,27 @@ def _inter_error_response(exc, *, billing_created=False, request_code=None):
     return Response(payload, status=status.HTTP_502_BAD_GATEWAY)
 
 
+def _existing_inter_request_code(exc):
+    """Extrai o UUID quando o Inter informa que a cobranca ja foi emitida."""
+    if getattr(exc, 'status_code', None) != 400:
+        return None
+    response_body = getattr(exc, 'response_body', None)
+    if not isinstance(response_body, dict):
+        return None
+    detail = str(response_body.get('detail') or '')
+    normalized_detail = unidecode.unidecode(detail).lower()
+    if 'existe uma cobranca' not in normalized_detail:
+        return None
+    if 'codigo de solicitacao' not in normalized_detail:
+        return None
+    match = re.search(
+        r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b',
+        detail,
+        flags=re.IGNORECASE,
+    )
+    return match.group(0) if match else None
+
+
 def _build_inter_payer(empresa):
     from .utils import normalize_cnpj
 
@@ -4491,7 +4512,20 @@ def _gerar_boleto_inter(request, empresa, competencia, action, incoming_data):
     except InterConfigurationError as exc:
         return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except InterAPIError as exc:
-        return _inter_error_response(exc)
+        request_code = _existing_inter_request_code(exc)
+        if not request_code:
+            return _inter_error_response(exc)
+        issue_response = {
+            'codigoSolicitacao': request_code,
+            'recuperada': True,
+            'motivo': 'Cobranca identica ja emitida no Banco Inter.',
+        }
+        logger.info(
+            'Recuperando cobranca existente do Banco Inter: codigo=%s empresa=%s competencia=%s',
+            request_code,
+            empresa.id,
+            competencia,
+        )
 
     boleto, _ = BoletoBB.objects.update_or_create(
         numero_titulo_cliente=request_code,
