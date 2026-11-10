@@ -1,6 +1,7 @@
 sistema_inovar/sistema_inovar/.env
 /.env
 /certificado/
+/chaves/
 sistema_inovar/frontend/.env.local
 /.idea
 sistema_inovar/sistema_inovar/settings.py
@@ -10,5 +11,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.venv/
 .cache/
 .parcel-cache/

@@ -76,6 +76,13 @@ import pdfkit
 from django.template.loader import render_to_string
 
 from .utils import get_bb_access_token
+from .inter_service import (
+    InterAPIError,
+    InterConfigurationError,
+    issue_billing as issue_inter_billing,
+    wait_for_billing as wait_for_inter_billing,
+    wait_for_billing_pdf as wait_for_inter_billing_pdf,
+)
 
 from .models import (
     Empresa, EmpresaAvulsaFaturamento, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
@@ -334,6 +341,10 @@ def _parse_bb_date(value):
     parsed = parse_date(value_str)
     if parsed:
         return parsed
+    try:
+        return datetime.datetime.fromisoformat(value_str.replace('Z', '+00:00')).date()
+    except ValueError:
+        pass
     return None
 
 
@@ -4158,6 +4169,17 @@ def buscar_registro_boleto_honorario(empresa, competencia=None):
 
 def recuperar_boleto_honorario_legado(empresa, registro_bb, competencia):
     """Recupera PDF antigo salvo no mês de emissão ou de vencimento."""
+    if (registro_bb.payload_registro or {}).get('provider') == 'banco_inter':
+        try:
+            pdf_content = wait_for_inter_billing_pdf(registro_bb.numero_titulo_cliente)
+        except InterAPIError:
+            logger.exception(
+                'PDF Inter ainda indisponivel para a cobranca %s.',
+                registro_bb.numero_titulo_cliente,
+            )
+        else:
+            return salvar_boleto_honorario(empresa, pdf_content, competencia)
+
     competencias_legadas = []
     criado_em = registro_bb.criado_em.astimezone(BRAZIL_TIME_ZONE).strftime('%Y%m')
     vencimento = registro_bb.data_vencimento.strftime('%Y%m') if registro_bb.data_vencimento else None
@@ -4250,6 +4272,181 @@ def usuario_pode_gerenciar_empresa(user, empresa):
     return empresa.gerenciada_por.filter(id=user.id).exists()
 
 
+def _inter_error_response(exc, *, billing_created=False, request_code=None):
+    logger.error(
+        'Falha na integracao com o Banco Inter: status=%s detalhe=%s',
+        getattr(exc, 'status_code', None),
+        getattr(exc, 'response_body', None),
+    )
+    payload = {'error': str(exc), 'boleto_gerado': billing_created}
+    if request_code:
+        payload['codigo_solicitacao'] = request_code
+    if getattr(exc, 'status_code', None):
+        payload['inter_status_code'] = exc.status_code
+    return Response(payload, status=status.HTTP_502_BAD_GATEWAY)
+
+
+def _build_inter_payer(empresa):
+    from .utils import normalize_cnpj
+
+    phone_digits = re.sub(r'\D', '', str(empresa.telefone or ''))
+    if phone_digits.startswith('55') and len(phone_digits) > 11:
+        phone_digits = phone_digits[2:]
+    ddd = phone_digits[:2] if len(phone_digits) >= 10 else None
+    phone = phone_digits[2:] if ddd else None
+    payer = {
+        'cpfCnpj': normalize_cnpj(empresa.cnpj),
+        'tipoPessoa': 'JURIDICA',
+        'nome': empresa.nome,
+        'endereco': empresa.endereco or 'Nao informado',
+        'numero': str(empresa.numero or 'S/N'),
+        'bairro': empresa.bairro or 'Nao informado',
+        'cidade': empresa.cidade or 'Nao informado',
+        'uf': (empresa.uf or '').upper(),
+        'cep': re.sub(r'\D', '', str(empresa.cep or '')),
+    }
+    if empresa.email:
+        payer['email'] = empresa.email.strip()
+    if ddd and phone:
+        payer['ddd'] = ddd
+        payer['telefone'] = phone
+    return payer
+
+
+def _map_inter_situation(situation):
+    normalized = str(situation or '').upper()
+    if normalized in {'RECEBIDO', 'MARCADO_RECEBIDO'}:
+        return 'pago'
+    if normalized == 'CANCELADO':
+        return 'cancelado'
+    if normalized in {'EXPIRADO', 'FALHA_EMISSAO'}:
+        return 'baixado'
+    return 'registrado'
+
+
+def _gerar_boleto_inter(request, empresa, competencia, action, incoming_data):
+    data_vencimento = calcular_vencimento_honorario(empresa, competencia)
+    valor = Decimal(str(incoming_data.get('valorOriginal') or empresa.valor_honorario or 0))
+    if valor < Decimal('2.50'):
+        return Response(
+            {'error': 'O Banco Inter exige valor nominal minimo de R$ 2,50.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    payer = _build_inter_payer(empresa)
+    required_fields = ('cpfCnpj', 'nome', 'endereco', 'numero', 'bairro', 'cidade', 'uf', 'cep')
+    missing_fields = [field for field in required_fields if not payer.get(field)]
+    if missing_fields:
+        return Response(
+            {'error': 'Complete os dados do pagador antes de emitir o boleto.', 'campos': missing_fields},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    your_number = f'I{empresa.id}{competencia}'[:15]
+    payload = {
+        'seuNumero': your_number,
+        'valorNominal': float(valor.quantize(Decimal('0.01'))),
+        'dataVencimento': data_vencimento.isoformat(),
+        'numDiasAgenda': settings.INTER_DIAS_AGENDA,
+        'pagador': payer,
+        'mensagem': {'linha1': 'Boleto de honorarios contabeis'},
+        'formasRecebimento': 'BOLETO_PIX',
+    }
+    if empresa.desconto_taxa and empresa.desconto_taxa > 0 and empresa.dias_para_desconto > 0:
+        payload['desconto'] = {
+            'codigo': 'PERCENTUALDATAINFORMADA',
+            'quantidadeDias': int(empresa.dias_para_desconto),
+            'taxa': float(empresa.desconto_taxa),
+        }
+
+    try:
+        request_code, issue_response = issue_inter_billing(payload)
+    except InterConfigurationError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except InterAPIError as exc:
+        return _inter_error_response(exc)
+
+    boleto, _ = BoletoBB.objects.update_or_create(
+        numero_titulo_cliente=request_code,
+        defaults={
+            'empresa': empresa,
+            'numero_convenio': 'INTER',
+            'carteira': '',
+            'numero_operacao': your_number,
+            'nosso_numero': request_code,
+            'valor_original': valor,
+            'data_vencimento': data_vencimento,
+            'status': 'registrado',
+            'payload_registro': {
+                'provider': 'banco_inter',
+                'emissao': issue_response,
+                'requisicao': payload,
+            },
+        },
+    )
+
+    try:
+        billing_data = wait_for_inter_billing(request_code)
+        billing = billing_data.get('cobranca') or {}
+        billet = billing_data.get('boleto') or {}
+        boleto.numero_operacao = str(billing.get('seuNumero') or your_number)
+        boleto.nosso_numero = str(billet.get('nossoNumero') or request_code)
+        boleto.linha_digitavel = str(billet.get('linhaDigitavel') or '')
+        boleto.codigo_barra = str(billet.get('codigoBarras') or '')
+        boleto.status = _map_inter_situation(billing.get('situacao'))
+        boleto.payload_registro = {**boleto.payload_registro, 'detalhes': billing_data}
+        boleto.save(update_fields=[
+            'numero_operacao', 'nosso_numero', 'linha_digitavel', 'codigo_barra',
+            'status', 'payload_registro', 'atualizado_em',
+        ])
+        pdf = wait_for_inter_billing_pdf(request_code)
+    except InterAPIError as exc:
+        return _inter_error_response(exc, billing_created=True, request_code=request_code)
+
+    documento_honorario = salvar_boleto_honorario(empresa, pdf, competencia)
+    nome_arquivo = sanitize_filename_for_upload(
+        f'honorario_{empresa.nome or "empresa"}.pdf'
+    ).lower()
+    download_url = request.build_absolute_uri(documento_honorario.caminho_arquivo.url)
+
+    if action == 'gerar':
+        return Response({
+            'success': True,
+            'message': 'Boleto Inter gerado e salvo. Nenhum envio foi realizado.',
+            'from_cache': False,
+            'download_url': download_url,
+            'arquivo_pasta': documento_honorario.nome_arquivo,
+            'caminho_arquivo': documento_honorario.caminho_arquivo.name,
+            'competencia': competencia,
+            'codigo_solicitacao': request_code,
+        })
+
+    usuario = request.user if request.user.is_authenticated else None
+    message_id, whatsapp_error = enviar_boleto_honorario_whatsapp(
+        empresa=empresa,
+        pdf_content=pdf,
+        nome_arquivo=nome_arquivo,
+        usuario=usuario,
+    )
+    if not message_id:
+        return Response({
+            'error': f'O boleto Inter foi gerado e salvo, mas nao pode ser enviado: {whatsapp_error}',
+            'boleto_gerado': True,
+            'competencia': competencia,
+            'codigo_solicitacao': request_code,
+            'download_url': download_url,
+        }, status=status.HTTP_502_BAD_GATEWAY)
+    return Response({
+        'success': True,
+        'message': 'Boleto Inter gerado, salvo e enviado pelo WhatsApp.',
+        'arquivo_whatsapp': nome_arquivo,
+        'arquivo_pasta': documento_honorario.nome_arquivo,
+        'caminho_arquivo': documento_honorario.caminho_arquivo.name,
+        'competencia': competencia,
+        'codigo_solicitacao': request_code,
+    })
+
+
 @api_view(['POST'])
 @transaction.atomic
 def gerar_boleto_view(request):
@@ -4337,6 +4534,10 @@ def gerar_boleto_view(request):
             "competencia": competencia,
         }, status=status.HTTP_404_NOT_FOUND)
 
+    return _gerar_boleto_inter(request, empresa, competencia, action, incoming_data)
+
+    # Implementacao legada do Banco do Brasil mantida temporariamente abaixo
+    # apenas para facilitar auditoria da migracao; nao e mais executada.
     # --- INÍCIO DA CORREÇÃO FINAL ---
 
     # !! IMPORTANTE !!
@@ -4910,7 +5111,78 @@ def gerar_boletos_pdf_unico_view(request):
     return response
 
 
-# === WEBHOOK COBRANÇA BB ===
+# === WEBHOOK COBRANCA INTER ===
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([])
+def inter_cobranca_webhook(request):
+    secret = getattr(settings, 'INTER_WEBHOOK_TOKEN', '')
+    provided = request.headers.get('X-Hook-Token') or request.headers.get('X-Hook-Secret')
+    if secret and provided != secret:
+        return JsonResponse({'detail': 'Invalid webhook token'}, status=403)
+
+    try:
+        payload = json.loads(request.body.decode('utf-8-sig')) if request.body else {}
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse({'detail': 'Invalid JSON'}, status=400)
+
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict) and isinstance(payload.get('payload'), list):
+        items = payload['payload']
+    elif isinstance(payload, dict):
+        items = [payload]
+    else:
+        return JsonResponse({'detail': 'Invalid payload'}, status=400)
+
+    updated = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        request_code = str(item.get('codigoSolicitacao') or '').strip()
+        your_number = str(item.get('seuNumero') or '').strip()
+        our_number = str(item.get('nossoNumero') or '').strip()
+        lookup = Q()
+        if request_code:
+            lookup |= Q(numero_titulo_cliente=request_code)
+        if your_number:
+            lookup |= Q(numero_operacao=your_number)
+        if our_number:
+            lookup |= Q(nosso_numero=our_number)
+        if not lookup:
+            continue
+        boleto = BoletoBB.objects.filter(lookup).order_by('-atualizado_em').first()
+        if not boleto:
+            continue
+
+        changed_fields = ['payload_baixa']
+        boleto.payload_baixa = item
+        next_status = _map_inter_situation(item.get('situacao'))
+        if next_status != boleto.status:
+            boleto.status = next_status
+            changed_fields.append('status')
+
+        amount = _parse_bb_decimal(
+            item.get('valorTotalRecebido') or item.get('valorTotalRecebimento')
+        )
+        if amount is not None and amount != boleto.valor_pago:
+            boleto.valor_pago = amount
+            changed_fields.append('valor_pago')
+
+        paid_date = _parse_bb_date(item.get('dataHoraSituacao') or item.get('dataSituacao'))
+        if next_status == 'pago' and paid_date and paid_date != boleto.data_pagamento:
+            boleto.data_pagamento = paid_date
+            changed_fields.append('data_pagamento')
+
+        boleto.save(update_fields=list(dict.fromkeys(changed_fields + ['atualizado_em'])))
+        updated += 1
+
+    logger.info('Webhook Inter processado: itens=%s atualizados=%s', len(items), updated)
+    return JsonResponse({'ok': True, 'received': len(items), 'updated': updated})
+
+
+# === WEBHOOK COBRANÇA BB (legado durante a transição) ===
 @csrf_exempt
 @api_view(['POST'])
 @authentication_classes([])  # externo; não requer auth
