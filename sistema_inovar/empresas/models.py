@@ -1039,8 +1039,9 @@ class BoletoBB(models.Model):
     carteira = models.CharField(max_length=5, blank=True, null=True)
     variacao_carteira = models.CharField(max_length=5, blank=True, null=True)
     numero_operacao = models.CharField(max_length=30, null=True, blank=True, db_index=True)
-    numero_titulo_cliente = models.CharField(max_length=30, unique=True)
-    nosso_numero = models.CharField(max_length=30, db_index=True, null=True, blank=True)
+    # O codigoSolicitacao do Banco Inter e um UUID (36 caracteres).
+    numero_titulo_cliente = models.CharField(max_length=64, unique=True)
+    nosso_numero = models.CharField(max_length=64, db_index=True, null=True, blank=True)
     linha_digitavel = models.CharField(max_length=80, null=True, blank=True)
     codigo_barra = models.CharField(max_length=80, null=True, blank=True)
     valor_original = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))

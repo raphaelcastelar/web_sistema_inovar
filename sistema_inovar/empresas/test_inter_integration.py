@@ -103,3 +103,19 @@ class InterWebhookTests(TestCase):
         self.assertEqual(self.boleto.valor_pago, Decimal('100.00'))
         self.assertEqual(self.boleto.data_pagamento.isoformat(), '2026-11-10')
         self.assertEqual(self.boleto.payload_baixa['origemRecebimento'], 'PIX')
+
+    def test_inter_uuid_fits_legacy_billing_record(self):
+        request_code = '12345678-1234-1234-1234-123456789012'
+
+        boleto = BoletoBB.objects.create(
+            empresa=self.empresa,
+            numero_convenio='INTER',
+            numero_operacao='I2202611',
+            numero_titulo_cliente=request_code,
+            nosso_numero=request_code,
+            valor_original=Decimal('100.00'),
+        )
+
+        boleto.refresh_from_db()
+        self.assertEqual(boleto.numero_titulo_cliente, request_code)
+        self.assertEqual(boleto.nosso_numero, request_code)
