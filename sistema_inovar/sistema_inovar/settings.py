@@ -182,4 +182,33 @@ BB_SCOPE = config('BB_SCOPE', default='')
 BB_BANK_CODE_WITH_DV = config('BB_BANK_CODE_WITH_DV', default='001-9')
 BB_WEBHOOK_TOKEN = config('BB_WEBHOOK_TOKEN', default='')
 
+# Banco Inter - API Cobranca v3 (Boleto com Pix). Os arquivos de mTLS ficam
+# fora do versionamento e os caminhos devem ser sobrescritos no servidor.
+INTER_API_BASE_URL = config(
+    'INTER_API_BASE_URL',
+    default='https://cdpj.partners.bancointer.com.br/cobranca/v3',
+)
+INTER_OAUTH_URL = config(
+    'INTER_OAUTH_URL',
+    default='https://cdpj.partners.bancointer.com.br/oauth/v2/token',
+)
+INTER_CLIENT_ID = config('INTER_CLIENT_ID', default='')
+INTER_CLIENT_SECRET = config('INTER_CLIENT_SECRET', default='')
+INTER_SCOPE = config(
+    'INTER_SCOPE',
+    default='boleto-cobranca.read boleto-cobranca.write',
+)
+INTER_CERT_PATH = config(
+    'INTER_CERT_PATH',
+    default=str(BASE_DIR.parent / 'chaves' / 'Inter API_Certificado.crt'),
+)
+INTER_KEY_PATH = config(
+    'INTER_KEY_PATH',
+    default=str(BASE_DIR.parent / 'chaves' / 'Inter API_Chave.key'),
+)
+INTER_CONTA_CORRENTE = config('INTER_CONTA_CORRENTE', default='')
+INTER_REQUEST_TIMEOUT = config('INTER_REQUEST_TIMEOUT', default=30, cast=int)
+INTER_DIAS_AGENDA = config('INTER_DIAS_AGENDA', default=60, cast=int)
+INTER_WEBHOOK_TOKEN = config('INTER_WEBHOOK_TOKEN', default='')
+
 WKHTMLTOPDF_PATH = config('WKHTMLTOPDF_PATH', default='/usr/bin/wkhtmltopdf')
