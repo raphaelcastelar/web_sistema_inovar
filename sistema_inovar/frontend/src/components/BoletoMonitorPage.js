@@ -117,7 +117,7 @@ const BoletoMonitorPage = () => {
     <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-4 text-gray-900 dark:text-gray-100 sm:px-6 sm:py-6 lg:px-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold sm:text-3xl">Monitor de Boletos BB</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Monitor de Boletos</h1>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Acompanhe registro, baixa e pagamento por empresa.</p>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             Ultima atualizacao: {lastUpdated ? formatDateTime(lastUpdated) : '-'}
@@ -139,7 +139,7 @@ const BoletoMonitorPage = () => {
             name="search"
             value={filters.search}
             onChange={handleChange}
-            placeholder="Nosso numero, titulo, linha digitavel ou empresa"
+            placeholder="Identificador, referência bancária, linha digitável ou empresa"
             className="w-full rounded-xl border border-gray-300 px-3 py-2.5 focus:border-indigo-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           />
         </div>
@@ -203,9 +203,9 @@ const BoletoMonitorPage = () => {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Titulo</div>
+                  <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Identificador</div>
                   <div className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">{b.numero_titulo_cliente || '-'}</div>
-                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 break-all">Nosso n: {b.nosso_numero || '-'}</div>
+                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 break-all">Referência bancária: {b.nosso_numero || '-'}</div>
                 </div>
                 <div>
                   <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Valores</div>
@@ -220,8 +220,8 @@ const BoletoMonitorPage = () => {
                 <div>
                   <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Operacao</div>
                   <div className="text-sm text-gray-900 dark:text-gray-100">Op.: {b.numero_operacao || '-'}</div>
-                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Convenio: {b.numero_convenio || '-'}</div>
-                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Cart/Var: {b.carteira || '-'} / {b.variacao_carteira || '-'}</div>
+                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Origem: {b.numero_convenio || '-'}</div>
+                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Detalhes adicionais: {b.carteira || '-'} / {b.variacao_carteira || '-'}</div>
                 </div>
               </div>
 
@@ -243,12 +243,12 @@ const BoletoMonitorPage = () => {
             <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">Empresa</th>
-                <th className="px-4 py-3 text-left font-semibold">Titulo / Nosso N</th>
+                <th className="px-4 py-3 text-left font-semibold">Identificador / Referência</th>
                 <th className="px-4 py-3 text-left font-semibold">Valor</th>
                 <th className="px-4 py-3 text-left font-semibold">Vencimento</th>
                 <th className="px-4 py-3 text-left font-semibold">Pagamento</th>
                 <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Operacao / Convenio</th>
+                <th className="px-4 py-3 text-left font-semibold">Operação / Origem</th>
                 <th className="px-4 py-3 text-left font-semibold">Linha Digitavel / Codigo</th>
                 <th className="px-4 py-3 text-left font-semibold">Atualizado</th>
               </tr>
@@ -276,7 +276,7 @@ const BoletoMonitorPage = () => {
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-semibold text-gray-900 dark:text-gray-100">{b.numero_titulo_cliente || '-'}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Nosso n: {b.nosso_numero || '-'}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Referência bancária: {b.nosso_numero || '-'}</div>
                   </td>
                   <td className="px-4 py-3">
                     <div>{formatMoney(b.valor_original)}</div>
@@ -287,9 +287,9 @@ const BoletoMonitorPage = () => {
                   <td className="px-4 py-3">{statusBadge(b.status)}</td>
                   <td className="px-4 py-3">
                     <div>Op.: {b.numero_operacao || '-'}</div>
-                    <div>Convenio: {b.numero_convenio || '-'}</div>
+                    <div>Origem: {b.numero_convenio || '-'}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Cart/Var: {b.carteira || '-'} / {b.variacao_carteira || '-'}
+                      Detalhes adicionais: {b.carteira || '-'} / {b.variacao_carteira || '-'}
                     </div>
                   </td>
                   <td className="px-4 py-3">
