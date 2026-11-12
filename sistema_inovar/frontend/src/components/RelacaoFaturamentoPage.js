@@ -28,8 +28,8 @@ const monthNames = [
 
 const taxRegimes = ['Simples Nacional', 'Lucro Presumido', 'Lucro Real', 'Arbitrado', 'Isenta / Imune'];
 const accountantResponsible = {
-    name: 'Fabio Luis de Freitas',
-    registry: 'CRC: ES-013793/O-5',
+    name: 'Gislaine Santos de Oliveira Santana',
+    registry: 'CRC: ES-025030',
 };
 
 const createMonthLabel = (date) => {
@@ -694,7 +694,7 @@ th { background: #e5e7eb; }
                                 <input value={responsavelEmpresa} onChange={(event) => setResponsavelEmpresa(event.target.value)} className={inputClass} />
                             </div>
                             <div>
-                                <label className={labelClass}>Contador responsável</label>
+                                <label className={labelClass}>Contadora responsável</label>
                                 <div className="rounded-md border border-gray-200 bg-slate-50 px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-slate-950 dark:text-gray-200">
                                     <div className="font-semibold">{accountantResponsible.name}</div>
                                     <div>{accountantResponsible.registry}</div>
