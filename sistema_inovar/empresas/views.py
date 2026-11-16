@@ -1786,7 +1786,12 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         if self.request.query_params.get('incluir_historico') != 'true':
-            queryset = queryset.filter(status='disponivel')
+            # O painel preserva e exibe o historico das alteracoes contratuais.
+            # Os demais tipos continuam mostrando somente a versao atual.
+            queryset = queryset.filter(
+                Q(status='disponivel')
+                | Q(status='substituido', tipo_documento__codigo='ultima_alteracao')
+            )
         empresa_id = self.request.query_params.get('empresa_id')
         folder_key = self.request.query_params.get('folder_key')
         ano = self.request.query_params.get('ano')

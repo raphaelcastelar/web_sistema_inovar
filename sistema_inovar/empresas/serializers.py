@@ -6,11 +6,27 @@ from .page_catalog import NAVBAR_SECTIONS
 from .company_storage import rename_company_folder
 from .document_storage import rename_document_file
 from django.db import transaction
+from django.utils import timezone
 import re
 import os
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def archived_document_name(document, replaced_on=None):
+    """Monta o nome preservado de uma versao que deixou de ser a atual."""
+    original_name = document.nome_arquivo
+    stem, extension = os.path.splitext(original_name)
+    if document.tipo_documento.codigo == 'ultima_alteracao':
+        replaced_on = replaced_on or timezone.localdate()
+        suffix = f'_SUBSTITUIDO_EM_{replaced_on:%d_%m_%Y}_V{document.versao}_{document.pk}'
+    else:
+        suffix = f'_V{document.versao}_{document.pk}'
+
+    max_length = DocumentoEmpresa._meta.get_field('nome_arquivo').max_length
+    available_stem_length = max(1, max_length - len(extension) - len(suffix))
+    return f'{stem[:available_stem_length]}{suffix}{extension}'
 
 
 class AtividadeSerializer(serializers.ModelSerializer):
@@ -623,6 +639,9 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
         document_type = validated_data.get('tipo_documento')
         company = validated_data.get('empresa')
         competence = validated_data.get('competencia', '')
+        # A alteracao mais recente e sempre a versao publicada no aplicativo.
+        if document_type and document_type.codigo == 'ultima_alteracao':
+            validated_data['visivel_no_app'] = True
         if validated_data.get('folder_key') == 'outros':
             return super().create(validated_data)
 
@@ -643,8 +662,7 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
         try:
             for item in current_documents:
                 original_name = item.nome_arquivo
-                stem, extension = os.path.splitext(original_name)
-                archived_name = f'{stem}_V{item.versao}_{item.pk}{extension}'
+                archived_name = archived_document_name(item)
                 rename_document_file(item, archived_name)
                 archived.append((item, original_name, item.visivel_no_app))
                 item.status = 'substituido'

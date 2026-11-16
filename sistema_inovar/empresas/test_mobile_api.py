@@ -1,5 +1,6 @@
 import shutil
 import tempfile
+from datetime import date
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -132,6 +133,62 @@ class MobileApiTests(APITestCase):
             'empresa_id': self.company.pk, 'folder_key': 'constitutivos_inscricoes',
         })
         self.assertEqual([item['id'] for item in listing.data], [current.pk])
+
+    @patch('empresas.serializers.timezone.localdate', return_value=date(2026, 11, 16))
+    def test_contract_change_keeps_dated_history_and_only_publishes_latest_in_app(self, _localdate):
+        self.client.force_authenticate(self.internal_user)
+        document_type = TipoDocumento.objects.get(codigo='ultima_alteracao')
+
+        first_response = self.client.post('/api/documentos-empresa/', {
+            'empresa': self.company.pk,
+            'tipo_documento': document_type.pk,
+            'folder_key': 'constitutivos_societario',
+            'nome_arquivo': 'ALTERACAO_CONTRATUAL.pdf',
+            'caminho_arquivo': SimpleUploadedFile(
+                'ALTERACAO_CONTRATUAL.pdf', b'%PDF-1.4\nprimeira', content_type='application/pdf',
+            ),
+        }, format='multipart')
+        self.assertEqual(first_response.status_code, 201, first_response.data)
+
+        replacement_response = self.client.post('/api/documentos-empresa/', {
+            'empresa': self.company.pk,
+            'tipo_documento': document_type.pk,
+            'folder_key': 'constitutivos_societario',
+            'nome_arquivo': 'ALTERACAO_CONTRATUAL_ATUAL.pdf',
+            'caminho_arquivo': SimpleUploadedFile(
+                'ALTERACAO_CONTRATUAL_ATUAL.pdf', b'%PDF-1.4\natual', content_type='application/pdf',
+            ),
+            'visivel_no_app': False,
+        }, format='multipart')
+        self.assertEqual(replacement_response.status_code, 201, replacement_response.data)
+
+        previous = DocumentoEmpresa.objects.get(pk=first_response.data['id'])
+        current = DocumentoEmpresa.objects.get(pk=replacement_response.data['id'])
+        self.assertEqual(previous.status, 'substituido')
+        self.assertFalse(previous.visivel_no_app)
+        self.assertIn(
+            f'_SUBSTITUIDO_EM_16_11_2026_V1_{previous.pk}.pdf',
+            previous.nome_arquivo,
+        )
+        self.assertTrue(previous.caminho_arquivo.storage.exists(previous.caminho_arquivo.name))
+        self.assertEqual(current.status, 'disponivel')
+        self.assertTrue(current.visivel_no_app)
+
+        web_listing = self.client.get('/api/documentos-empresa/', {
+            'empresa_id': self.company.pk,
+            'folder_key': 'constitutivos_societario',
+        })
+        self.assertEqual(
+            {item['id'] for item in web_listing.data},
+            {previous.pk, current.pk},
+        )
+
+        self.authenticate_client()
+        app_listing = self.client.get('/api/mobile/documentos-constitutivos/')
+        self.assertEqual(app_listing.status_code, 200)
+        listed_ids = {item['id'] for item in app_listing.json()}
+        self.assertIn(current.pk, listed_ids)
+        self.assertNotIn(previous.pk, listed_ids)
 
     def test_other_uploads_are_independent_and_use_their_filenames_in_the_app(self):
         self.client.force_authenticate(self.internal_user)

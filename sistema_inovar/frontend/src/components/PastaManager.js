@@ -250,7 +250,8 @@ const PastaManager = () => {
     );
     const replacementDocument = useMemo(
         () => (arquivos[pendingUploadFolder] || []).find(
-            file => String(file.tipo_documento) === String(selectedDocumentType),
+            file => file.status === 'disponivel'
+                && String(file.tipo_documento) === String(selectedDocumentType),
         ),
         [arquivos, pendingUploadFolder, selectedDocumentType],
     );
@@ -767,6 +768,7 @@ const PastaManager = () => {
                                                 <input type="checkbox" checked={selectedFiles.includes(file.id)} onChange={() => toggleFileSelection(file.id)} className="form-checkbox h-4 w-4 rounded bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-indigo-600 focus:ring-indigo-500" />
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
+                                                {file.status === 'substituido' && (<span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">Histórico</span>)}
                                                 {['pessoal_guias', 'fiscal_guias'].includes(selectedPasta.tipo) && (<span className={`text-xs px-2 py-0.5 font-semibold rounded-full ${file.entregue ? 'bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
                                                 <FileActions file={file} folderType={selectedPasta.tipo} onRename={handleRenameFile} onDelete={handleDeleteFile} busy={fileOperationId === file.id} />
                                             </li>
