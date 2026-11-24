@@ -29,26 +29,26 @@ const normalizeSearchText = (value = '') => String(value)
 
 const formatCnpj = (value = '') => {
     const digits = String(value).replace(/\D/g, '');
-    if (digits.length !== 14) return value || 'CNPJ nÃ£o informado';
+    if (digits.length !== 14) return value || 'CNPJ não informado';
     return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
 };
 
-// --- CONFIGURAÃ‡Ã•ES E FUNÃ‡Ã•ES AUXILIARES (DO SEU CÃ“DIGO ORIGINAL) ---
+// --- CONFIGURAÇÕES E FUNÇÕES AUXILIARES (DO SEU CÓDIGO ORIGINAL) ---
 
 const pastaConfig = {
-    constitutivos_societario: { group: 'Constitutivos', label: 'SocietÃ¡rio', period: 'none' },
-    constitutivos_inscricoes: { group: 'Constitutivos', label: 'InscriÃ§Ãµes', period: 'none' },
+    constitutivos_societario: { group: 'Constitutivos', label: 'Societário', period: 'none' },
+    constitutivos_inscricoes: { group: 'Constitutivos', label: 'Inscrições', period: 'none' },
     constitutivos_outros: { group: 'Constitutivos', label: 'Outros', period: 'none' },
     pessoal_guias: { group: 'Pessoal', label: 'Guias', period: 'monthly' },
     pessoal_folha_pagamento: { group: 'Pessoal', label: 'Folha de Pagamento', period: 'monthly' },
-    pessoal_relatorios: { group: 'Pessoal', label: 'RelatÃ³rios', period: 'monthly' },
+    pessoal_relatorios: { group: 'Pessoal', label: 'Relatórios', period: 'monthly' },
     fiscal_xml: { group: 'Fiscal', label: 'XML', period: 'monthly' },
     fiscal_guias: { group: 'Fiscal', label: 'Guias', period: 'monthly' },
     fiscal_extratos: { group: 'Fiscal', label: 'Extratos', period: 'monthly' },
-    fiscal_declaracoes: { group: 'Fiscal', label: 'DeclaraÃ§Ãµes', period: 'annual' },
-    contabil_balanco_anual: { group: 'ContÃ¡bil', label: 'BalanÃ§o Anual', period: 'annual' },
-    contabil_documentos: { group: 'ContÃ¡bil', label: 'Documentos', period: 'monthly' },
-    financeiro_honorarios_mensais: { group: 'Financeiro', label: 'HonorÃ¡rios Mensais', period: 'monthly' },
+    fiscal_declaracoes: { group: 'Fiscal', label: 'Declarações', period: 'annual' },
+    contabil_balanco_anual: { group: 'Contábil', label: 'Balanço Anual', period: 'annual' },
+    contabil_documentos: { group: 'Contábil', label: 'Documentos', period: 'monthly' },
+    financeiro_honorarios_mensais: { group: 'Financeiro', label: 'Honorários Mensais', period: 'monthly' },
     outros: { group: 'Outros', label: 'Outros', period: 'none' },
 };
 const pastaTypes = Object.keys(pastaConfig);
@@ -60,7 +60,7 @@ const pastaGroups = pastaTypes.reduce((groups, tipo) => {
     groups[group].push(tipo);
     return groups;
 }, {});
-const monthOrder = ["janeiro", "fevereiro", "marÃ§o", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const monthOrder = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 const buildFileViewUrl = (tipoPasta, arquivoId) => `${SERVER_FILE_URL_BASE}/api/arquivos/${tipoPasta}/${arquivoId}/visualizar/`;
 const getBrazilianLocalPhoneDigits = (value = '') => {
     let digits = String(value).replace(/\D/g, '');
@@ -109,7 +109,7 @@ const groupFilesByYearAndMonth = (files) => {
         const monthNumber = parseInt(file.mes, 10);
         if (isNaN(monthNumber) || monthNumber < 1 || monthNumber > 12) return acc;
         const monthKey = `${file.mes.padStart(2, '0')}${year}`;
-        const monthName = monthOrder[monthNumber - 1] || `MÃªs ${file.mes}`;
+        const monthName = monthOrder[monthNumber - 1] || `Mês ${file.mes}`;
         if (!acc[year]) acc[year] = {};
         if (!acc[year][monthKey]) {
             acc[year][monthKey] = { monthNameDisplay: monthName.charAt(0).toUpperCase() + monthName.slice(1), monthSortKey: monthNumber, files: [] };
@@ -142,7 +142,7 @@ const FileActions = ({ file, folderType, onRename, onDelete, busy }) => (
     </div>
 );
 
-// --- SUB-COMPONENTE ACORDEÃƒO ESTILIZADO ---
+// --- SUB-COMPONENTE ACORDEÃO ESTILIZADO ---
 const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, folderType, onRename, onDelete, fileOperationId }) => {
     const [activeYear, setActiveYear] = useState(null);
     const groupedData = useMemo(() => groupFilesByYearAndMonth(files), [files]);
@@ -155,7 +155,7 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, folderT
     }, [sortedYears]);
 
     if (!files || files.length === 0) return <div className="text-center py-10"><p className="text-gray-500 dark:text-gray-400 italic">Nenhum arquivo nesta pasta.</p></div>;
-    if (sortedYears.length === 0) return <div className="text-center py-10"><p className="text-gray-500 dark:text-gray-400 italic">NÃ£o foi possÃ­vel agrupar os arquivos por data.</p></div>;
+    if (sortedYears.length === 0) return <div className="text-center py-10"><p className="text-gray-500 dark:text-gray-400 italic">Não foi possível agrupar os arquivos por data.</p></div>;
 
     return (
         <div className="space-y-2">
@@ -190,7 +190,7 @@ const YearMonthAccordion = ({ files, selectedFiles, toggleFileSelection, folderT
     );
 };
 
-// --- COMPONENTE PRINCIPAL DA PÃGINA ---
+// --- COMPONENTE PRINCIPAL DA PÁGINA ---
 const PastaManager = () => {
     // --- ESTADO DO COMPONENTE ---
     const { empresaId } = useParams();
@@ -258,7 +258,7 @@ const PastaManager = () => {
         [arquivos, pendingUploadFolder, selectedDocumentType],
     );
 
-    // --- LÃ“GICA DE DADOS E API ---
+    // --- LÓGICA DE DADOS E API ---
     const fetchData = useCallback(() => {
         setLoading(true);
         axiosInstance.get(`/api/empresas/${empresaId}/`).then(response => {
@@ -365,7 +365,7 @@ const PastaManager = () => {
             formData.append('folder_key', pastaTipo);
             formData.append('tipo_documento', documentType);
             
-            // LÃ³gica para usar o mÃªs/ano selecionado ou o mÃªs anterior
+            // Lógica para usar o mês/ano selecionado ou o mês anterior
             if (periodFolderTypes.includes(pastaTipo)) {
                 const previousUploadPeriod = getPreviousUploadPeriod();
                 const anoParaSalvar = targetUploadYear || previousUploadPeriod.year;
@@ -398,7 +398,7 @@ const PastaManager = () => {
                 type => type.codigo === 'outro' && type.folder_key === 'outros',
             );
             if (!internalOtherType) {
-                setError('A configuraÃ§Ã£o da pasta Outros nÃ£o estÃ¡ disponÃ­vel. Atualize a pÃ¡gina e tente novamente.');
+                setError('A configuração da pasta Outros não está disponível. Atualize a página e tente novamente.');
                 return;
             }
             await uploadFiles([acceptedFiles[0]], pastaTipo, String(internalOtherType.id));
@@ -437,7 +437,7 @@ const PastaManager = () => {
         multiple: false,
     });
     
-    // --- HANDLERS DE INTERAÃ‡ÃƒO COM LÃ“GICA COMPLETA ---
+    // --- HANDLERS DE INTERAÇÃO COM LÓGICA COMPLETA ---
     const toggleFileSelection = (fileId) => setSelectedFiles(prev => prev.includes(fileId) ? prev.filter(id => id !== fileId) : [...prev, fileId]);
     const handlePastaClick = (pasta) => {
         setSelectedPasta(pasta); 
@@ -486,7 +486,7 @@ const PastaManager = () => {
                 [selectedPasta.tipo]: (prev[selectedPasta.tipo] || []).map(item => item.id === file.id ? response.data : item),
             }));
         } catch (err) {
-            setError(err.response?.data?.error || 'NÃ£o foi possÃ­vel renomear o arquivo.');
+            setError(err.response?.data?.error || 'Não foi possível renomear o arquivo.');
         } finally {
             setFileOperationId(null);
         }
@@ -505,7 +505,7 @@ const PastaManager = () => {
             }));
             setSelectedFiles(prev => prev.filter(id => id !== file.id));
         } catch (err) {
-            setError(err.response?.data?.error || 'NÃ£o foi possÃ­vel excluir o arquivo.');
+            setError(err.response?.data?.error || 'Não foi possível excluir o arquivo.');
         } finally {
             setFileOperationId(null);
         }
@@ -555,7 +555,7 @@ const PastaManager = () => {
             telefone_destinatario: `55${phoneDigits}`,
         })
             .then(res => {
-                let message = `RelatÃ³rio de Envio:\n${res.data.message || ''}`;
+                let message = `Relatório de Envio:\n${res.data.message || ''}`;
                 if (res.data.successful_sends?.length > 0) message += `\nSucessos: ${res.data.successful_sends.map(s => s.filename).join(', ')}`;
                 if (res.data.failed_sends?.length > 0) message += `\nFalhas: ${res.data.failed_sends.map(f => f.filename).join(', ')}`;
                 alert(message);
@@ -566,7 +566,7 @@ const PastaManager = () => {
             .finally(() => setSendingWhatsApp(false));
     };
 
-    // --- RENDERIZAÃ‡ÃƒO DO COMPONENTE ---
+    // --- RENDERIZAÇÃO DO COMPONENTE ---
     return (
         <div className="w-full max-w-none space-y-5 px-0 py-2 text-gray-900 dark:text-gray-100 sm:space-y-6 sm:py-4">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -576,7 +576,7 @@ const PastaManager = () => {
                     <div className="min-w-0">
                         <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#c49a61]">Documentos</p>
                         <h1 className="mt-2 break-words font-serif text-3xl font-semibold text-gray-950 dark:text-white sm:text-4xl">{empresaNome}</h1>
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Gerencie arquivos e compartilhe documentos Â· CNPJ: {empresaCnpj}</p>
+                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Gerencie arquivos e compartilhe documentos · CNPJ: {empresaCnpj}</p>
                     </div>
                 )}
             </div>
@@ -628,11 +628,11 @@ const PastaManager = () => {
                             <div id="company-switcher-results" role="listbox" className="absolute left-0 right-0 top-full z-40 mt-2 max-h-80 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-900">
                                 {loadingCompanies ? (
                                     <div className="flex items-center justify-center gap-2 px-4 py-6 text-sm text-gray-500 dark:text-gray-400">
-                                        <ArrowPathIcon className="h-4 w-4 animate-spin" /> Carregando empresasâ€¦
+                                        <ArrowPathIcon className="h-4 w-4 animate-spin" /> Carregando empresas…
                                     </div>
                                 ) : companyResults.length === 0 ? (
                                     <div className="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                                        {empresasDisponiveis.length <= 1 ? 'Nenhuma outra empresa disponÃ­vel.' : 'Nenhuma empresa encontrada.'}
+                                        {empresasDisponiveis.length <= 1 ? 'Nenhuma outra empresa disponível.' : 'Nenhuma empresa encontrada.'}
                                     </div>
                                 ) : (
                                     companyResults.map((empresa, index) => (
@@ -650,7 +650,7 @@ const PastaManager = () => {
                                                 <span className="block truncate text-sm font-semibold">{empresa.nome}</span>
                                                 <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{formatCnpj(empresa.cnpj)}</span>
                                             </span>
-                                            {!empresa.ativo && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">NÃ£o ativada</span>}
+                                            {!empresa.ativo && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Não ativada</span>}
                                         </button>
                                     ))
                                 )}
@@ -667,7 +667,7 @@ const PastaManager = () => {
                 <div className="flex items-center justify-between gap-3">
                     <div>
                         <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500 dark:text-gray-400">Pastas gerais</h2>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Escolha uma Ã¡rea para visualizar suas subpastas.</p>
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Escolha uma área para visualizar suas subpastas.</p>
                     </div>
                 </div>
 
@@ -726,14 +726,14 @@ const PastaManager = () => {
                             )}
                             {([...periodFolderTypes, ...annualFolderTypes].includes(selectedPasta.tipo)) && (
                                 <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700">
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">PerÃ­odo para Upload (Opcional)</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Período para Upload (Opcional)</label>
                                     <div className="grid grid-cols-2 gap-4">
                                         {periodFolderTypes.includes(selectedPasta.tipo) && <select value={targetUploadMonth} onChange={(e) => setTargetUploadMonth(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500">
-                                            <option value="">MÃªs Anterior</option>
+                                            <option value="">Mês Anterior</option>
                                             {monthOrder.map((month, index) => <option key={index} value={(index + 1).toString().padStart(2, '0')}>{month.charAt(0).toUpperCase() + month.slice(1)}</option>)}
                                         </select>}
                                         <select value={targetUploadYear} onChange={(e) => setTargetUploadYear(e.target.value)} className="w-full p-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500">
-                                            <option value="">Ano do MÃªs Anterior</option>
+                                            <option value="">Ano do Mês Anterior</option>
                                             {[...Array(5)].map((_, i) => <option key={i} value={new Date().getFullYear() - i}>{new Date().getFullYear() - i}</option>)}
                                         </select>
                                     </div>
@@ -770,7 +770,7 @@ const PastaManager = () => {
                                                 <input type="checkbox" checked={selectedFiles.includes(file.id)} onChange={() => toggleFileSelection(file.id)} className="form-checkbox h-4 w-4 rounded bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-indigo-600 focus:ring-indigo-500" />
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
-                                                {file.status === 'substituido' && (<span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">HistÃ³rico</span>)}
+                                                {file.status === 'substituido' && (<span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">Histórico</span>)}
                                                 {['pessoal_guias', 'fiscal_guias'].includes(selectedPasta.tipo) && (<span className={`text-xs px-2 py-0.5 font-semibold rounded-full ${file.entregue ? 'bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
                                                 <FileActions file={file} folderType={selectedPasta.tipo} onRename={handleRenameFile} onDelete={handleDeleteFile} busy={fileOperationId === file.id} />
                                             </li>
@@ -805,7 +805,7 @@ const PastaManager = () => {
                             <div className="flex items-start justify-between border-b border-gray-200 p-5 dark:border-gray-800">
                                 <div>
                                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#c49a61]">Classificar documento</p>
-                                    <h2 className="mt-1 text-xl font-semibold text-gray-950 dark:text-white">Qual Ã© o tipo deste arquivo?</h2>
+                                    <h2 className="mt-1 text-xl font-semibold text-gray-950 dark:text-white">Qual é o tipo deste arquivo?</h2>
                                     <p className="mt-1 max-w-md truncate text-sm text-gray-500 dark:text-gray-400">{pendingUploadFiles[0]?.name}</p>
                                 </div>
                                 <button type="button" onClick={closeDocumentTypeModal} disabled={uploading} className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:hover:bg-gray-800 dark:hover:text-gray-200">
@@ -827,10 +827,10 @@ const PastaManager = () => {
                                         {uploadDocumentTypes.map(type => <option key={type.id} value={type.id}>{type.nome}</option>)}
                                     </select>
                                 </div>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">O aplicativo usarÃ¡ esta classificaÃ§Ã£o; o nome do arquivo nÃ£o serÃ¡ usado para descobrir o tipo.</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">O aplicativo usará esta classificação; o nome do arquivo não será usado para descobrir o tipo.</p>
                                 {replacementDocument && (
                                     <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
-                                        JÃ¡ existe um documento deste tipo. Ao confirmar, <strong>{replacementDocument.nome_arquivo}</strong> serÃ¡ substituÃ­do pela nova versÃ£o.
+                                        Já existe um documento deste tipo. Ao confirmar, <strong>{replacementDocument.nome_arquivo}</strong> será substituído pela nova versão.
                                     </div>
                                 )}
                             </div>
@@ -874,12 +874,12 @@ const PastaManager = () => {
                                 </button>
                             </div>
                             <div className="p-5">
-                                <label htmlFor="email-destinatario" className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">E-mail do destinatÃ¡rio</label>
+                                <label htmlFor="email-destinatario" className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">E-mail do destinatário</label>
                                 <div className="relative mt-2">
                                     <EnvelopeIcon className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                                     <input id="email-destinatario" type="email" required autoFocus value={emailDestinatario} onChange={(event) => setEmailDestinatario(event.target.value)} placeholder="destinatario@exemplo.com" className="h-11 w-full rounded-md border border-gray-200 bg-white pl-10 pr-3 text-sm text-gray-950 outline-none transition focus:border-[#c49a61] focus:ring-2 focus:ring-amber-100 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:ring-amber-950/40" />
                                 </div>
-                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">VocÃª pode usar o e-mail cadastrado ou informar qualquer outro destinatÃ¡rio.</p>
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Você pode usar o e-mail cadastrado ou informar qualquer outro destinatário.</p>
                             </div>
                             <div className="flex flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/70 sm:flex-row sm:justify-end">
                                 <button type="button" onClick={() => setShowEmailModal(false)} disabled={sendingEmail} className="h-10 rounded-md border border-gray-200 px-4 text-sm font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Cancelar</button>
@@ -921,7 +921,7 @@ const PastaManager = () => {
                                 </button>
                             </div>
                             <div className="p-5">
-                                <label htmlFor="whatsapp-destinatario" className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">WhatsApp do destinatÃ¡rio</label>
+                                <label htmlFor="whatsapp-destinatario" className="text-xs font-bold uppercase tracking-[0.14em] text-gray-500 dark:text-gray-400">WhatsApp do destinatário</label>
                                 <div className="mt-2 flex h-11 overflow-hidden rounded-md border border-gray-200 bg-white focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100 dark:border-gray-700 dark:bg-gray-950 dark:focus-within:ring-emerald-950/40">
                                     <span className="flex items-center border-r border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">+55</span>
                                     <input
@@ -934,14 +934,14 @@ const PastaManager = () => {
                                         onChange={(event) => setWhatsAppDestinatario(formatBrazilianPhone(event.target.value))}
                                         placeholder="(28) 99999-9999 ou (28) 9999-9999"
                                         pattern="[(][0-9]{2}[)] [0-9]{4,5}-[0-9]{4}"
-                                        title="Digite o nÃºmero no formato (DD) 99999-9999 ou (DD) 9999-9999"
+                                        title="Digite o número no formato (DD) 99999-9999 ou (DD) 9999-9999"
                                         className="min-w-0 flex-1 bg-transparent px-3 text-sm text-gray-950 outline-none dark:text-white"
                                     />
                                 </div>
                                 <div className={`mt-3 rounded-md px-3 py-2 text-xs font-semibold ${[10, 11].includes(getBrazilianLocalPhoneDigits(whatsAppDestinatario).length) ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300' : 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'}`}>
                                     Formatos aceitos: +55 (DD) 99999-9999 ou +55 (DD) 9999-9999
                                 </div>
-                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">O cÃ³digo do Brasil (+55) jÃ¡ serÃ¡ incluÃ­do automaticamente.</p>
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">O código do Brasil (+55) já será incluído automaticamente.</p>
                             </div>
                             <div className="flex flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/70 sm:flex-row sm:justify-end">
                                 <button type="button" onClick={() => setShowWhatsAppModal(false)} disabled={sendingWhatsApp} className="h-10 rounded-md border border-gray-200 px-4 text-sm font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Cancelar</button>
@@ -959,4 +959,3 @@ const PastaManager = () => {
 };
 
 export default PastaManager;
-

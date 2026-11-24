@@ -241,14 +241,14 @@ class PermissaoPaginaSistemaTest(SimpleTestCase):
 
         self.assertEqual(serializer.validate_secao('Principal'), 'Principal')
         self.assertEqual(serializer.validate_secao('Financeiro'), 'Financeiro')
-        with self.assertRaisesMessage(DRFValidationError, 'Categoria invÃ¡lida para o navbar.'):
+        with self.assertRaisesMessage(DRFValidationError, 'Categoria inválida para o navbar.'):
             serializer.validate_secao('Outros')
 
 
 class NomeEmpresaTest(SimpleTestCase):
     def test_remove_cedilha_acentos_e_normaliza_espacos(self):
         self.assertEqual(
-            normalizar_nome_empresa('  AÃ§ougue   PontÃªs  '),
+            normalizar_nome_empresa('  Açougue   Pontês  '),
             'ACOUGUE PONTES',
         )
 
@@ -354,7 +354,7 @@ class ReutilizacaoBoletoHonorarioTest(SimpleTestCase):
         )
 
     def test_rejeita_competencia_invalida(self):
-        with self.assertRaisesMessage(ValueError, 'competÃªncia vÃ¡lida'):
+        with self.assertRaisesMessage(ValueError, 'competência válida'):
             normalizar_competencia_honorario('13/2026')
 
     def test_download_reutiliza_documento_existente(self):
@@ -509,7 +509,7 @@ class NomeArquivoSincronizacaoTest(SimpleTestCase):
     def test_repara_byte_cp1252_exposto_como_surrogate_escape(self):
         self.assertEqual(
             _repair_surrogate_escapes('CONTRIBUI\udcc7AO.pdf'),
-            'CONTRIBUIÃ‡AO.pdf',
+            'CONTRIBUIÇAO.pdf',
         )
 
     @patch('empresas.views.os.path.exists', return_value=False)
@@ -594,16 +594,16 @@ class TratamentoErrosDasSerproTest(SimpleTestCase):
             'dados': '',
             'mensagens': [{
                 'codigo': '[Aviso-PGDASD-MSG_E0139]',
-                'texto': 'MSG_E0139 - NÃ£o foi gerado DAS por nÃ£o haver valor devido.',
+                'texto': 'MSG_E0139 - Não foi gerado DAS por não haver valor devido.',
             }],
         })
 
         resultado = gerar_das_serpro('51.541.297/0001-33', '202606')
 
         self.assertFalse(resultado['sucesso'])
-        self.assertIn('NÃ£o hÃ¡ DAS a emitir', resultado['erro'])
+        self.assertIn('Não há DAS a emitir', resultado['erro'])
         self.assertIn('06/2026', resultado['erro'])
-        self.assertIn('nÃ£o existe valor devido', resultado['erro'])
+        self.assertIn('não existe valor devido', resultado['erro'])
 
     @patch('empresas.serpro_service.time.sleep')
     @patch('empresas.serpro_service.get_serpro_token', return_value=tokens)
@@ -614,7 +614,7 @@ class TratamentoErrosDasSerproTest(SimpleTestCase):
         resultado = gerar_das_serpro('51541297000133', '202608')
 
         self.assertFalse(resultado['sucesso'])
-        self.assertIn('temporariamente indisponÃ­vel', resultado['erro'])
+        self.assertIn('temporariamente indisponível', resultado['erro'])
         self.assertIn('08/2026', resultado['erro'])
         self.assertEqual(post_mock.call_count, 3)
         self.assertEqual(sleep_mock.call_count, 2)
@@ -624,20 +624,20 @@ class TratamentoErrosDasSerproTest(SimpleTestCase):
     def test_extrato_explica_quando_competencia_nao_tem_das(self, post_mock, _token_mock):
         post_mock.return_value = _serpro_response(200, {
             'dados': '{"anoCalendario": 2026, "periodos": []}',
-            'mensagens': [{'codigo': '[Sucesso-PGDASD]', 'texto': 'RequisiÃ§Ã£o efetuada com sucesso.'}],
+            'mensagens': [{'codigo': '[Sucesso-PGDASD]', 'texto': 'Requisição efetuada com sucesso.'}],
         })
 
         resultado = orquestrar_consulta_extrato('51541297000133', '202608')
 
         self.assertFalse(resultado['sucesso'])
-        self.assertIn('NÃ£o existe DAS gerado', resultado['erro'])
-        self.assertIn('declaraÃ§Ã£o do perÃ­odo', resultado['erro'])
+        self.assertIn('Não existe DAS gerado', resultado['erro'])
+        self.assertIn('declaração do período', resultado['erro'])
 
     def test_valida_competencia_antes_de_chamar_serpro(self):
         resultado = gerar_das_serpro('51541297000133', '202613')
 
         self.assertFalse(resultado['sucesso'])
-        self.assertIn('competÃªncia vÃ¡lida', resultado['erro'])
+        self.assertIn('competência válida', resultado['erro'])
 
 
 class InventarioArquivosTest(SimpleTestCase):
@@ -689,7 +689,7 @@ class ArmazenamentoNuvemTest(SimpleTestCase):
 
     def test_retomada_seleciona_pastas_a_partir_do_prefixo(self):
         with tempfile.TemporaryDirectory() as source:
-            for name in ('ALFA', 'ÃCARO', 'JOSE', 'KAPPA'):
+            for name in ('ALFA', 'ÍCARO', 'JOSE', 'KAPPA'):
                 os.mkdir(os.path.join(source, name))
 
             self.assertEqual(_source_directories(source, 'J'), ['JOSE', 'KAPPA'])
@@ -883,4 +883,3 @@ class ArmazenamentoDocumentosFiscaisTest(TestCase):
                 self.assertEqual(call['defaults']['competencia'], '202608')
                 self.assertEqual(call['defaults']['origem'], 'api')
                 self.assertIs(result, saved_document)
-

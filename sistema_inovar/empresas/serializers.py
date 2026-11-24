@@ -78,8 +78,8 @@ class AtividadeSerializer(serializers.ModelSerializer):
             campos_bloqueados = set(attrs) - campos_permitidos
             if campos_bloqueados:
                 raise serializers.ValidationError(
-                    'Tarefas automÃ¡ticas permitem alterar somente responsÃ¡vel, data planejada, '
-                    'duraÃ§Ã£o, prioridade e estado.'
+                    'Tarefas automáticas permitem alterar somente responsável, data planejada, '
+                    'duração, prioridade e estado.'
                 )
         tipo = attrs.get('tipo', getattr(atual, 'tipo', 'tarefa'))
         data = attrs.get('data_planejada', getattr(atual, 'data_planejada', None))
@@ -90,9 +90,9 @@ class AtividadeSerializer(serializers.ModelSerializer):
         if tipo == 'tarefa' and not data:
             raise serializers.ValidationError({'dataPlanejada': 'Informe a data planejada.'})
         if tipo == 'compromisso' and (not inicio or not termino or termino <= inicio):
-            raise serializers.ValidationError({'termino': 'O tÃ©rmino deve ser posterior ao inÃ­cio.'})
+            raise serializers.ValidationError({'termino': 'O término deve ser posterior ao início.'})
         if (not atual or atual.origem != 'automatica') and prazo and data and prazo < data:
-            raise serializers.ValidationError({'prazo': 'O prazo deve ser igual ou posterior Ã  data planejada.'})
+            raise serializers.ValidationError({'prazo': 'O prazo deve ser igual ou posterior à data planejada.'})
         if tipo != 'tarefa' and frequencia != 'nenhuma':
             raise serializers.ValidationError({'frequencia': 'Somente tarefas podem ser recorrentes.'})
         return attrs
@@ -111,7 +111,7 @@ class BlocoExecucaoSerializer(serializers.ModelSerializer):
         inicio = attrs.get('inicio', getattr(self.instance, 'inicio', None))
         termino = attrs.get('termino', getattr(self.instance, 'termino', None))
         if not inicio or not termino or termino <= inicio:
-            raise serializers.ValidationError({'termino': 'O tÃ©rmino deve ser posterior ao inÃ­cio.'})
+            raise serializers.ValidationError({'termino': 'O término deve ser posterior ao início.'})
         return attrs
 
 
@@ -154,7 +154,7 @@ class TagSerializer(serializers.ModelSerializer):
     def validate_nome(self, value):
         nome = str(value or '').strip()
         if not nome:
-            raise serializers.ValidationError("O nome da tag Ã© obrigatÃ³rio.")
+            raise serializers.ValidationError("O nome da tag é obrigatório.")
         return nome
 
     def validate_cor(self, value):
@@ -175,7 +175,7 @@ class TagSerializer(serializers.ModelSerializer):
             if self.instance:
                 queryset = queryset.exclude(pk=self.instance.pk)
             if queryset.exists():
-                raise serializers.ValidationError({'nome': ['JÃ¡ existe uma tag com esse nome para a sua funÃ§Ã£o.']})
+                raise serializers.ValidationError({'nome': ['Já existe uma tag com esse nome para a sua função.']})
 
         return attrs
 
@@ -190,13 +190,13 @@ class SocioSerializer(serializers.ModelSerializer):
     def validate_nome(self, value):
         nome = str(value or '').strip()
         if not nome:
-            raise serializers.ValidationError("O nome do sÃ³cio Ã© obrigatÃ³rio.")
+            raise serializers.ValidationError("O nome do sócio é obrigatório.")
         return nome
 
     def validate_cpf(self, value):
         cleaned_value = re.sub(r'\D', '', str(value or ''))
         if len(cleaned_value) != 11:
-            raise serializers.ValidationError("O CPF do sÃ³cio deve conter 11 dÃ­gitos numÃ©ricos.")
+            raise serializers.ValidationError("O CPF do sócio deve conter 11 dígitos numéricos.")
         return cleaned_value
 
 
@@ -273,7 +273,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
         for item in value:
             grupo = str(item or '').strip().upper()
             if grupo not in self.GRUPO_ATIVIDADE_CHOICES:
-                raise serializers.ValidationError("Grupo de atividade invÃ¡lido.")
+                raise serializers.ValidationError("Grupo de atividade inválido.")
             if grupo not in grupos:
                 grupos.append(grupo)
 
@@ -283,14 +283,14 @@ class EmpresaSerializer(serializers.ModelSerializer):
         nome = normalizar_nome_empresa(value)
         if not nome:
             raise serializers.ValidationError(
-                "Informe um nome com pelo menos uma letra ou nÃºmero."
+                "Informe um nome com pelo menos uma letra ou número."
             )
         return nome
 
     def validate_cnpj(self, value):
         if not is_valid_cnpj(value):
             raise serializers.ValidationError(
-                "CNPJ invÃ¡lido. Informe 12 letras/nÃºmeros e 2 dÃ­gitos verificadores vÃ¡lidos."
+                "CNPJ inválido. Informe 12 letras/números e 2 dígitos verificadores válidos."
             )
         return format_cnpj(value)
 
@@ -305,10 +305,10 @@ class EmpresaSerializer(serializers.ModelSerializer):
             administrador = usuario.is_staff or usuario.is_superuser or usuario.cargo == 'admin'
             if not administrador and usuario.cargo != departamento:
                 raise serializers.ValidationError({
-                    campo: f'O responsÃ¡vel deve ser administrador ou pertencer ao departamento {departamento}.'
+                    campo: f'O responsável deve ser administrador ou pertencer ao departamento {departamento}.'
                 })
             if not usuario.is_active:
-                raise serializers.ValidationError({campo: 'O responsÃ¡vel precisa estar ativo.'})
+                raise serializers.ValidationError({campo: 'O responsável precisa estar ativo.'})
         return attrs
 
     def _sync_socios(self, empresa, socios_data):
@@ -323,13 +323,13 @@ class EmpresaSerializer(serializers.ModelSerializer):
             cpf = socio_data.get('cpf')
 
             if cpf in cpfs_payload:
-                raise serializers.ValidationError({'socios': ['NÃ£o Ã© permitido repetir CPF entre os sÃ³cios da mesma empresa.']})
+                raise serializers.ValidationError({'socios': ['Não é permitido repetir CPF entre os sócios da mesma empresa.']})
             cpfs_payload.add(cpf)
 
             if socio_id:
                 socio = existing_socios.get(socio_id)
                 if not socio:
-                    raise serializers.ValidationError({'socios': [f'SÃ³cio id={socio_id} nÃ£o pertence Ã  empresa informada.']})
+                    raise serializers.ValidationError({'socios': [f'Sócio id={socio_id} não pertence à empresa informada.']})
                 socio.nome = nome
                 socio.cpf = cpf
                 socio.save(update_fields=['nome', 'cpf', 'atualizado_em'])
@@ -344,32 +344,32 @@ class EmpresaSerializer(serializers.ModelSerializer):
         
     def validate_telefone(self, value):
         """
-        Valida o campo telefone. Espera DDD (2 dÃ­gitos) + nÃºmero (8 ou 9 dÃ­gitos).
-        O 'value' aqui Ã© o que foi enviado pelo frontend.
+        Valida o campo telefone. Espera DDD (2 dígitos) + número (8 ou 9 dígitos).
+        O 'value' aqui é o que foi enviado pelo frontend.
         """
-        if not value: # Se, por algum motivo, um valor vazio passar pelas validaÃ§Ãµes padrÃ£o do DRF
-            raise serializers.ValidationError("O campo telefone Ã© obrigatÃ³rio.")
+        if not value: # Se, por algum motivo, um valor vazio passar pelas validações padrão do DRF
+            raise serializers.ValidationError("O campo telefone é obrigatório.")
 
-        # Remove todos os caracteres nÃ£o numÃ©ricos (parÃªnteses, espaÃ§os, traÃ§os)
+        # Remove todos os caracteres não numéricos (parênteses, espaços, traços)
         cleaned_value = re.sub(r'\D', '', str(value))
 
-        # Verifica se o nÃºmero limpo contÃ©m 10 ou 11 dÃ­gitos
+        # Verifica se o número limpo contém 10 ou 11 dígitos
         if not (cleaned_value.isdigit() and (len(cleaned_value) == 10 or len(cleaned_value) == 11)):
             raise serializers.ValidationError(
-                "O telefone deve ser fornecido no formato DDD + NÃºmero (10 ou 11 dÃ­gitos numÃ©ricos). Ex: 22999998888 ou 2233334444."
+                "O telefone deve ser fornecido no formato DDD + Número (10 ou 11 dígitos numéricos). Ex: 22999998888 ou 2233334444."
             )
         
-        # Retorna o nÃºmero limpo (apenas DDD + NÃºmero) para ser usado nos mÃ©todos create/update
+        # Retorna o número limpo (apenas DDD + Número) para ser usado nos métodos create/update
         return cleaned_value
 
     def _prefix_country_code(self, ddd_plus_number_str):
         """
-        Adiciona o DDI '55' ao nÃºmero de telefone.
-        Espera que ddd_plus_number_str seja uma string de 10 ou 11 dÃ­gitos.
+        Adiciona o DDI '55' ao número de telefone.
+        Espera que ddd_plus_number_str seja uma string de 10 ou 11 dígitos.
         """
-        if ddd_plus_number_str: # JÃ¡ deve ter sido validado por validate_telefone
+        if ddd_plus_number_str: # Já deve ter sido validado por validate_telefone
             return '55' + ddd_plus_number_str
-        return None # NÃ£o deve acontecer se o campo for obrigatÃ³rio
+        return None # Não deve acontecer se o campo for obrigatório
 
     def create(self, validated_data):
         """
@@ -404,13 +404,13 @@ class EmpresaSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None)
         if 'ativo' in validated_data and user and getattr(user, 'is_authenticated', False):
             instance._status_alterado_por = user
-        # Verifica se o campo 'telefone' foi incluÃ­do nos dados da requisiÃ§Ã£o de atualizaÃ§Ã£o
+        # Verifica se o campo 'telefone' foi incluído nos dados da requisição de atualização
         if 'telefone' in validated_data:
             telefone_ddd_num = validated_data.get('telefone') # Vem limpo de validate_telefone
-            if telefone_ddd_num: # Se um novo valor (jÃ¡ validado como DDD+Num) foi fornecido
+            if telefone_ddd_num: # Se um novo valor (já validado como DDD+Num) foi fornecido
                 validated_data['telefone'] = self._prefix_country_code(telefone_ddd_num)
-            # Se telefone_ddd_num for None ou vazio e o campo fosse opcional, vocÃª trataria aqui.
-            # Mas como tornamos obrigatÃ³rio, validate_telefone nÃ£o deve permitir isso.
+            # Se telefone_ddd_num for None ou vazio e o campo fosse opcional, você trataria aqui.
+            # Mas como tornamos obrigatório, validate_telefone não deve permitir isso.
 
         try:
             with transaction.atomic():
@@ -530,7 +530,7 @@ class EmpresaAvulsaFaturamentoSerializer(serializers.ModelSerializer):
     def validate_nome(self, value):
         nome = str(value or '').strip()
         if not nome:
-            raise serializers.ValidationError("O nome da empresa avulsa Ã© obrigatÃ³rio.")
+            raise serializers.ValidationError("O nome da empresa avulsa é obrigatório.")
         return nome
 
     def validate_cnpj(self, value):
@@ -538,7 +538,7 @@ class EmpresaAvulsaFaturamentoSerializer(serializers.ModelSerializer):
             return value
         if not is_valid_cnpj(value):
             raise serializers.ValidationError(
-                "CNPJ invÃ¡lido. Informe 12 letras/nÃºmeros e 2 dÃ­gitos verificadores vÃ¡lidos."
+                "CNPJ inválido. Informe 12 letras/números e 2 dígitos verificadores válidos."
             )
         return format_cnpj(value)
 
@@ -599,7 +599,7 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
                 document_type = TipoDocumento.objects.get(codigo='outro', ativo=True)
             except TipoDocumento.DoesNotExist:
                 raise serializers.ValidationError({
-                    'folder_key': 'A configuraÃ§Ã£o interna da pasta Outros nÃ£o foi encontrada.',
+                    'folder_key': 'A configuração interna da pasta Outros não foi encontrada.',
                 })
             attrs['tipo_documento'] = document_type
         if document_type:
@@ -607,13 +607,13 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
             attrs['folder_key'] = folder_key
         definition = FOLDER_DEFINITIONS.get(folder_key)
         if not definition:
-            raise serializers.ValidationError({'folder_key': 'Pasta invÃ¡lida.'})
+            raise serializers.ValidationError({'folder_key': 'Pasta inválida.'})
         ano = str(attrs.get('ano') or '').strip()
         mes = str(attrs.get('mes') or '').zfill(2)
         if definition['period'] in ('annual', 'monthly') and not re.fullmatch(r'\d{4}', ano):
-            raise serializers.ValidationError({'ano': 'Informe o ano com quatro dÃ­gitos.'})
+            raise serializers.ValidationError({'ano': 'Informe o ano com quatro dígitos.'})
         if definition['period'] == 'monthly' and (not mes.isdigit() or not 1 <= int(mes) <= 12):
-            raise serializers.ValidationError({'mes': 'Informe um mÃªs entre 01 e 12.'})
+            raise serializers.ValidationError({'mes': 'Informe um mês entre 01 e 12.'})
         attrs['ano'] = ano or None
         attrs['mes'] = mes if definition['period'] == 'monthly' else None
         if definition['period'] == 'none':
@@ -628,7 +628,7 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         # Em multipart, o DRF interpreta um checkbox ausente como False. A tela
-        # de upload nÃ£o possui esse checkbox, portanto deve respeitar o padrÃ£o
+        # de upload não possui esse checkbox, portanto deve respeitar o padrão
         # do tipo em vez de ocultar silenciosamente o documento no aplicativo.
         if 'visivel_no_app' not in self.initial_data:
             document_type = validated_data.get('tipo_documento')
@@ -680,7 +680,7 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
                     item.visivel_no_app = was_visible
                     item.save(update_fields=['status', 'visivel_no_app'])
                 except Exception:
-                    logger.exception('Falha ao restaurar documento %s apÃ³s erro na substituiÃ§Ã£o.', item.pk)
+                    logger.exception('Falha ao restaurar documento %s após erro na substituição.', item.pk)
             raise
 
 # serializers.py
@@ -700,8 +700,8 @@ class HistoricoEnviosSerializer(serializers.ModelSerializer):
 
         if len(empresas) > 1:
             logger.warning(
-                f"Telefone {normalized_remetente} estÃ¡ associado a mÃºltiplas empresas. "
-                "O histÃ³rico nÃ£o vai inferir automaticamente a empresa."
+                f"Telefone {normalized_remetente} está associado a múltiplas empresas. "
+                "O histórico não vai inferir automaticamente a empresa."
             )
 
         if empresa and 'empresa' not in validated_data:
@@ -723,8 +723,8 @@ class HistoricoEnviosSerializer(serializers.ModelSerializer):
 
         if len(empresas) > 1:
             logger.warning(
-                f"Telefone {normalized_remetente} estÃ¡ associado a mÃºltiplas empresas. "
-                "O histÃ³rico nÃ£o vai inferir automaticamente a empresa na atualizaÃ§Ã£o."
+                f"Telefone {normalized_remetente} está associado a múltiplas empresas. "
+                "O histórico não vai inferir automaticamente a empresa na atualização."
             )
 
         if empresa and 'empresa' not in validated_data:
@@ -738,7 +738,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
     CARGO_CHOICES = [
         ('pessoal', 'Departamento Pessoal'),
         ('fiscal', 'Departamento Fiscal'),
-        ('contabil', 'Departamento ContÃ¡bil'),
+        ('contabil', 'Departamento Contábil'),
         ('admin', 'Administrador'),
         ('cliente', 'Cliente do aplicativo'),
     ]
@@ -753,7 +753,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
             return 'pessoal'
         if value not in dict(self.CARGO_CHOICES).keys():
             raise serializers.ValidationError(
-                "Cargo invÃ¡lido. Escolha entre: 'pessoal', 'fiscal', 'contabil', 'admin' ou 'cliente'."
+                "Cargo inválido. Escolha entre: 'pessoal', 'fiscal', 'contabil', 'admin' ou 'cliente'."
             )
         return value
 
@@ -792,7 +792,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         if empresas_gerenciadas is not None:
             instance.empresas_gerenciadas.set(empresas_gerenciadas)
         instance.save()
-        logger.info(f"UsuÃ¡rio salvo com cargo: {instance.cargo}")
+        logger.info(f"Usuário salvo com cargo: {instance.cargo}")
         return instance
 
 
@@ -815,7 +815,7 @@ class PaginaSistemaSerializer(serializers.ModelSerializer):
 
     def validate_secao(self, value):
         if value not in NAVBAR_SECTIONS:
-            raise serializers.ValidationError('Categoria invÃ¡lida para o navbar.')
+            raise serializers.ValidationError('Categoria inválida para o navbar.')
         return value
 
     def get_atualizado_por_nome(self, obj):
@@ -865,4 +865,3 @@ class BoletoBBSerializer(serializers.ModelSerializer):
             'payload_registro', 'payload_baixa',
             'criado_em', 'atualizado_em',
         ]
-
