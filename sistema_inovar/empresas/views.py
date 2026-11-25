@@ -4665,7 +4665,7 @@ def gerar_boleto_view(request):
         resposta_existente.data['competencia'] = competencia
         return resposta_existente
 
-    # Um registro no BB sem PDF não autoriza uma nova cobrança. Essa situação
+    # Um registro bancário sem PDF não autoriza uma nova cobrança. Essa situação
     # precisa de recuperação do documento ou cancelamento explícito do título.
     registro_bb_existente = buscar_registro_boleto_honorario(empresa, competencia)
     if registro_bb_existente:
@@ -4700,10 +4700,14 @@ def gerar_boleto_view(request):
             "competencia": competencia,
         }, status=status.HTTP_404_NOT_FOUND)
 
-    return _gerar_boleto_inter(request, empresa, competencia, action, incoming_data)
+    if empresa.banco_emissor_boleto == Empresa.BANCO_BOLETO_INTER:
+        return _gerar_boleto_inter(request, empresa, competencia, action, incoming_data)
+    if empresa.banco_emissor_boleto == Empresa.BANCO_BOLETO_BANCO_DO_BRASIL:
+        return _gerar_boleto_bb(request, empresa, competencia, action, incoming_data)
+    return Response({'error': 'Banco emissor inválido.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Implementacao legada do Banco do Brasil mantida temporariamente abaixo
-    # apenas para facilitar auditoria da migracao; nao e mais executada.
+
+def _gerar_boleto_bb(request, empresa, competencia, action, incoming_data):
     # --- INÍCIO DA CORREÇÃO FINAL ---
 
     # !! IMPORTANTE !!
@@ -4719,7 +4723,7 @@ def gerar_boleto_view(request):
     data_vencimento_str = data_vencimento_dt.strftime('%d.%m.%Y')
 
     data_desconto_str = ""
-    if empresa.dias_para_desconto > 0:
+    if (empresa.dias_para_desconto or 0) > 0:
         data_desc_dt = data_vencimento_dt - timedelta(days=empresa.dias_para_desconto)
         data_desconto_str = data_desc_dt.strftime('%d.%m.%Y')
 
@@ -4736,7 +4740,7 @@ def gerar_boleto_view(request):
         "codigoModalidade": 1,
         "dataEmissao": hoje.strftime('%d.%m.%Y'),
         "dataVencimento": data_vencimento_str,
-        "valorOriginal": float(empresa.valor_honorario) if empresa.valor_honorario > 0 else 1.00,
+        "valorOriginal": float(empresa.valor_honorario) if (empresa.valor_honorario or 0) > 0 else 1.00,
         "valorAbatimento": 0.0,
         "quantidadeDiasProtesto": 0,
         "quantidadeDiasNegativacao": 0,
@@ -4857,7 +4861,7 @@ def gerar_boleto_view(request):
 
         return field_data
 
-    final_payload["desconto"] = build_charge_field(incoming_data, "desconto", empresa.desconto_taxa, data_desconto_str)
+    final_payload["desconto"] = build_charge_field(incoming_data, "desconto", empresa.desconto_taxa or 0, data_desconto_str)
     final_payload["segundoDesconto"] = build_charge_field(incoming_data, "segundoDesconto")
     final_payload["terceiroDesconto"] = build_charge_field(incoming_data, "terceiroDesconto")
     
@@ -5082,10 +5086,9 @@ def gerar_boleto_view(request):
         'enable-internal-links': None,
     }
 
-    config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
-
     # === GERAR PDF ===
     try:
+        config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
         pdf = pdfkit.from_string(
             html_string,
             False,
@@ -5318,7 +5321,7 @@ def inter_cobranca_webhook(request):
             lookup |= Q(nosso_numero=our_number)
         if not lookup:
             continue
-        boleto = BoletoBB.objects.filter(lookup).order_by('-atualizado_em').first()
+        boleto = BoletoBB.objects.filter(lookup, numero_convenio='INTER').order_by('-atualizado_em').first()
         if not boleto:
             continue
 
@@ -5348,7 +5351,7 @@ def inter_cobranca_webhook(request):
     return JsonResponse({'ok': True, 'received': len(items), 'updated': updated})
 
 
-# === WEBHOOK COBRANÇA BB (legado durante a transição) ===
+# === WEBHOOK COBRANÇA BB ===
 @csrf_exempt
 @api_view(['POST'])
 @authentication_classes([])  # externo; não requer auth
@@ -5486,7 +5489,7 @@ def bb_cobranca_webhook(request):
     numero_operacao = pick(payload_obj, 'numeroOperacao', 'numero_operacao')
 
     try:
-        boleto_qs = BoletoBB.objects.all()
+        boleto_qs = BoletoBB.objects.exclude(numero_convenio='INTER')
         if numero_convenio:
             boleto_qs = boleto_qs.filter(numero_convenio=str(numero_convenio))
 
