@@ -7,15 +7,16 @@ from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.test import override_settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.files.storage import FileSystemStorage
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.test import APIRequestFactory, force_authenticate
 from PyPDF2 import PdfReader
 
-from .models import Empresa
-from .serializers import PaginaSistemaSerializer
+from .models import DocumentoEmpresa, Empresa, Funcionario, HonorarioCompetencia, TipoDocumento
+from .serializers import DocumentoEmpresaSerializer, PaginaSistemaSerializer
 from .company_storage import _update_document_paths, rename_company_folder
 from .folder_structure import create_company_folder_structure
 from .management.commands.migrar_estrutura_pastas_2026 import Command
@@ -23,6 +24,7 @@ from .management.commands.inventariar_arquivos import _relative_path, scan_media
 from .utils import gerar_nome_pasta_empresa_padronizado, normalizar_nome_empresa
 from .views import (
     DocumentoEmpresaViewSet,
+    EmpresaViewSet,
     _ensure_sync_safe_filename,
     _normalize_whatsapp_number,
     _repair_surrogate_escapes,
@@ -43,6 +45,101 @@ from .document_storage import (
 )
 from .proposta_comercial_pdf import build_proposta_comercial_pdf
 from .management.commands.migrar_arquivos_para_nuvem import _safe_directory, _source_directories
+
+
+class HonorarioPorCompetenciaTest(TestCase):
+    def setUp(self):
+        self.usuario = Funcionario.objects.create_user(
+            username='admin-honorarios',
+            password='senha-teste',
+            is_staff=True,
+            cargo='admin',
+        )
+        self.empresa = Empresa.objects.create(
+            nome='EMPRESA HONORARIOS LTDA',
+            cnpj='12.345.678/0001-90',
+            honorario=False,
+        )
+        self.factory = APIRequestFactory()
+
+    def _listar(self, competencia):
+        request = self.factory.get(
+            '/api/empresas/',
+            {'all': 'true', 'competencia': competencia},
+        )
+        force_authenticate(request, user=self.usuario)
+        response = EmpresaViewSet.as_view({'get': 'list'})(request)
+        self.assertEqual(response.status_code, 200)
+        return next(item for item in response.data if item['id'] == self.empresa.id)
+
+    def test_check_honorario_e_independente_para_cada_competencia(self):
+        request = self.factory.patch(
+            f'/api/empresas/{self.empresa.id}/',
+            {'honorario': True, 'competencia': '200001'},
+            format='json',
+        )
+        force_authenticate(request, user=self.usuario)
+        response = EmpresaViewSet.as_view({'patch': 'partial_update'})(
+            request,
+            pk=self.empresa.id,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self._listar('200001')['honorario'])
+        self.assertFalse(self._listar('200002')['honorario'])
+        self.assertTrue(HonorarioCompetencia.objects.get(
+            empresa=self.empresa,
+            competencia='200001',
+        ).concluido)
+        self.empresa.refresh_from_db()
+        self.assertFalse(self.empresa.honorario)
+
+
+class UploadXmlPorCompetenciaTest(TestCase):
+    def setUp(self):
+        self.media_root = tempfile.TemporaryDirectory()
+        self.settings_override = override_settings(MEDIA_ROOT=self.media_root.name)
+        self.settings_override.enable()
+        self.addCleanup(self.settings_override.disable)
+        self.addCleanup(self.media_root.cleanup)
+        self.empresa = Empresa.objects.create(
+            nome='EMPRESA XML LTDA',
+            cnpj='98.765.432/0001-10',
+        )
+        self.tipo_xml = TipoDocumento.objects.get(codigo='xml_fiscal')
+
+    def _salvar_xml(self, nome):
+        serializer = DocumentoEmpresaSerializer(data={
+            'empresa': self.empresa.pk,
+            'tipo_documento': self.tipo_xml.pk,
+            'folder_key': 'fiscal_xml',
+            'nome_arquivo': nome,
+            'caminho_arquivo': SimpleUploadedFile(nome, b'<xml />', content_type='application/xml'),
+            'ano': '2026',
+            'mes': '10',
+        })
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        return serializer.save()
+
+    def test_mantem_varios_xmls_disponiveis_no_mesmo_mes(self):
+        primeiro = self._salvar_xml('nota-001.xml')
+        segundo = self._salvar_xml('nota-002.xml')
+
+        primeiro.refresh_from_db()
+        segundo.refresh_from_db()
+        self.assertEqual(primeiro.status, 'disponivel')
+        self.assertEqual(segundo.status, 'disponivel')
+        self.assertEqual(primeiro.competencia, '202610')
+        self.assertEqual(segundo.competencia, '202610')
+        self.assertEqual(
+            DocumentoEmpresa.objects.filter(
+                empresa=self.empresa,
+                folder_key='fiscal_xml',
+                competencia='202610',
+                status='disponivel',
+            ).count(),
+            2,
+        )
 
 
 class PropostaComercialPdfTest(SimpleTestCase):
@@ -651,7 +748,7 @@ class OperacoesArquivoDocumentoTest(SimpleTestCase):
             self.assertFalse(os.path.exists(file_path))
 
 
-class ArmazenamentoDctfWebTest(SimpleTestCase):
+class ArmazenamentoDctfWebTest(TestCase):
     @patch('empresas.document_storage._atomic_storage_write')
     @patch('empresas.document_storage.DocumentoEmpresa.objects.select_for_update')
     @patch('empresas.document_storage.find_empresa_by_cnpj')
@@ -695,18 +792,24 @@ class ArmazenamentoDctfWebTest(SimpleTestCase):
                     written_name,
                     f'EMPRESA TESTE/{folder_path}/2026/08/{expected_filename}',
                 )
-                manager.update_or_create.assert_called_with(
-                    empresa=empresa,
-                    folder_key=folder_key,
-                    nome_arquivo=expected_filename,
-                    ano='2026',
-                    mes='08',
-                    defaults={'caminho_arquivo': stored_name},
-                )
+                call = manager.update_or_create.call_args.kwargs
+                self.assertEqual(call['empresa'], empresa)
+                self.assertEqual(call['folder_key'], folder_key)
+                self.assertEqual(call['nome_arquivo'], expected_filename)
+                self.assertEqual(call['ano'], '2026')
+                self.assertEqual(call['mes'], '08')
+                self.assertEqual(call['defaults']['caminho_arquivo'], stored_name)
+                self.assertEqual(call['defaults']['tipo_documento'].codigo, {
+                    'GERARGUIA31': 'guia_inss',
+                    'CONSRECIBO32': 'recibo_dctfweb',
+                    'CONSDECCOMPLETA33': 'declaracao_dctfweb',
+                }[service_id])
+                self.assertEqual(call['defaults']['competencia'], '202608')
+                self.assertEqual(call['defaults']['origem'], 'api')
                 self.assertIs(result, saved_document)
 
 
-class ArmazenamentoDocumentosFiscaisTest(SimpleTestCase):
+class ArmazenamentoDocumentosFiscaisTest(TestCase):
     @patch('empresas.document_storage._atomic_storage_write')
     @patch('empresas.document_storage.DocumentoEmpresa.objects.select_for_update')
     @patch('empresas.document_storage.find_empresa_by_cnpj')
@@ -765,12 +868,18 @@ class ArmazenamentoDocumentosFiscaisTest(SimpleTestCase):
                     stored_name.replace('\\', '/'),
                     f'EMPRESA TESTE/{folder_path}/2026/08/{expected_filename}',
                 )
-                manager.update_or_create.assert_called_with(
-                    empresa=empresa,
-                    folder_key=folder_key,
-                    nome_arquivo=expected_filename,
-                    ano='2026',
-                    mes='08',
-                    defaults={'caminho_arquivo': stored_name},
-                )
+                call = manager.update_or_create.call_args.kwargs
+                self.assertEqual(call['empresa'], empresa)
+                self.assertEqual(call['folder_key'], folder_key)
+                self.assertEqual(call['nome_arquivo'], expected_filename)
+                self.assertEqual(call['ano'], '2026')
+                self.assertEqual(call['mes'], '08')
+                self.assertEqual(call['defaults']['caminho_arquivo'], stored_name)
+                self.assertEqual(call['defaults']['tipo_documento'].codigo, {
+                    'extrato_simples': 'extrato_simples',
+                    'recibo_simples': 'recibo_simples',
+                    'parcelamento_sn': 'guia_parcelamento_simples',
+                }[document_type])
+                self.assertEqual(call['defaults']['competencia'], '202608')
+                self.assertEqual(call['defaults']['origem'], 'api')
                 self.assertIs(result, saved_document)

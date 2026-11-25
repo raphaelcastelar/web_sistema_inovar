@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'empresas',
+    'monitor_fiscal',
     'corsheaders',
     'django_filters',
 ]
@@ -212,3 +213,27 @@ INTER_DIAS_AGENDA = config('INTER_DIAS_AGENDA', default=60, cast=int)
 INTER_WEBHOOK_TOKEN = config('INTER_WEBHOOK_TOKEN', default='')
 
 WKHTMLTOPDF_PATH = config('WKHTMLTOPDF_PATH', default='/usr/bin/wkhtmltopdf')
+
+# Monitor Fiscal - captura direta nos serviços oficiais (SEFAZ/AN, ADN NFS-e).
+# Chave Fernet obrigatória para armazenar certificados digitais (nunca versionar).
+MONITOR_FISCAL_CHAVE_CRIPTOGRAFIA = config('MONITOR_FISCAL_CHAVE_CRIPTOGRAFIA', default='')
+# Cadeia de ACs para validar os servidores governamentais (ex.: cadeia ICP-Brasil em PEM).
+MONITOR_FISCAL_CA_BUNDLE = config('MONITOR_FISCAL_CA_BUNDLE', default='')
+MONITOR_FISCAL_TIMEOUT = config('MONITOR_FISCAL_TIMEOUT', default=60, cast=int)
+MONITOR_FISCAL_INTERVALO_SEM_DOCUMENTOS_MIN = config('MONITOR_FISCAL_INTERVALO_SEM_DOCUMENTOS_MIN', default=60, cast=int)
+MONITOR_FISCAL_BLOQUEIO_CONSUMO_INDEVIDO_MIN = config('MONITOR_FISCAL_BLOQUEIO_CONSUMO_INDEVIDO_MIN', default=60, cast=int)
+MONITOR_FISCAL_MAX_LOTES_POR_EXECUCAO = config('MONITOR_FISCAL_MAX_LOTES_POR_EXECUCAO', default=20, cast=int)
+MONITOR_FISCAL_CONSULTAS_PONTUAIS_POR_HORA = config('MONITOR_FISCAL_CONSULTAS_PONTUAIS_POR_HORA', default=20, cast=int)
+MONITOR_FISCAL_TRAVA_EXECUCAO_MIN = config('MONITOR_FISCAL_TRAVA_EXECUCAO_MIN', default=15, cast=int)
+MONITOR_FISCAL_EXECUCOES_PARALELAS = config('MONITOR_FISCAL_EXECUCOES_PARALELAS', default=4, cast=int)
+# Sobrescrita de endereços (ex.: homologação do CT-e após confirmação no portal oficial):
+# {'CTE_DISTRIBUICAO': {2: 'https://...'}}
+MONITOR_FISCAL_ENDPOINTS = {}
+_mf_cte_hom = config('MONITOR_FISCAL_CTE_DISTRIBUICAO_HOMOLOGACAO', default='')
+if _mf_cte_hom:
+    MONITOR_FISCAL_ENDPOINTS['CTE_DISTRIBUICAO'] = {2: _mf_cte_hom}
+# Nomes de parâmetros da API do ADN, ajustáveis após conferência no Swagger oficial.
+MONITOR_FISCAL_ADN_PARAMETROS = {
+    'cnpj': config('MONITOR_FISCAL_ADN_PARAM_CNPJ', default='cnpjConsulta'),
+    'lote': config('MONITOR_FISCAL_ADN_PARAM_LOTE', default='lote'),
+}

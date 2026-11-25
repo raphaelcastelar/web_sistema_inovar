@@ -14,6 +14,7 @@ PAGE_CATALOG = [
 
     # Fiscal
     {'chave': 'central_das', 'nome': 'Central DAS', 'rota': '/central-simples', 'secao': 'Fiscal', 'descricao': 'Apuração e documentos do Simples Nacional.'},
+    {'chave': 'monitor_fiscal', 'nome': 'Monitor Fiscal', 'rota': '/monitor-fiscal', 'secao': 'Fiscal', 'descricao': 'Captura, central e auditoria de NF-e, NFS-e, CT-e e MDF-e nos serviços oficiais.'},
     {'chave': 'parcelamento_simples', 'nome': 'Central Parcelamento SN', 'rota': '/parcelamento-simples', 'secao': 'Fiscal', 'descricao': 'Consulta e emissão de parcelas do Simples Nacional.'},
 
     # Pessoal

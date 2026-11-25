@@ -18,6 +18,10 @@ from .models import (
     PaginaSistema,
     Atividade,
     BlocoExecucao,
+    SolicitacaoCliente,
+    SimplesApiUsage,
+    TipoDocumento,
+    DocumentoEmpresa,
 )
 
 
@@ -47,8 +51,11 @@ class AtividadeAdmin(admin.ModelAdmin):
 class FuncionarioAdmin(UserAdmin):
     # Adiciona seus campos customizados ('theme' e 'empresas_gerenciadas') à tela de edição
     fieldsets = UserAdmin.fieldsets + (
-        ('Configurações Pessoais', {'fields': ('theme',)}),
+        ('Configurações Pessoais', {'fields': ('theme', 'cargo')}),
         ('Gerenciamento de Empresas', {'fields': ('empresas_gerenciadas',)}),
+    )
+    add_fieldsets = UserAdmin.add_fieldsets + (
+        ('Acesso Inovar', {'fields': ('cargo', 'theme')}),
     )
     # Adiciona colunas extras na lista de funcionários
     list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'is_superuser')
@@ -74,9 +81,41 @@ class EmpresaAdmin(admin.ModelAdmin):
     list_display = ('nome', 'cnpj', 'email', 'ativo', 'criado_em', 'desativado_em', 'monitorar_simples')
     search_fields = ('nome', 'cnpj')
     list_filter = ('ativo', 'monitorar_simples')
-    filter_horizontal = ('tags',)
+    filter_horizontal = ('tags', 'usuarios')
     readonly_fields = ('criado_em', 'desativado_em')
     inlines = (HistoricoStatusEmpresaInline,)
+
+
+@admin.register(SolicitacaoCliente)
+class SolicitacaoClienteAdmin(admin.ModelAdmin):
+    list_display = ('empresa', 'tipo', 'assunto', 'status', 'criada_em')
+    list_filter = ('tipo', 'status', 'criada_em')
+    search_fields = ('empresa__nome', 'empresa__cnpj', 'assunto', 'mensagem')
+    readonly_fields = ('empresa', 'usuario', 'tipo', 'assunto', 'mensagem', 'criada_em', 'atualizada_em')
+
+
+@admin.register(SimplesApiUsage)
+class SimplesApiUsageAdmin(admin.ModelAdmin):
+    list_display = ('empresa', 'action', 'competencia', 'used_at')
+    list_filter = ('action', 'used_at')
+    search_fields = ('empresa__nome', 'empresa__cnpj', 'competencia')
+    readonly_fields = ('empresa', 'usuario', 'action', 'period_key', 'competencia', 'used_at')
+
+
+@admin.register(TipoDocumento)
+class TipoDocumentoAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'codigo', 'categoria', 'folder_key', 'periodicidade', 'ativo')
+    list_filter = ('categoria', 'periodicidade', 'ativo')
+    search_fields = ('nome', 'codigo')
+
+
+@admin.register(DocumentoEmpresa)
+class DocumentoEmpresaAdmin(admin.ModelAdmin):
+    list_display = ('nome_arquivo', 'empresa', 'tipo_documento', 'competencia', 'origem', 'visivel_no_app', 'status')
+    list_filter = ('tipo_documento__categoria', 'tipo_documento', 'origem', 'visivel_no_app', 'status')
+    search_fields = ('nome_arquivo', 'empresa__nome', 'empresa__cnpj', 'competencia')
+    autocomplete_fields = ('empresa', 'tipo_documento', 'documento_anterior', 'gerado_por')
+    readonly_fields = ('checksum_sha256', 'criado_em')
 
 
 @admin.register(EmpresaAvulsaFaturamento)

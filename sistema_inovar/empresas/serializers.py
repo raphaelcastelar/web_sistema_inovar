@@ -1,14 +1,32 @@
 from rest_framework import serializers
-from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao
+from .models import Empresa, EmpresaAvulsaFaturamento, Tag, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, SimplesNacional, Outros, DocumentoEmpresa, TipoDocumento, HistoricoEnvios, HistoricoStatusEmpresa, Funcionario, Pendencia, Notificacao, UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao
 from .folder_structure import FOLDER_DEFINITIONS
 from .utils import format_cnpj, is_valid_cnpj, normalizar_nome_empresa
 from .page_catalog import NAVBAR_SECTIONS
 from .company_storage import rename_company_folder
+from .document_storage import rename_document_file
 from django.db import transaction
+from django.utils import timezone
 import re
+import os
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def archived_document_name(document, replaced_on=None):
+    """Monta o nome preservado de uma versao que deixou de ser a atual."""
+    original_name = document.nome_arquivo
+    stem, extension = os.path.splitext(original_name)
+    if document.tipo_documento.codigo == 'ultima_alteracao':
+        replaced_on = replaced_on or timezone.localdate()
+        suffix = f'_SUBSTITUIDO_EM_{replaced_on:%d_%m_%Y}_V{document.versao}_{document.pk}'
+    else:
+        suffix = f'_V{document.versao}_{document.pk}'
+
+    max_length = DocumentoEmpresa._meta.get_field('nome_arquivo').max_length
+    available_stem_length = max(1, max_length - len(extension) - len(suffix))
+    return f'{stem[:available_stem_length]}{suffix}{extension}'
 
 
 class AtividadeSerializer(serializers.ModelSerializer):
@@ -556,13 +574,37 @@ class OutrosSerializer(serializers.ModelSerializer):
 
 
 class DocumentoEmpresaSerializer(serializers.ModelSerializer):
+    tipo_documento = serializers.PrimaryKeyRelatedField(
+        queryset=TipoDocumento.objects.filter(ativo=True), required=False,
+    )
+    tipo_codigo = serializers.CharField(source='tipo_documento.codigo', read_only=True)
+    tipo_nome = serializers.CharField(source='tipo_documento.nome', read_only=True)
+    categoria = serializers.CharField(source='tipo_documento.categoria', read_only=True)
+
     class Meta:
         model = DocumentoEmpresa
-        fields = ['id', 'empresa', 'folder_key', 'nome_arquivo', 'caminho_arquivo', 'ano', 'mes', 'entregue', 'criado_em']
+        fields = [
+            'id', 'empresa', 'tipo_documento', 'tipo_codigo', 'tipo_nome', 'categoria',
+            'folder_key', 'nome_arquivo', 'caminho_arquivo', 'ano', 'mes', 'competencia',
+            'entregue', 'origem', 'visivel_no_app', 'status', 'versao', 'checksum_sha256',
+            'gerado_em', 'metadados', 'criado_em',
+        ]
         read_only_fields = ['criado_em']
 
     def validate(self, attrs):
+        document_type = attrs.get('tipo_documento', getattr(self.instance, 'tipo_documento', None))
         folder_key = attrs.get('folder_key', getattr(self.instance, 'folder_key', None))
+        if folder_key == 'outros':
+            try:
+                document_type = TipoDocumento.objects.get(codigo='outro', ativo=True)
+            except TipoDocumento.DoesNotExist:
+                raise serializers.ValidationError({
+                    'folder_key': 'A configuração interna da pasta Outros não foi encontrada.',
+                })
+            attrs['tipo_documento'] = document_type
+        if document_type:
+            folder_key = document_type.folder_key
+            attrs['folder_key'] = folder_key
         definition = FOLDER_DEFINITIONS.get(folder_key)
         if not definition:
             raise serializers.ValidationError({'folder_key': 'Pasta inválida.'})
@@ -576,7 +618,70 @@ class DocumentoEmpresaSerializer(serializers.ModelSerializer):
         attrs['mes'] = mes if definition['period'] == 'monthly' else None
         if definition['period'] == 'none':
             attrs['ano'] = None
+        if document_type and document_type.periodicidade == 'mensal' and attrs.get('ano') and attrs.get('mes'):
+            attrs['competencia'] = f"{attrs['ano']}{attrs['mes']}"
+        elif document_type and document_type.periodicidade == 'anual' and attrs.get('ano'):
+            attrs['competencia'] = attrs['ano']
+        else:
+            attrs['competencia'] = ''
         return attrs
+
+    def create(self, validated_data):
+        # Em multipart, o DRF interpreta um checkbox ausente como False. A tela
+        # de upload não possui esse checkbox, portanto deve respeitar o padrão
+        # do tipo em vez de ocultar silenciosamente o documento no aplicativo.
+        if 'visivel_no_app' not in self.initial_data:
+            document_type = validated_data.get('tipo_documento')
+            validated_data['visivel_no_app'] = (
+                document_type.visivel_app_padrao if document_type else True
+            )
+
+        document_type = validated_data.get('tipo_documento')
+        company = validated_data.get('empresa')
+        competence = validated_data.get('competencia', '')
+        # A alteracao mais recente e sempre a versao publicada no aplicativo.
+        if document_type and document_type.codigo == 'ultima_alteracao':
+            validated_data['visivel_no_app'] = True
+        # Cada arquivo XML representa um documento fiscal independente. Mesmo
+        # quando empresa, tipo e competencia coincidem, o novo upload deve ser
+        # acrescentado ao mes em vez de substituir o XML anterior.
+        if validated_data.get('folder_key') in ('outros', 'fiscal_xml'):
+            return super().create(validated_data)
+
+        current_documents = list(DocumentoEmpresa.objects.filter(
+            empresa=company,
+            tipo_documento=document_type,
+            competencia=competence,
+            status='disponivel',
+        ).order_by('-versao', '-criado_em')) if document_type and company else []
+
+        if not current_documents:
+            return super().create(validated_data)
+
+        previous = current_documents[0]
+        validated_data['versao'] = max(item.versao for item in current_documents) + 1
+        validated_data['documento_anterior'] = previous
+        archived = []
+        try:
+            for item in current_documents:
+                original_name = item.nome_arquivo
+                archived_name = archived_document_name(item)
+                rename_document_file(item, archived_name)
+                archived.append((item, original_name, item.visivel_no_app))
+                item.status = 'substituido'
+                item.visivel_no_app = False
+                item.save(update_fields=['status', 'visivel_no_app'])
+            return super().create(validated_data)
+        except Exception:
+            for item, original_name, was_visible in reversed(archived):
+                try:
+                    rename_document_file(item, original_name)
+                    item.status = 'disponivel'
+                    item.visivel_no_app = was_visible
+                    item.save(update_fields=['status', 'visivel_no_app'])
+                except Exception:
+                    logger.exception('Falha ao restaurar documento %s após erro na substituição.', item.pk)
+            raise
 
 # serializers.py
 class HistoricoEnviosSerializer(serializers.ModelSerializer):
@@ -635,6 +740,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
         ('fiscal', 'Departamento Fiscal'),
         ('contabil', 'Departamento Contábil'),
         ('admin', 'Administrador'),
+        ('cliente', 'Cliente do aplicativo'),
     ]
 
     class Meta:
@@ -647,7 +753,7 @@ class FuncionarioSerializer(serializers.ModelSerializer):
             return 'pessoal'
         if value not in dict(self.CARGO_CHOICES).keys():
             raise serializers.ValidationError(
-                "Cargo inválido. Escolha entre: 'pessoal', 'fiscal', 'contabil' ou 'admin'."
+                "Cargo inválido. Escolha entre: 'pessoal', 'fiscal', 'contabil', 'admin' ou 'cliente'."
             )
         return value
 
@@ -658,13 +764,14 @@ class FuncionarioSerializer(serializers.ModelSerializer):
             email=validated_data.get('email', ''),
             first_name=validated_data.get('first_name', ''),
             last_name=validated_data.get('last_name', ''),
-            password=validated_data['password']
+            password=validated_data['password'],
+            cargo=validated_data.get('cargo', 'pessoal'),
+            theme=validated_data.get('theme', 'light'),
         )
         user.is_active = validated_data.get('is_active', True)
         user.is_staff = validated_data.get('is_staff', False)
-        user.cargo = validated_data.get('cargo', 'pessoal')
-        user.theme = validated_data.get('theme', 'light')
-        user.empresas_gerenciadas.set(empresas_gerenciadas)
+        if user.cargo != 'cliente':
+            user.empresas_gerenciadas.set(empresas_gerenciadas)
         user.save()
         return user
 

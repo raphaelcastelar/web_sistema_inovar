@@ -7,6 +7,7 @@ from django.urls import reverse
 
 from . import inter_service
 from .models import BoletoBB, Empresa
+from .views import _existing_inter_request_code
 
 
 INTER_TEST_SETTINGS = {
@@ -64,6 +65,31 @@ class InterServiceTests(SimpleTestCase):
         )
         self.assertEqual(request.call_args.kwargs['cert'], (__file__, __file__))
 
+    def test_extracts_existing_billing_request_code_from_duplicate_error(self):
+        request_code = 'b6b75354-2652-4324-a870-7b3a2cdcc797'
+        error = inter_service.InterAPIError(
+            'A API do Banco Inter recusou a operacao.',
+            status_code=400,
+            response_body={
+                'detail': (
+                    'Não será possível emitir a cobrança. Pois, existe uma cobrança '
+                    'emitida há poucos minutos com os mesmos dados com a situação '
+                    '“a receber” com código de solicitação: ' + request_code + '.'
+                ),
+            },
+        )
+
+        self.assertEqual(_existing_inter_request_code(error), request_code)
+
+    def test_does_not_recover_request_code_from_unrelated_error(self):
+        error = inter_service.InterAPIError(
+            'A API do Banco Inter recusou a operacao.',
+            status_code=400,
+            response_body={'detail': 'Pagador inválido.'},
+        )
+
+        self.assertIsNone(_existing_inter_request_code(error))
+
 
 class InterWebhookTests(TestCase):
     def setUp(self):
@@ -103,3 +129,19 @@ class InterWebhookTests(TestCase):
         self.assertEqual(self.boleto.valor_pago, Decimal('100.00'))
         self.assertEqual(self.boleto.data_pagamento.isoformat(), '2026-11-10')
         self.assertEqual(self.boleto.payload_baixa['origemRecebimento'], 'PIX')
+
+    def test_inter_uuid_fits_legacy_billing_record(self):
+        request_code = '12345678-1234-1234-1234-123456789012'
+
+        boleto = BoletoBB.objects.create(
+            empresa=self.empresa,
+            numero_convenio='INTER',
+            numero_operacao='I2202611',
+            numero_titulo_cliente=request_code,
+            nosso_numero=request_code,
+            valor_original=Decimal('100.00'),
+        )
+
+        boleto.refresh_from_db()
+        self.assertEqual(boleto.numero_titulo_cliente, request_code)
+        self.assertEqual(boleto.nosso_numero, request_code)

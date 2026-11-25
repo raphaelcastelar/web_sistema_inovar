@@ -345,7 +345,7 @@ const BoletosPorEmpresaPage = () => {
       <table className="min-w-full text-sm">
         <thead>
           <tr className="border-b border-gray-100 dark:border-gray-800">
-            {['Título', 'Nosso número', 'Valor', 'Vencimento', 'Pagamento', 'Status', 'Atualizado'].map((h) => (
+            {['Identificador', 'Referência bancária', 'Valor', 'Vencimento', 'Pagamento', 'Status', 'Atualizado'].map((h) => (
               <th key={h} className="px-5 py-3 text-left text-[11px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500">
                 {h}
               </th>

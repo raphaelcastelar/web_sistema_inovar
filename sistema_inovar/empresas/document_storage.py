@@ -2,11 +2,13 @@ import os
 import posixpath
 import re
 import uuid
+import hashlib
 
 from django.core.files.storage import default_storage
 from django.db import transaction
+from django.utils import timezone
 
-from .models import DocumentoEmpresa, Empresa
+from .models import DocumentoEmpresa, Empresa, TipoDocumento
 from .utils import sanitize_filename_for_upload
 
 
@@ -14,14 +16,17 @@ DCTFWEB_DOCUMENT_CONFIG = {
     'GERARGUIA31': {
         'folder_key': 'pessoal_guias',
         'filename_prefix': 'GUIA_DCTFWEB',
+        'type_code': 'guia_inss',
     },
     'CONSRECIBO32': {
         'folder_key': 'pessoal_relatorios',
         'filename_prefix': 'RECIBO_DCTFWEB',
+        'type_code': 'recibo_dctfweb',
     },
     'CONSDECCOMPLETA33': {
         'folder_key': 'pessoal_relatorios',
         'filename_prefix': 'DECLARACAO_COMPLETA_DCTFWEB',
+        'type_code': 'declaracao_dctfweb',
     },
 }
 
@@ -30,16 +35,19 @@ FISCAL_DOCUMENT_CONFIG = {
         'folder_key': 'fiscal_extratos',
         'filename_prefix': 'EXTRATO_SIMPLES',
         'allowed_extensions': ('pdf',),
+        'type_code': 'extrato_simples',
     },
     'recibo_simples': {
         'folder_key': 'fiscal_extratos',
         'filename_prefix': 'RECIBO_SIMPLES',
         'allowed_extensions': ('pdf', 'zip'),
+        'type_code': 'recibo_simples',
     },
     'parcelamento_sn': {
         'folder_key': 'fiscal_guias',
         'filename_prefix': 'GUIA_PARCELAMENTO_SN',
         'allowed_extensions': ('pdf',),
+        'type_code': 'guia_parcelamento_simples',
     },
 }
 
@@ -53,6 +61,25 @@ def find_empresa_by_cnpj(cnpj):
         if re.sub(r'\D', '', str(empresa.cnpj or '')) == normalized:
             return empresa
     return None
+
+
+def find_reusable_document(empresa, type_code, competencia, visible_only=False):
+    """Retorna somente um documento publicado cujo arquivo ainda existe."""
+    query = DocumentoEmpresa.objects.filter(
+        empresa=empresa,
+        tipo_documento__codigo=type_code,
+        competencia=competencia,
+        status='disponivel',
+    )
+    if visible_only:
+        query = query.filter(visivel_no_app=True)
+    document = query.order_by('-versao', '-criado_em').first()
+    if not document or not document.caminho_arquivo:
+        return None
+    try:
+        return document if document.caminho_arquivo.storage.exists(document.caminho_arquivo.name) else None
+    except (OSError, ValueError):
+        return None
 
 
 def _atomic_storage_write(storage, relative_name, content):
@@ -144,7 +171,7 @@ def delete_document_file(document):
 
 
 @transaction.atomic
-def save_generated_das(cnpj, periodo, pdf_content):
+def save_generated_das(cnpj, periodo, pdf_content, force_new_version=False, generated_by=None):
     """Salva/reprocessa um DAS em FISCAL/GUIAS/AAAA/MM de forma idempotente."""
     normalized_cnpj = re.sub(r'\D', '', str(cnpj or ''))
     normalized_period = re.sub(r'\D', '', str(periodo or ''))
@@ -161,12 +188,33 @@ def save_generated_das(cnpj, periodo, pdf_content):
 
     year, month = normalized_period[:4], normalized_period[4:]
     filename = f'DAS_{normalized_cnpj}_{normalized_period}.pdf'
+    document_type = TipoDocumento.objects.get(codigo='das_simples', ativo=True)
+    previous = find_reusable_document(empresa, 'das_simples', normalized_period)
+    version = previous.versao if previous else 1
+    if force_new_version and previous:
+        archived_name = f'DAS_{normalized_cnpj}_{normalized_period}_V{previous.versao}.pdf'
+        rename_document_file(previous, archived_name)
+        previous.status = 'substituido'
+        previous.save(update_fields=['status'])
+        version = previous.versao + 1
+    elif previous:
+        version = previous.versao
     document = DocumentoEmpresa(
         empresa=empresa,
+        tipo_documento=document_type,
         folder_key='fiscal_guias',
         nome_arquivo=filename,
         ano=year,
         mes=month,
+        competencia=normalized_period,
+        origem='api',
+        status='disponivel',
+        visivel_no_app=True,
+        versao=version,
+        documento_anterior=previous if force_new_version else previous.documento_anterior if previous else None,
+        checksum_sha256=hashlib.sha256(pdf_content).hexdigest(),
+        gerado_em=timezone.now(),
+        gerado_por=generated_by,
     )
     relative_name = document.caminho_arquivo.field.generate_filename(document, filename)
 
@@ -182,7 +230,19 @@ def save_generated_das(cnpj, periodo, pdf_content):
         nome_arquivo=filename,
         ano=year,
         mes=month,
-        defaults={'caminho_arquivo': relative_name},
+        defaults={
+            'caminho_arquivo': relative_name,
+            'tipo_documento': document_type,
+            'competencia': normalized_period,
+            'origem': 'api',
+            'status': 'disponivel',
+            'visivel_no_app': True,
+            'versao': version,
+            'documento_anterior': previous if force_new_version else previous.documento_anterior if previous else None,
+            'checksum_sha256': hashlib.sha256(pdf_content).hexdigest(),
+            'gerado_em': timezone.now(),
+            'gerado_por': generated_by,
+        },
     )
     return saved_document
 
@@ -209,12 +269,20 @@ def save_generated_dctfweb(cnpj, periodo, service_id, pdf_content):
 
     year, month = normalized_period[:4], normalized_period[4:]
     filename = f"{config['filename_prefix']}_{normalized_cnpj}_{normalized_period}.pdf"
+    document_type = TipoDocumento.objects.get(codigo=config['type_code'], ativo=True)
     document = DocumentoEmpresa(
         empresa=empresa,
+        tipo_documento=document_type,
         folder_key=config['folder_key'],
         nome_arquivo=filename,
         ano=year,
         mes=month,
+        competencia=normalized_period,
+        origem='api',
+        status='disponivel',
+        visivel_no_app=True,
+        checksum_sha256=hashlib.sha256(pdf_content).hexdigest(),
+        gerado_em=timezone.now(),
     )
     relative_name = document.caminho_arquivo.field.generate_filename(document, filename)
 
@@ -228,7 +296,12 @@ def save_generated_dctfweb(cnpj, periodo, service_id, pdf_content):
         nome_arquivo=filename,
         ano=year,
         mes=month,
-        defaults={'caminho_arquivo': relative_name},
+        defaults={
+            'caminho_arquivo': relative_name, 'tipo_documento': document_type,
+            'competencia': normalized_period, 'origem': 'api', 'status': 'disponivel',
+            'visivel_no_app': True, 'checksum_sha256': hashlib.sha256(pdf_content).hexdigest(),
+            'gerado_em': timezone.now(),
+        },
     )
     return saved_document
 
@@ -264,12 +337,20 @@ def save_generated_fiscal_document(cnpj, periodo, document_type, file_content):
 
     year, month = normalized_period[:4], normalized_period[4:]
     filename = f"{config['filename_prefix']}_{normalized_cnpj}_{normalized_period}.{extension}"
+    document_type = TipoDocumento.objects.get(codigo=config['type_code'], ativo=True)
     document = DocumentoEmpresa(
         empresa=empresa,
+        tipo_documento=document_type,
         folder_key=config['folder_key'],
         nome_arquivo=filename,
         ano=year,
         mes=month,
+        competencia=normalized_period,
+        origem='api',
+        status='disponivel',
+        visivel_no_app=True,
+        checksum_sha256=hashlib.sha256(file_content).hexdigest(),
+        gerado_em=timezone.now(),
     )
     relative_name = document.caminho_arquivo.field.generate_filename(document, filename)
 
@@ -283,7 +364,12 @@ def save_generated_fiscal_document(cnpj, periodo, document_type, file_content):
         nome_arquivo=filename,
         ano=year,
         mes=month,
-        defaults={'caminho_arquivo': relative_name},
+        defaults={
+            'caminho_arquivo': relative_name, 'tipo_documento': document_type,
+            'competencia': normalized_period, 'origem': 'api', 'status': 'disponivel',
+            'visivel_no_app': True, 'checksum_sha256': hashlib.sha256(file_content).hexdigest(),
+            'gerado_em': timezone.now(),
+        },
     )
     return saved_document
 

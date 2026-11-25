@@ -1,0 +1,13 @@
+[Unit]
+Description=Monitor Fiscal - alertas de certificado, manifestações pendentes e auditoria
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/apps/web_sistema_inovar/sistema_inovar
+EnvironmentFile=/opt/apps/web_sistema_inovar/sistema_inovar/sistema_inovar/.env
+ExecStart=/opt/apps/web_sistema_inovar/sistema_inovar/.venv/bin/python manage.py monitor_fiscal_rotinas
+TimeoutStartSec=1h
+Nice=10

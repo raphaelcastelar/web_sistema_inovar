@@ -230,6 +230,42 @@ class HistoricoStatusEmpresa(models.Model):
         ]
 
 
+class HonorarioCompetencia(models.Model):
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name='honorarios_competencia',
+    )
+    competencia = models.CharField(max_length=6)
+    concluido = models.BooleanField(default=False)
+    atualizado_em = models.DateTimeField(auto_now=True)
+    atualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='honorarios_competencia_atualizados',
+    )
+
+    class Meta:
+        ordering = ['-competencia', 'empresa_id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa', 'competencia'],
+                name='honorario_unico_empresa_competencia',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['competencia', 'concluido'],
+                name='honor_comp_concl_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.empresa.nome} - {self.competencia} - {self.concluido}'
+
+
 class Tag(models.Model):
     CARGO_CHOICES = [
         ('pessoal', 'Departamento Pessoal'),
@@ -370,14 +406,68 @@ def documento_empresa_upload_path(instance, filename):
     return os.path.join(*parts, sanitize_filename(filename))
 
 
+class TipoDocumento(models.Model):
+    PERIODICIDADE_CHOICES = [
+        ('sem_periodo', 'Sem período'),
+        ('mensal', 'Mensal'),
+        ('anual', 'Anual'),
+        ('eventual', 'Eventual'),
+    ]
+
+    codigo = models.SlugField(max_length=60, unique=True)
+    nome = models.CharField(max_length=120)
+    categoria = models.CharField(max_length=30)
+    folder_key = models.CharField(max_length=60)
+    periodicidade = models.CharField(max_length=20, choices=PERIODICIDADE_CHOICES)
+    visivel_app_padrao = models.BooleanField(default=True)
+    ativo = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['categoria', 'nome']
+
+    def __str__(self):
+        return self.nome
+
+
 class DocumentoEmpresa(models.Model):
+    ORIGEM_CHOICES = [
+        ('upload_web', 'Upload pelo sistema web'),
+        ('api', 'Gerado por API'),
+        ('importacao', 'Importado do armazenamento'),
+        ('migracao', 'Migrado do acervo anterior'),
+    ]
+    STATUS_CHOICES = [
+        ('processando', 'Processando'),
+        ('disponivel', 'Disponível'),
+        ('falhou', 'Falhou'),
+        ('substituido', 'Substituído'),
+        ('arquivado', 'Arquivado'),
+    ]
+
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='documentos_nova_estrutura')
+    tipo_documento = models.ForeignKey(TipoDocumento, on_delete=models.PROTECT, related_name='documentos')
     folder_key = models.CharField(max_length=60)
     nome_arquivo = models.CharField(max_length=255)
     caminho_arquivo = models.FileField(upload_to=documento_empresa_upload_path, max_length=500)
     ano = models.CharField(max_length=4, null=True, blank=True)
     mes = models.CharField(max_length=2, null=True, blank=True)
     entregue = models.BooleanField(default=False)
+    competencia = models.CharField(max_length=6, blank=True, default='')
+    origem = models.CharField(max_length=20, choices=ORIGEM_CHOICES, default='upload_web')
+    visivel_no_app = models.BooleanField(default=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='disponivel')
+    versao = models.PositiveIntegerField(default=1)
+    documento_anterior = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='versoes_posteriores'
+    )
+    checksum_sha256 = models.CharField(max_length=64, blank=True, default='', db_index=True)
+    gerado_em = models.DateTimeField(null=True, blank=True)
+    gerado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='documentos_gerados',
+    )
+    expira_em = models.DateTimeField(null=True, blank=True)
+    metadados = models.JSONField(default=dict, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -391,10 +481,27 @@ class DocumentoEmpresa(models.Model):
         ]
         indexes = [
             models.Index(fields=['empresa', 'folder_key', 'ano', 'mes'], name='doc_empresa_pasta_periodo_idx'),
+            models.Index(fields=['empresa', 'tipo_documento', 'competencia', 'status'], name='doc_emp_tipo_comp_st_idx'),
+            models.Index(fields=['empresa', 'visivel_no_app', '-criado_em'], name='doc_emp_vis_data_idx'),
         ]
 
     def __str__(self):
         return f'{self.empresa.nome} - {self.folder_key} - {self.nome_arquivo}'
+
+    def save(self, *args, **kwargs):
+        if not self.tipo_documento_id:
+            from .document_catalog import infer_document_type_code
+            code = infer_document_type_code(self.folder_key, self.nome_arquivo)
+            self.tipo_documento = TipoDocumento.objects.get(codigo=code, ativo=True)
+        if not self.competencia:
+            if self.tipo_documento.periodicidade == 'mensal' and self.ano and self.mes:
+                self.competencia = f'{self.ano}{str(self.mes).zfill(2)}'
+            elif self.tipo_documento.periodicidade == 'anual' and self.ano:
+                self.competencia = str(self.ano)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'competencia', 'tipo_documento'}
+        super().save(*args, **kwargs)
 
 
 class Funcionario(AbstractUser):
@@ -407,6 +514,7 @@ class Funcionario(AbstractUser):
         ('fiscal', 'Departamento Fiscal'),
         ('contabil', 'Departamento Contábil'),
         ('admin', 'Administrador'),
+        ('cliente', 'Cliente do aplicativo'),
     ]
     theme = models.CharField(max_length=10, choices=THEME_CHOICES, default='light')
     cargo = models.CharField(max_length=100, choices=CARGO_CHOICES, default='pessoal', blank=True)
@@ -428,7 +536,7 @@ class Funcionario(AbstractUser):
         if not self.cargo:  # Garante que cargo não seja null
             self.cargo = 'pessoal'
         super().save(*args, **kwargs)
-        if is_new:
+        if is_new and self.cargo != 'cliente':
             from .models import Empresa, UserCompanyAccess
             empresas = Empresa.objects.all()
             for empresa in empresas:
@@ -822,6 +930,89 @@ class Notificacao(models.Model):
         return f"Notificação para {self.destinatario.username}: {self.mensagem}"
 
 
+class SolicitacaoCliente(models.Model):
+    TIPO_CHOICES = [
+        ('documento', 'Documento'),
+        ('guia', 'Guia'),
+        ('correcao', 'Correção'),
+        ('atendimento', 'Atendimento'),
+    ]
+    STATUS_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('em_atendimento', 'Em atendimento'),
+        ('concluida', 'Concluída'),
+    ]
+
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='solicitacoes_clientes')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='solicitacoes_clientes')
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    assunto = models.CharField(max_length=180)
+    mensagem = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente')
+    criada_em = models.DateTimeField(auto_now_add=True)
+    atualizada_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-criada_em']
+        indexes = [models.Index(fields=['empresa', '-criada_em'], name='sol_cliente_empresa_data_idx')]
+
+
+class SimplesApiUsage(models.Model):
+    ACTION_CHOICES = [
+        ('gerar_das', 'Gerar DAS'),
+        ('recalcular_das', 'Recalcular DAS'),
+        ('gerar_extrato', 'Gerar extrato'),
+    ]
+
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='usos_api_simples')
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='usos_api_simples')
+    action = models.CharField(max_length=24, choices=ACTION_CHOICES)
+    period_key = models.CharField(max_length=10)
+    competencia = models.CharField(max_length=6)
+    used_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa', 'action', 'period_key'],
+                name='simples_api_empresa_acao_periodo_uniq',
+            ),
+        ]
+        indexes = [models.Index(fields=['empresa', 'action', 'period_key'], name='simples_api_limite_idx')]
+
+
+class SimplesInstallmentSnapshot(models.Model):
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name='consultas_parcelamento_simples',
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='consultas_parcelamento_simples',
+    )
+    period_key = models.CharField(max_length=6)
+    parcelas = models.JSONField(default=list)
+    consultado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['empresa', 'period_key'],
+                name='parc_simples_empresa_periodo_uniq',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['empresa', 'period_key'],
+                name='parc_simp_emp_period_idx',
+            ),
+        ]
+
+
 class UltimoResultadoSessao(models.Model):
     usuario = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ultimo_resultado_sessao')
     batch_summary = models.JSONField(null=True, blank=True)
@@ -848,8 +1039,9 @@ class BoletoBB(models.Model):
     carteira = models.CharField(max_length=5, blank=True, null=True)
     variacao_carteira = models.CharField(max_length=5, blank=True, null=True)
     numero_operacao = models.CharField(max_length=30, null=True, blank=True, db_index=True)
-    numero_titulo_cliente = models.CharField(max_length=30, unique=True)
-    nosso_numero = models.CharField(max_length=30, db_index=True, null=True, blank=True)
+    # O codigoSolicitacao do Banco Inter e um UUID (36 caracteres).
+    numero_titulo_cliente = models.CharField(max_length=64, unique=True)
+    nosso_numero = models.CharField(max_length=64, db_index=True, null=True, blank=True)
     linha_digitavel = models.CharField(max_length=80, null=True, blank=True)
     codigo_barra = models.CharField(max_length=80, null=True, blank=True)
     valor_original = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))

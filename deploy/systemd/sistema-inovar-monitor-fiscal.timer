@@ -1,0 +1,11 @@
+[Unit]
+Description=Agenda as rodadas do Monitor Fiscal a cada 10 minutos
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=10min
+Persistent=true
+Unit=sistema-inovar-monitor-fiscal.service
+
+[Install]
+WantedBy=timers.target

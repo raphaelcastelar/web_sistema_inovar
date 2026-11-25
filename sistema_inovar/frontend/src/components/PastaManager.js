@@ -211,6 +211,11 @@ const PastaManager = () => {
     const [isRefreshingPasta, setIsRefreshingPasta] = useState(false);
     const [targetUploadYear, setTargetUploadYear] = useState('');
     const [targetUploadMonth, setTargetUploadMonth] = useState('');
+    const [documentTypes, setDocumentTypes] = useState([]);
+    const [selectedDocumentType, setSelectedDocumentType] = useState('');
+    const [pendingUploadFiles, setPendingUploadFiles] = useState([]);
+    const [pendingUploadFolder, setPendingUploadFolder] = useState('');
+    const [showDocumentTypeModal, setShowDocumentTypeModal] = useState(false);
     const [showEmailModal, setShowEmailModal] = useState(false);
     const [emailDestinatario, setEmailDestinatario] = useState('');
     const [sendingEmail, setSendingEmail] = useState(false);
@@ -238,6 +243,20 @@ const PastaManager = () => {
             .sort((left, right) => String(left.nome || '').localeCompare(String(right.nome || ''), 'pt-BR', { sensitivity: 'base' }))
             .slice(0, 8);
     }, [companySearch, empresasDisponiveis, empresaId]);
+
+    const uploadDocumentTypes = useMemo(
+        () => documentTypes.filter(type => type.folder_key === pendingUploadFolder),
+        [documentTypes, pendingUploadFolder],
+    );
+    const replacementDocument = useMemo(
+        () => pendingUploadFolder === 'fiscal_xml'
+            ? undefined
+            : (arquivos[pendingUploadFolder] || []).find(
+                file => file.status === 'disponivel'
+                    && String(file.tipo_documento) === String(selectedDocumentType),
+            ),
+        [arquivos, pendingUploadFolder, selectedDocumentType],
+    );
 
     // --- LÓGICA DE DADOS E API ---
     const fetchData = useCallback(() => {
@@ -326,11 +345,16 @@ const PastaManager = () => {
 
     useEffect(() => {
         setPastas(pastaTypes.map(tipo => ({ tipo, id: tipo })));
+        axiosInstance.get('/api/documentos-empresa/tipos/')
+            .then(response => setDocumentTypes(Array.isArray(response.data) ? response.data : []))
+            .catch(() => setDocumentTypes([]));
         fetchData();
     }, [fetchData]);
 
-    const onDrop = useCallback((acceptedFiles, pastaTipo) => {
+    const uploadFiles = useCallback(async (acceptedFiles, pastaTipo, explicitDocumentType = '') => {
         if (!empresaNome || !empresaCnpj) { alert('Aguarde os dados da empresa carregarem.'); return; }
+        const documentType = explicitDocumentType || selectedDocumentType;
+        if (!documentType) { alert('Escolha o tipo do documento antes de enviar.'); return; }
         setUploading(true);
         setError(null);
         const uploadPromises = acceptedFiles.map(file => {
@@ -339,6 +363,7 @@ const PastaManager = () => {
             formData.append('nome_arquivo', file.name);
             formData.append('empresa', empresaId);
             formData.append('folder_key', pastaTipo);
+            formData.append('tipo_documento', documentType);
             
             // Lógica para usar o mês/ano selecionado ou o mês anterior
             if (periodFolderTypes.includes(pastaTipo)) {
@@ -353,16 +378,63 @@ const PastaManager = () => {
             }
             return axiosInstance.post('/api/documentos-empresa/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         });
-        Promise.all(uploadPromises)
-            .then(() => { fetchData(); })
-            .catch(err => { setError(err.response?.data?.detail || err.message || 'Erro no upload.'); })
-            .finally(() => setUploading(false));
-    }, [empresaNome, empresaCnpj, empresaId, targetUploadYear, targetUploadMonth, fetchData]);
+        try {
+            await Promise.all(uploadPromises);
+            fetchData();
+            return true;
+        } catch (err) {
+            const responseData = err.response?.data;
+            setError(responseData?.detail || responseData?.non_field_errors?.[0] || err.message || 'Erro no upload.');
+            return false;
+        } finally {
+            setUploading(false);
+        }
+    }, [empresaNome, empresaCnpj, empresaId, selectedDocumentType, targetUploadYear, targetUploadMonth, fetchData]);
+
+    const requestDocumentType = useCallback(async (acceptedFiles, pastaTipo) => {
+        if (!acceptedFiles.length) return;
+        if (pastaTipo === 'outros') {
+            const internalOtherType = documentTypes.find(
+                type => type.codigo === 'outro' && type.folder_key === 'outros',
+            );
+            if (!internalOtherType) {
+                setError('A configuração da pasta Outros não está disponível. Atualize a página e tente novamente.');
+                return;
+            }
+            await uploadFiles([acceptedFiles[0]], pastaTipo, String(internalOtherType.id));
+            return;
+        }
+        setPendingUploadFiles([acceptedFiles[0]]);
+        setPendingUploadFolder(pastaTipo);
+        setSelectedDocumentType('');
+        setShowDocumentTypeModal(true);
+    }, [documentTypes, uploadFiles]);
+
+    const handleDocumentTypeSubmit = async event => {
+        event.preventDefault();
+        if (!selectedDocumentType || !pendingUploadFiles.length || !pendingUploadFolder) return;
+        const uploaded = await uploadFiles(pendingUploadFiles, pendingUploadFolder);
+        if (uploaded) {
+            setShowDocumentTypeModal(false);
+            setPendingUploadFiles([]);
+            setPendingUploadFolder('');
+            setSelectedDocumentType('');
+        }
+    };
+
+    const closeDocumentTypeModal = () => {
+        if (uploading) return;
+        setShowDocumentTypeModal(false);
+        setPendingUploadFiles([]);
+        setPendingUploadFolder('');
+        setSelectedDocumentType('');
+    };
     
     // Hook do Dropzone funcional
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
-        onDrop: acceptedFiles => { if (selectedPasta) onDrop(acceptedFiles, selectedPasta.tipo) },
+        onDrop: acceptedFiles => { if (selectedPasta) requestDocumentType(acceptedFiles, selectedPasta.tipo) },
         noKeyboard: true,
+        multiple: false,
     });
     
     // --- HANDLERS DE INTERAÇÃO COM LÓGICA COMPLETA ---
@@ -373,6 +445,7 @@ const PastaManager = () => {
         setError(null);
         setTargetUploadYear('');
         setTargetUploadMonth('');
+        setSelectedDocumentType('');
     };
 
     const handleFolderGroupClick = (group) => {
@@ -380,6 +453,7 @@ const PastaManager = () => {
         setSelectedPasta(null);
         setSelectedFiles([]);
         setError(null);
+        setSelectedDocumentType('');
     };
 
     const handleRefreshSelectedPasta = async () => {
@@ -696,6 +770,7 @@ const PastaManager = () => {
                                                 <input type="checkbox" checked={selectedFiles.includes(file.id)} onChange={() => toggleFileSelection(file.id)} className="form-checkbox h-4 w-4 rounded bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 text-indigo-600 focus:ring-indigo-500" />
                                                 <DocumentTextIcon className="h-6 w-6 text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                                 <span className="flex-grow truncate" title={file.nome_arquivo}>{file.nome_arquivo}</span>
+                                                {file.status === 'substituido' && (<span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">Histórico</span>)}
                                                 {['pessoal_guias', 'fiscal_guias'].includes(selectedPasta.tipo) && (<span className={`text-xs px-2 py-0.5 font-semibold rounded-full ${file.entregue ? 'bg-green-100 text-green-800 dark:bg-green-800/60 dark:text-green-200' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800/60 dark:text-yellow-200'}`}>{file.entregue ? 'Entregue' : 'Pendente'}</span>)}
                                                 <FileActions file={file} folderType={selectedPasta.tipo} onRename={handleRenameFile} onDelete={handleDeleteFile} busy={fileOperationId === file.id} />
                                             </li>
@@ -707,6 +782,67 @@ const PastaManager = () => {
                         </div>
                     </div>
                 </motion.div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showDocumentTypeModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+                        onMouseDown={closeDocumentTypeModal}
+                    >
+                        <motion.form
+                            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 12, scale: 0.98 }}
+                            onMouseDown={event => event.stopPropagation()}
+                            onSubmit={handleDocumentTypeSubmit}
+                            className="w-full max-w-lg rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+                        >
+                            <div className="flex items-start justify-between border-b border-gray-200 p-5 dark:border-gray-800">
+                                <div>
+                                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#c49a61]">Classificar documento</p>
+                                    <h2 className="mt-1 text-xl font-semibold text-gray-950 dark:text-white">Qual é o tipo deste arquivo?</h2>
+                                    <p className="mt-1 max-w-md truncate text-sm text-gray-500 dark:text-gray-400">{pendingUploadFiles[0]?.name}</p>
+                                </div>
+                                <button type="button" onClick={closeDocumentTypeModal} disabled={uploading} className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:hover:bg-gray-800 dark:hover:text-gray-200">
+                                    <XMarkIcon className="h-5 w-5" />
+                                </button>
+                            </div>
+                            <div className="space-y-4 p-5">
+                                <div>
+                                    <label htmlFor="upload-document-type" className="mb-2 block text-sm font-semibold text-gray-700 dark:text-gray-200">Tipo do documento</label>
+                                    <select
+                                        id="upload-document-type"
+                                        autoFocus
+                                        required
+                                        value={selectedDocumentType}
+                                        onChange={event => setSelectedDocumentType(event.target.value)}
+                                        className="w-full rounded-md border border-gray-300 bg-white p-3 text-gray-900 outline-none focus:border-[#c49a61] focus:ring-2 focus:ring-amber-100 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                    >
+                                        <option value="">Selecione o tipo correto</option>
+                                        {uploadDocumentTypes.map(type => <option key={type.id} value={type.id}>{type.nome}</option>)}
+                                    </select>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">O aplicativo usará esta classificação; o nome do arquivo não será usado para descobrir o tipo.</p>
+                                {replacementDocument && (
+                                    <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
+                                        Já existe um documento deste tipo. Ao confirmar, <strong>{replacementDocument.nome_arquivo}</strong> será substituído pela nova versão.
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/70 sm:flex-row sm:justify-end">
+                                <button type="button" onClick={closeDocumentTypeModal} disabled={uploading} className="h-10 rounded-md border border-gray-200 px-4 text-sm font-semibold text-gray-700 hover:bg-white disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Cancelar</button>
+                                <button type="submit" disabled={uploading || !selectedDocumentType} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-950">
+                                    {uploading ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : <CheckCircleIcon className="h-4 w-4" />}
+                                    {uploading ? 'Enviando...' : replacementDocument ? 'Substituir documento' : 'Salvar documento'}
+                                </button>
+                            </div>
+                        </motion.form>
+                    </motion.div>
                 )}
             </AnimatePresence>
 

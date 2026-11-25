@@ -81,7 +81,7 @@ def assign_all_companies_to_new_user(sender, instance, created, **kwargs):
     """
     Quando um NOVO funcionário é criado, atribui TODAS as empresas existentes a ele.
     """
-    if created and not instance.is_superuser:
+    if created and not instance.is_superuser and instance.cargo != 'cliente':
         todas_as_empresas = Empresa.objects.all()
         instance.empresas_gerenciadas.set(todas_as_empresas)
         print(f"Todas as empresas foram atribuídas ao novo funcionário: {instance.username}")
@@ -92,7 +92,7 @@ def assign_new_company_to_all_users(sender, instance, created, **kwargs):
     Quando uma NOVA empresa é criada, atribui ela a TODOS os funcionários existentes.
     """
     if created:
-        todos_os_funcionarios = Funcionario.objects.filter(is_superuser=False)
+        todos_os_funcionarios = Funcionario.objects.filter(is_superuser=False).exclude(cargo='cliente')
         for funcionario in todos_os_funcionarios:
             funcionario.empresas_gerenciadas.add(instance)
         print(f"A nova empresa {instance.nome} foi atribuída a todos os funcionários.")
@@ -104,7 +104,7 @@ def notificar_sobre_mudanca_empresa(sender, instance, created, **kwargs):
     else:
         mensagem = f"Os dados da empresa {instance.nome} foram atualizados."
 
-    todos_os_funcionarios = Funcionario.objects.filter(is_active=True)
+    todos_os_funcionarios = Funcionario.objects.filter(is_active=True).exclude(cargo='cliente')
     for funcionario in todos_os_funcionarios:
         Notificacao.objects.create(destinatario=funcionario, mensagem=mensagem)
 
@@ -128,6 +128,6 @@ def sincronizar_tarefas_empresa_handler(sender, instance, **kwargs):
 @receiver(post_delete, sender=Empresa)
 def notificar_sobre_delete_empresa(sender, instance, **kwargs):
     mensagem = f"A empresa {instance.nome} foi excluída do sistema."
-    todos_os_funcionarios = Funcionario.objects.filter(is_active=True)
+    todos_os_funcionarios = Funcionario.objects.filter(is_active=True).exclude(cargo='cliente')
     for funcionario in todos_os_funcionarios:
         Notificacao.objects.create(destinatario=funcionario, mensagem=mensagem)

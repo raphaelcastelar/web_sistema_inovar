@@ -86,9 +86,10 @@ from .inter_service import (
 
 from .models import (
     Empresa, EmpresaAvulsaFaturamento, Socio, DocumentosConstitutivos, XML, DepartamentoPessoal, 
-    SimplesNacional, Outros, DocumentoEmpresa, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
+    SimplesNacional, Outros, DocumentoEmpresa, TipoDocumento, HistoricoEnvios, Funcionario, ObrigacaoMensal, UserCompanyAccess, Pendencia, Notificacao,
     Tag,
-    UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao
+    UltimoResultadoSessao, BoletoBB, PaginaSistema, Atividade, BlocoExecucao,
+    HonorarioCompetencia
 )
 from .serializers import (
     TagSerializer,
@@ -103,6 +104,8 @@ from .utils import gerar_nome_pasta_empresa_padronizado, sanitize_filename_for_u
 from .folder_structure import FOLDER_DEFINITIONS
 from .document_storage import (
     delete_document_file,
+    find_empresa_by_cnpj,
+    find_reusable_document,
     rename_document_file,
     save_generated_das,
     save_generated_dctfweb,
@@ -1555,9 +1558,31 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             Prefetch('usuarios', queryset=Funcionario.objects.only('id').order_by('id')),
         )
 
+    def _aplicar_status_honorario_competencia(self, empresas):
+        competencia_informada = self.request.query_params.get('competencia')
+        if not competencia_informada:
+            return empresas
+
+        try:
+            competencia = normalizar_competencia_honorario(competencia_informada)
+        except ValueError:
+            return empresas
+
+        empresas = list(empresas)
+        status_por_empresa = dict(
+            HonorarioCompetencia.objects.filter(
+                empresa_id__in=[empresa.id for empresa in empresas],
+                competencia=competencia,
+            ).values_list('empresa_id', 'concluido')
+        )
+        for empresa in empresas:
+            empresa.honorario = status_por_empresa.get(empresa.id, False)
+        return empresas
+
     def list(self, request, *args, **kwargs):
         if request.query_params.get('paginated') != 'true':
             queryset = self.filter_queryset(self.get_queryset())
+            queryset = self._aplicar_status_honorario_competencia(queryset)
             serializer = self.get_serializer(queryset, many=True)
             return Response(serializer.data)
 
@@ -1576,6 +1601,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(queryset)
         if page is not None:
+            page = self._aplicar_status_honorario_competencia(page)
             serializer = self.get_serializer(page, many=True)
             response = self.get_paginated_response(serializer.data)
             response.data['summary'] = summary
@@ -1583,6 +1609,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
             response.data['page_size'] = self.paginator.get_page_size(request)
             return response
 
+        queryset = self._aplicar_status_honorario_competencia(queryset)
         serializer = self.get_serializer(queryset, many=True)
         return Response({
             'count': len(serializer.data),
@@ -1615,12 +1642,51 @@ class EmpresaViewSet(viewsets.ModelViewSet):
         try:
             instance = self.get_queryset().get(pk=empresa_id)
             self.check_object_permissions(request, instance)
-            serializer = self.get_serializer(instance, data=request.data, partial=True)
+            payload = request.data.copy()
+            competencia_informada = payload.pop('competencia', None)
+            if isinstance(competencia_informada, (list, tuple)):
+                competencia_informada = competencia_informada[0] if competencia_informada else None
+
+            honorario_informado = 'honorario' in payload and competencia_informada
+            competencia = None
+            honorario_competencia = None
+            if honorario_informado:
+                try:
+                    competencia = normalizar_competencia_honorario(competencia_informada)
+                except ValueError as exc:
+                    return Response({'competencia': [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+
+                valor_honorario = str(payload.get('honorario')).strip().lower() in {
+                    'true', '1', 'sim', 'yes', 'on'
+                }
+                honorario_competencia, _ = HonorarioCompetencia.objects.update_or_create(
+                    empresa=instance,
+                    competencia=competencia,
+                    defaults={
+                        'concluido': valor_honorario,
+                        'atualizado_por': request.user,
+                    },
+                )
+
+                if competencia != normalizar_competencia_honorario():
+                    payload.pop('honorario', None)
+
+            if not payload:
+                response_data = self.get_serializer(instance).data
+                response_data['honorario'] = honorario_competencia.concluido
+                response_data['competencia'] = competencia
+                return Response(response_data)
+
+            serializer = self.get_serializer(instance, data=payload, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 # Notificações são criadas automaticamente pelo signal post_save em signals.py
                 logger.info(f"Empresa '{instance.nome}' atualizada parcialmente.")
-                return Response(serializer.data)
+                response_data = dict(serializer.data)
+                if honorario_competencia is not None:
+                    response_data['honorario'] = honorario_competencia.concluido
+                    response_data['competencia'] = competencia
+                return Response(response_data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Empresa.DoesNotExist:
             return Response({"error": f"Empresa com ID {empresa_id} não encontrada."}, status=status.HTTP_404_NOT_FOUND)
@@ -1719,6 +1785,13 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        if self.request.query_params.get('incluir_historico') != 'true':
+            # O painel preserva e exibe o historico das alteracoes contratuais.
+            # Os demais tipos continuam mostrando somente a versao atual.
+            queryset = queryset.filter(
+                Q(status='disponivel')
+                | Q(status='substituido', tipo_documento__codigo='ultima_alteracao')
+            )
         empresa_id = self.request.query_params.get('empresa_id')
         folder_key = self.request.query_params.get('folder_key')
         ano = self.request.query_params.get('ano')
@@ -1732,6 +1805,19 @@ class DocumentoEmpresaViewSet(viewsets.ModelViewSet):
         if mes:
             queryset = queryset.filter(mes=str(mes).zfill(2))
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='tipos')
+    def tipos(self, request):
+        items = TipoDocumento.objects.filter(ativo=True).order_by('categoria', 'nome')
+        return Response([{
+            'id': item.pk,
+            'codigo': item.codigo,
+            'nome': item.nome,
+            'categoria': item.categoria,
+            'folder_key': item.folder_key,
+            'periodicidade': item.periodicidade,
+            'visivel_app_padrao': item.visivel_app_padrao,
+        } for item in items])
 
     @action(detail=False, methods=['get'], url_path='documentos-salvos-simples')
     def documentos_salvos_simples(self, request):
@@ -3283,6 +3369,14 @@ def gerar_das_api(request):
 
     if not cnpj or not periodo:
         return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
+
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, 'das_simples', re.sub(r'\D', '', str(periodo))) if empresa else None
+    if existing:
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type='application/pdf',
+        )
     
     # A lógica foi movida para o service.py
     resultado = gerar_das_serpro(cnpj_empresa=cnpj, periodo_apuracao=periodo)
@@ -3347,6 +3441,15 @@ def consultar_extrato_api(request):
     if not cnpj or not periodo:
         return Response({"error": "CNPJ e Período (YYYYMM) são obrigatórios."}, status=status.HTTP_400_BAD_REQUEST)
 
+    normalized_period = re.sub(r'\D', '', str(periodo))
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, 'extrato_simples', normalized_period) if empresa else None
+    if existing:
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type='application/pdf',
+        )
+
     resultado = orquestrar_consulta_extrato(cnpj_empresa=cnpj, periodo_apuracao=periodo)
 
     if resultado.get("sucesso"):
@@ -3387,6 +3490,15 @@ def consultar_declaracao_recibo_api(request):
         return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
     if len(periodo) != 6 or not 1 <= int(periodo[4:]) <= 12:
         return Response({"error": "Informe um período válido no formato YYYYMM."}, status=status.HTTP_400_BAD_REQUEST)
+
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, 'recibo_simples', periodo) if empresa else None
+    if existing:
+        content_type = mimetypes.guess_type(existing.nome_arquivo)[0] or 'application/octet-stream'
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type=content_type,
+        )
 
     resultado = consultar_declaracao_recibo_serpro(cnpj, periodo)
     if not resultado.get('sucesso'):
@@ -3430,6 +3542,19 @@ def documento_dctfweb_api(request, id_servico):
         return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
     if len(periodo) != 6 or not 1 <= int(periodo[4:]) <= 12:
         return Response({"error": "Informe uma competência válida no formato YYYYMM."}, status=status.HTTP_400_BAD_REQUEST)
+
+    type_code = {
+        'GERARGUIA31': 'guia_inss',
+        'CONSRECIBO32': 'recibo_dctfweb',
+        'CONSDECCOMPLETA33': 'declaracao_dctfweb',
+    }[id_servico]
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, type_code, periodo) if empresa else None
+    if existing:
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type='application/pdf',
+        )
 
     resultado = obter_documento_dctfweb_serpro(cnpj, periodo, id_servico)
     if not resultado.get('sucesso'):
@@ -3483,6 +3608,13 @@ def gerar_das_parcsn_api(request):
         return Response({"error": "Informe um CNPJ válido com 14 dígitos."}, status=status.HTTP_400_BAD_REQUEST)
     if len(parcela) != 6 or not 1 <= int(parcela[4:]) <= 12:
         return Response({"error": "Informe uma parcela válida no formato AAAAMM."}, status=status.HTTP_400_BAD_REQUEST)
+    empresa = find_empresa_by_cnpj(cnpj)
+    existing = find_reusable_document(empresa, 'guia_parcelamento_simples', parcela) if empresa else None
+    if existing:
+        return FileResponse(
+            existing.caminho_arquivo.storage.open(existing.caminho_arquivo.name, 'rb'),
+            as_attachment=True, filename=existing.nome_arquivo, content_type='application/pdf',
+        )
     resultado = gerar_das_parcsn_serpro(cnpj, parcela)
     if not resultado.get('sucesso'):
         return Response({"error": resultado.get('erro'), "detalhes": resultado.get('detalhes')}, status=status.HTTP_400_BAD_REQUEST)
@@ -4286,6 +4418,27 @@ def _inter_error_response(exc, *, billing_created=False, request_code=None):
     return Response(payload, status=status.HTTP_502_BAD_GATEWAY)
 
 
+def _existing_inter_request_code(exc):
+    """Extrai o UUID quando o Inter informa que a cobranca ja foi emitida."""
+    if getattr(exc, 'status_code', None) != 400:
+        return None
+    response_body = getattr(exc, 'response_body', None)
+    if not isinstance(response_body, dict):
+        return None
+    detail = str(response_body.get('detail') or '')
+    normalized_detail = unidecode.unidecode(detail).lower()
+    if 'existe uma cobranca' not in normalized_detail:
+        return None
+    if 'codigo de solicitacao' not in normalized_detail:
+        return None
+    match = re.search(
+        r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b',
+        detail,
+        flags=re.IGNORECASE,
+    )
+    return match.group(0) if match else None
+
+
 def _build_inter_payer(empresa):
     from .utils import normalize_cnpj
 
@@ -4364,7 +4517,20 @@ def _gerar_boleto_inter(request, empresa, competencia, action, incoming_data):
     except InterConfigurationError as exc:
         return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     except InterAPIError as exc:
-        return _inter_error_response(exc)
+        request_code = _existing_inter_request_code(exc)
+        if not request_code:
+            return _inter_error_response(exc)
+        issue_response = {
+            'codigoSolicitacao': request_code,
+            'recuperada': True,
+            'motivo': 'Cobranca identica ja emitida no Banco Inter.',
+        }
+        logger.info(
+            'Recuperando cobranca existente do Banco Inter: codigo=%s empresa=%s competencia=%s',
+            request_code,
+            empresa.id,
+            competencia,
+        )
 
     boleto, _ = BoletoBB.objects.update_or_create(
         numero_titulo_cliente=request_code,
