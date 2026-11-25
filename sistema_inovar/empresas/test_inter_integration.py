@@ -110,11 +110,20 @@ class InterWebhookTests(TestCase):
         )
 
     def test_paid_callback_updates_billing(self):
+        boleto_bb = BoletoBB.objects.create(
+            empresa=self.empresa,
+            numero_convenio='1234567',
+            numero_titulo_cliente='00012345670000000001',
+            nosso_numero=self.boleto.nosso_numero,
+            valor_original=Decimal('100.00'),
+            status='registrado',
+        )
         response = self.client.post(
             reverse('inter_cobranca_webhook'),
             data=json.dumps([{
                 'codigoSolicitacao': 'code-123',
                 'seuNumero': 'I1202610',
+                'nossoNumero': self.boleto.nosso_numero,
                 'situacao': 'RECEBIDO',
                 'dataHoraSituacao': '2026-11-10T14:30:00-03:00',
                 'valorTotalRecebido': '100.00',
@@ -129,6 +138,8 @@ class InterWebhookTests(TestCase):
         self.assertEqual(self.boleto.valor_pago, Decimal('100.00'))
         self.assertEqual(self.boleto.data_pagamento.isoformat(), '2026-11-10')
         self.assertEqual(self.boleto.payload_baixa['origemRecebimento'], 'PIX')
+        boleto_bb.refresh_from_db()
+        self.assertEqual(boleto_bb.status, 'registrado')
 
     def test_inter_uuid_fits_legacy_billing_record(self):
         request_code = '12345678-1234-1234-1234-123456789012'

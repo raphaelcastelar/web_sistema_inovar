@@ -13,6 +13,7 @@ const GerenciarBoletos = () => {
     const [configModalOpen, setConfigModalOpen] = useState(false);
     const [currentConfig, setCurrentConfig] = useState({
         id: null,
+        banco_emissor_boleto: 'INTER',
         valor_honorario: '',
         dia_vencimento_honorario: '',
         juros_mora_taxa: '',
@@ -81,6 +82,7 @@ const GerenciarBoletos = () => {
         if (empresa) {
             setCurrentConfig({
                 id: empresa.id,
+                banco_emissor_boleto: empresa.banco_emissor_boleto || 'INTER',
                 valor_honorario: empresa.valor_honorario || '',
                 dia_vencimento_honorario: empresa.dia_vencimento_honorario || '',
                 juros_mora_taxa: empresa.juros_mora_taxa || '',
@@ -247,6 +249,19 @@ const GerenciarBoletos = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
                     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6">
                         <h2 className="text-xl font-bold mb-4 text-gray-800 dark:text-gray-100">Configurações de Boleto</h2>
+
+                        <div className="mb-4">
+                            <label htmlFor="gerenciar-boleto-banco" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Banco emissor</label>
+                            <select
+                                id="gerenciar-boleto-banco"
+                                value={currentConfig.banco_emissor_boleto}
+                                onChange={(e) => setCurrentConfig({ ...currentConfig, banco_emissor_boleto: e.target.value })}
+                                className="w-full p-2 border rounded text-gray-900 bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            >
+                                <option value="INTER">Banco Inter</option>
+                                <option value="BANCO_DO_BRASIL">Banco do Brasil</option>
+                            </select>
+                        </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>

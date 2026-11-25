@@ -234,7 +234,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
             'qtd_empregados', 'qtd_pro_labore', 'inss_20_sal', 'responsavel_pessoal',
             'responsavel_fiscal', 'responsavel_contabil', 'inss', 'fgts', 'folha',
             'honorario', 'monitorar_simples', 'usuarios', 'ativo', 'criado_em',
-            'desativado_em', 'valor_honorario', 'dia_vencimento_honorario',
+            'desativado_em', 'banco_emissor_boleto', 'valor_honorario', 'dia_vencimento_honorario',
             'juros_mora_taxa', 'multa_taxa', 'desconto_taxa', 'dias_para_desconto',
             'socios', 'tags', 'tag_ids', 'historico_status',
         ]
@@ -495,6 +495,7 @@ class EmpresaOperationalListSerializer(EmpresaListSerializer):
             'ativo',
             'criado_em',
             'desativado_em',
+            'banco_emissor_boleto',
             'valor_honorario',
             'dia_vencimento_honorario',
             'juros_mora_taxa',

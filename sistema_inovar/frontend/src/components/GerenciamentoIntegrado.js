@@ -111,6 +111,7 @@ const GerenciamentoIntegrado = () => {
     const [configModalOpen, setConfigModalOpen] = useState(false);
     const [currentConfig, setCurrentConfig] = useState({
         id: null,
+        banco_emissor_boleto: 'INTER',
         valor_honorario: '',
         dia_vencimento_honorario: '',
         juros_mora_taxa: '',
@@ -716,6 +717,7 @@ const GerenciamentoIntegrado = () => {
         if (empresa) {
             setCurrentConfig({
                 id: empresa.id,
+                banco_emissor_boleto: empresa.banco_emissor_boleto || 'INTER',
                 valor_honorario: empresa.valor_honorario || '',
                 dia_vencimento_honorario: empresa.dia_vencimento_honorario || '',
                 juros_mora_taxa: empresa.juros_mora_taxa || '',
@@ -1516,6 +1518,21 @@ const GerenciamentoIntegrado = () => {
                                 >
                                     <XCircleIcon className="h-6 w-6" />
                                 </button>
+                            </div>
+
+                            <div className="mb-6">
+                                <label htmlFor="configurar-boleto-banco" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                    Banco emissor
+                                </label>
+                                <select
+                                    id="configurar-boleto-banco"
+                                    value={currentConfig.banco_emissor_boleto}
+                                    onChange={(e) => setCurrentConfig({ ...currentConfig, banco_emissor_boleto: e.target.value })}
+                                    className="w-full rounded-md border border-gray-200 bg-gray-50 p-3 font-medium text-gray-900 outline-none transition-all focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:ring-slate-500/20"
+                                >
+                                    <option value="INTER">Banco Inter</option>
+                                    <option value="BANCO_DO_BRASIL">Banco do Brasil</option>
+                                </select>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
