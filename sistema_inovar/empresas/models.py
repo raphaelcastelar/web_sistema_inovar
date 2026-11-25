@@ -16,6 +16,12 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 class Empresa(models.Model):
+    BANCO_BOLETO_INTER = 'INTER'
+    BANCO_BOLETO_BANCO_DO_BRASIL = 'BANCO_DO_BRASIL'
+    BANCO_BOLETO_CHOICES = [
+        (BANCO_BOLETO_INTER, 'Banco Inter'),
+        (BANCO_BOLETO_BANCO_DO_BRASIL, 'Banco do Brasil'),
+    ]
     REGIME_TRIBUTARIO_CHOICES = [
         ('MEI', 'MEI'),
         ('SIMPLES NACIONAL', 'Simples Nacional'),
@@ -111,6 +117,13 @@ class Empresa(models.Model):
     )
 
     # Configurações de Boleto
+    banco_emissor_boleto = models.CharField(
+        max_length=20,
+        choices=BANCO_BOLETO_CHOICES,
+        default=BANCO_BOLETO_INTER,
+        db_default=BANCO_BOLETO_INTER,
+        help_text='Banco usado para emitir os boletos de honorários desta empresa',
+    )
     valor_honorario = models.DecimalField(max_digits=10, decimal_places=2, default=0.00, help_text="Valor do honorário para geração de boleto", null = True)
     dia_vencimento_honorario = models.IntegerField(default=15, help_text="Dia do vencimento do boleto (1-31)", null = True)
     juros_mora_taxa = models.DecimalField(max_digits=5, decimal_places=2, default=1.00, help_text="Taxa de juros mensal (%)", null = True)
