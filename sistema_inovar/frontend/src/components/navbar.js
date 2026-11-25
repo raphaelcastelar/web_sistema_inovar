@@ -47,6 +47,7 @@ const navigationItems = [
     { pageKey: 'usuarios', to: '/gerenciar-usuarios', icon: UserGroupIcon, text: 'Usuários', match: ['/gerenciar-usuarios'], keywords: 'funcionarios equipe colaboradores' },
     { pageKey: 'carteira', to: '/carteira-empresas', icon: FolderOpenIcon, text: 'Pastas', keywords: 'pastas arquivos empresas documentos' },
     { pageKey: 'historico_whatsapp', to: '/historico-whatsapp', icon: ClockIcon, text: 'Histórico de envios', keywords: 'historico mensagens whatsapp envios' },
+    { pageKey: 'monitor_fiscal', to: '/monitor-fiscal', icon: ShieldCheckIcon, text: 'Monitor Fiscal', keywords: 'monitor fiscal nfe nfse cte mdfe xml notas manifestacao sefaz captura' },
     { pageKey: 'central_das', to: '/central-simples', icon: DocumentChartBarIcon, text: 'Central DAS', keywords: 'simples nacional central das apuracao' },
     { pageKey: 'parcelamento_simples', to: '/parcelamento-simples', icon: BanknotesIcon, text: 'Central Parcelamento SN', keywords: 'central parcelamento simples nacional parcelas das parcsn' },
     { pageKey: 'central_dctfweb', to: '/central-dctfweb', icon: DocumentTextIcon, text: 'Central DCTF-Web', keywords: 'dctfweb darf guia recibo declaracao completa' },

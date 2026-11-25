@@ -35,6 +35,7 @@ router.register(r'blocos-execucao', BlocoExecucaoViewSet, basename='blocos-execu
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/mobile/', include('empresas.mobile_urls')),
+    path('api/monitor-fiscal/', include('monitor_fiscal.urls')),
     path('api/', include(router.urls)),
     path('api/', include('empresas.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

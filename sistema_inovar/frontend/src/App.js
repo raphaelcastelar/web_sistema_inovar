@@ -34,6 +34,7 @@ import CalculadoraHonorariosPage from './components/CalculadoraHonorariosPage';
 import RelacaoFaturamentoPage from './components/RelacaoFaturamentoPage';
 import RelatoriosPage from './components/RelatoriosPage';
 import GerenciarPaginasPage from './components/GerenciarPaginasPage';
+import MonitorFiscalPage from './components/monitorFiscal/MonitorFiscalPage';
 import { PageGate } from './context/PageAccessContext';
 
 import './App.css';
@@ -68,6 +69,7 @@ function App() {
 
             <Route path="/gerenciamento/simples-nacional" element={<PageGate pageKey="gerenciamento_simples"><GerenciamentoSimplesPage /></PageGate>} />
             <Route path="/historico-whatsapp" element={<PageGate pageKey="historico_whatsapp"><HistoricoWhatsApp /></PageGate>} />
+            <Route path="/monitor-fiscal" element={<PageGate pageKey="monitor_fiscal"><MonitorFiscalPage /></PageGate>} />
             <Route path="/central-simples" element={<PageGate pageKey="central_das"><CentralDoSimples /></PageGate>} />
             <Route path="/central-dctfweb" element={<PageGate pageKey="central_dctfweb"><CentralDctfWeb /></PageGate>} />
             <Route path="/parcelamento-simples" element={<PageGate pageKey="parcelamento_simples"><CentralParcelamentoSimples /></PageGate>} />

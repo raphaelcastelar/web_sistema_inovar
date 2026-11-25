@@ -1,0 +1,16 @@
+[Unit]
+Description=Monitor Fiscal - rodada de sincronização com os serviços oficiais (SEFAZ/AN e ADN)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/apps/web_sistema_inovar/sistema_inovar
+EnvironmentFile=/opt/apps/web_sistema_inovar/sistema_inovar/sistema_inovar/.env
+# Cada empresa/fonte respeita o próprio intervalo obrigatório (1 h sem documentos)
+# e bloqueios por consumo indevido; rodar com frequência não gera consultas extras.
+ExecStart=/opt/apps/web_sistema_inovar/sistema_inovar/.venv/bin/python manage.py monitor_fiscal_sincronizar
+TimeoutStartSec=50min
+Nice=5
