@@ -11,17 +11,17 @@ Módulo de captura, central e auditoria de documentos fiscais eletrônicos da IN
 
 ## 1. Situação das integrações
 
-> Nenhuma integração foi validada em homologação ou produção até o momento. Todas foram testadas
-> somente com respostas representativas montadas conforme os leiautes oficiais. **Não considerar
-> nenhuma delas funcional em produção antes do procedimento da seção 7.**
+> Primeiros testes reais em 26/11/2026 (certificado e-CNPJ A1 da AC SyngularID Múltipla, cadeia
+> Raiz Brasileira v5). **Não considerar nenhuma integração funcional em produção antes do
+> procedimento da seção 7.**
 
 | Integração | Implementada | Testes automatizados | Homologação | Produção |
 |---|---|---|---|---|
-| NF-e — NFeDistribuicaoDFe (distNSU, consNSU, consChNFe) | Sim | Sim | Não validada | Não validada |
-| Manifestação do destinatário — NFeRecepcaoEvento4 (AN) | Sim | Sim | Não validada | Não validada |
-| CT-e — CTeDistribuicaoDFe (distNSU, consNSU) | Sim | Sim | Não validada | Não validada |
-| NFS-e — ADN API de Contribuintes (GET /DFe/{NSU}) | Sim, com pendências de confirmação (3.4) | Sim | Não validada | Não validada |
-| MDF-e — MDFeDistribuicaoDFe | Sim (opcional, desligado por padrão) | Parcial (montagem/parsing) | Não validada | Não validada |
+| NF-e — NFeDistribuicaoDFe (distNSU, consNSU, consChNFe) | Sim | Sim | HTTP 403 no TLS (ver 9) | mTLS aceito (WSDL 200); consulta não validada |
+| Manifestação do destinatário — NFeRecepcaoEvento4 (AN) | Sim | Sim | HTTP 403 no TLS (ver 9) | Não validada |
+| CT-e — CTeDistribuicaoDFe (distNSU, consNSU) | Sim | Sim | HTTP 403 no TLS (ver 9) | mTLS aceito (WSDL 200); consulta não validada |
+| NFS-e — ADN API de Contribuintes (GET /DFe/{NSU}) | Sim, contrato conferido no Swagger (3.4) | Sim | Validada (NENHUM_DOCUMENTO_LOCALIZADO) | Não validada |
+| MDF-e — MDFeDistribuicaoDFe | Sim (opcional, desligado por padrão) | Parcial (montagem/parsing) | TLS ok com bundle ICP-Brasil; consulta não validada | Não validada |
 | Importação manual (XML/ZIP) | Sim | Sim | n/a | n/a |
 
 ---
@@ -110,16 +110,18 @@ Fontes consultadas em 24/11/2026.
 - Fonte: Manual dos Contribuintes — APIs do ADN v1.0 (12/02/2026): `GET /DFe/{NSU}` e
   `GET /NFSe/{ChaveAcesso}/Eventos`; consulta permitida com certificado de mesmo CNPJ raiz e
   parâmetro para informar CNPJ consultado diferente do certificado.
-- **Pendências de confirmação (o Swagger exige certificado cliente já no handshake TLS e não pôde
-  ser lido daqui):**
-  - nome do parâmetro do CNPJ consultado (adotado `cnpjConsulta`) e do parâmetro de lote
-    (adotado `lote=true`) — ajustáveis por `MONITOR_FISCAL_ADN_PARAM_CNPJ` / `_LOTE`;
-  - nomes dos campos JSON (adotados `StatusProcessamento`, `LoteDFe[].NSU`, `ChaveAcesso`,
-    `TipoDocumento`, `ArquivoXml` gzip+base64) — o parser aceita PascalCase e camelCase;
-  - se o NSU do caminho é inclusivo ou exclusivo — tratado de forma idempotente (NSUs já
-    recebidos são ignorados);
-  - regras de limite de consumo do ADN — adotado o mesmo intervalo de 1 hora sem documentos e
-    bloqueio em HTTP 429, **sem base oficial confirmada**.
+- **Contrato conferido no Swagger oficial** (`/contribuintes/swagger/v1/swagger.json`, lido com
+  certificado em 26/11/2026):
+  - `GET /DFe/{NSU}` — NSU **exclusivo**; query `cnpjConsulta` (14 dígitos), `cpfConsulta`
+    (não pode ser enviado junto com `cnpjConsulta`, erro E2244) e `lote` (boolean);
+  - mesmo CNPJ base do certificado dispensa procuração; outra inscrição exige procuração
+    eletrônica cadastrada no e-CAC (sem ela: erro E2245);
+  - resposta `StatusProcessamento` (`DOCUMENTOS_LOCALIZADOS` | `NENHUM_DOCUMENTO_LOCALIZADO` |
+    `REJEICAO`), `LoteDFe[]` (`NSU`, `ChaveAcesso`, `TipoDocumento`, `TipoEvento`, `ArquivoXml`,
+    `DataHoraGeracao`), `Alertas`/`Erros` (`Codigo`, `Descricao`, `Complemento`), `TipoConsulta`;
+    HTTP 404 = nenhum documento, 400 = rejeição.
+  - Pendente: regras de limite de consumo do ADN — adotado o mesmo intervalo de 1 hora sem
+    documentos e bloqueio em HTTP 429, **sem base oficial confirmada**.
 - **Cobertura:** o ADN só contém notas de municípios integrados ao padrão nacional, a partir da
   data de adesão. Não há conectores municipais nesta etapa.
 - Consulta pontual por NSU no ADN não foi implementada (não confirmada na documentação lida).
@@ -211,8 +213,11 @@ Variáveis no `.env` do servidor:
 MONITOR_FISCAL_AMBIENTE_PADRAO=1
 MONITOR_FISCAL_AMBIENTES_PERMITIDOS=1,2
 MONITOR_FISCAL_CHAVE_CRIPTOGRAFIA=<gerar com: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
-# Opcional: cadeia de ACs em PEM caso o bundle padrão não valide os servidores governamentais
-MONITOR_FISCAL_CA_BUNDLE=/opt/apps/web_sistema_inovar/chaves/cadeia-icp-brasil.pem
+# Bundle de ACs em PEM usado no lugar do padrão. Necessário para o MDF-e (SVRS usa certificado
+# SSL da Raiz Brasileira v10). Montar com o certifi do venv + raízes v5, v10 e v11 do ITI
+# (https://acraiz.icpbrasil.gov.br/credenciadas/RAIZ/ICP-Brasilv{5,10,11}.crt, DER -> PEM).
+# Como substitui o bundle padrão, regerar quando o certifi for atualizado.
+MONITOR_FISCAL_CA_BUNDLE=/opt/apps/web_sistema_inovar/certs/monitor-fiscal-ca.pem
 # Opcionais (padrões entre parênteses)
 MONITOR_FISCAL_TIMEOUT=60
 MONITOR_FISCAL_INTERVALO_SEM_DOCUMENTOS_MIN=60
@@ -265,8 +270,8 @@ Usar uma empresa com certificado A1 próprio (mesmo CNPJ raiz). Começar em **ho
 4. Repetir a sincronização: deve ser recusada localmente pelo intervalo de 1 hora (sem requisição).
 5. Se houver resumo de NF-e em homologação, transmitir Ciência e conferir cStat 135/136 e
    protocolo; na sincronização seguinte (após 1 h) o XML completo deve substituir o resumo.
-6. NFS-e: em produção restrita, abrir o Swagger com o certificado instalado no navegador e conferir
-   parâmetros e campos (seção 3.4). Ajustar `MONITOR_FISCAL_ADN_PARAM_*` se necessário e sincronizar.
+6. NFS-e: sincronizar em produção restrita. Esperado: `NENHUM_DOCUMENTO_LOCALIZADO` ou lote de
+   documentos (contrato conferido, seção 3.4).
 8. Registrar o resultado e só então atualizar `situacao_integracoes()` em `monitor_fiscal/views.py`
    (exibida na Visão geral) para “validada em homologação”. Repetir em produção com uma empresa piloto.
 
@@ -306,7 +311,13 @@ de teste gerado na hora (`monitor_fiscal/tests/utils.py`). Mapeamento dos cenár
 
 ## 9. Limitações conhecidas e pendências
 
-- **Nenhuma validação real ainda** (seção 7).
+- **Homologação do Ambiente Nacional recusa alguns certificados (HTTP 403).** Em 26/11/2026,
+  `hom.nfe`, `hom1.nfe` e `hom1.cte.fazenda.gov.br` pediram o certificado por renegociação TLS,
+  receberam-no (Certificate + CertificateVerify concluídos) e responderam 403 do IIS, enquanto
+  `www1.nfe`/`www1.cte` (produção) aceitaram o mesmo certificado e o mesmo código. É restrição do
+  servidor de homologação para a cadeia do certificado (AC SyngularID Múltipla / Raiz v5), não do
+  sistema. Alternativas: testar em homologação com certificado de outra AC, ou validar em produção
+  com uma empresa piloto respeitando o intervalo de 1 hora.
 - **XSD:** os schemas oficiais não estão embarcados; a validação atual é estrutural (leiaute,
   chave com DV, protocolo, ambiente). Próximo passo: incluir os pacotes de schemas vigentes e
   validar com `lxml.etree.XMLSchema`.
@@ -319,6 +330,8 @@ de teste gerado na hora (`monitor_fiscal/tests/utils.py`). Mapeamento dos cenár
   (próxima consulta permitida); não usa `consChNFe` para isso.
 - **Outro sistema consultando o mesmo CNPJ** consome a mesma sequência; o sistema registra
   inconsistência quando recebe rejeição de NSU superior (589/493), mas não detecta todos os casos.
-- **Procuração eletrônica:** não implementada (não confirmada para os serviços de distribuição).
+- **Procuração eletrônica:** não implementada para NF-e/CT-e (não há previsão nos serviços de
+  distribuição). No ADN a procuração é aceita pelo próprio serviço (seção 3.4), mas o sistema ainda
+  exige certificado do mesmo CNPJ raiz.
 - Fora do escopo desta etapa (estrutura preparada via campo `fontes`/`FONTE_CHOICES`): coletor
   local, pastas, ERP, e-mail, prefeituras, emissão, apuração.

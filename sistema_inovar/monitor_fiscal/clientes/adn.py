@@ -8,13 +8,12 @@ v1.0 (12/02/2026):
     CNPJ raiz do contribuinte consultado; para a consulta por NSU existe um
     parâmetro adicional para informar o CNPJ consultado.
 
-PENDENTE DE CONFIRMAÇÃO NO SWAGGER (o servidor exige certificado cliente já no
-handshake TLS e não pôde ser lido sem um certificado válido):
-  - nome exato do parâmetro do CNPJ consultado (adotado: "cnpjConsulta");
-  - parâmetro de lote (adotado: "lote=true");
-  - nomes dos campos JSON da resposta. O interpretador abaixo aceita as grafias
-    conhecidas em PascalCase e camelCase e registra o JSON bruto quando não
-    reconhece a estrutura, sem descartar a resposta.
+Conferido no Swagger oficial (/contribuintes/swagger/v1/swagger.json) em 26/11/2026:
+  - NSU do caminho é exclusivo; query "cnpjConsulta" (14 dígitos), "cpfConsulta" e "lote";
+  - resposta em PascalCase: StatusProcessamento, LoteDFe[] (NSU, ChaveAcesso, TipoDocumento,
+    TipoEvento, ArquivoXml gzip+base64, DataHoraGeracao), Alertas, Erros, TipoConsulta;
+  - HTTP 404 = nenhum documento; 400 = rejeição (detalhes em Erros).
+O interpretador também aceita camelCase por tolerância e preserva o JSON bruto.
 Os nomes podem ser ajustados por MONITOR_FISCAL_ADN_PARAMETROS sem alterar código.
 """
 from dataclasses import dataclass, field

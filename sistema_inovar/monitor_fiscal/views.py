@@ -85,19 +85,19 @@ def situacao_integracoes():
     """Estado declarado de cada integração. Atualize somente após validação real."""
     return [
         {'fonte': c.FONTE_AN_NFE, 'nome': 'NF-e (NFeDistribuicaoDFe)', 'implementada': True,
-         'homologacao': 'não validada', 'producao': 'não validada',
+         'homologacao': 'certificado recusado (HTTP 403) pelo servidor de homologação do AN', 'producao': 'conexão aceita; consulta não validada',
          'observacao': 'Distribui documentos de interesse por até 90 dias; não inclui NF-e emitidas pela própria empresa.'},
         {'fonte': 'MANIFESTACAO', 'nome': 'Manifestação do destinatário (NFeRecepcaoEvento4 - AN)', 'implementada': True,
-         'homologacao': 'não validada', 'producao': 'não validada', 'observacao': ''},
+         'homologacao': 'certificado recusado (HTTP 403) pelo servidor de homologação do AN', 'producao': 'não validada', 'observacao': ''},
         {'fonte': c.FONTE_AN_CTE, 'nome': 'CT-e (CTeDistribuicaoDFe)', 'implementada': True,
-         'homologacao': 'não validada', 'producao': 'não validada',
+         'homologacao': 'certificado recusado (HTTP 403) pelo servidor de homologação do AN', 'producao': 'conexão aceita; consulta não validada',
          'observacao': 'Não distribui CT-e emitidos pela própria empresa.'},
         {'fonte': c.FONTE_ADN_NFSE, 'nome': 'NFS-e (ADN - API de Contribuintes)', 'implementada': True,
-         'homologacao': 'não validada', 'producao': 'não validada',
-         'observacao': 'Parâmetros e campos JSON pendentes de confirmação no Swagger oficial (exige certificado). '
+         'homologacao': 'validada', 'producao': 'não validada',
+         'observacao': 'Contrato conferido no Swagger oficial; consulta real em produção restrita concluída. '
                        'Cobertura depende da adesão do município ao padrão nacional.'},
         {'fonte': c.FONTE_AN_MDFE, 'nome': 'MDF-e (MDFeDistribuicaoDFe)', 'implementada': True,
-         'homologacao': 'não validada', 'producao': 'não validada',
+         'homologacao': 'conexão TLS ok; consulta não validada', 'producao': 'não validada',
          'observacao': 'Distribui somente a autorizados no XML, contratantes e proprietários de veículos. Opcional.'},
     ]
 
