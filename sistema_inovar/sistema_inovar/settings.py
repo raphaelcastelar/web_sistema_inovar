@@ -217,6 +217,12 @@ WKHTMLTOPDF_PATH = config('WKHTMLTOPDF_PATH', default='/usr/bin/wkhtmltopdf')
 # Monitor Fiscal - captura direta nos serviços oficiais (SEFAZ/AN, ADN NFS-e).
 # Chave Fernet obrigatória para armazenar certificados digitais (nunca versionar).
 MONITOR_FISCAL_CHAVE_CRIPTOGRAFIA = config('MONITOR_FISCAL_CHAVE_CRIPTOGRAFIA', default='')
+# Ambiente fiscal da SEFAZ: 1 = produção, 2 = homologação. A instalação de homologação
+# do sistema deve usar AMBIENTE_PADRAO=2 e AMBIENTES_PERMITIDOS=2.
+MONITOR_FISCAL_AMBIENTE_PADRAO = config('MONITOR_FISCAL_AMBIENTE_PADRAO', default=1, cast=int)
+MONITOR_FISCAL_AMBIENTES_PERMITIDOS = [
+    int(valor) for valor in csv_config('MONITOR_FISCAL_AMBIENTES_PERMITIDOS', default='1,2') if valor.isdigit()
+]
 # Cadeia de ACs para validar os servidores governamentais (ex.: cadeia ICP-Brasil em PEM).
 MONITOR_FISCAL_CA_BUNDLE = config('MONITOR_FISCAL_CA_BUNDLE', default='')
 MONITOR_FISCAL_TIMEOUT = config('MONITOR_FISCAL_TIMEOUT', default=60, cast=int)

@@ -19,7 +19,7 @@ Módulo de captura, central e auditoria de documentos fiscais eletrônicos da IN
 |---|---|---|---|---|
 | NF-e — NFeDistribuicaoDFe (distNSU, consNSU, consChNFe) | Sim | Sim | Não validada | Não validada |
 | Manifestação do destinatário — NFeRecepcaoEvento4 (AN) | Sim | Sim | Não validada | Não validada |
-| CT-e — CTeDistribuicaoDFe (distNSU, consNSU) | Sim | Sim | URL não publicada (ver 3.3) | Não validada |
+| CT-e — CTeDistribuicaoDFe (distNSU, consNSU) | Sim | Sim | Não validada | Não validada |
 | NFS-e — ADN API de Contribuintes (GET /DFe/{NSU}) | Sim, com pendências de confirmação (3.4) | Sim | Não validada | Não validada |
 | MDF-e — MDFeDistribuicaoDFe | Sim (opcional, desligado por padrão) | Parcial (montagem/parsing) | Não validada | Não validada |
 | Importação manual (XML/ZIP) | Sim | Sim | n/a | n/a |
@@ -97,9 +97,8 @@ Fontes consultadas em 24/11/2026.
 
 - Produção: `https://www1.cte.fazenda.gov.br/CTeDistribuicaoDFe/CTeDistribuicaoDFe.asmx`
   (Portal Nacional do CT-e, “Relação de Serviços Web”).
-- **Homologação: não publicada na relação consultada.** Configure
-  `MONITOR_FISCAL_CTE_DISTRIBUICAO_HOMOLOGACAO` após confirmar no Portal de Homologação do CT-e.
-  Sem isso, a consulta em homologação é recusada com mensagem explícita.
+- Homologação: `https://hom1.cte.fazenda.gov.br/CTeDistribuicaoDFe/CTeDistribuicaoDFe.asmx`
+  (Portal de Homologação do CT-e, “Relação de Serviços Web”, conferido em 26/11/2026).
 - Método `cteDistDFeInteresse`, `distDFeInt` versão 1.00; somente `distNSU` e `consNSU`;
   consumo indevido = 656; disponibilidade de 3 meses; CT-e emitidos pela própria empresa não são
   distribuídos; para terceiros (`autXML`) as chaves relacionadas vêm mascaradas com 44 noves.
@@ -206,6 +205,11 @@ Pontos centrais:
 Variáveis no `.env` do servidor:
 
 ```
+# Ambiente fiscal da SEFAZ que a instalação usa (1 = produção, 2 = homologação).
+# Instalação de homologação do sistema: AMBIENTE_PADRAO=2 e AMBIENTES_PERMITIDOS=2.
+# Produção: AMBIENTE_PADRAO=1 e AMBIENTES_PERMITIDOS=1 (ou 1,2 para permitir testes).
+MONITOR_FISCAL_AMBIENTE_PADRAO=1
+MONITOR_FISCAL_AMBIENTES_PERMITIDOS=1,2
 MONITOR_FISCAL_CHAVE_CRIPTOGRAFIA=<gerar com: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
 # Opcional: cadeia de ACs em PEM caso o bundle padrão não valide os servidores governamentais
 MONITOR_FISCAL_CA_BUNDLE=/opt/apps/web_sistema_inovar/chaves/cadeia-icp-brasil.pem
@@ -221,6 +225,10 @@ MONITOR_FISCAL_CTE_DISTRIBUICAO_HOMOLOGACAO=
 MONITOR_FISCAL_ADN_PARAM_CNPJ=cnpjConsulta
 MONITOR_FISCAL_ADN_PARAM_LOTE=lote
 ```
+
+`MONITOR_FISCAL_AMBIENTES_PERMITIDOS` restringe toda comunicação com a SEFAZ/ADN (sincronização,
+consulta pontual e manifestação) e as opções de configuração. A visualização de documentos não é
+restrita: XMLs reais importados manualmente (tpAmb=1) continuam acessíveis pelo filtro “Produção”.
 
 Atenção: `sistema_inovar/settings.py` está no `.gitignore` mas é rastreado pelo git; as novas
 configurações foram adicionadas a ele e precisam chegar ao servidor.
@@ -259,7 +267,6 @@ Usar uma empresa com certificado A1 próprio (mesmo CNPJ raiz). Começar em **ho
    protocolo; na sincronização seguinte (após 1 h) o XML completo deve substituir o resumo.
 6. NFS-e: em produção restrita, abrir o Swagger com o certificado instalado no navegador e conferir
    parâmetros e campos (seção 3.4). Ajustar `MONITOR_FISCAL_ADN_PARAM_*` se necessário e sincronizar.
-7. CT-e: confirmar a URL de homologação no portal do CT-e antes de testar.
 8. Registrar o resultado e só então atualizar `situacao_integracoes()` em `monitor_fiscal/views.py`
    (exibida na Visão geral) para “validada em homologação”. Repetir em produção com uma empresa piloto.
 
