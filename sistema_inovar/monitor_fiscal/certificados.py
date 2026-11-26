@@ -160,7 +160,7 @@ def analisar_certificado(conteudo: bytes, senha: str) -> InfoCertificado:
         autenticacao_cliente = False
 
     info = InfoCertificado(
-        titular=_nome(cert.subject),
+        titular=re.sub(r':\d{11,14}$', '', _nome(cert.subject)).strip(),
         cnpj=cnpj,
         cpf=cpf,
         emissor=_nome(cert.issuer),

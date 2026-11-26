@@ -60,9 +60,8 @@ FONTE_POR_TIPO = {
 # NFeDistribuicaoDFe (AN): relação de Web Services do AN publicada pela SEFAZ-SP
 # (portal.fazenda.sp.gov.br/servicos/nfe/Paginas/URL-WEBSERVICES.aspx).
 # NFeRecepcaoEvento4 (AN): mesma relação.
-# CTeDistribuicaoDFe: Portal Nacional do CT-e (www.cte.fazenda.gov.br/portal/webServices.aspx).
-#   O portal não lista a URL de homologação; ela deve ser configurada após
-#   confirmação no Portal de Homologação do CT-e (hom.cte.fazenda.gov.br).
+# CTeDistribuicaoDFe: Portal Nacional do CT-e (www.cte.fazenda.gov.br/portal/webServices.aspx)
+#   e Portal de Homologação do CT-e (hom.cte.fazenda.gov.br/portal/webServices.aspx).
 # MDFeDistribuicaoDFe: MOC MDF-e, item 11 (moc.sped.fazenda.pr.gov.br/MDFe/MDFeDistribuicaoDFe.html).
 # ADN NFS-e: Manual dos Contribuintes v1.0 (12/02/2026) e relação de APIs gov.br/nfse.
 ENDPOINTS = {
@@ -76,7 +75,8 @@ ENDPOINTS = {
     },
     'CTE_DISTRIBUICAO': {
         PRODUCAO: 'https://www1.cte.fazenda.gov.br/CTeDistribuicaoDFe/CTeDistribuicaoDFe.asmx',
-        HOMOLOGACAO: '',  # não publicado na relação consultada: configurar via settings
+        # Portal de Homologação do CT-e (hom.cte.fazenda.gov.br/portal/webServices.aspx), conferido em 26/11/2026.
+        HOMOLOGACAO: 'https://hom1.cte.fazenda.gov.br/CTeDistribuicaoDFe/CTeDistribuicaoDFe.asmx',
     },
     'MDFE_DISTRIBUICAO': {
         PRODUCAO: 'https://mdfe.svrs.rs.gov.br/WS/MDFeDistribuicaoDFe/MDFeDistribuicaoDFe.asmx',

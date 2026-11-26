@@ -63,6 +63,12 @@ class ConfiguracaoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Informe uma lista de dias entre 1 e 365.')
         return sorted(set(valor), reverse=True)
 
+    def validate_ambiente(self, valor):
+        from .ambiente import ambiente_permitido, mensagem_bloqueio
+        if not ambiente_permitido(valor):
+            raise serializers.ValidationError(mensagem_bloqueio(valor))
+        return valor
+
     def validate_codigo_uf(self, valor):
         if valor and (not valor.isdigit() or len(valor) != 2):
             raise serializers.ValidationError('Código IBGE da UF com 2 dígitos.')

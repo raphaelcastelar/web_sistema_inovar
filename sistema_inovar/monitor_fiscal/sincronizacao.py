@@ -22,6 +22,7 @@ from django.utils import timezone
 from . import alertas
 from . import constantes as c
 from .certificados import analisar_certificado, compatibilidade_contribuinte
+from .ambiente import ambiente_permitido, ambientes_permitidos, mensagem_bloqueio
 from .clientes import adn
 from .clientes.sefaz import ClienteDistribuicao, formatar_nsu
 from .clientes.transporte import ComunicacaoError, TransporteMTLS
@@ -363,6 +364,8 @@ def sincronizar(controle, origem='automatica', usuario=None, transporte=None):
         raise SincronizacaoNaoPermitidaError('Monitoramento desta fonte está desabilitado para a empresa.')
     if config.ambiente != controle.ambiente:
         raise SincronizacaoNaoPermitidaError('Controle pertence a outro ambiente fiscal.')
+    if not ambiente_permitido(controle.ambiente):
+        raise SincronizacaoNaoPermitidaError(mensagem_bloqueio(controle.ambiente))
     verificar_permissao_consulta(controle)
 
     erro_certificado = _validar_certificado(config, controle)
@@ -438,6 +441,8 @@ def consulta_pontual(controle, *, nsu=None, chave=None, usuario=None, transporte
     if chave and controle.fonte != c.FONTE_AN_NFE:
         raise SincronizacaoNaoPermitidaError('Consulta por chave disponível somente para NF-e (consChNFe).')
     agora = timezone.now()
+    if not ambiente_permitido(controle.ambiente):
+        raise SincronizacaoNaoPermitidaError(mensagem_bloqueio(controle.ambiente))
     if controle.bloqueado_ate and controle.bloqueado_ate > agora:
         raise SincronizacaoNaoPermitidaError('Fonte bloqueada por consumo indevido.')
     limite = _cfg('MONITOR_FISCAL_CONSULTAS_PONTUAIS_POR_HORA', 20)
@@ -491,7 +496,7 @@ def controles_pendentes(agora=None):
         Q(bloqueado_ate__isnull=True) | Q(bloqueado_ate__lte=agora),
         Q(proxima_consulta_em__isnull=True) | Q(proxima_consulta_em__lte=agora),
         Q(executando_desde__isnull=True) | Q(executando_desde__lt=agora - duracao_trava()),
-    ).filter(ambiente=models_ambiente_config()).order_by('proxima_consulta_em')
+    ).filter(ambiente=models_ambiente_config(), ambiente__in=ambientes_permitidos()).order_by('proxima_consulta_em')
 
 
 def models_ambiente_config():

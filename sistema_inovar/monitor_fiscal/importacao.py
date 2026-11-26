@@ -11,6 +11,7 @@ from .processador import processar_conteudo, somente_digitos
 from .seguranca import (
     XMLInseguroError, XMLMalformadoError, ZipInseguroError, extrair_xmls_zip, parse_xml_seguro,
 )
+from .ambiente import ambiente_padrao
 from .auditoria_log import registrar
 
 
@@ -91,7 +92,7 @@ def importar(arquivos, *, usuario, empresas_queryset, empresa_escolhida=None):
                                'motivo': 'Nenhuma empresa autorizada participa do documento; requer análise manual.'})
             return
         for empresa in empresas:
-            ambiente = interpretado.ambiente or ambientes.get(empresa.pk, c.PRODUCAO)
+            ambiente = interpretado.ambiente or ambientes.get(empresa.pk, ambiente_padrao())
             with transaction.atomic():
                 resultado = processar_conteudo(
                     conteudo, fonte=c.FONTE_IMPORTACAO, ambiente=ambiente, empresa=empresa, usuario=usuario,

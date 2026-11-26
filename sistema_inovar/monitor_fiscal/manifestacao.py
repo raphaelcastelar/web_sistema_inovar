@@ -38,6 +38,9 @@ def validar_manifestacao(documento, tipo_evento, justificativa='', certificado=N
         raise ManifestacaoNaoPermitidaError('Tipo de evento de manifestação inválido.')
     if documento.tipo_documento != c.TIPO_NFE:
         raise ManifestacaoNaoPermitidaError('Manifestação do destinatário aplica-se somente à NF-e.')
+    from .ambiente import ambiente_permitido, mensagem_bloqueio
+    if not ambiente_permitido(documento.ambiente):
+        raise ManifestacaoNaoPermitidaError(mensagem_bloqueio(documento.ambiente))
     if not validar_chave_44(documento.chave) or documento.chave[20:22] != '55':
         raise ManifestacaoNaoPermitidaError('Chave de acesso inválida ou não corresponde a NF-e modelo 55.')
     if documento.situacao_manifestacao == 'nao_aplicavel':

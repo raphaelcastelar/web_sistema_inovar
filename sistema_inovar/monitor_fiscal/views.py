@@ -22,6 +22,7 @@ from empresas.models import Empresa
 from . import alertas as modulo_alertas
 from . import constantes as c
 from . import exportacao, importacao, manifestacao, sincronizacao
+from .ambiente import ambiente_padrao, ambientes_permitidos
 from .auditoria import auditar_empresa
 from .auditoria_log import registrar
 from .certificados import CertificadoInvalidoError, analisar_certificado, compatibilidade_contribuinte, validar_para_uso
@@ -60,7 +61,9 @@ def _empresa_autorizada(request, empresa_id):
 
 
 def _config(empresa):
-    config, _ = ConfiguracaoMonitorFiscal.objects.get_or_create(empresa=empresa)
+    config, _ = ConfiguracaoMonitorFiscal.objects.get_or_create(
+        empresa=empresa, defaults={'ambiente': ambiente_padrao()},
+    )
     return config
 
 
@@ -73,6 +76,8 @@ def minhas_permissoes(request):
     return Response({
         'permissoes': permissoes_do_usuario(request.user),
         'integracoes': situacao_integracoes(),
+        'ambiente_padrao': ambiente_padrao(),
+        'ambientes_permitidos': ambientes_permitidos(),
     })
 
 
@@ -85,7 +90,7 @@ def situacao_integracoes():
         {'fonte': 'MANIFESTACAO', 'nome': 'Manifestação do destinatário (NFeRecepcaoEvento4 - AN)', 'implementada': True,
          'homologacao': 'não validada', 'producao': 'não validada', 'observacao': ''},
         {'fonte': c.FONTE_AN_CTE, 'nome': 'CT-e (CTeDistribuicaoDFe)', 'implementada': True,
-         'homologacao': 'endereço de homologação não publicado na relação consultada', 'producao': 'não validada',
+         'homologacao': 'não validada', 'producao': 'não validada',
          'observacao': 'Não distribui CT-e emitidos pela própria empresa.'},
         {'fonte': c.FONTE_ADN_NFSE, 'nome': 'NFS-e (ADN - API de Contribuintes)', 'implementada': True,
          'homologacao': 'não validada', 'producao': 'não validada',
@@ -397,7 +402,8 @@ def painel_monitoramento(request):
     configs = ConfiguracaoMonitorFiscal.objects.filter(empresa__in=empresas).select_related('certificado')
     ativas = configs.filter(ativo=True)
     controles = ControleSincronizacao.objects.filter(empresa__in=ativas.values('empresa'))
-    docs = DocumentoFiscal.objects.filter(empresa__in=empresas, ambiente=c.PRODUCAO)
+    ambiente = int(request.query_params.get('ambiente') or ambiente_padrao())
+    docs = DocumentoFiscal.objects.filter(empresa__in=empresas, ambiente=ambiente)
     hoje = timezone.localdate()
     S = ControleSincronizacao
     return Response({
@@ -416,6 +422,7 @@ def painel_monitoramento(request):
         'xmls_pendentes': docs.filter(situacao_xml='resumo').count(),
         'manifestacoes_pendentes': docs.filter(situacao_manifestacao__in=['nao_manifestada', 'ciencia']).exclude(situacao_fiscal='cancelado').count(),
         'integracoes': situacao_integracoes(),
+        'ambiente': ambiente,
     })
 
 
@@ -425,7 +432,7 @@ def painel_monitoramento(request):
 def _filtrar_documentos(request):
     p = request.query_params
     qs = DocumentoFiscal.objects.filter(empresa__in=empresas_acessiveis(request.user)).select_related('empresa')
-    qs = qs.filter(ambiente=int(p.get('ambiente') or c.PRODUCAO))
+    qs = qs.filter(ambiente=int(p.get('ambiente') or ambiente_padrao()))
     if p.get('empresa'):
         qs = qs.filter(empresa_id=p['empresa'])
     if p.get('estabelecimento'):
@@ -677,7 +684,8 @@ def dashboard(request):
     empresas = empresas_acessiveis(request.user)
     if request.query_params.get('empresa'):
         empresas = empresas.filter(pk=request.query_params['empresa'])
-    base = DocumentoFiscal.objects.filter(empresa__in=empresas, ambiente=c.PRODUCAO,
+    ambiente = int(request.query_params.get('ambiente') or ambiente_padrao())
+    base = DocumentoFiscal.objects.filter(empresa__in=empresas, ambiente=ambiente,
                                           data_emissao__date__gte=inicio, data_emissao__date__lte=fim)
     validos = base.filter(situacao_fiscal__in=['autorizado', 'encerrado', 'desconhecida'], substituido_por__isnull=True)
 
@@ -700,6 +708,7 @@ def dashboard(request):
     sem_mov = empresas_ativas.exclude(empresa__in=base.values('empresa')).count()
     return Response({
         'periodo': {'inicio': inicio, 'fim': fim},
+        'ambiente': ambiente,
         'aviso_cobertura': exportacao.AVISO_COBERTURA + ' Valores representam movimentação documentada, não '
                            'faturamento fiscal apurado. Ausência de documentos não significa ausência de movimentação.',
         'totais': {
@@ -868,6 +877,8 @@ def alertas(request):
         qs = qs.filter(empresa_id=request.query_params['empresa'])
     if request.query_params.get('tipo'):
         qs = qs.filter(tipo__in=request.query_params['tipo'].split(','))
+    if request.query_params.get('prioridade'):
+        qs = qs.filter(prioridade__in=request.query_params['prioridade'].split(','))
     paginador = Paginacao()
     pagina = paginador.paginate_queryset(qs.select_related('empresa'), request)
     return paginador.get_paginated_response(AlertaSerializer(pagina, many=True).data)
