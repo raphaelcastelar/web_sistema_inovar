@@ -167,7 +167,7 @@ class SincronizacaoNFeTests(MonitorFiscalTestCase):
             sincronizacao.sincronizar(self.controle_nfe, transporte=utils.TransporteFalso([]))
 
     def test_empresas_diferentes_sincronizam_independentemente(self):  # cenário 23
-        outra = Empresa.objects.create(nome='OUTRA', cnpj='11.222.333/0002-62')
+        outra = Empresa.objects.create(nome='OUTRA', cnpj='11.222.333/0002-62', uf='SP')
         config = ConfiguracaoMonitorFiscal.objects.create(empresa=outra, ativo=True, certificado=self.certificado,
                                                           monitorar_nfse=False, monitorar_cte=False)
         controle_outra = {ct.fonte: ct for ct in sincronizacao.garantir_controles(config)}[c.FONTE_AN_NFE]

@@ -356,6 +356,26 @@ def _ciclo_adn(controle, cliente, execucao, usuario):
 # --- Execução -------------------------------------------------------------------
 
 
+def codigo_uf_autor(config):
+    """cUFAutor: código configurado no Monitor ou, na falta, a UF do cadastro da empresa."""
+    codigo = somente_digitos(config.codigo_uf or '')
+    if codigo:
+        return codigo
+    sigla = (getattr(config.empresa, 'uf', '') or '').strip().upper()
+    return c.CODIGO_UF_POR_SIGLA.get(sigla, '')
+
+
+def _exigir_uf(config, controle):
+    if controle.fonte == c.FONTE_ADN_NFSE:
+        return ''
+    codigo = codigo_uf_autor(config)
+    if not codigo:
+        raise SincronizacaoNaoPermitidaError(
+            'Informe a UF da empresa (cadastro ou configuração do Monitor Fiscal) para consultar a SEFAZ.'
+        )
+    return codigo
+
+
 def sincronizar(controle, origem='automatica', usuario=None, transporte=None):
     """Executa a sincronização de um controle. Retorna ExecucaoSincronizacao."""
     controle.refresh_from_db()
@@ -367,6 +387,7 @@ def sincronizar(controle, origem='automatica', usuario=None, transporte=None):
     if not ambiente_permitido(controle.ambiente):
         raise SincronizacaoNaoPermitidaError(mensagem_bloqueio(controle.ambiente))
     verificar_permissao_consulta(controle)
+    cuf_autor = _exigir_uf(config, controle)
 
     erro_certificado = _validar_certificado(config, controle)
     if erro_certificado:
@@ -390,7 +411,7 @@ def sincronizar(controle, origem='automatica', usuario=None, transporte=None):
             sucesso = _ciclo_adn(controle, adn.ClienteADN(transporte, controle.ambiente), execucao, usuario)
         else:
             cliente = ClienteDistribuicao(controle.fonte, transporte, controle.ambiente)
-            sucesso = _ciclo_sefaz(controle, cliente, execucao, config.codigo_uf, usuario)
+            sucesso = _ciclo_sefaz(controle, cliente, execucao, cuf_autor, usuario)
         execucao.sucesso = sucesso
     except ComunicacaoError as exc:
         _registrar_erro(controle, ControleSincronizacao.SITUACAO_INDISPONIVEL, str(exc), '', None, 'indisponibilidade'
@@ -456,12 +477,13 @@ def consulta_pontual(controle, *, nsu=None, chave=None, usuario=None, transporte
         bloqueado.consultas_pontuais_na_janela += 1
         bloqueado.save(update_fields=['consultas_pontuais_janela_inicio', 'consultas_pontuais_na_janela'])
     controle.refresh_from_db()
-    config = ConfiguracaoMonitorFiscal.objects.select_related('certificado').get(empresa=controle.empresa)
+    config = ConfiguracaoMonitorFiscal.objects.select_related('certificado', 'empresa').get(empresa=controle.empresa)
+    cuf_autor = _exigir_uf(config, controle)
     erro_certificado = _validar_certificado(config, controle)
     if erro_certificado:
         raise SincronizacaoNaoPermitidaError(erro_certificado)
     cliente = ClienteDistribuicao(controle.fonte, transporte or TransporteMTLS(config.certificado), controle.ambiente)
-    retorno = cliente.consultar(cnpj=controle.cnpj_consultado, cuf_autor=config.codigo_uf, nsu=nsu, chave=chave)
+    retorno = cliente.consultar(cnpj=controle.cnpj_consultado, cuf_autor=cuf_autor, nsu=nsu, chave=chave)
     controle.ultima_consulta_em = agora
     controle.ultimo_cstat = retorno.cstat
     controle.ultima_mensagem = f'Consulta pontual: {retorno.motivo}'[:2000]
