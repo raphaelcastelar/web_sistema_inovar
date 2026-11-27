@@ -26,6 +26,7 @@ import GerenciamentoIntegrado from './components/GerenciamentoIntegrado';
 import CentralDoSimples from './components/CentralDoSimples';
 import CentralDctfWeb from './components/CentralDctfWeb';
 import CentralParcelamentoSimples from './components/CentralParcelamentoSimples';
+import CentralSituacaoFiscal from './components/CentralSituacaoFiscal';
 import BoletoMonitorPage from './components/BoletoMonitorPage';
 import BoletosPorEmpresaPage from './components/BoletosPorEmpresaPage';
 import InadimplenciaBoletosPage from './components/InadimplenciaBoletosPage';
@@ -73,6 +74,7 @@ function App() {
             <Route path="/central-simples" element={<PageGate pageKey="central_das"><CentralDoSimples /></PageGate>} />
             <Route path="/central-dctfweb" element={<PageGate pageKey="central_dctfweb"><CentralDctfWeb /></PageGate>} />
             <Route path="/parcelamento-simples" element={<PageGate pageKey="parcelamento_simples"><CentralParcelamentoSimples /></PageGate>} />
+            <Route path="/situacao-fiscal" element={<PageGate pageKey="situacao_fiscal"><CentralSituacaoFiscal /></PageGate>} />
             <Route path="/gerar-das" element={<Navigate to="/central-simples" replace />} />
             <Route path="/consultar-extrato" element={<Navigate to="/central-simples" replace />} />
             <Route path="/monitor-boletos" element={<PageGate pageKey="monitor_boletos"><BoletoMonitorPage /></PageGate>} />

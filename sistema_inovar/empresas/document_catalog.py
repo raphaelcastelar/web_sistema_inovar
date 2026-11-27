@@ -20,6 +20,7 @@ DOCUMENT_TYPE_CATALOG = (
     ('extrato_simples', 'Extrato do Simples Nacional', 'fiscal', 'fiscal_extratos', 'mensal'),
     ('recibo_simples', 'Declaração/recibo do Simples Nacional', 'fiscal', 'fiscal_extratos', 'mensal'),
     ('guia_parcelamento_simples', 'Guia de parcelamento do Simples', 'fiscal', 'fiscal_guias', 'mensal'),
+    ('situacao_fiscal', 'Relatório de Situação Fiscal', 'fiscal', 'fiscal_extratos', 'eventual'),
     ('xml_fiscal', 'Arquivo fiscal XML', 'fiscal', 'fiscal_xml', 'mensal'),
     ('documento_fiscal', 'Outro documento fiscal', 'fiscal', 'fiscal_declaracoes', 'anual'),
     ('balanco_anual', 'Balanço anual', 'contabil', 'contabil_balanco_anual', 'anual'),

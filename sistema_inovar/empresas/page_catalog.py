@@ -40,6 +40,7 @@ PAGE_CATALOG = [
     {'chave': 'dashboard', 'nome': 'Dashboard', 'rota': '/dashboard', 'secao': 'Controle', 'descricao': 'Resumo e indicadores do sistema.'},
     {'chave': 'pendencias', 'nome': 'Pendências', 'rota': '/pendencias', 'secao': 'Controle', 'descricao': 'Alertas, vencimentos e tarefas.'},
     {'chave': 'gerenciamento_simples', 'nome': 'Gerenciamento do Simples', 'rota': '/gerenciamento/simples-nacional', 'secao': 'Fiscal', 'descricao': 'Configuração do monitoramento do Simples Nacional.'},
+    {'chave': 'situacao_fiscal', 'nome': 'Situação Fiscal', 'rota': '/situacao-fiscal', 'secao': 'Fiscal', 'descricao': 'Relatório de Situação Fiscal (e-CAC) das empresas pelo Integra Contador.'},
 ]
 
 NAVBAR_SECTIONS = ('Principal', 'Cadastros', 'Arquivo', 'Fiscal', 'Pessoal', 'Financeiro', 'Documentos', 'Controle')
