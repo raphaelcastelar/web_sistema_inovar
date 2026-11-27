@@ -31,6 +31,12 @@ from .views import (
     atualizar_pagina_acesso,
 )
 
+from .sitfis_views import (
+    baixar_situacao_fiscal_api,
+    emitir_situacao_fiscal_api,
+    ultimas_situacoes_fiscais_api,
+)
+
 urlpatterns = [
     path('enviar-email/', enviar_email, name='enviar_email'),
     path('enviar-documentos-whatsapp/', enviar_documentos_whatsapp_api, name='enviar_documentos_whatsapp'),
@@ -42,6 +48,9 @@ urlpatterns = [
     path('serpro/dctfweb/<str:id_servico>/', documento_dctfweb_api, name='documento_dctfweb_api'),
     path('serpro/parcsn/parcelas/', consultar_parcelas_parcsn_api, name='consultar_parcelas_parcsn_api'),
     path('serpro/parcsn/gerar-das/', gerar_das_parcsn_api, name='gerar_das_parcsn_api'),
+    path('serpro/sitfis/emitir/', emitir_situacao_fiscal_api, name='emitir_situacao_fiscal_api'),
+    path('serpro/sitfis/ultimos/', ultimas_situacoes_fiscais_api, name='ultimas_situacoes_fiscais_api'),
+    path('serpro/sitfis/documento/<int:documento_id>/', baixar_situacao_fiscal_api, name='baixar_situacao_fiscal_api'),
     path('dashboard-summary/', dashboard_summary_api, name='dashboard_summary_api'),
     path('gerenciamento-simples/', gerenciamento_simples_api, name='gerenciamento_simples'),
     path('empresas/<int:empresa_id>/toggle-monitoramento-simples/', toggle_monitoramento_simples, name='toggle_monitoramento_simples'),

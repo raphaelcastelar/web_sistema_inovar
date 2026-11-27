@@ -373,3 +373,79 @@ def save_generated_fiscal_document(cnpj, periodo, document_type, file_content):
     )
     return saved_document
 
+
+
+SITUACAO_FISCAL_TYPE = {
+    'codigo': 'situacao_fiscal',
+    'nome': 'Relatório de Situação Fiscal',
+    'categoria': 'fiscal',
+    'folder_key': 'fiscal_extratos',
+    'periodicidade': 'eventual',
+}
+
+
+def situacao_fiscal_filename(cnpj, data):
+    return f"SITUACAO_FISCAL_{re.sub(r'[^0-9]', '', str(cnpj or ''))}_{data:%Y%m%d}.pdf"
+
+
+def tipo_situacao_fiscal():
+    defaults = {key: value for key, value in SITUACAO_FISCAL_TYPE.items() if key != 'codigo'}
+    # Relatório interno do escritório: não é publicado no app do cliente por padrão.
+    defaults['visivel_app_padrao'] = False
+    tipo, _ = TipoDocumento.objects.get_or_create(codigo=SITUACAO_FISCAL_TYPE['codigo'], defaults=defaults)
+    return tipo
+
+
+def find_situacao_fiscal_do_dia(empresa, data=None):
+    """Relatório já emitido hoje para a empresa (evita nova cobrança no SERPRO)."""
+    if not empresa:
+        return None
+    data = data or timezone.localdate()
+    document = DocumentoEmpresa.objects.filter(
+        empresa=empresa,
+        tipo_documento__codigo=SITUACAO_FISCAL_TYPE['codigo'],
+        nome_arquivo=situacao_fiscal_filename(empresa.cnpj, data),
+        status='disponivel',
+    ).order_by('-gerado_em', '-criado_em').first()
+    if not document or not document.caminho_arquivo:
+        return None
+    try:
+        return document if document.caminho_arquivo.storage.exists(document.caminho_arquivo.name) else None
+    except (OSError, ValueError):
+        return None
+
+
+@transaction.atomic
+def save_situacao_fiscal(empresa, pdf_content, user=None, protocolo=''):
+    """Grava o relatório SITFIS em FISCAL/EXTRATOS/AAAA/MM (um arquivo por dia)."""
+    if not isinstance(pdf_content, bytes) or not pdf_content.startswith(b'%PDF'):
+        raise ValueError('O conteúdo retornado não é um PDF válido.')
+    hoje = timezone.localdate()
+    year, month = f'{hoje:%Y}', f'{hoje:%m}'
+    filename = situacao_fiscal_filename(empresa.cnpj, hoje)
+    document_type = tipo_situacao_fiscal()
+    config = SITUACAO_FISCAL_TYPE
+    document = DocumentoEmpresa(
+        empresa=empresa, tipo_documento=document_type, folder_key=config['folder_key'],
+        nome_arquivo=filename, ano=year, mes=month, competencia=f'{year}{month}',
+    )
+    relative_name = document.caminho_arquivo.field.generate_filename(document, filename)
+    if not hasattr(default_storage, 'path') or not hasattr(default_storage, 'location'):
+        raise RuntimeError('O armazenamento configurado não oferece filesystem local.')
+    _atomic_storage_write(default_storage, relative_name, pdf_content)
+
+    saved_document, _ = DocumentoEmpresa.objects.select_for_update().update_or_create(
+        empresa=empresa,
+        folder_key=config['folder_key'],
+        nome_arquivo=filename,
+        ano=year,
+        mes=month,
+        defaults={
+            'caminho_arquivo': relative_name, 'tipo_documento': document_type,
+            'competencia': f'{year}{month}', 'origem': 'api', 'status': 'disponivel',
+            'visivel_no_app': document_type.visivel_app_padrao,
+            'checksum_sha256': hashlib.sha256(pdf_content).hexdigest(),
+            'gerado_em': timezone.now(), 'gerado_por': user if getattr(user, 'is_authenticated', False) else None,
+        },
+    )
+    return saved_document
